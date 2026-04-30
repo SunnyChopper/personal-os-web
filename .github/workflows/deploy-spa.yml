@@ -4,13 +4,16 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - "apps/web/**"
       - "packages/**"
       - "bun.lock"
       - "package.json"
       - ".github/workflows/deploy-spa.yml"
+    tags:
+      - "deploy/dev"
+      - "deploy/prod"
   workflow_dispatch: {}
 
 permissions:
@@ -25,6 +28,7 @@ jobs:
   deploy-dev:
     if: |-
       github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/tags/deploy/dev') ||
       (github.event_name == 'pull_request' &&
        github.repository == github.event.pull_request.head.repo.full_name &&
        contains(github.event.pull_request.labels.*.name, 'deploy-dev'))
@@ -78,7 +82,9 @@ jobs:
             --paths "/admin/index.html" "/admin/*"
 
   deploy-prod:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: |-
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
+      (github.event_name == 'push' && github.ref == 'refs/tags/deploy/prod')
     runs-on: ubuntu-latest
     environment: prod
     steps:
