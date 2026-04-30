@@ -42,8 +42,8 @@ export default function ProductsPage() {
                 and generate business plans efficiently.
               </p>
               <p className="text-gray-700">
-                The backend API runs on AWS (API Gateway, Lambda, and DynamoDB),
-                and the frontend uses React Native and Expo.
+                The backend API runs on AWS (API Gateway, Lambda, and DynamoDB), and the frontend
+                uses React Native and Expo.
               </p>
             </motion.a>
           </div>

@@ -29,13 +29,15 @@ export default function HealthFitnessWorkoutsPage() {
     endDate: today,
   });
 
-  const exercises = exRes?.success ? exRes.data?.data ?? [] : [];
-  const templates = tplRes?.success ? tplRes.data?.data ?? [] : [];
-  const sessions = sessRes?.success ? sessRes.data?.data ?? [] : [];
+  const exercises = exRes?.success ? (exRes.data?.data ?? []) : [];
+  const templates = tplRes?.success ? (tplRes.data?.data ?? []) : [];
+  const sessions = sessRes?.success ? (sessRes.data?.data ?? []) : [];
 
   const sortedSessions = useMemo(
     () =>
-      [...sessions].sort((a, b) => (a.sessionDate < b.sessionDate ? 1 : a.sessionDate > b.sessionDate ? -1 : 0)),
+      [...sessions].sort((a, b) =>
+        a.sessionDate < b.sessionDate ? 1 : a.sessionDate > b.sessionDate ? -1 : 0
+      ),
     [sessions]
   );
 
@@ -43,13 +45,13 @@ export default function HealthFitnessWorkoutsPage() {
 
   const activeSession =
     selectedSessionId != null
-      ? sortedSessions.find((s) => s.id === selectedSessionId) ?? null
-      : sortedSessions.find((s) => s.sessionDate === today) ?? sortedSessions[0] ?? null;
+      ? (sortedSessions.find((s) => s.id === selectedSessionId) ?? null)
+      : (sortedSessions.find((s) => s.sessionDate === today) ?? sortedSessions[0] ?? null);
 
   const sessionId = selectedSessionId ?? activeSession?.id ?? null;
 
   const { data: setsRes } = useFitnessSessionSets(sessionId);
-  const sets = setsRes?.success ? setsRes.data?.data ?? [] : [];
+  const sets = setsRes?.success ? (setsRes.data?.data ?? []) : [];
 
   const createSession = useCreateSessionMutation();
   const updateSession = useUpdateSessionMutation();
@@ -133,7 +135,8 @@ export default function HealthFitnessWorkoutsPage() {
         </div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Sessions & overload</h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Progressive overload hints from your last successful working sets. Story points stay in Growth System.
+          Progressive overload hints from your last successful working sets. Story points stay in
+          Growth System.
         </p>
       </div>
 
@@ -163,7 +166,9 @@ export default function HealthFitnessWorkoutsPage() {
             </button>
           </div>
           <div className="flex flex-1 flex-col gap-2">
-            <span className="text-xs text-gray-600 dark:text-gray-400">New template (toggle exercises)</span>
+            <span className="text-xs text-gray-600 dark:text-gray-400">
+              New template (toggle exercises)
+            </span>
             <input
               className="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
               placeholder="Template name"
@@ -290,7 +295,9 @@ export default function HealthFitnessWorkoutsPage() {
             {overload && addExerciseId && (
               <div className="text-xs text-gray-600 dark:text-gray-400">
                 <div>Suggested weight: {overload.nextSuggestedWeight}</div>
-                <div>Reps {overload.nextSuggestedTargetRepsMin}–{overload.nextSuggestedTargetRepsMax}</div>
+                <div>
+                  Reps {overload.nextSuggestedTargetRepsMin}–{overload.nextSuggestedTargetRepsMax}
+                </div>
                 <div className="mt-1 max-w-md text-[11px]">{overload.recommendationReason}</div>
               </div>
             )}

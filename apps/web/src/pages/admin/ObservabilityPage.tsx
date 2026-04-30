@@ -16,7 +16,11 @@ import { observabilityService } from '@/services/observability.service';
 import { cn } from '@/lib/utils';
 import type { ObservabilityExecutionRow } from '@/types/observability';
 
-const USD = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
+const USD = new Intl.NumberFormat(undefined, {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 4,
+});
 const TAB_ORDER = ['burn', 'executions', 'health'] as const;
 type MainTab = (typeof TAB_ORDER)[number];
 
@@ -55,10 +59,7 @@ export default function ObservabilityPage() {
     [startDate, endDate, moduleFilter, modelFilter, providerFilter]
   );
 
-  const burnBreakdownFilters = useMemo(
-    () => ({ ...burnShared, groupBy }),
-    [burnShared, groupBy]
-  );
+  const burnBreakdownFilters = useMemo(() => ({ ...burnShared, groupBy }), [burnShared, groupBy]);
 
   const summaryQ = useQuery({
     queryKey: queryKeys.observability.burnSummary(burnShared),
@@ -235,7 +236,10 @@ export default function ObservabilityPage() {
               { label: 'Today (USD)', value: USD.format(summaryQ.data?.todayCostUsd ?? 0) },
               { label: 'Last 7d (USD)', value: USD.format(summaryQ.data?.last7dCostUsd ?? 0) },
               { label: 'Tokens', value: summaryQ.data?.totalTokens?.toLocaleString() ?? '—' },
-              { label: 'Avg latency (ms)', value: summaryQ.data?.avgLatencyMs?.toFixed?.(1) ?? '—' },
+              {
+                label: 'Avg latency (ms)',
+                value: summaryQ.data?.avgLatencyMs?.toFixed?.(1) ?? '—',
+              },
               {
                 label: 'Failures',
                 value: `${summaryQ.data?.failedExecutions ?? 0} / ${summaryQ.data?.totalCalls ?? 0}`,
@@ -321,7 +325,9 @@ export default function ObservabilityPage() {
           </div>
 
           <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Burn (daily)</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
+              Burn (daily)
+            </h3>
             {seriesQ.isError ? (
               <p className="text-sm text-red-600">Failed to load timeseries.</p>
             ) : points.length === 0 ? (
@@ -371,7 +377,10 @@ export default function ObservabilityPage() {
               </thead>
               <tbody>
                 {(breakdownQ.data?.rows ?? []).map((r) => (
-                  <tr key={r.key + r.callCount} className="border-b border-gray-100 dark:border-gray-800">
+                  <tr
+                    key={r.key + r.callCount}
+                    className="border-b border-gray-100 dark:border-gray-800"
+                  >
                     <td className="py-2 pr-4 font-mono text-xs">{r.key || '—'}</td>
                     <td className="py-2 pr-4 tabular-nums">{USD.format(r.totalCostUsd)}</td>
                     <td className="py-2 pr-4 tabular-nums">{r.totalTokens.toLocaleString()}</td>
@@ -526,7 +535,9 @@ export default function ObservabilityPage() {
                   }).map(([k, v]) => (
                     <div key={k}>
                       <dt className="text-gray-500">{k}</dt>
-                      <dd className="font-mono text-gray-900 dark:text-gray-100 break-all">{String(v ?? '—')}</dd>
+                      <dd className="font-mono text-gray-900 dark:text-gray-100 break-all">
+                        {String(v ?? '—')}
+                      </dd>
                     </div>
                   ))}
                 </dl>
@@ -584,7 +595,10 @@ export default function ObservabilityPage() {
               <span className="text-sm text-gray-600 dark:text-gray-400">
                 Runs: {healthSummaryQ.data.totalRuns} · Failures: {healthSummaryQ.data.failureCount}
                 {healthSummaryQ.data.lastFailureAt && (
-                  <> · Last failure: {new Date(healthSummaryQ.data.lastFailureAt).toLocaleString()}</>
+                  <>
+                    {' '}
+                    · Last failure: {new Date(healthSummaryQ.data.lastFailureAt).toLocaleString()}
+                  </>
                 )}
               </span>
             )}

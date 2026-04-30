@@ -1,12 +1,12 @@
-import { AskSunnyChat } from "@/components/chat/AskSunnyChat";
-import PageShell from "@/components/layout/PageShell";
-import type { Metadata } from "next";
-import Link from "next/link";
+import { AskSunnyChat } from '@/components/chat/AskSunnyChat';
+import PageShell from '@/components/layout/PageShell';
+import type { Metadata } from 'next';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: "Ask Sunny | AI (public library) | Sunny Singh",
+  title: 'Ask Sunny | AI (public library) | Sunny Singh',
   description:
-    "Ask questions about public notes, changelog, and artifacts on this site. Uses only published material, not a private assistant.",
+    'Ask questions about public notes, changelog, and artifacts on this site. Uses only published material, not a private assistant.',
 };
 
 export default function AskSunnyPage() {
@@ -18,7 +18,9 @@ export default function AskSunnyPage() {
             ← Back to Insights
           </Link>
         </p>
-        <h1 className="font-serif text-4xl font-bold tracking-tight text-gray-900">Ask (public library)</h1>
+        <h1 className="font-serif text-4xl font-bold tracking-tight text-gray-900">
+          Ask (public library)
+        </h1>
         <p className="text-lg text-gray-600">
           Answers are grounded in public content from this site only — not my private Personal OS
           assistant.

@@ -12,7 +12,9 @@ function mondayOfWeek(d: Date) {
 }
 
 export default function MealsPage() {
-  const [weekStart, setWeekStart] = useState(() => mondayOfWeek(new Date()).toISOString().slice(0, 10));
+  const [weekStart, setWeekStart] = useState(() =>
+    mondayOfWeek(new Date()).toISOString().slice(0, 10)
+  );
   const [entries, setEntries] = useState<Record<string, unknown>[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +46,9 @@ export default function MealsPage() {
   }, [entries]);
 
   const setCell = (day: number, slot: string, dishName: string) => {
-    const next = [...entries.filter((e) => !(Number(e.dayOfWeek) === day && String(e.mealSlot) === slot))];
+    const next = [
+      ...entries.filter((e) => !(Number(e.dayOfWeek) === day && String(e.mealSlot) === slot)),
+    ];
     next.push({ dayOfWeek: day, mealSlot: slot, dishName });
     setEntries(next);
   };

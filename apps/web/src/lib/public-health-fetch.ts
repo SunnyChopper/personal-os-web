@@ -44,7 +44,10 @@ export async function fetchPlainHealthMarkdown(): Promise<ApiResponse<MarkdownHe
   try {
     body = text ? JSON.parse(text) : null;
   } catch {
-    return { success: false, error: { message: 'Invalid JSON from /health/markdown', code: 'PARSE' } };
+    return {
+      success: false,
+      error: { message: 'Invalid JSON from /health/markdown', code: 'PARSE' },
+    };
   }
   if (!res.ok) {
     return { success: false, error: { message: `HTTP ${res.status}`, code: 'HTTP' } };

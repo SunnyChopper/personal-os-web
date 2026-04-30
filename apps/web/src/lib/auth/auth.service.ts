@@ -611,7 +611,10 @@ async function reconcileAmplifySessionWithFormEmail(credentials: LoginCredential
       resolvedEmail = cognitoUser.username ?? '';
     }
   } catch (err) {
-    authLogger.warn('Could not inspect Cognito user during already-signed-in reconcile; signing out', err);
+    authLogger.warn(
+      'Could not inspect Cognito user during already-signed-in reconcile; signing out',
+      err
+    );
     await signOut();
     await signIn({
       username: credentials.email,
@@ -630,7 +633,9 @@ async function reconcileAmplifySessionWithFormEmail(credentials: LoginCredential
     return;
   }
 
-  authLogger.info('Existing Cognito session matches requested account; syncing app state from session');
+  authLogger.info(
+    'Existing Cognito session matches requested account; syncing app state from session'
+  );
 }
 
 async function attemptCognitoPasswordSignIn(credentials: LoginCredentials): Promise<void> {

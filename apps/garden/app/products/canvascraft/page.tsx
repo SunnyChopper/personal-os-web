@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
-import Image from "next/image";
-import Link from "next/link";
+import type { Metadata } from 'next';
+import Image from 'next/image';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: "CanvasCraft | Sunny Singh",
+  title: 'CanvasCraft | Sunny Singh',
 };
 
 export default function CanvasCraftProductPage() {
@@ -29,8 +29,8 @@ export default function CanvasCraftProductPage() {
           generate business plans efficiently.
         </p>
         <p className="text-gray-700">
-          The backend API runs on AWS (API Gateway, Lambda, and DynamoDB), and the
-          frontend uses React Native and Expo.
+          The backend API runs on AWS (API Gateway, Lambda, and DynamoDB), and the frontend uses
+          React Native and Expo.
         </p>
       </div>
     </div>

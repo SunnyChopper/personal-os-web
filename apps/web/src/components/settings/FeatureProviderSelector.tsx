@@ -188,7 +188,10 @@ export function FeatureProviderSelector() {
   }, [syncFromFeatureConfig]);
 
   useEffect(() => {
-    if (!modelsForProvider.length || modelsForProvider.some((m) => m.apiModelId === selectedModelId))
+    if (
+      !modelsForProvider.length ||
+      modelsForProvider.some((m) => m.apiModelId === selectedModelId)
+    )
       return;
     setSelectedModelId(modelsForProvider[0].apiModelId);
   }, [modelsForProvider, selectedModelId]);
@@ -253,7 +256,9 @@ export function FeatureProviderSelector() {
         </h3>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Choose provider and model per feature using the live catalog from{' '}
-          <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">GET /assistant/model-catalog</code>
+          <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">
+            GET /assistant/model-catalog
+          </code>
           . Scores are hints for quality, latency, and cost-efficiency.
         </p>
       </div>

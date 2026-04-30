@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import Dialog from "@/components/ui/Dialog";
-import type { Skill } from "@personal-os-web/portfolio-types";
+import Dialog from '@/components/ui/Dialog';
+import type { Skill } from '@personal-os-web/portfolio-types';
 
 interface SkillModalProps {
   skill: Skill | null;

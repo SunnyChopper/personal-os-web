@@ -15,8 +15,7 @@ export const HOSTED_DEV_API_BASE_URL = 'https://dev-api.sunnysingh.tech';
 const CANONICAL_PROD_API_BASE_URL = 'https://api.sunnysingh.tech';
 
 /** Dev WebSocket stage URL; override with `VITE_WS_URL` if your deploy uses a different API id. */
-export const HOSTED_DEV_WS_URL =
-  'wss://wqrazrszmb.execute-api.us-east-1.amazonaws.com/dev';
+export const HOSTED_DEV_WS_URL = 'wss://wqrazrszmb.execute-api.us-east-1.amazonaws.com/dev';
 
 export function getResolvedApiBaseUrl(): string {
   const explicit = import.meta.env.VITE_API_BASE_URL;

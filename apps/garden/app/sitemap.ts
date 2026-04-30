@@ -1,13 +1,13 @@
-import { withClient, getPublicGardenOwnerUserId } from "@/lib/db";
+import { withClient, getPublicGardenOwnerUserId } from '@/lib/db';
 
 export default async function sitemap() {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3040").replace(/\/$/, "");
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3040').replace(/\/$/, '');
   let userId: string;
   try {
     userId = getPublicGardenOwnerUserId();
   } catch {
     return [
-      { url: base + "/", lastModified: new Date() },
+      { url: base + '/', lastModified: new Date() },
       { url: `${base}/insights`, lastModified: new Date() },
       { url: `${base}/products`, lastModified: new Date() },
       { url: `${base}/products/canvascraft`, lastModified: new Date() },
@@ -18,7 +18,7 @@ export default async function sitemap() {
   }
 
   const staticUrls: { url: string; lastModified: Date }[] = [
-    { url: base + "/", lastModified: new Date() },
+    { url: base + '/', lastModified: new Date() },
     { url: `${base}/insights`, lastModified: new Date() },
     { url: `${base}/products`, lastModified: new Date() },
     { url: `${base}/products/canvascraft`, lastModified: new Date() },
@@ -29,12 +29,21 @@ export default async function sitemap() {
 
   try {
     const rows = await withClient(async (c) => {
-      const content = await c.query(`SELECT slug, updated_at FROM public_garden.public_content_items
-        WHERE user_id = $1 AND published = true AND archived_at IS NULL`, [userId]);
-      const changelog = await c.query(`SELECT slug, updated_at FROM public_garden.public_changelog_posts
-        WHERE user_id = $1 AND published = true AND archived_at IS NULL`, [userId]);
-      const artifacts = await c.query(`SELECT slug, updated_at FROM public_garden.public_artifacts
-        WHERE user_id = $1 AND published = true AND archived_at IS NULL`, [userId]);
+      const content = await c.query(
+        `SELECT slug, updated_at FROM public_garden.public_content_items
+        WHERE user_id = $1 AND published = true AND archived_at IS NULL`,
+        [userId]
+      );
+      const changelog = await c.query(
+        `SELECT slug, updated_at FROM public_garden.public_changelog_posts
+        WHERE user_id = $1 AND published = true AND archived_at IS NULL`,
+        [userId]
+      );
+      const artifacts = await c.query(
+        `SELECT slug, updated_at FROM public_garden.public_artifacts
+        WHERE user_id = $1 AND published = true AND archived_at IS NULL`,
+        [userId]
+      );
       return { content: content.rows, changelog: changelog.rows, artifacts: artifacts.rows };
     });
 

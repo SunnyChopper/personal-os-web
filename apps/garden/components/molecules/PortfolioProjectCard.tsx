@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import Button from "@/components/ui/Button";
-import type { Project } from "@personal-os-web/portfolio-types";
+import Button from '@/components/ui/Button';
+import type { Project } from '@personal-os-web/portfolio-types';
 
 interface PortfolioProjectCardProps {
   project: Project;
@@ -31,11 +31,11 @@ export default function PortfolioProjectCard({ project }: PortfolioProjectCardPr
           <Button
             variant="success"
             size="sm"
-            onClick={() => window.open(project.link, "_blank")}
+            onClick={() => window.open(project.link, '_blank')}
             className="mt-4"
             type="button"
           >
-            {project.linkText || "View Project"}
+            {project.linkText || 'View Project'}
           </Button>
         ) : null}
       </div>

@@ -8,7 +8,8 @@ import { whiteboardsService } from '@/services/tools/whiteboards.service';
 import { cn } from '@/lib/utils';
 
 function newBoardPath() {
-  const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `b-${Date.now()}`;
+  const id =
+    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `b-${Date.now()}`;
   return `${ROUTES.admin.tools.base}/whiteboard/${id}`;
 }
 

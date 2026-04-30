@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 /**
  * Framer Motion can SSR with `opacity: 0` on this route; if client JS is slow or fails, the page
@@ -9,7 +9,7 @@ export default function ProductsPage() {
     <>
       <section
         className="relative flex h-[40vh] items-center justify-center bg-cover bg-center"
-        style={{ backgroundImage: "url(/images/cover.jpg)" }}
+        style={{ backgroundImage: 'url(/images/cover.jpg)' }}
       >
         <div className="absolute inset-0 bg-black/40" />
         <div className="relative z-10 container mx-auto px-4 text-center">
@@ -34,9 +34,9 @@ export default function ProductsPage() {
                 <h2 className="mb-2 text-2xl font-bold text-gray-900">CanvasCraft</h2>
                 <h5 className="mb-4 text-gray-500">Published April 2024</h5>
                 <p className="mb-4 text-gray-700">
-                  CanvasCraft is a tool for entrepreneurs to swiftly turn ideas into strategic plans.
-                  Its intuitive interface and GPT API integration streamline the Lean Canvas process
-                  and generate business plans efficiently.
+                  CanvasCraft is a tool for entrepreneurs to swiftly turn ideas into strategic
+                  plans. Its intuitive interface and GPT API integration streamline the Lean Canvas
+                  process and generate business plans efficiently.
                 </p>
                 <p className="text-gray-700">
                   The backend API runs on AWS (API Gateway, Lambda, and DynamoDB), and the frontend

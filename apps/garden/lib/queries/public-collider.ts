@@ -1,6 +1,6 @@
-import "server-only";
+import 'server-only';
 
-import { withClient, getPublicGardenOwnerUserId } from "@/lib/db";
+import { withClient, getPublicGardenOwnerUserId } from '@/lib/db';
 
 export type ConceptNodeRow = {
   id: string;
@@ -19,14 +19,14 @@ export async function listColliderNodes(limit = 15): Promise<ConceptNodeRow[]> {
        WHERE user_id = $1 AND published = true AND archived_at IS NULL
        ORDER BY updated_at DESC
        LIMIT $2`,
-      [userId, limit],
+      [userId, limit]
     );
     return r.rows as ConceptNodeRow[];
   });
 }
 
 export async function getConceptNodeContents(
-  ids: string[],
+  ids: string[]
 ): Promise<{ id: string; content: string }[]> {
   if (!ids.length) return [];
   const userId = getPublicGardenOwnerUserId();
@@ -35,7 +35,7 @@ export async function getConceptNodeContents(
       `SELECT id::text AS id, public_content AS content
        FROM public_garden.public_concept_nodes
        WHERE user_id = $1 AND id = ANY($2::uuid[]) AND published = true AND archived_at IS NULL`,
-      [userId, ids],
+      [userId, ids]
     );
     return r.rows as { id: string; content: string }[];
   });

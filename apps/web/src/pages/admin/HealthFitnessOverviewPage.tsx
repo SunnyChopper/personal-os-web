@@ -1,17 +1,8 @@
 import { Link } from 'react-router-dom';
-import {
-  LayoutGrid,
-  Coffee,
-  Dumbbell,
-  Sparkles,
-  ExternalLink,
-} from 'lucide-react';
+import { LayoutGrid, Coffee, Dumbbell, Sparkles, ExternalLink } from 'lucide-react';
 import { ROUTES } from '@/routes';
 import { localCalendarDate } from '@/lib/date/local-calendar';
-import {
-  useFitnessRecoveryRange,
-  useUpsertRecoveryMutation,
-} from '@/hooks/useFitness';
+import { useFitnessRecoveryRange, useUpsertRecoveryMutation } from '@/hooks/useFitness';
 import { useState, useEffect } from 'react';
 
 export default function HealthFitnessOverviewPage() {
@@ -19,8 +10,7 @@ export default function HealthFitnessOverviewPage() {
   const { data: recoveryRes } = useFitnessRecoveryRange(today, today);
   const upsert = useUpsertRecoveryMutation();
 
-  const recoveryPage =
-    recoveryRes?.success && recoveryRes.data ? recoveryRes.data : undefined;
+  const recoveryPage = recoveryRes?.success && recoveryRes.data ? recoveryRes.data : undefined;
   const existing = recoveryPage?.data?.[0];
 
   const [sleepHours, setSleepHours] = useState<string>('');
@@ -150,10 +140,11 @@ export default function HealthFitnessOverviewPage() {
           Household Meal Planner (future)
         </h3>
         <p className="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80">
-          Nutrition entries support <code className="rounded bg-white/80 px-1 dark:bg-black/30">sourceMealPlanId</code>,{' '}
+          Nutrition entries support{' '}
+          <code className="rounded bg-white/80 px-1 dark:bg-black/30">sourceMealPlanId</code>,{' '}
           <code className="rounded bg-white/80 px-1 dark:bg-black/30">sourceMealSlotId</code>,{' '}
-          <code className="rounded bg-white/80 px-1 dark:bg-black/30">sourceRecipeId</code> so the planner can reuse the
-          same model without a second log table.
+          <code className="rounded bg-white/80 px-1 dark:bg-black/30">sourceRecipeId</code> so the
+          planner can reuse the same model without a second log table.
         </p>
       </section>
 

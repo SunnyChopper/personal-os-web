@@ -34,11 +34,7 @@ export function VelocityChart({ weeks, currentWeekStart, className }: VelocityCh
 
   const maxY = useMemo(() => {
     const vals = ordered.map((w) => w.storyPointsCompleted);
-    const candidates = [
-      ...vals,
-      rollingFourAvg,
-      completedWeeksAvg ?? 0,
-    ];
+    const candidates = [...vals, rollingFourAvg, completedWeeksAvg ?? 0];
     const m = Math.max(...candidates, 1);
     return m * 1.15;
   }, [ordered, rollingFourAvg, completedWeeksAvg]);
@@ -54,12 +50,10 @@ export function VelocityChart({ weeks, currentWeekStart, className }: VelocityCh
   const yAt = (value: number) => h - pad - (value / maxY) * plotH;
 
   const currentBarIndex = ordered.length - 1;
-  const xSplit =
-    ordered.length > 0 ? pad + currentBarIndex * slotW + 2 : pad;
+  const xSplit = ordered.length > 0 ? pad + currentBarIndex * slotW + 2 : pad;
 
   const averagesDiffer =
-    completedWeeksAvg !== null &&
-    Math.abs(completedWeeksAvg - rollingFourAvg) > 0.05;
+    completedWeeksAvg !== null && Math.abs(completedWeeksAvg - rollingFourAvg) > 0.05;
 
   const ariaAverages =
     completedWeeksAvg !== null

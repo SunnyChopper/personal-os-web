@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import PortfolioProjectCard from "@/components/molecules/PortfolioProjectCard";
-import { projects } from "@personal-os-web/portfolio-data";
+import PortfolioProjectCard from '@/components/molecules/PortfolioProjectCard';
+import { projects } from '@personal-os-web/portfolio-data';
 
 export default function PortfolioSection() {
   return (

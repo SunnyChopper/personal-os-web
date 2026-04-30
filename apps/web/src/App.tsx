@@ -202,10 +202,7 @@ function AppContent() {
             path={ADMIN_CHILD_ROUTES.assistantProactive}
             element={<ProactiveAutomationsPage />}
           />
-          <Route
-            path={ADMIN_CHILD_ROUTES.assistantObservability}
-            element={<ObservabilityPage />}
-          />
+          <Route path={ADMIN_CHILD_ROUTES.assistantObservability} element={<ObservabilityPage />} />
           <Route path={`${ADMIN_CHILD_ROUTES.assistant}/:threadId`} element={<ChatbotPage />} />
           <Route path={ADMIN_CHILD_ROUTES.memoryAudit} element={<MemoryAuditPage />} />
           <Route path={ADMIN_CHILD_ROUTES.componentsDemo} element={<ComponentsDemoPage />} />

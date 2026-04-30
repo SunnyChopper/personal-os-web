@@ -1,6 +1,6 @@
-import "server-only";
+import 'server-only';
 
-import { withClient, getPublicGardenOwnerUserId } from "@/lib/db";
+import { withClient, getPublicGardenOwnerUserId } from '@/lib/db';
 
 export type MomentumDay = {
   day: string;
@@ -17,7 +17,7 @@ export async function getMomentumLast30Days(): Promise<MomentumDay[]> {
        FROM public_garden.public_momentum_daily
        WHERE user_id = $1 AND published = true AND archived_at IS NULL
        ORDER BY day ASC`,
-      [userId],
+      [userId]
     );
     return r.rows as MomentumDay[];
   });

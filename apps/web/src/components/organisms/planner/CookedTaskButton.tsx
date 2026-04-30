@@ -61,12 +61,7 @@ export function CookedTaskButton({ task, label = 'Cooked' }: CookedTaskButtonPro
       >
         {rescue.isPending ? '…' : label}
       </Button>
-      <CookedTaskDrawer
-        open={open}
-        onClose={() => setOpen(false)}
-        result={result}
-        error={err}
-      />
+      <CookedTaskDrawer open={open} onClose={() => setOpen(false)} result={result} error={err} />
     </>
   );
 }

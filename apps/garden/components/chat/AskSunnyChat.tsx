@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 
 export function AskSunnyChat() {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState('');
   const [a, setA] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -12,16 +12,16 @@ export function AskSunnyChat() {
     setLoading(true);
     setA(null);
     try {
-      const res = await fetch("/api/ask-sunny", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/ask-sunny', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: q }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Request failed");
+      if (!res.ok) throw new Error(data?.error || 'Request failed');
       setA(data.answer as string);
     } catch (e) {
-      setA(e instanceof Error ? e.message : "Error");
+      setA(e instanceof Error ? e.message : 'Error');
     } finally {
       setLoading(false);
     }
@@ -42,7 +42,7 @@ export function AskSunnyChat() {
         disabled={loading}
         className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-dark disabled:opacity-40"
       >
-        {loading ? "Thinking…" : "Ask"}
+        {loading ? 'Thinking…' : 'Ask'}
       </button>
       {a ? <p className="whitespace-pre-wrap text-sm text-gray-700">{a}</p> : null}
     </div>

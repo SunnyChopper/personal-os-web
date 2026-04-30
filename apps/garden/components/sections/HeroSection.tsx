@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import Button from "@/components/ui/Button";
+import Button from '@/components/ui/Button';
 
 export default function HeroSection() {
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
+      element.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -14,7 +14,7 @@ export default function HeroSection() {
     <section
       id="home"
       className="relative flex min-h-screen items-center justify-center bg-cover bg-center"
-      style={{ backgroundImage: "url(/images/cover.jpg)" }}
+      style={{ backgroundImage: 'url(/images/cover.jpg)' }}
     >
       <div className="absolute inset-0 bg-black/40" />
 
@@ -28,10 +28,20 @@ export default function HeroSection() {
         </p>
 
         <div className="flex flex-wrap justify-center gap-4">
-          <Button variant="primary" size="lg" onClick={() => scrollToSection("portfolio")} type="button">
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => scrollToSection('portfolio')}
+            type="button"
+          >
             View Portfolio
           </Button>
-          <Button variant="secondary" size="lg" onClick={() => scrollToSection("contact")} type="button">
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => scrollToSection('contact')}
+            type="button"
+          >
             Contact Me
           </Button>
         </div>
@@ -39,9 +49,9 @@ export default function HeroSection() {
 
       <div
         className="absolute bottom-8 left-1/2 -translate-x-1/2 transform cursor-pointer"
-        onClick={() => scrollToSection("skills")}
+        onClick={() => scrollToSection('skills')}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") scrollToSection("skills");
+          if (e.key === 'Enter' || e.key === ' ') scrollToSection('skills');
         }}
         role="button"
         tabIndex={0}

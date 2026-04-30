@@ -33,9 +33,7 @@ export function PlannerBlockCard({ block, disabled }: PlannerBlockCardProps) {
         {new Date(block.endAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
       </p>
       {block.microStepText && (
-        <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1 truncate">
-          Rescue step
-        </p>
+        <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1 truncate">Rescue step</p>
       )}
     </div>
   );

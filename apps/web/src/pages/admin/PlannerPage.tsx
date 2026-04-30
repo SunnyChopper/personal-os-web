@@ -111,7 +111,9 @@ export default function PlannerPage() {
         </div>
       )}
 
-      {isLoading && !week && <div className="animate-pulse h-40 bg-gray-200 dark:bg-gray-700 rounded" />}
+      {isLoading && !week && (
+        <div className="animate-pulse h-40 bg-gray-200 dark:bg-gray-700 rounded" />
+      )}
 
       {week && (
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-4">

@@ -1,24 +1,24 @@
-import "server-only";
+import 'server-only';
 
-import OpenAI from "openai";
+import OpenAI from 'openai';
 
-import { withClient, getPublicGardenOwnerUserId } from "@/lib/db";
+import { withClient, getPublicGardenOwnerUserId } from '@/lib/db';
 
 function toVectorLiteral(vec: number[]): string {
-  return `[${vec.join(",")}]`;
+  return `[${vec.join(',')}]`;
 }
 
 export async function embedQuery(text: string): Promise<number[]> {
-  const key = (process.env.OPENAI_API_KEY || "").trim();
-  if (!key) throw new Error("OPENAI_API_KEY is not set");
+  const key = (process.env.OPENAI_API_KEY || '').trim();
+  if (!key) throw new Error('OPENAI_API_KEY is not set');
   const client = new OpenAI({ apiKey: key });
   const res = await client.embeddings.create({
-    model: process.env.PUBLIC_GARDEN_EMBEDDING_MODEL || "text-embedding-3-small",
+    model: process.env.PUBLIC_GARDEN_EMBEDDING_MODEL || 'text-embedding-3-small',
     input: text.slice(0, 8000),
     dimensions: 1536,
   });
   const v = res.data[0]?.embedding;
-  if (!v) throw new Error("embedding empty");
+  if (!v) throw new Error('embedding empty');
   return v;
 }
 
@@ -34,7 +34,7 @@ export async function searchPublicRag(queryEmbedding: number[], topK: number): P
        WHERE user_id = $2 AND published = true AND archived_at IS NULL
        ORDER BY embedding <=> $1::vector
        LIMIT $3`,
-      [literal, userId, topK],
+      [literal, userId, topK]
     );
     return r.rows as RagHit[];
   });

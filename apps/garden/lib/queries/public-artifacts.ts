@@ -1,6 +1,6 @@
-import "server-only";
+import 'server-only';
 
-import { withClient, getPublicGardenOwnerUserId } from "@/lib/db";
+import { withClient, getPublicGardenOwnerUserId } from '@/lib/db';
 
 export type ArtifactRow = {
   slug: string;
@@ -28,7 +28,7 @@ export async function listArtifacts(): Promise<ArtifactRow[]> {
        FROM public_garden.public_artifacts
        WHERE user_id = $1 AND published = true AND archived_at IS NULL
        ORDER BY display_order ASC, updated_at DESC`,
-      [userId],
+      [userId]
     );
     return r.rows as ArtifactRow[];
   });
@@ -46,7 +46,7 @@ export async function getArtifactBySlug(slug: string): Promise<ArtifactRow | nul
               display_order AS "displayOrder"
        FROM public_garden.public_artifacts
        WHERE user_id = $1 AND slug = $2 AND published = true AND archived_at IS NULL`,
-      [userId, slug],
+      [userId, slug]
     );
     return (r.rows[0] as ArtifactRow) || null;
   });

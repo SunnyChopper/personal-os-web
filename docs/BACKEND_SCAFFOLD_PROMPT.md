@@ -14,16 +14,16 @@ Create a Python backend API for **Personal OS** (FastAPI on AWS Lambda), a perso
 
 ### Technical Stack
 
-| Component          | Technology              | Rationale                                            |
-| ------------------ | ----------------------- | ---------------------------------------------------- |
-| **Runtime**        | Python 3.12             | LangChain native support, AWS Lambda compatibility   |
-| **Framework**      | FastAPI + Mangum        | Modern async API, auto OpenAPI docs, Lambda adapter  |
-| **IaC**            | Terraform (`infrastructure/envs-api/`) + deploy scripts | API resources + Lambda code |
-| **Database**       | DynamoDB (single-table) | Pay-per-use, scales to zero              |
-| **Authentication** | AWS Cognito User Pool   | Managed auth, JWT tokens, email/password             |
-| **Secrets**        | AWS Secrets Manager     | Secure LLM API key storage                           |
-| **API Gateway**    | HTTP API (v2)           | Lower cost, faster than REST API                     |
-| **Domain**         | api.sunnysingh.tech     | Custom domain via ACM + API Gateway                  |
+| Component          | Technology                                              | Rationale                                           |
+| ------------------ | ------------------------------------------------------- | --------------------------------------------------- |
+| **Runtime**        | Python 3.12                                             | LangChain native support, AWS Lambda compatibility  |
+| **Framework**      | FastAPI + Mangum                                        | Modern async API, auto OpenAPI docs, Lambda adapter |
+| **IaC**            | Terraform (`infrastructure/envs-api/`) + deploy scripts | API resources + Lambda code                         |
+| **Database**       | DynamoDB (single-table)                                 | Pay-per-use, scales to zero                         |
+| **Authentication** | AWS Cognito User Pool                                   | Managed auth, JWT tokens, email/password            |
+| **Secrets**        | AWS Secrets Manager                                     | Secure LLM API key storage                          |
+| **API Gateway**    | HTTP API (v2)                                           | Lower cost, faster than REST API                    |
+| **Domain**         | api.sunnysingh.tech                                     | Custom domain via ACM + API Gateway                 |
 
 ### Environments
 

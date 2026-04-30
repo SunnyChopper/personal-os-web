@@ -8,7 +8,7 @@ This repository is a **Bun + Turborepo** workspace: `apps/web` (Vite admin SPA),
 
 - **Frontend**: React + TypeScript + Vite + Tailwind.
 - **App shape**: Public site + `/admin/*` “Personal OS” (auth-gated) with AI-powered, LLM-driven features.
-- **Deploy**: AWS S3 + CloudFront (`base: /admin/`) via `**personal-os-web`** repo `.github/workflows/deploy-spa.yml` (canonical); **build-time** Vite env vars from GitHub **Environment** secrets. IaC: `**https://github.com/SunnyChopper/personal-os-infra`** (`envs/<dev|prod>/`). **Monorepo:** `../infrastructure/envs/<dev|prod>/`.
+- **Deploy**: AWS S3 + CloudFront (`base: /admin/`) via `**personal-os-web`** repo `.github/workflows/deploy-spa.yml` (canonical); **build-time** Vite env vars from GitHub **Environment** secrets. IaC: `**https://github.com/SunnyChopper/personal-os-infra`** (`envs/<dev|prod>/`). **Monorepo:\*\* `../infrastructure/envs/<dev|prod>/`.
 
 ## Open these first (entrypoints)
 
@@ -38,7 +38,7 @@ Quick mapping:
 ## API endpoint checklist (frontend)
 
 1. Define/extend types in `apps/web/src/types/api-contracts.ts` and/or `apps/web/src/types/api/*.dto.ts`.
-2. Implement service calls in `apps/web/src/services/`** using `apiClient.get/post/patch/delete`.
+2. Implement service calls in `apps/web/src/services/`\*\* using `apiClient.get/post/patch/delete`.
 3. (Optional, dev-only) Pass Zod schemas into `apiClient.get/post` for response validation.
 4. Ensure React Query caches store contract-aligned domain models (not raw DTOs with mismatched shapes).
 
@@ -77,7 +77,7 @@ When this repo is opened inside the monorepo workspace (sibling `personal-os-bac
 - **Deploy (AWS)**: `.github/workflows/deploy-spa.yml` at monorepo root injects `VITE_*` from the active GitHub **Environment** (`dev` / `prod`) and runs `bun run --cwd personal-os-web --filter web build`.
 - **Deploy from your machine** (same S3 paths + invalidation as CI): copy `.env.deploy.example` → `.env.deploy.dev` or `.env.deploy.prod`. From **monorepo root**, dry-run with **`bun run check:infra:frontend:<stage>`** (edge only) or **`bun run check:infra:<stage>`** (edge + API). Apply edge only + refresh deploy env keys: **`bun run deploy:infra:frontend:<stage>`**. Apply API Terraform only: **`bun run deploy:infra:backend:<stage>`**. Apply **both** stacks: **`bun run deploy:infra:<stage>`**. Add `VITE_*` and garden secrets to `.env.deploy.*` as needed. Then **`bun run deploy:frontend:dev`** (Vite + OpenNext), or **`bun run deploy:frontend:personal-os:<stage>`** / **`bun run deploy:frontend:public-garden:<stage>`**. From `personal-os-web/`, the same names are wired via `../scripts/`. OpenNext builds are unreliable on Windows without WSL (symlinks); use Linux, macOS, or WSL for full `deploy:frontend:*` including public garden.
 
-Note: Some older docs mention `VITE_API_URL` / `VITE_COGNITO_*`. For this frontend build, treat `**VITE_API_BASE_URL` + `VITE_AWS_*` as canonical**.
+Note: Some older docs mention `VITE_API_URL` / `VITE_COGNITO_*`. For this frontend build, treat `**VITE_API_BASE_URL` + `VITE_AWS_*` as canonical\*\*.
 
 ## AI / LLM subsystem (where to look)
 
@@ -96,7 +96,7 @@ Note: `APILLMAdapter` expects `{ success, data: { result, confidence, provider, 
 
 ## Deploy-time secrets (GitHub Environments)
 
-After `terraform apply` in `**../infrastructure/envs/<dev|prod>/`** (monorepo) or any clone of `**personal-os-infra**`, copy outputs into GitHub **Settings → Environments → secrets** on `**personal-os-web`** for that environment:
+After `terraform apply` in `**../infrastructure/envs/<dev|prod>/`** (monorepo) or any clone of `**personal-os-infra**`, copy outputs into GitHub **Settings → Environments → secrets** on `**personal-os-web`\*\* for that environment:
 
 - `AWS_DEPLOY_ROLE_ARN`, `SPA_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`, `GARDEN_ASSETS_BUCKET`, `GARDEN_LAMBDA_NAME`
 - `VITE_API_BASE_URL`, `VITE_WS_URL`, `VITE_AWS_REGION`, `VITE_AWS_USER_POOL_ID`, `VITE_AWS_USER_POOL_WEB_CLIENT_ID`, `VITE_AWS_IDENTITY_POOL_ID`

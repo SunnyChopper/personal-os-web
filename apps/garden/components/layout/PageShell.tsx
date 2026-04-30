@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 /** Constrains tool / garden pages to a readable column (replaces former root main max-width). */
 export default function PageShell({ children }: { children: ReactNode }) {

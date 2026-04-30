@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { Phone, Mail } from "lucide-react";
+import { Phone, Mail } from 'lucide-react';
 
 export default function ContactSection() {
   return (

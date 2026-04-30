@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { Sun, Moon, Zap, Pencil, Trash2, Play, History, TrendingUp, BookMarked } from 'lucide-react';
+import {
+  Sun,
+  Moon,
+  Zap,
+  Pencil,
+  Trash2,
+  Play,
+  History,
+  TrendingUp,
+  BookMarked,
+} from 'lucide-react';
 import Dialog from '@/components/molecules/Dialog';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';

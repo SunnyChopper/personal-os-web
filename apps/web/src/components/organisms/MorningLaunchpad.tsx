@@ -229,9 +229,7 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
   }, [isOpen, orderedTasks, habits, goals]);
 
   const existingRecovery =
-    recoveryRes?.success && recoveryRes.data?.data?.length
-      ? recoveryRes.data.data[0]
-      : null;
+    recoveryRes?.success && recoveryRes.data?.data?.length ? recoveryRes.data.data[0] : null;
 
   useEffect(() => {
     if (!isOpen || !existingRecovery) return;
@@ -489,8 +487,8 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
                     <h3 className="text-lg font-bold text-white">Recovery check-in</h3>
                   </div>
                   <p className="mb-3 text-xs text-cyan-100/90">
-                    Logged to DailyRecovery for Aura (not the logbook). Optional — skip if you prefer the full Health &
-                    Fitness overview.
+                    Logged to DailyRecovery for Aura (not the logbook). Optional — skip if you
+                    prefer the full Health & Fitness overview.
                   </p>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <label className="text-xs text-cyan-50">

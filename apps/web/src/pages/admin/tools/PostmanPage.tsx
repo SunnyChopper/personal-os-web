@@ -71,9 +71,7 @@ export default function PostmanPage() {
       await postmanService.saveToVault({
         title,
         request: { method, url, headers: h, body: bodyText || null },
-        response: withResponse
-          ? { status, headers: respHeaders, body: respBody }
-          : undefined,
+        response: withResponse ? { status, headers: respHeaders, body: respBody } : undefined,
       });
       setMsg('Saved to Knowledge Vault');
     } catch (e) {
@@ -150,7 +148,9 @@ export default function PostmanPage() {
           </button>
         </div>
         {msg && <p className="text-sm text-green-700 dark:text-green-400">{msg}</p>}
-        <p className="text-[10px] text-gray-500">API base (for reference): {API_BASE || '(same origin)'}</p>
+        <p className="text-[10px] text-gray-500">
+          API base (for reference): {API_BASE || '(same origin)'}
+        </p>
         <p className="text-[10px] text-gray-500">
           Auth token present: {authService.getAccessToken() ? 'yes' : 'no'}
         </p>
@@ -163,7 +163,9 @@ export default function PostmanPage() {
           {JSON.stringify(respHeaders, null, 2)}
         </pre>
         <div
-          className={cn('min-h-[240px] overflow-auto rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-950')}
+          className={cn(
+            'min-h-[240px] overflow-auto rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-950'
+          )}
         >
           {respBody ? (
             <code

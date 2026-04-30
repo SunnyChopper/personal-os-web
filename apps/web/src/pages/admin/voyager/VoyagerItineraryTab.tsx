@@ -130,7 +130,9 @@ export default function VoyagerItineraryTab() {
       </section>
 
       <section className="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white/60 dark:bg-gray-900/40 p-6 shadow-sm">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Or paste raw confirmation text</h2>
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+          Or paste raw confirmation text
+        </h2>
         <textarea
           className="w-full min-h-[140px] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm"
           placeholder="Flight confirmations, hotel emails…"
@@ -177,7 +179,9 @@ export default function VoyagerItineraryTab() {
                     {it.locationName && ` · ${it.locationName}`}
                   </div>
                   {it.confirmationCode && (
-                    <div className="text-xs text-gray-500 mt-1 font-mono">{it.confirmationCode}</div>
+                    <div className="text-xs text-gray-500 mt-1 font-mono">
+                      {it.confirmationCode}
+                    </div>
                   )}
                 </li>
               ))}

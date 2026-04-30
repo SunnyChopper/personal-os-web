@@ -73,7 +73,8 @@ export const fitnessService = {
   updateSession: async (
     id: string,
     body: { status?: string; notes?: string; sessionDate?: string }
-  ): Promise<ApiResponse<WorkoutSession>> => apiClient.patch(`/fitness/workout-sessions/${id}`, body),
+  ): Promise<ApiResponse<WorkoutSession>> =>
+    apiClient.patch(`/fitness/workout-sessions/${id}`, body),
 
   getSession: async (id: string): Promise<ApiResponse<WorkoutSession>> =>
     apiClient.get(`/fitness/workout-sessions/${id}`),

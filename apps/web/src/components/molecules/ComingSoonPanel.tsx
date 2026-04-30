@@ -24,7 +24,8 @@ export default function ComingSoonPanel({
     >
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
       <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-        {description ?? 'This tool is wired in the navigation; implementation ships in a later phase.'}
+        {description ??
+          'This tool is wired in the navigation; implementation ships in a later phase.'}
       </p>
       <p className="mt-4 inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
         {TOOL_PHASE_LABELS[phase]}

@@ -18,17 +18,16 @@ export default function VoyagerLayout() {
             <Ship className="size-7" />
           </div>
           <div>
-            <h1 className="text-3xl font-serif font-light text-gray-900 dark:text-white">Voyager</h1>
+            <h1 className="text-3xl font-serif font-light text-gray-900 dark:text-white">
+              Voyager
+            </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 font-light">
               Leisure travel planning — trips, quiet reminders, and gentle packing cues.
             </p>
           </div>
         </div>
 
-        <nav
-          className="flex flex-wrap gap-2 mt-6"
-          aria-label="Voyager sections"
-        >
+        <nav className="flex flex-wrap gap-2 mt-6" aria-label="Voyager sections">
           {tabs.map((tab) => (
             <NavLink
               key={tab.to}

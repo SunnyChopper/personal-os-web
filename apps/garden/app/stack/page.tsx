@@ -1,12 +1,12 @@
-import { PublicSkillTree } from "@/components/skills/PublicSkillTree";
-import PageShell from "@/components/layout/PageShell";
-import { getPublicSkillGraph } from "@/lib/queries/public-skills";
-import type { Metadata } from "next";
+import { PublicSkillTree } from '@/components/skills/PublicSkillTree';
+import PageShell from '@/components/layout/PageShell';
+import { getPublicSkillGraph } from '@/lib/queries/public-skills';
+import type { Metadata } from 'next';
 
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "Stack | Sunny Singh",
+  title: 'Stack | Sunny Singh',
 };
 
 export default async function StackPage() {

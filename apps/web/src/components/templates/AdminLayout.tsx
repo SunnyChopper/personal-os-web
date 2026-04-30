@@ -356,8 +356,7 @@ function AdminLayoutContent() {
     }
   };
 
-  const isItemActive = (item: NavItem): boolean =>
-    navSubtreeContainsPath(item, location.pathname);
+  const isItemActive = (item: NavItem): boolean => navSubtreeContainsPath(item, location.pathname);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -429,9 +428,7 @@ function AdminLayoutContent() {
           <div
             key={navExpandKey(child)}
             className={
-              depth > 0
-                ? 'ml-2 mt-1 border-l border-gray-200 pl-2 dark:border-gray-700'
-                : ''
+              depth > 0 ? 'ml-2 mt-1 border-l border-gray-200 pl-2 dark:border-gray-700' : ''
             }
           >
             <div
@@ -674,7 +671,9 @@ function AdminLayoutContent() {
                         </button>
                       </div>
                       {isExpanded && item.children && (
-                        <div className="ml-4 mt-1 space-y-1">{renderNavBranch(item.children, 0)}</div>
+                        <div className="ml-4 mt-1 space-y-1">
+                          {renderNavBranch(item.children, 0)}
+                        </div>
                       )}
                     </div>
                   ) : (

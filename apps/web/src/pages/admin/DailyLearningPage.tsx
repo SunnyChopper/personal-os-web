@@ -276,7 +276,12 @@ function DigestCard({
                 ))}
               </div>
               <div className="flex flex-wrap items-center gap-2 pt-1 -mx-1 px-1 py-2 rounded-xl bg-gray-50/90 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700/80">
-                <Button type="button" size="sm" disabled={itemBusy} onClick={() => onAction(item, 'extract')}>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={itemBusy}
+                  onClick={() => onAction(item, 'extract')}
+                >
                   Extract
                 </Button>
                 <Button
@@ -343,11 +348,7 @@ export default function DailyLearningPage() {
   } = useDailyLearningSources();
   const createSrc = useCreateLearningSource();
   const delSrc = useDeleteLearningSource();
-  const {
-    data: ctx,
-    isLoading: ctxLoading,
-    isError: ctxError,
-  } = useDailyLearningContext();
+  const { data: ctx, isLoading: ctxLoading, isError: ctxError } = useDailyLearningContext();
   const regenerateAiSummary = useRegenerateDailyLearningAiSummary();
   const { data: digests = [], refetch: refetchDigests } = useDailyDigests({ digestDate: date });
   const { data: discards = [], refetch: refetchDisc } = useDailyDiscards({ digestDate: date });
@@ -603,7 +604,9 @@ export default function DailyLearningPage() {
                           {tr.title}
                         </h3>
                         {tr.subject ? (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{tr.subject}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {tr.subject}
+                          </p>
                         ) : null}
                       </div>
                       <Button
@@ -661,7 +664,9 @@ export default function DailyLearningPage() {
                               <button
                                 type="button"
                                 className="text-xs text-amber-600 dark:text-amber-400 hover:underline"
-                                onClick={() => void skip.mutateAsync({ trackId: tr.id, nodeId: n.id })}
+                                onClick={() =>
+                                  void skip.mutateAsync({ trackId: tr.id, nodeId: n.id })
+                                }
                               >
                                 Skip
                               </button>
@@ -688,7 +693,10 @@ export default function DailyLearningPage() {
               <div className="w-full max-w-md rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-5 sm:p-6 space-y-4">
                 <div className="flex justify-between items-start gap-2">
                   <div>
-                    <h2 id="new-track-title" className="font-semibold text-lg text-gray-900 dark:text-white flex items-center gap-2">
+                    <h2
+                      id="new-track-title"
+                      className="font-semibold text-lg text-gray-900 dark:text-white flex items-center gap-2"
+                    >
                       <ListOrdered className="w-5 h-5 text-violet-500" aria-hidden />
                       New theory track
                     </h2>
@@ -716,7 +724,9 @@ export default function DailyLearningPage() {
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Subject (optional)</span>
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">
+                    Subject (optional)
+                  </span>
                   <input
                     className="mt-1.5 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none"
                     value={newTrack.subject}
@@ -725,7 +735,9 @@ export default function DailyLearningPage() {
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Lessons per week</span>
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">
+                    Lessons per week
+                  </span>
                   <input
                     type="number"
                     min={1}
@@ -739,10 +751,16 @@ export default function DailyLearningPage() {
                       })
                     }
                   />
-                  <p className="text-[11px] text-gray-500 mt-1">Between 1 and 14; controls pacing for dripped lessons.</p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Between 1 and 14; controls pacing for dripped lessons.
+                  </p>
                 </label>
                 <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="secondary" onClick={() => setTrackModalOpen(false)}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setTrackModalOpen(false)}
+                  >
                     Cancel
                   </Button>
                   <Button
@@ -794,7 +812,9 @@ export default function DailyLearningPage() {
                   />
                 </div>
                 <div className="block text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Time zone (IANA)</span>
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">
+                    Time zone (IANA)
+                  </span>
                   <div className="mt-1.5 flex flex-wrap gap-2 items-center">
                     <select
                       className="flex-1 min-w-[12rem] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm shadow-sm"
@@ -832,9 +852,7 @@ export default function DailyLearningPage() {
                     type="checkbox"
                     className="rounded border-gray-300 mt-0.5"
                     checked={draft.deliveryEmailEnabled ?? true}
-                    onChange={(e) =>
-                      setDraft({ ...draft, deliveryEmailEnabled: e.target.checked })
-                    }
+                    onChange={(e) => setDraft({ ...draft, deliveryEmailEnabled: e.target.checked })}
                   />
                   <span className="text-gray-700 dark:text-gray-300">
                     <span className="font-medium text-gray-900 dark:text-white">Email digests</span>
@@ -845,7 +863,9 @@ export default function DailyLearningPage() {
                   </span>
                 </label>
                 <div className="block text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Assistant thread</span>
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">
+                    Assistant thread
+                  </span>
                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5 mb-1.5">
                     Reuse one thread per stream for continuity, or start fresh each run.
                   </p>
@@ -878,12 +898,12 @@ export default function DailyLearningPage() {
                     type="checkbox"
                     className="rounded border-gray-300 mt-0.5"
                     checked={draft.discoveryEnabled ?? true}
-                    onChange={(e) =>
-                      setDraft({ ...draft, discoveryEnabled: e.target.checked })
-                    }
+                    onChange={(e) => setDraft({ ...draft, discoveryEnabled: e.target.checked })}
                   />
                   <span className="text-gray-700 dark:text-gray-300">
-                    <span className="font-medium text-gray-900 dark:text-white">Discovery feeds</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      Discovery feeds
+                    </span>
                     <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       Hacker News, Lobsters, Google News RSS, optional ArXiv — surfaces fresh items
                       outside your sources; repeated domains can be added as RSS.
@@ -1017,172 +1037,180 @@ export default function DailyLearningPage() {
                 </div>
 
                 <div className="space-y-3 pt-6 border-t border-gray-100 dark:border-gray-800">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-medium text-gray-900 dark:text-white">Discovered source suggestions</h3>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void qc.invalidateQueries({ queryKey: queryKeys.dailyLearning.sourceSuggestions() })}
-                  >
-                    Refresh
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500">
-                  After several relevant hits from the same site, we suggest adding it as an RSS source.
-                </p>
-                {sourceSuggestions.isLoading ? (
-                  <p className="text-sm text-gray-500">Loading…</p>
-                ) : (sourceSuggestions.data ?? []).length === 0 ? (
-                  <EmptyTabState
-                    icon={Inbox}
-                    title="No domain suggestions yet"
-                    description="When discovery finds repeated strong hits from a hostname, a suggestion appears here so you can add it as an RSS source in one click."
-                  />
-                ) : (
-                  <ul className="space-y-2 text-sm">
-                    {(sourceSuggestions.data ?? []).map((s) => (
-                      <li
-                        key={s.id}
-                        className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-800 py-2"
-                      >
-                        <div>
-                          <div className="font-medium">{s.originDomain}</div>
-                          <div className="text-xs text-gray-500">
-                            hits {s.hitCount}
-                            {s.readyToPropose ? ' · ready' : ''}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-medium text-gray-900 dark:text-white">
+                      Discovered source suggestions
+                    </h3>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        void qc.invalidateQueries({
+                          queryKey: queryKeys.dailyLearning.sourceSuggestions(),
+                        })
+                      }
+                    >
+                      Refresh
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    After several relevant hits from the same site, we suggest adding it as an RSS
+                    source.
+                  </p>
+                  {sourceSuggestions.isLoading ? (
+                    <p className="text-sm text-gray-500">Loading…</p>
+                  ) : (sourceSuggestions.data ?? []).length === 0 ? (
+                    <EmptyTabState
+                      icon={Inbox}
+                      title="No domain suggestions yet"
+                      description="When discovery finds repeated strong hits from a hostname, a suggestion appears here so you can add it as an RSS source in one click."
+                    />
+                  ) : (
+                    <ul className="space-y-2 text-sm">
+                      {(sourceSuggestions.data ?? []).map((s) => (
+                        <li
+                          key={s.id}
+                          className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-800 py-2"
+                        >
+                          <div>
+                            <div className="font-medium">{s.originDomain}</div>
+                            <div className="text-xs text-gray-500">
+                              hits {s.hitCount}
+                              {s.readyToPropose ? ' · ready' : ''}
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => void acceptDiscovered.mutateAsync(s.id)}
-                          >
-                            Add feed
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => void dismissSuggestion.mutateAsync(s.id)}
-                          >
-                            Dismiss
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => void acceptDiscovered.mutateAsync(s.id)}
+                            >
+                              Add feed
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => void dismissSuggestion.mutateAsync(s.id)}
+                            >
+                              Dismiss
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
 
                 <div className="space-y-3 pt-6 border-t border-gray-100 dark:border-gray-800">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-medium text-gray-900 dark:text-white">Sources</h3>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={async () => {
-                      const list = await suggestSources.mutateAsync();
-                      setAiSuggestions(list);
-                      setAiSuggestOpen(true);
-                    }}
-                    disabled={suggestSources.isPending}
-                  >
-                    <Sparkles className="w-4 h-4 mr-1" />
-                    Suggest sources (AI)
-                  </Button>
-                </div>
-                {ldSrc ? (
-                  <p className="text-sm text-gray-500">Loading…</p>
-                ) : sourcesQueryError ? (
-                  <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-                    Could not load sources
-                    {sourcesQueryErr instanceof Error ? `: ${sourcesQueryErr.message}` : '.'} Refresh the page
-                    or check your connection; saved sources may still exist on the server.
-                  </p>
-                ) : sources.length === 0 ? (
-                  <EmptyTabState
-                    icon={Newspaper}
-                    title="No sources configured"
-                    description="Add at least one RSS feed, ArXiv query, or manual URL so ingest has something to poll. AI suggestions can help once context is populated."
-                  />
-                ) : (
-                  <ul className="space-y-2">
-                    {sources.map((s) => (
-                      <li
-                        key={s.id}
-                        className="flex justify-between text-sm border-b border-gray-100 dark:border-gray-800 py-2"
-                      >
-                        <span>
-                          {s.name} · {s.kind} · {s.scope}
-                        </span>
-                        <button
-                          type="button"
-                          className="text-red-600"
-                          onClick={() => void delSrc.mutateAsync(s.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex flex-wrap gap-2 items-end">
-                  <label className="text-sm">
-                    Name
-                    <input
-                      className="block mt-1 rounded border border-gray-300 dark:border-gray-600 px-2 py-1"
-                      value={newSrc.name}
-                      onChange={(e) => setNewSrc({ ...newSrc, name: e.target.value })}
-                    />
-                  </label>
-                  <label className="text-sm">
-                    Kind
-                    <select
-                      className="block mt-1 rounded border border-gray-300 dark:border-gray-600 px-2 py-1"
-                      value={newSrc.kind}
-                      onChange={(e) =>
-                        setNewSrc({ ...newSrc, kind: e.target.value as LearningSourceKind })
-                      }
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-medium text-gray-900 dark:text-white">Sources</h3>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={async () => {
+                        const list = await suggestSources.mutateAsync();
+                        setAiSuggestions(list);
+                        setAiSuggestOpen(true);
+                      }}
+                      disabled={suggestSources.isPending}
                     >
-                      <option value="rss">rss</option>
-                      <option value="arxiv">arxiv</option>
-                      <option value="manualUrl">manualUrl</option>
-                      <option value="xList">xList</option>
-                    </select>
-                  </label>
-                  <label className="text-sm flex-1 min-w-[200px]">
-                    RSS / URL / Query
-                    <input
-                      className="block mt-1 w-full rounded border border-gray-300 dark:border-gray-600 px-2 py-1"
-                      value={newSrc.rssUrl}
-                      onChange={(e) => setNewSrc({ ...newSrc, rssUrl: e.target.value })}
-                      placeholder="https://…"
+                      <Sparkles className="w-4 h-4 mr-1" />
+                      Suggest sources (AI)
+                    </Button>
+                  </div>
+                  {ldSrc ? (
+                    <p className="text-sm text-gray-500">Loading…</p>
+                  ) : sourcesQueryError ? (
+                    <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+                      Could not load sources
+                      {sourcesQueryErr instanceof Error ? `: ${sourcesQueryErr.message}` : '.'}{' '}
+                      Refresh the page or check your connection; saved sources may still exist on
+                      the server.
+                    </p>
+                  ) : sources.length === 0 ? (
+                    <EmptyTabState
+                      icon={Newspaper}
+                      title="No sources configured"
+                      description="Add at least one RSS feed, ArXiv query, or manual URL so ingest has something to poll. AI suggestions can help once context is populated."
                     />
-                  </label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      const body: Record<string, unknown> = {
-                        name: newSrc.name,
-                        kind: newSrc.kind,
-                        scope: newSrc.scope,
-                        enabled: true,
-                      };
-                      if (newSrc.kind === 'rss') body.rssUrl = newSrc.rssUrl;
-                      if (newSrc.kind === 'arxiv') body.arxivQuery = newSrc.rssUrl;
-                      if (newSrc.kind === 'manualUrl') body.url = newSrc.rssUrl;
-                      if (newSrc.kind === 'xList') body.xListId = newSrc.rssUrl;
-                      void createSrc.mutateAsync(
-                        body as Parameters<typeof createSrc.mutateAsync>[0]
-                      );
-                    }}
-                  >
-                    Add source
-                  </Button>
-                </div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {sources.map((s) => (
+                        <li
+                          key={s.id}
+                          className="flex justify-between text-sm border-b border-gray-100 dark:border-gray-800 py-2"
+                        >
+                          <span>
+                            {s.name} · {s.kind} · {s.scope}
+                          </span>
+                          <button
+                            type="button"
+                            className="text-red-600"
+                            onClick={() => void delSrc.mutateAsync(s.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="flex flex-wrap gap-2 items-end">
+                    <label className="text-sm">
+                      Name
+                      <input
+                        className="block mt-1 rounded border border-gray-300 dark:border-gray-600 px-2 py-1"
+                        value={newSrc.name}
+                        onChange={(e) => setNewSrc({ ...newSrc, name: e.target.value })}
+                      />
+                    </label>
+                    <label className="text-sm">
+                      Kind
+                      <select
+                        className="block mt-1 rounded border border-gray-300 dark:border-gray-600 px-2 py-1"
+                        value={newSrc.kind}
+                        onChange={(e) =>
+                          setNewSrc({ ...newSrc, kind: e.target.value as LearningSourceKind })
+                        }
+                      >
+                        <option value="rss">rss</option>
+                        <option value="arxiv">arxiv</option>
+                        <option value="manualUrl">manualUrl</option>
+                        <option value="xList">xList</option>
+                      </select>
+                    </label>
+                    <label className="text-sm flex-1 min-w-[200px]">
+                      RSS / URL / Query
+                      <input
+                        className="block mt-1 w-full rounded border border-gray-300 dark:border-gray-600 px-2 py-1"
+                        value={newSrc.rssUrl}
+                        onChange={(e) => setNewSrc({ ...newSrc, rssUrl: e.target.value })}
+                        placeholder="https://…"
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        const body: Record<string, unknown> = {
+                          name: newSrc.name,
+                          kind: newSrc.kind,
+                          scope: newSrc.scope,
+                          enabled: true,
+                        };
+                        if (newSrc.kind === 'rss') body.rssUrl = newSrc.rssUrl;
+                        if (newSrc.kind === 'arxiv') body.arxivQuery = newSrc.rssUrl;
+                        if (newSrc.kind === 'manualUrl') body.url = newSrc.rssUrl;
+                        if (newSrc.kind === 'xList') body.xListId = newSrc.rssUrl;
+                        void createSrc.mutateAsync(
+                          body as Parameters<typeof createSrc.mutateAsync>[0]
+                        );
+                      }}
+                    >
+                      Add source
+                    </Button>
+                  </div>
                 </div>
               </SettingsSection>
             </>
@@ -1228,7 +1256,9 @@ export default function DailyLearningPage() {
                     <div className="text-xs text-gray-500">
                       {s.kind} · {s.scope} · {(s.confidence * 100).toFixed(0)}% confidence
                     </div>
-                    {s.rationale ? <p className="text-xs text-gray-600 dark:text-gray-400">{s.rationale}</p> : null}
+                    {s.rationale ? (
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{s.rationale}</p>
+                    ) : null}
                     <div className="flex gap-2">
                       <Button
                         type="button"

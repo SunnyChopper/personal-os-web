@@ -1,4 +1,4 @@
-import type { OpenNextConfig } from "open-next/types/open-next";
+import type { OpenNextConfig } from 'open-next/types/open-next';
 
 /**
  * AWS Lambda + CloudFront (Function URL origin).
@@ -7,8 +7,8 @@ import type { OpenNextConfig } from "open-next/types/open-next";
 const config: OpenNextConfig = {
   default: {
     override: {
-      wrapper: "aws-lambda-streaming",
-      converter: "aws-apigw-v2",
+      wrapper: 'aws-lambda-streaming',
+      converter: 'aws-apigw-v2',
     },
   },
   // Omit separate image Lambda (avoids `sharp` native install during local builds; app has no next/image usage).

@@ -54,8 +54,7 @@ export function AuraScatterChart({ points, xMetric, className }: AuraScatterChar
   const innerW = w - padL - padR;
   const innerH = h - padT - padB;
 
-  const xScale = (x: number) =>
-    padL + ((x - plot.minX) / (plot.maxX - plot.minX || 1)) * innerW;
+  const xScale = (x: number) => padL + ((x - plot.minX) / (plot.maxX - plot.minX || 1)) * innerW;
   const yScale = (y: number) =>
     padT + innerH - ((y - plot.minY) / (plot.maxY - plot.minY || 1)) * innerH;
 

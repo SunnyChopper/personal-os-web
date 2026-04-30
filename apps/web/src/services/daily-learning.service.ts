@@ -17,7 +17,9 @@ export const dailyLearningService = {
     return apiClient.get('/daily-learning/settings');
   },
 
-  async putSettings(settings: DailyLearningSettings): Promise<ApiResponse<{ settings: DailyLearningSettings }>> {
+  async putSettings(
+    settings: DailyLearningSettings
+  ): Promise<ApiResponse<{ settings: DailyLearningSettings }>> {
     return apiClient.put('/daily-learning/settings', { settings });
   },
 
@@ -25,7 +27,9 @@ export const dailyLearningService = {
     return apiClient.get('/daily-learning/sources');
   },
 
-  async createSource(body: Partial<LearningSource> & { name: string; kind: LearningSource['kind'] }) {
+  async createSource(
+    body: Partial<LearningSource> & { name: string; kind: LearningSource['kind'] }
+  ) {
     return apiClient.post<LearningSource>('/daily-learning/sources', body);
   },
 
@@ -47,9 +51,9 @@ export const dailyLearningService = {
     });
   },
 
-  async listSourceSuggestions(readyOnly = false): Promise<
-    ApiResponse<{ suggestions: LearningSourceSuggestion[] }>
-  > {
+  async listSourceSuggestions(
+    readyOnly = false
+  ): Promise<ApiResponse<{ suggestions: LearningSourceSuggestion[] }>> {
     const q = readyOnly ? '?readyOnly=true' : '';
     return apiClient.get(`/daily-learning/source-suggestions${q}`);
   },
@@ -68,11 +72,10 @@ export const dailyLearningService = {
     );
   },
 
-  async getContext(opts?: { regenerateAi?: boolean }): Promise<
-    ApiResponse<DailyLearningContextPayload>
-  > {
-    const q =
-      opts?.regenerateAi === true ? '?regenerateAi=true' : '';
+  async getContext(opts?: {
+    regenerateAi?: boolean;
+  }): Promise<ApiResponse<DailyLearningContextPayload>> {
+    const q = opts?.regenerateAi === true ? '?regenerateAi=true' : '';
     return apiClient.get(`/daily-learning/context${q}`);
   },
 
@@ -81,9 +84,10 @@ export const dailyLearningService = {
     return apiClient.post(`/daily-learning/ingest/run${q}`, {});
   },
 
-  async listDigests(
-    params?: { channel?: string; digestDate?: string }
-  ): Promise<ApiResponse<{ digests: DailyDigest[] }>> {
+  async listDigests(params?: {
+    channel?: string;
+    digestDate?: string;
+  }): Promise<ApiResponse<{ digests: DailyDigest[] }>> {
     const sp = new URLSearchParams();
     if (params?.channel) sp.set('channel', params.channel);
     if (params?.digestDate) sp.set('digestDate', params.digestDate);
@@ -138,7 +142,9 @@ export const dailyLearningService = {
   },
 
   async reorderTrack(id: string, nodeOrder: string[]) {
-    return apiClient.post<LessonTrack>(`/daily-learning/lesson-tracks/${id}/reorder`, { nodeOrder });
+    return apiClient.post<LessonTrack>(`/daily-learning/lesson-tracks/${id}/reorder`, {
+      nodeOrder,
+    });
   },
 
   async skipNode(trackId: string, nodeId: string) {
@@ -152,13 +158,10 @@ export const dailyLearningService = {
   },
 
   async actionExtract(digestId: string, digestItemId: string) {
-    return apiClient.post<{ artifactId?: string | null }>(
-      `/daily-learning/actions/extract-vault`,
-      {
-        digestId,
-        digestItemId,
-      }
-    );
+    return apiClient.post<{ artifactId?: string | null }>(`/daily-learning/actions/extract-vault`, {
+      digestId,
+      digestItemId,
+    });
   },
 
   async actionFlashcards(digestId: string, digestItemId: string, count = 5) {

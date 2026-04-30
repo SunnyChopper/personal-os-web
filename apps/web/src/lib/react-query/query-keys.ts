@@ -83,7 +83,8 @@ export const queryKeys = {
     },
     planner: {
       all: () => [...queryKeys.growthSystem.all, 'planner'] as const,
-      week: (weekStart: string) => [...queryKeys.growthSystem.planner.all(), 'week', weekStart] as const,
+      week: (weekStart: string) =>
+        [...queryKeys.growthSystem.planner.all(), 'week', weekStart] as const,
       oneThing: (date: string) =>
         [...queryKeys.growthSystem.planner.all(), 'one-thing', date] as const,
       calendarConnections: () =>
@@ -204,8 +205,7 @@ export const queryKeys = {
       filters
         ? ([...queryKeys.observability.all, 'executions', filters] as const)
         : ([...queryKeys.observability.all, 'executions'] as const),
-    executionDetail: (id: string) =>
-      [...queryKeys.observability.all, 'execution', id] as const,
+    executionDetail: (id: string) => [...queryKeys.observability.all, 'execution', id] as const,
   },
 
   // Draft Notes

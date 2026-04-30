@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import type { SkillEdgeRow, SkillNodeRow } from "@/lib/queries/public-skills";
+import type { SkillEdgeRow, SkillNodeRow } from '@/lib/queries/public-skills';
 import {
   Background,
   Controls,
@@ -9,14 +9,14 @@ import {
   useNodesState,
   type Edge,
   type Node,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
-import { useEffect, useMemo } from "react";
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { useEffect, useMemo } from 'react';
 
 function layoutNodes(nodes: SkillNodeRow[]): Node[] {
   const perCat: Record<string, SkillNodeRow[]> = {};
   for (const n of nodes) {
-    const c = n.category || "general";
+    const c = n.category || 'general';
     if (!perCat[c]) perCat[c] = [];
     perCat[c].push(n);
   }
@@ -32,9 +32,9 @@ function layoutNodes(nodes: SkillNodeRow[]): Node[] {
           fontSize: 11,
           padding: 8,
           borderRadius: 8,
-          background: "#ffffff",
-          border: "1px solid #e5e7eb",
-          color: "#374151",
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
+          color: '#374151',
           width: 180,
         },
       });
@@ -59,7 +59,7 @@ export function PublicSkillTree({
         source: e.parentSourceSkillId,
         target: e.childSourceSkillId,
       })),
-    [edges],
+    [edges]
   );
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState(initialNodes);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -71,7 +71,7 @@ export function PublicSkillTree({
         id: `e-${i}`,
         source: e.parentSourceSkillId,
         target: e.childSourceSkillId,
-      })),
+      }))
     );
   }, [nodes, edges, setRfEdges, setRfNodes]);
 

@@ -14,10 +14,7 @@ export const plannerService = {
       `/growth-system/planner/week?weekStart=${encodeURIComponent(weekStart)}`
     ),
 
-  generateWeek: (
-    weekStart: string,
-    includeLlmSchedule = true
-  ): Promise<ApiResponse<PlannerWeek>> =>
+  generateWeek: (weekStart: string, includeLlmSchedule = true): Promise<ApiResponse<PlannerWeek>> =>
     apiClient.post<PlannerWeek>('/growth-system/planner/generate', {
       weekStart,
       includeLlmSchedule,
@@ -43,9 +40,9 @@ export const plannerService = {
       `/growth-system/planner/one-thing?date=${encodeURIComponent(date)}`
     ),
 
-  suggestOneThing: (targetDate: string): Promise<
-    ApiResponse<{ candidates: OneThingCandidate[]; targetDate: string }>
-  > =>
+  suggestOneThing: (
+    targetDate: string
+  ): Promise<ApiResponse<{ candidates: OneThingCandidate[]; targetDate: string }>> =>
     apiClient.post(
       `/growth-system/planner/one-thing/suggestions?targetDate=${encodeURIComponent(targetDate)}`,
       {}

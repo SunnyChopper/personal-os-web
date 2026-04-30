@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import type { MomentumDay } from "@/lib/queries/public-momentum";
+import type { MomentumDay } from '@/lib/queries/public-momentum';
 
 function intensityClass(n: number): string {
-  if (n <= 0) return "bg-gray-100";
-  if (n < 2) return "bg-blue-200";
-  if (n < 4) return "bg-blue-400";
-  return "bg-blue-600";
+  if (n <= 0) return 'bg-gray-100';
+  if (n < 2) return 'bg-blue-200';
+  if (n < 4) return 'bg-blue-400';
+  return 'bg-blue-600';
 }
 
 export function MomentumHeatmap({ days }: { days: MomentumDay[] }) {

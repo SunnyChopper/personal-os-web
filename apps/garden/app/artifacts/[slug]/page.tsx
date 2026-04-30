@@ -1,8 +1,8 @@
-import PageShell from "@/components/layout/PageShell";
-import { getArtifactBySlug } from "@/lib/queries/public-artifacts";
-import type { Metadata } from "next";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import PageShell from '@/components/layout/PageShell';
+import { getArtifactBySlug } from '@/lib/queries/public-artifacts';
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
 
 export const revalidate = 300;
 
@@ -11,8 +11,8 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const a = await getArtifactBySlug(slug);
-  if (!a) return { title: "Not found" };
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
+  if (!a) return { title: 'Not found' };
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
   return {
     title: `${a.title} | Artifact`,
     description: a.summary.slice(0, 160),
@@ -26,11 +26,11 @@ export default async function ArtifactDetailPage({ params }: Props) {
   if (!a) notFound();
 
   const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
     name: a.title,
     description: a.summary,
-    applicationCategory: "DeveloperApplication",
+    applicationCategory: 'DeveloperApplication',
   };
 
   return (
@@ -48,29 +48,39 @@ export default async function ArtifactDetailPage({ params }: Props) {
         <dl className="grid gap-2 text-sm md:grid-cols-2">
           <div>
             <dt className="text-gray-500">API capital burned (USD)</dt>
-            <dd className="font-medium text-gray-900">{a.apiCapitalBurnedUsd ?? "—"}</dd>
+            <dd className="font-medium text-gray-900">{a.apiCapitalBurnedUsd ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-gray-500">Human time saved (hrs)</dt>
-            <dd className="font-medium text-gray-900">{a.humanTimeSavedHours ?? "—"}</dd>
+            <dd className="font-medium text-gray-900">{a.humanTimeSavedHours ?? '—'}</dd>
           </div>
           <div className="md:col-span-2">
             <dt className="text-gray-500">ROI summary</dt>
-            <dd className="font-medium text-gray-900">{a.roiSummary || "—"}</dd>
+            <dd className="font-medium text-gray-900">{a.roiSummary || '—'}</dd>
           </div>
           <div className="md:col-span-2">
             <dt className="text-gray-500">Stack</dt>
-            <dd className="font-medium text-gray-900">{a.stack?.join(", ") || "—"}</dd>
+            <dd className="font-medium text-gray-900">{a.stack?.join(', ') || '—'}</dd>
           </div>
         </dl>
         <div className="flex gap-4">
           {a.demoUrl ? (
-            <a href={a.demoUrl} className="text-primary hover:underline" rel="noreferrer" target="_blank">
+            <a
+              href={a.demoUrl}
+              className="text-primary hover:underline"
+              rel="noreferrer"
+              target="_blank"
+            >
               Demo
             </a>
           ) : null}
           {a.repoUrl ? (
-            <a href={a.repoUrl} className="text-primary hover:underline" rel="noreferrer" target="_blank">
+            <a
+              href={a.repoUrl}
+              className="text-primary hover:underline"
+              rel="noreferrer"
+              target="_blank"
+            >
               Repo
             </a>
           ) : null}

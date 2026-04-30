@@ -22,7 +22,8 @@ export function useDailyLearningSettings() {
     queryKey: queryKeys.dailyLearning.settings(),
     queryFn: async () => {
       const res = await dailyLearningService.getSettings();
-      if (!res.success || !res.data) throw new Error(res.error?.message || 'Failed to load settings');
+      if (!res.success || !res.data)
+        throw new Error(res.error?.message || 'Failed to load settings');
       return res.data.settings;
     },
   });
@@ -58,7 +59,8 @@ export function useDailyLearningSources() {
     queryKey: queryKeys.dailyLearning.sources(),
     queryFn: async () => {
       const res = await dailyLearningService.listSources();
-      if (!res.success || !res.data) throw new Error(res.error?.message || 'Failed to load sources');
+      if (!res.success || !res.data)
+        throw new Error(res.error?.message || 'Failed to load sources');
       return res.data.sources;
     },
   });
@@ -69,7 +71,8 @@ export function useDailyLearningContext() {
     queryKey: queryKeys.dailyLearning.context(),
     queryFn: async () => {
       const res = await dailyLearningService.getContext();
-      if (!res.success || !res.data) throw new Error(res.error?.message || 'Failed to load context');
+      if (!res.success || !res.data)
+        throw new Error(res.error?.message || 'Failed to load context');
       return res.data;
     },
   });
@@ -108,7 +111,8 @@ export function useDailyDigests(params?: { channel?: string; digestDate?: string
     queryKey: queryKeys.dailyLearning.digests(params),
     queryFn: async () => {
       const res = await dailyLearningService.listDigests(params);
-      if (!res.success || !res.data) throw new Error(res.error?.message || 'Failed to load digests');
+      if (!res.success || !res.data)
+        throw new Error(res.error?.message || 'Failed to load digests');
       return res.data.digests;
     },
   });
@@ -123,7 +127,8 @@ export function useDailyDiscards(params?: {
     queryKey: queryKeys.dailyLearning.discards(params),
     queryFn: async () => {
       const res = await dailyLearningService.listDiscards(params);
-      if (!res.success || !res.data) throw new Error(res.error?.message || 'Failed to load discards');
+      if (!res.success || !res.data)
+        throw new Error(res.error?.message || 'Failed to load discards');
       return res.data.discards;
     },
   });

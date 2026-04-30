@@ -1,6 +1,6 @@
-import "server-only";
+import 'server-only';
 
-import { withClient, getPublicGardenOwnerUserId } from "@/lib/db";
+import { withClient, getPublicGardenOwnerUserId } from '@/lib/db';
 
 export type SkillNodeRow = {
   id: string;
@@ -27,14 +27,14 @@ export async function getPublicSkillGraph(): Promise<{
               progress_percentage AS "progressPercentage"
        FROM public_garden.public_skill_nodes
        WHERE user_id = $1 AND published = true AND archived_at IS NULL`,
-      [userId],
+      [userId]
     );
     const edges = await c.query(
       `SELECT parent_source_skill_id AS "parentSourceSkillId",
               child_source_skill_id AS "childSourceSkillId"
        FROM public_garden.public_skill_edges
        WHERE user_id = $1 AND published = true AND archived_at IS NULL`,
-      [userId],
+      [userId]
     );
     return { nodes: nodes.rows as SkillNodeRow[], edges: edges.rows as SkillEdgeRow[] };
   });

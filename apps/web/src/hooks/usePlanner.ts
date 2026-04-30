@@ -45,12 +45,7 @@ export function usePlannerAutoSchedule(weekStart: string) {
 export function usePatchPlannerBlock(weekStart: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: {
-      blockId: string;
-      date?: string;
-      startAt: string;
-      endAt: string;
-    }) =>
+    mutationFn: async (vars: { blockId: string; date?: string; startAt: string; endAt: string }) =>
       requireData(
         await plannerService.moveBlock(vars.blockId, {
           date: vars.date,
@@ -81,9 +76,7 @@ export function usePatchPlannerBlock(weekStart: string) {
       const targetDate = vars.date ?? moved.date;
       const durationMinutes = Math.max(
         1,
-        Math.round(
-          (new Date(vars.endAt).getTime() - new Date(vars.startAt).getTime()) / 60000
-        )
+        Math.round((new Date(vars.endAt).getTime() - new Date(vars.startAt).getTime()) / 60000)
       );
       const newBlock: PlannerBlock = {
         ...moved,
@@ -125,7 +118,9 @@ export function useDeletePlannerBlock(weekStart: string) {
 
 export function useOneThing(date: string | null) {
   return useQuery({
-    queryKey: date ? queryKeys.growthSystem.planner.oneThing(date) : ['planner', 'one-thing', 'off'],
+    queryKey: date
+      ? queryKeys.growthSystem.planner.oneThing(date)
+      : ['planner', 'one-thing', 'off'],
     enabled: !!date,
     queryFn: async () => requireData(await plannerService.getOneThing(date!)),
   });
@@ -148,7 +143,9 @@ export function useSetOneThing() {
     mutationFn: async (body: { targetDate: string; taskId: string; selectionReason?: string }) =>
       requireData(await plannerService.setOneThing(body)),
     onSuccess: (_data, body) => {
-      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.oneThing(body.targetDate) });
+      void qc.invalidateQueries({
+        queryKey: queryKeys.growthSystem.planner.oneThing(body.targetDate),
+      });
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.all() });
@@ -162,7 +159,9 @@ export function useRescueTask(weekStartForInvalidation: string) {
     mutationFn: async (vars: { taskId: string; targetDate?: string }) =>
       requireData(await plannerService.rescueTask(vars.taskId, { targetDate: vars.targetDate })),
     onSuccess: (_data, vars) => {
-      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.week(weekStartForInvalidation) });
+      void qc.invalidateQueries({
+        queryKey: queryKeys.growthSystem.planner.week(weekStartForInvalidation),
+      });
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.detail(vars.taskId) });
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });

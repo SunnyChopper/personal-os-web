@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import type { ConceptNodeRow } from "@/lib/queries/public-collider";
+import type { ConceptNodeRow } from '@/lib/queries/public-collider';
 import {
   Background,
   Controls,
@@ -8,10 +8,10 @@ import {
   useEdgesState,
   useNodesState,
   type Node,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
-import type { MouseEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import type { MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export function PublicConceptCollider({ initialNodes }: { initialNodes: ConceptNodeRow[] }) {
   const [selected, setSelected] = useState<string[]>([]);
@@ -27,14 +27,14 @@ export function PublicConceptCollider({ initialNodes }: { initialNodes: ConceptN
         style: {
           padding: 10,
           borderRadius: 8,
-          background: selected.includes(n.id) ? "#eff6ff" : "#ffffff",
-          border: selected.includes(n.id) ? "2px solid #3b82f6" : "1px solid #e5e7eb",
-          color: "#374151",
+          background: selected.includes(n.id) ? '#eff6ff' : '#ffffff',
+          border: selected.includes(n.id) ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+          color: '#374151',
           width: 160,
           fontSize: 12,
         },
       })),
-    [initialNodes, selected],
+    [initialNodes, selected]
   );
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState(nodes);
@@ -52,7 +52,7 @@ export function PublicConceptCollider({ initialNodes }: { initialNodes: ConceptN
         return [...prev, node.id];
       });
     },
-    [setSelected],
+    [setSelected]
   );
 
   const synthesize = async () => {
@@ -60,16 +60,16 @@ export function PublicConceptCollider({ initialNodes }: { initialNodes: ConceptN
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch("/api/collider/synthesize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/collider/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nodeIds: selected }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "failed");
+      if (!res.ok) throw new Error(data?.error || 'failed');
       setResult(data.text as string);
     } catch (e) {
-      setResult(e instanceof Error ? e.message : "Error");
+      setResult(e instanceof Error ? e.message : 'Error');
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export function PublicConceptCollider({ initialNodes }: { initialNodes: ConceptN
           disabled={selected.length < 2 || loading}
           className="rounded bg-primary px-3 py-1 text-sm text-white transition-colors hover:bg-primary-dark disabled:opacity-40"
         >
-          {loading ? "…" : "Synthesize selection"}
+          {loading ? '…' : 'Synthesize selection'}
         </button>
         <span className="text-xs text-gray-500">Select 2–3 nodes (click)</span>
       </div>

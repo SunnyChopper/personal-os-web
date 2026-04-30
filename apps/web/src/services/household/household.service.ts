@@ -35,7 +35,10 @@ export const householdService = {
   },
 
   async putMealsWeek(weekStart: string, entries: Record<string, unknown>[]) {
-    return apiClient.put<Record<string, unknown>[]>('/household/meals/week', { weekStart, entries });
+    return apiClient.put<Record<string, unknown>[]>('/household/meals/week', {
+      weekStart,
+      entries,
+    });
   },
 
   async listPetSupplies(): Promise<ApiResponse<Record<string, unknown>[]>> {

@@ -1,5 +1,10 @@
 import type { CourseGenerationProgress } from '@/services/knowledge-vault/course-generation/types';
-import type { Course, CourseModule, DifficultyLevel, PreAssessmentStored } from '@/types/knowledge-vault';
+import type {
+  Course,
+  CourseModule,
+  DifficultyLevel,
+  PreAssessmentStored,
+} from '@/types/knowledge-vault';
 import { wsLogger } from '@/lib/logger';
 
 /** In-flight WebSocket + run id for cancellation (reuses `cancelRun` on the same API). */
@@ -114,7 +119,8 @@ export function runCourseSkeletonOverWebSocket(options: {
           try {
             msg = JSON.parse(String(ev.data)) as {
               type?: string;
-              payload?: Record<string, unknown> };
+              payload?: Record<string, unknown>;
+            };
           } catch {
             return;
           }

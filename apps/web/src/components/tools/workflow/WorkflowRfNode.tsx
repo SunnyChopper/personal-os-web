@@ -25,9 +25,7 @@ export default function WorkflowRfNode({ data, selected }: NodeProps) {
         d.runStatus === 'pending' && 'animate-pulse border-amber-400'
       )}
     >
-      {!isTrigger && (
-        <Handle type="target" position={Position.Top} className="!bg-gray-400" />
-      )}
+      {!isTrigger && <Handle type="target" position={Position.Top} className="!bg-gray-400" />}
       <div className="font-mono text-[10px] uppercase text-gray-500">{d.ntype}</div>
       <div className="font-medium text-gray-900 dark:text-gray-100">{d.label}</div>
       {isCondition ? (

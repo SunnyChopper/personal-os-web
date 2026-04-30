@@ -40,10 +40,12 @@ export default function HealthFitnessAuraPage() {
           <Sparkles className="h-6 w-6" />
           <span className="text-sm font-medium">Aura</span>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Recovery × story points</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          Recovery × story points
+        </h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Joins <strong>DailyRecovery</strong> with completed task story points from Growth System (same source as weekly
-          review velocity). Query-time only — no duplicate story-point store.
+          Joins <strong>DailyRecovery</strong> with completed task story points from Growth System
+          (same source as weekly review velocity). Query-time only — no duplicate story-point store.
         </p>
       </div>
 
@@ -86,8 +88,9 @@ export default function HealthFitnessAuraPage() {
           <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Correlation</h2>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Pearson <span className="font-mono font-medium">{r != null ? r.toFixed(3) : 'n/a'}</span> over days with
-              both recovery metric and completed points ({series.points.length} points).
+              Pearson{' '}
+              <span className="font-mono font-medium">{r != null ? r.toFixed(3) : 'n/a'}</span> over
+              days with both recovery metric and completed points ({series.points.length} points).
             </p>
             <p className="mt-1 text-xs text-gray-500">
               Window {series.startDate} → {series.endDate} · x = {series.xMetric}

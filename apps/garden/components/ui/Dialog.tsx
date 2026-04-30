@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-type DialogSize = "sm" | "md" | "lg" | "xl" | "full";
+type DialogSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
 interface DialogProps {
   isOpen: boolean;
@@ -18,11 +18,11 @@ interface DialogProps {
 }
 
 const sizeClasses: Record<DialogSize, string> = {
-  sm: "max-w-md",
-  md: "max-w-lg",
-  lg: "max-w-2xl",
-  xl: "max-w-4xl",
-  full: "max-w-[95vw] mx-auto",
+  sm: 'max-w-md',
+  md: 'max-w-lg',
+  lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
+  full: 'max-w-[95vw] mx-auto',
 };
 
 export default function Dialog({
@@ -31,19 +31,19 @@ export default function Dialog({
   title,
   children,
   className,
-  size = "md",
+  size = 'md',
 }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = "hidden";
+      document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = 'unset';
     }
     return () => {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
 
@@ -51,13 +51,13 @@ export default function Dialog({
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
   return (
@@ -76,17 +76,17 @@ export default function Dialog({
               ref={dialogRef}
               role="dialog"
               aria-modal="true"
-              aria-labelledby={title ? "dialog-title" : undefined}
+              aria-labelledby={title ? 'dialog-title' : undefined}
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", duration: 0.5 }}
+              transition={{ type: 'spring', duration: 0.5 }}
               className={cn(
-                "relative my-4 flex w-full flex-col rounded-lg bg-white shadow-xl pointer-events-auto dark:bg-gray-800",
+                'relative my-4 flex w-full flex-col rounded-lg bg-white shadow-xl pointer-events-auto dark:bg-gray-800',
                 sizeClasses[size],
-                size === "full" && "h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)]",
-                size === "xl" && "max-h-[calc(100vh-4rem)] md:max-w-4xl",
-                size !== "full" && size !== "xl" && "max-h-[calc(100vh-4rem)]",
+                size === 'full' && 'h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)]',
+                size === 'xl' && 'max-h-[calc(100vh-4rem)] md:max-w-4xl',
+                size !== 'full' && size !== 'xl' && 'max-h-[calc(100vh-4rem)]',
                 className
               )}
             >
@@ -102,7 +102,10 @@ export default function Dialog({
                 </button>
 
                 {title ? (
-                  <h3 id="dialog-title" className="pr-8 text-2xl font-bold text-gray-900 dark:text-white">
+                  <h3
+                    id="dialog-title"
+                    className="pr-8 text-2xl font-bold text-gray-900 dark:text-white"
+                  >
                     {title}
                   </h3>
                 ) : null}

@@ -72,7 +72,10 @@ export function NutritionQuickAdd({ plannerQueryExample, className }: NutritionQ
     }
   };
 
-  const updateField = <K extends keyof ParsedNutritionResult>(key: K, value: ParsedNutritionResult[K]) => {
+  const updateField = <K extends keyof ParsedNutritionResult>(
+    key: K,
+    value: ParsedNutritionResult[K]
+  ) => {
     setPreview((prev) => ({
       ...(prev ?? defaultParsed()),
       [key]: value,
@@ -85,7 +88,8 @@ export function NutritionQuickAdd({ plannerQueryExample, className }: NutritionQ
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Planner deep-link contract (future): open nutrition with query{' '}
           <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">{plannerQueryExample}</code>{' '}
-          to pre-fill <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">sourceMealPlanId</code>,{' '}
+          to pre-fill{' '}
+          <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">sourceMealPlanId</code>,{' '}
           <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">sourceMealSlotId</code>,{' '}
           <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">sourceRecipeId</code>.
         </p>

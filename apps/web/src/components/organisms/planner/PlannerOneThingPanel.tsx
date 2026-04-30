@@ -67,11 +67,15 @@ export function PlannerOneThingPanel({ onSaved }: PlannerOneThingPanelProps) {
       <div className="flex items-start gap-2">
         <Moon className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
         <div>
-          <h2 id="planner-one-thing-heading" className="text-base font-semibold text-gray-900 dark:text-white">
+          <h2
+            id="planner-one-thing-heading"
+            className="text-base font-semibold text-gray-900 dark:text-white"
+          >
             One thing for tomorrow
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Pick a single focus task for <strong>{tomorrow}</strong>. It pins on that day in the week below.
+            Pick a single focus task for <strong>{tomorrow}</strong>. It pins on that day in the
+            week below.
           </p>
         </div>
       </div>
@@ -97,9 +101,15 @@ export function PlannerOneThingPanel({ onSaved }: PlannerOneThingPanelProps) {
                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white/70 dark:bg-gray-900/40'
                 }`}
               >
-                <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{c.title}</div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">{c.reason}</div>
-                <div className="text-[10px] text-gray-500 mt-1">Score {c.plannerScore.toFixed(1)}</div>
+                <div className="font-medium text-gray-900 dark:text-white line-clamp-2">
+                  {c.title}
+                </div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                  {c.reason}
+                </div>
+                <div className="text-[10px] text-gray-500 mt-1">
+                  Score {c.plannerScore.toFixed(1)}
+                </div>
               </button>
             </li>
           ))}
@@ -109,7 +119,8 @@ export function PlannerOneThingPanel({ onSaved }: PlannerOneThingPanelProps) {
       {existing?.selectedTaskId && (
         <p className="text-sm text-emerald-700 dark:text-emerald-400">
           Locked: <strong className="font-mono text-xs">{existing.selectedTaskId}</strong>
-          {existing.selectionReason ? ` — ${existing.selectionReason}` : ''}. Choose another card to replace.
+          {existing.selectionReason ? ` — ${existing.selectionReason}` : ''}. Choose another card to
+          replace.
         </p>
       )}
 

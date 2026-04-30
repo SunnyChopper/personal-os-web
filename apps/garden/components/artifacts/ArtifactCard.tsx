@@ -1,5 +1,5 @@
-import Link from "next/link";
-import type { ArtifactRow } from "@/lib/queries/public-artifacts";
+import Link from 'next/link';
+import type { ArtifactRow } from '@/lib/queries/public-artifacts';
 
 export function ArtifactCard({ artifact: a }: { artifact: ArtifactRow }) {
   return (
@@ -12,11 +12,11 @@ export function ArtifactCard({ artifact: a }: { artifact: ArtifactRow }) {
       <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
         <div>
           <dt>API burn ($)</dt>
-          <dd className="font-medium text-gray-900">{a.apiCapitalBurnedUsd ?? "—"}</dd>
+          <dd className="font-medium text-gray-900">{a.apiCapitalBurnedUsd ?? '—'}</dd>
         </div>
         <div>
           <dt>Time saved (h)</dt>
-          <dd className="font-medium text-gray-900">{a.humanTimeSavedHours ?? "—"}</dd>
+          <dd className="font-medium text-gray-900">{a.humanTimeSavedHours ?? '—'}</dd>
         </div>
       </dl>
     </Link>

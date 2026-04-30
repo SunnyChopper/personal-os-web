@@ -1,8 +1,8 @@
-import PageShell from "@/components/layout/PageShell";
-import { getChangelogBySlug } from "@/lib/queries/public-changelog";
-import type { Metadata } from "next";
-import { marked } from "marked";
-import { notFound } from "next/navigation";
+import PageShell from '@/components/layout/PageShell';
+import { getChangelogBySlug } from '@/lib/queries/public-changelog';
+import type { Metadata } from 'next';
+import { marked } from 'marked';
+import { notFound } from 'next/navigation';
 
 export const revalidate = 300;
 
@@ -11,8 +11,8 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const row = await getChangelogBySlug(slug);
-  if (!row) return { title: "Not found" };
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
+  if (!row) return { title: 'Not found' };
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
   return {
     title: `${row.title} | Changelog`,
     description: `Weekly changelog — ${row.wordCount} words`,
@@ -26,8 +26,8 @@ export default async function ChangelogSlugPage({ params }: Props) {
   if (!row) notFound();
 
   const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
     headline: row.title,
     wordCount: row.wordCount,
     dateModified: row.updatedAt,

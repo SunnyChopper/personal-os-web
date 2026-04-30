@@ -82,7 +82,9 @@ export default function WebhooksListPage() {
                       onClick={() => {
                         if (confirm('Delete this catcher?')) delMut.mutate(c.id);
                       }}
-                      className={cn('rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950')}
+                      className={cn(
+                        'rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950'
+                      )}
                       aria-label="Delete"
                     >
                       <Trash2 className="h-4 w-4" />

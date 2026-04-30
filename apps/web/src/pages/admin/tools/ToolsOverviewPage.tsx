@@ -139,13 +139,12 @@ export default function ToolsOverviewPage() {
           <div>
             <h4 className="mb-2 font-bold text-blue-900 dark:text-blue-100">Knowledge Vault</h4>
             <p className="text-gray-800 dark:text-gray-200">
-              Tools that support it expose <strong>Save to Knowledge Vault</strong> so diagrams,
-              API captures, and slide decks stay searchable alongside your notes.
+              Tools that support it expose <strong>Save to Knowledge Vault</strong> so diagrams, API
+              captures, and slide decks stay searchable alongside your notes.
             </p>
           </div>
         </div>
       </div>
-
     </div>
   );
 }

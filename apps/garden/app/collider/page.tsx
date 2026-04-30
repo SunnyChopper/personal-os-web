@@ -1,12 +1,12 @@
-import { PublicConceptCollider } from "@/components/collider/PublicConceptCollider";
-import PageShell from "@/components/layout/PageShell";
-import { listColliderNodes } from "@/lib/queries/public-collider";
-import type { Metadata } from "next";
+import { PublicConceptCollider } from '@/components/collider/PublicConceptCollider';
+import PageShell from '@/components/layout/PageShell';
+import { listColliderNodes } from '@/lib/queries/public-collider';
+import type { Metadata } from 'next';
 
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "Concept Collider | Sunny Singh",
+  title: 'Concept Collider | Sunny Singh',
 };
 
 export default async function ColliderPage() {

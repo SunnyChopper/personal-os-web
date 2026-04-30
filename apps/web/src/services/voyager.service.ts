@@ -132,7 +132,9 @@ export const voyagerService = {
   },
 
   async listRestaurants(): Promise<VoyagerRestaurant[]> {
-    const data = await unwrap(apiClient.get<{ items: VoyagerRestaurant[] }>('/voyager/restaurants'));
+    const data = await unwrap(
+      apiClient.get<{ items: VoyagerRestaurant[] }>('/voyager/restaurants')
+    );
     return data.items;
   },
 
@@ -205,7 +207,9 @@ export const voyagerService = {
     return data.items;
   },
 
-  async getItineraryUploadUrl(file: File): Promise<{ uploadUrl: string; fileId: string; s3Key: string }> {
+  async getItineraryUploadUrl(
+    file: File
+  ): Promise<{ uploadUrl: string; fileId: string; s3Key: string }> {
     const data = await unwrap(
       apiClient.post<{ uploadUrl: string; fileId: string; s3Key: string }>(
         '/voyager/itinerary/upload-url',

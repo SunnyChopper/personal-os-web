@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import SkillCard from "@personal-os-web/ui/skill-card";
-import SkillModal from "@/components/molecules/SkillModal";
-import { skills } from "@personal-os-web/portfolio-data";
-import type { Skill } from "@personal-os-web/portfolio-types";
+import { useState } from 'react';
+import SkillCard from '@personal-os-web/ui/skill-card';
+import SkillModal from '@/components/molecules/SkillModal';
+import { skills } from '@personal-os-web/portfolio-data';
+import type { Skill } from '@personal-os-web/portfolio-types';
 
 export default function SkillsSection() {
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
@@ -35,7 +35,11 @@ export default function SkillsSection() {
         </div>
       </div>
 
-      <SkillModal skill={selectedSkill} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <SkillModal
+        skill={selectedSkill}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </section>
   );
 }

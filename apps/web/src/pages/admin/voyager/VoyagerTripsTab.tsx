@@ -87,14 +87,17 @@ export default function VoyagerTripsTab() {
           className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
           role="alert"
         >
-          {(tripsQ.error as Error)?.message?.includes('503') || (tripsQ.error as Error)?.message?.includes('Postgres')
+          {(tripsQ.error as Error)?.message?.includes('503') ||
+          (tripsQ.error as Error)?.message?.includes('Postgres')
             ? 'Voyager needs Postgres (DATABASE_URL) on the backend.'
             : (tripsQ.error as Error).message}
         </div>
       )}
 
       <section className="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white/60 dark:bg-gray-900/40 p-6 shadow-sm">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Upcoming & planned</h2>
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+          Upcoming & planned
+        </h2>
         {tripsQ.isLoading ? (
           <Loader2 className="animate-spin text-teal-600" />
         ) : (
@@ -110,7 +113,9 @@ export default function VoyagerTripsTab() {
                       : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
                   }`}
                 >
-                  <div className="font-medium text-gray-900 dark:text-white">{t.title || 'Untitled trip'}</div>
+                  <div className="font-medium text-gray-900 dark:text-white">
+                    {t.title || 'Untitled trip'}
+                  </div>
                   <div className="text-xs text-gray-600 dark:text-gray-400">
                     {[t.primaryDestination, t.startAt?.slice(0, 10), t.endAt?.slice(0, 10)]
                       .filter(Boolean)
@@ -120,28 +125,31 @@ export default function VoyagerTripsTab() {
               </li>
             ))}
             {trips.length === 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">No trips yet — add one below.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No trips yet — add one below.
+              </p>
             )}
           </ul>
         )}
 
-        <TripQuickAdd
-          onCreate={(body) => createTrip.mutate(body)}
-          busy={createTrip.isPending}
-        />
+        <TripQuickAdd onCreate={(body) => createTrip.mutate(body)} busy={createTrip.isPending} />
       </section>
 
       {activeTrip && (
         <section className="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white/60 dark:bg-gray-900/40 p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Bookings & price watch</h2>
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+              Bookings & price watch
+            </h2>
             <div className="flex gap-2">
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
                 className="gap-1"
-                onClick={() => setWeatherTripId(weatherTripId === activeTrip.id ? null : activeTrip.id)}
+                onClick={() =>
+                  setWeatherTripId(weatherTripId === activeTrip.id ? null : activeTrip.id)
+                }
               >
                 <CloudSun className="size-4" />
                 {weatherTripId === activeTrip.id ? 'Hide weather' : 'Weather & packing'}
@@ -163,7 +171,10 @@ export default function VoyagerTripsTab() {
                         key={d.date}
                         className="rounded-lg bg-white/80 dark:bg-gray-900/50 px-2 py-1 text-xs text-gray-700 dark:text-gray-300"
                       >
-                        {d.date}: {d.tempMinC != null && d.tempMaxC != null ? `${Math.round(d.tempMinC)}–${Math.round(d.tempMaxC)}°C` : '—'}
+                        {d.date}:{' '}
+                        {d.tempMinC != null && d.tempMaxC != null
+                          ? `${Math.round(d.tempMinC)}–${Math.round(d.tempMaxC)}°C`
+                          : '—'}
                       </li>
                     ))}
                   </ul>
@@ -200,7 +211,9 @@ export default function VoyagerTripsTab() {
                 />
               ))}
               {(bookingsQ.data ?? []).length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No bookings for this trip.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No bookings for this trip.
+                </p>
               )}
             </ul>
           )}
@@ -246,7 +259,9 @@ function TripQuickAdd({
         />
       </div>
       <div className="flex-1 min-w-[160px]">
-        <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Destination (optional)</label>
+        <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">
+          Destination (optional)
+        </label>
         <input
           className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
           value={dest}
@@ -341,15 +356,18 @@ function BookingCard({
     <li className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
       <div className="flex flex-wrap justify-between gap-2">
         <div>
-          <div className="font-medium capitalize text-gray-900 dark:text-white">{booking.bookingType}</div>
+          <div className="font-medium capitalize text-gray-900 dark:text-white">
+            {booking.bookingType}
+          </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
-            {booking.providerName ?? 'Provider TBD'} · booked {fmtCents(booking.bookedAmountCents, booking.currency)}
+            {booking.providerName ?? 'Provider TBD'} · booked{' '}
+            {fmtCents(booking.bookedAmountCents, booking.currency)}
           </div>
         </div>
       </div>
       <div className="mt-3 text-xs text-gray-500 dark:text-gray-500">
-        Price check (manual strategy): enter a <strong>quoted price in cents</strong> (e.g. <code>89900</code> for
-        $899.00). Scheduled jobs compare against your booked amount.
+        Price check (manual strategy): enter a <strong>quoted price in cents</strong> (e.g.{' '}
+        <code>89900</code> for $899.00). Scheduled jobs compare against your booked amount.
       </div>
       <div className="mt-2 flex flex-wrap gap-2 items-center">
         <input
@@ -371,9 +389,7 @@ function BookingCard({
           Watch price
         </Button>
       </div>
-      {last && (
-        <SnapshotButton targetId={last.id} />
-      )}
+      {last && <SnapshotButton targetId={last.id} />}
     </li>
   );
 }

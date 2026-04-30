@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  startTransition,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -35,7 +28,11 @@ const PALETTE: { ntype: string; label: string; config: Record<string, unknown> }
   { ntype: 'trigger.manual', label: 'Manual', config: {} },
   { ntype: 'trigger.cron', label: 'Cron', config: { expression: '0 * * * *' } },
   { ntype: 'trigger.webhook', label: 'Webhook', config: {} },
-  { ntype: 'action.fetch', label: 'HTTP fetch', config: { method: 'GET', url: 'https://httpbin.org/json', headers: {} } },
+  {
+    ntype: 'action.fetch',
+    label: 'HTTP fetch',
+    config: { method: 'GET', url: 'https://httpbin.org/json', headers: {} },
+  },
   {
     ntype: 'action.llmPrompt',
     label: 'LLM prompt',
@@ -46,13 +43,21 @@ const PALETTE: { ntype: string; label: string; config: Record<string, unknown> }
     },
   },
   { ntype: 'action.dbRead', label: 'DB read (tool)', config: { toolName: 'list_tasks', args: {} } },
-  { ntype: 'action.dbWrite', label: 'DB write (tool)', config: { toolName: 'create_task', args: {} } },
+  {
+    ntype: 'action.dbWrite',
+    label: 'DB write (tool)',
+    config: { toolName: 'create_task', args: {} },
+  },
   {
     ntype: 'action.vaultSave',
     label: 'Vault save',
     config: { title: 'Workflow output', bodyTemplate: '{{ trigger }}' },
   },
-  { ntype: 'action.condition', label: 'Condition', config: { expression: 'steps.n-fetch.output.status' } },
+  {
+    ntype: 'action.condition',
+    label: 'Condition',
+    config: { expression: 'steps.n-fetch.output.status' },
+  },
 ];
 
 function nodeLabel(ntype: string, config: Record<string, unknown>): string {
@@ -110,12 +115,15 @@ function validateDefinition(def: WorkflowDefinition): string[] {
   if (triggers.length !== 1) errs.push('Exactly one trigger node is required.');
   const ids = new Set(def.nodes.map((n) => n.id));
   for (const e of def.edges) {
-    if (!ids.has(e.source) || !ids.has(e.target)) errs.push(`Edge ${e.id} references missing node.`);
+    if (!ids.has(e.source) || !ids.has(e.target))
+      errs.push(`Edge ${e.id} references missing node.`);
   }
   for (const n of def.nodes) {
     const c = n.config as Record<string, unknown>;
-    if (n.type === 'action.fetch' && !String(c.url || '').trim()) errs.push(`Node ${n.id}: fetch needs url.`);
-    if (n.type === 'trigger.cron' && !String(c.expression || '').trim()) errs.push(`Node ${n.id}: cron needs expression.`);
+    if (n.type === 'action.fetch' && !String(c.url || '').trim())
+      errs.push(`Node ${n.id}: fetch needs url.`);
+    if (n.type === 'trigger.cron' && !String(c.expression || '').trim())
+      errs.push(`Node ${n.id}: cron needs expression.`);
     if (n.type === 'action.llmPrompt' && !String(c.userPromptTemplate || '').trim()) {
       errs.push(`Node ${n.id}: LLM needs userPromptTemplate.`);
     }
@@ -195,8 +203,8 @@ export default function WorkflowEditorPage() {
     (entry: (typeof PALETTE)[number]) => {
       startTransition(() => {
         setNodes((prev) => {
-          const triggers = prev.filter(
-            (n) => (n.data as WorkflowRfData).ntype.startsWith('trigger.')
+          const triggers = prev.filter((n) =>
+            (n.data as WorkflowRfData).ntype.startsWith('trigger.')
           );
           if (entry.ntype.startsWith('trigger.') && triggers.length >= 1) {
             window.alert('Only one trigger is allowed. Remove the existing trigger first.');
@@ -348,8 +356,8 @@ export default function WorkflowEditorPage() {
         return (
           <div className="space-y-2">
             <p className="text-xs text-gray-500">
-              JMESPath expression evaluated against context (trigger + steps). Truthy → &quot;true&quot;
-              handle.
+              JMESPath expression evaluated against context (trigger + steps). Truthy →
+              &quot;true&quot; handle.
             </p>
             {field('expression', 'Expression')}
           </div>
@@ -404,7 +412,11 @@ export default function WorkflowEditorPage() {
           disabled={runMut.isPending}
           onClick={() => runMut.mutate()}
         >
-          {runMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+          {runMut.isPending ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Play className="h-3 w-3" />
+          )}
           Run now
         </button>
         <button
@@ -461,7 +473,9 @@ export default function WorkflowEditorPage() {
         <aside className="w-72 shrink-0 space-y-3 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
           <h2 className="text-sm font-medium text-gray-900 dark:text-white">Node config</h2>
           {selectedNode && (
-            <p className="font-mono text-[10px] text-gray-500">{(selectedNode.data as WorkflowRfData).ntype}</p>
+            <p className="font-mono text-[10px] text-gray-500">
+              {(selectedNode.data as WorkflowRfData).ntype}
+            </p>
           )}
           {renderConfigFields()}
         </aside>

@@ -1,19 +1,19 @@
-import { AskSunnyChat } from "@/components/chat/AskSunnyChat";
-import { MomentumHeatmap } from "@/components/momentum/MomentumHeatmap";
-import { VelocityChart } from "@/components/momentum/VelocityChart";
-import { ArtifactCard } from "@/components/artifacts/ArtifactCard";
-import { getLatestChangelog } from "@/lib/queries/public-changelog";
-import { listArtifacts } from "@/lib/queries/public-artifacts";
-import { listRecentPublicContent } from "@/lib/queries/public-content";
-import { getMomentumLast30Days } from "@/lib/queries/public-momentum";
-import PageShell from "@/components/layout/PageShell";
-import type { Metadata } from "next";
-import Link from "next/link";
+import { AskSunnyChat } from '@/components/chat/AskSunnyChat';
+import { MomentumHeatmap } from '@/components/momentum/MomentumHeatmap';
+import { VelocityChart } from '@/components/momentum/VelocityChart';
+import { ArtifactCard } from '@/components/artifacts/ArtifactCard';
+import { getLatestChangelog } from '@/lib/queries/public-changelog';
+import { listArtifacts } from '@/lib/queries/public-artifacts';
+import { listRecentPublicContent } from '@/lib/queries/public-content';
+import { getMomentumLast30Days } from '@/lib/queries/public-momentum';
+import PageShell from '@/components/layout/PageShell';
+import type { Metadata } from 'next';
+import Link from 'next/link';
 
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "Insights & Proof of Work | Sunny Singh",
+  title: 'Insights & Proof of Work | Sunny Singh',
 };
 
 export default async function InsightsHomePage() {
@@ -91,10 +91,7 @@ export default async function InsightsHomePage() {
           <ul className="mt-4 space-y-3">
             {recent.map((r) => (
               <li key={r.slug} className="flex items-center gap-3">
-                <Link
-                  href={`/insights/${r.slug}`}
-                  className="text-lg text-primary hover:underline"
-                >
+                <Link href={`/insights/${r.slug}`} className="text-lg text-primary hover:underline">
                   {r.title}
                 </Link>
                 <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">

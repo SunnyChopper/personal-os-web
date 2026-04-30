@@ -15,7 +15,9 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const require = createRequire(import.meta.url);
-const customRules = require(join(__dirname, '../../packages/eslint-config/rules', 'custom-rules.cjs'));
+const customRules = require(
+  join(__dirname, '../../packages/eslint-config/rules', 'custom-rules.cjs')
+);
 
 export default defineConfig([
   globalIgnores(['dist', 'node_modules', 'coverage', '.husky']),

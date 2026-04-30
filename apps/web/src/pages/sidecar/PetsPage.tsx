@@ -95,12 +95,16 @@ export default function PetsPage() {
 
       <ul className="space-y-2">
         {rows.map((r) => (
-          <li key={String(r.id)} className="rounded-xl border border-slate-800 bg-slate-900/30 p-3 text-sm">
+          <li
+            key={String(r.id)}
+            className="rounded-xl border border-slate-800 bg-slate-900/30 p-3 text-sm"
+          >
             <div className="font-medium text-slate-200">
               {String(r.petName)} — {String(r.itemName)}
             </div>
             <div className="text-xs text-slate-500 mt-1">
-              On hand: {String(r.onHandQuantity ?? '—')} · Burn: {String(r.dailyBurnRate ?? '—')} / day
+              On hand: {String(r.onHandQuantity ?? '—')} · Burn: {String(r.dailyBurnRate ?? '—')} /
+              day
             </div>
             <div className="flex gap-2 mt-2">
               <button

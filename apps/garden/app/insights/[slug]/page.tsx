@@ -1,8 +1,8 @@
-import PageShell from "@/components/layout/PageShell";
-import { getPublicContentBySlug } from "@/lib/queries/public-content";
-import type { Metadata } from "next";
-import { marked } from "marked";
-import { notFound } from "next/navigation";
+import PageShell from '@/components/layout/PageShell';
+import { getPublicContentBySlug } from '@/lib/queries/public-content';
+import type { Metadata } from 'next';
+import { marked } from 'marked';
+import { notFound } from 'next/navigation';
 
 export const revalidate = 300;
 
@@ -11,8 +11,8 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const row = await getPublicContentBySlug(slug);
-  if (!row) return { title: "Not found" };
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
+  if (!row) return { title: 'Not found' };
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
   return {
     title: `${row.title} | Insights`,
     description: row.summary.slice(0, 160),
@@ -26,8 +26,8 @@ export default async function InsightSlugPage({ params }: Props) {
   if (!row) notFound();
 
   const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Article",
+    '@context': 'https://schema.org',
+    '@type': 'Article',
     headline: row.title,
     description: row.summary,
     dateModified: row.updatedAt,

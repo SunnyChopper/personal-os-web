@@ -1,12 +1,12 @@
-import { ArtifactCard } from "@/components/artifacts/ArtifactCard";
-import PageShell from "@/components/layout/PageShell";
-import { listArtifacts } from "@/lib/queries/public-artifacts";
-import type { Metadata } from "next";
+import { ArtifactCard } from '@/components/artifacts/ArtifactCard';
+import PageShell from '@/components/layout/PageShell';
+import { listArtifacts } from '@/lib/queries/public-artifacts';
+import type { Metadata } from 'next';
 
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "Artifacts | Sunny Singh",
+  title: 'Artifacts | Sunny Singh',
 };
 
 export default async function ArtifactsPage() {

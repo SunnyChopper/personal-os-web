@@ -2,11 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CronExpressionParser } from 'cron-parser/dist/CronExpressionParser.js';
 import { ROUTES } from '@/routes';
-import {
-  cronFromPreset,
-  describeCron,
-  type CronQuickPreset,
-} from '@/lib/tools/cron-builder';
+import { cronFromPreset, describeCron, type CronQuickPreset } from '@/lib/tools/cron-builder';
 
 type FieldMode = 'every' | 'n';
 
@@ -169,12 +165,12 @@ export default function CronBuilderPage() {
       </div>
 
       <div>
-        <h2 className="text-sm font-medium text-gray-900 dark:text-white">Next 5 fire times (local)</h2>
+        <h2 className="text-sm font-medium text-gray-900 dark:text-white">
+          Next 5 fire times (local)
+        </h2>
         <ul className="mt-2 list-inside list-disc text-sm text-gray-700 dark:text-gray-300">
           {nextFive.ok
-            ? nextFive.dates.map((d) => (
-                <li key={d.toISOString()}>{d.toLocaleString()}</li>
-              ))
+            ? nextFive.dates.map((d) => <li key={d.toISOString()}>{d.toLocaleString()}</li>)
             : nextFive.error}
         </ul>
       </div>

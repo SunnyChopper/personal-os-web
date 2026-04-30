@@ -12,9 +12,18 @@ const qk = {
 
 export default function VoyagerMilestonesTab() {
   const qc = useQueryClient();
-  const restaurantsQ = useQuery({ queryKey: qk.restaurants, queryFn: () => voyagerService.listRestaurants() });
-  const milestonesQ = useQuery({ queryKey: qk.milestones, queryFn: () => voyagerService.listMilestones() });
-  const draftsQ = useQuery({ queryKey: qk.drafts, queryFn: () => voyagerService.listReservationDrafts() });
+  const restaurantsQ = useQuery({
+    queryKey: qk.restaurants,
+    queryFn: () => voyagerService.listRestaurants(),
+  });
+  const milestonesQ = useQuery({
+    queryKey: qk.milestones,
+    queryFn: () => voyagerService.listMilestones(),
+  });
+  const draftsQ = useQuery({
+    queryKey: qk.drafts,
+    queryFn: () => voyagerService.listReservationDrafts(),
+  });
 
   const createRestaurant = useMutation({
     mutationFn: voyagerService.createRestaurant,
@@ -27,8 +36,13 @@ export default function VoyagerMilestonesTab() {
   });
 
   const patchDraft = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof voyagerService.patchReservationDraft>[1] }) =>
-      voyagerService.patchReservationDraft(id, body),
+    mutationFn: ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: Parameters<typeof voyagerService.patchReservationDraft>[1];
+    }) => voyagerService.patchReservationDraft(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.drafts }),
   });
 
@@ -43,7 +57,9 @@ export default function VoyagerMilestonesTab() {
       )}
 
       <section className="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white/60 dark:bg-gray-900/40 p-6 shadow-sm">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Restaurant preferences</h2>
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+          Restaurant preferences
+        </h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Used when generating gentle reservation drafts (scheduled job looks ~30 days ahead).
         </p>
@@ -52,7 +68,10 @@ export default function VoyagerMilestonesTab() {
         ) : (
           <ul className="space-y-2 mb-4">
             {restaurants.map((r) => (
-              <li key={r.id} className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
+              <li
+                key={r.id}
+                className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm"
+              >
                 <span className="font-medium text-gray-900 dark:text-white">{r.name}</span>
                 {r.reservationEmail && (
                   <span className="text-gray-500 dark:text-gray-400"> · {r.reservationEmail}</span>
@@ -64,17 +83,25 @@ export default function VoyagerMilestonesTab() {
             )}
           </ul>
         )}
-        <RestaurantQuickAdd onCreate={(b) => createRestaurant.mutate(b)} busy={createRestaurant.isPending} />
+        <RestaurantQuickAdd
+          onCreate={(b) => createRestaurant.mutate(b)}
+          busy={createRestaurant.isPending}
+        />
       </section>
 
       <section className="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white/60 dark:bg-gray-900/40 p-6 shadow-sm">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Anniversaries & milestones</h2>
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+          Anniversaries & milestones
+        </h2>
         {milestonesQ.isLoading ? (
           <Loader2 className="animate-spin text-teal-600" />
         ) : (
           <ul className="space-y-2 mb-4">
             {(milestonesQ.data ?? []).map((m) => (
-              <li key={m.id} className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
+              <li
+                key={m.id}
+                className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm"
+              >
                 <span className="font-medium text-gray-900 dark:text-white">
                   {m.label || 'Milestone'}
                 </span>
@@ -97,7 +124,9 @@ export default function VoyagerMilestonesTab() {
       </section>
 
       <section className="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white/60 dark:bg-gray-900/40 p-6 shadow-sm">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Reservation drafts</h2>
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+          Reservation drafts
+        </h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Edit copy here; sending email is out of band — treat these as quiet prompts.
         </p>
@@ -106,14 +135,18 @@ export default function VoyagerMilestonesTab() {
         ) : (
           <ul className="space-y-4">
             {(draftsQ.data ?? []).map((d) => (
-              <li key={d.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-2">
+              <li
+                key={d.id}
+                className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-2"
+              >
                 <div className="text-xs uppercase tracking-wide text-gray-500">{d.status}</div>
                 <input
                   className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm font-medium"
                   defaultValue={d.emailSubject}
                   onBlur={(e) => {
                     const v = e.target.value.trim();
-                    if (v && v !== d.emailSubject) patchDraft.mutate({ id: d.id, body: { emailSubject: v } });
+                    if (v && v !== d.emailSubject)
+                      patchDraft.mutate({ id: d.id, body: { emailSubject: v } });
                   }}
                 />
                 <textarea
@@ -138,7 +171,9 @@ export default function VoyagerMilestonesTab() {
               </li>
             ))}
             {(draftsQ.data ?? []).length === 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">No drafts yet — they appear as dates approach.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No drafts yet — they appear as dates approach.
+              </p>
             )}
           </ul>
         )}

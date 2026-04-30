@@ -1,10 +1,4 @@
-import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 
 import { withCalendarDate } from '@/lib/planner/week';
 import type { PlannerWeek } from '@/types/planner';

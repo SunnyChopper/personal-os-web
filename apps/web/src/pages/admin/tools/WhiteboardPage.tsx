@@ -193,7 +193,11 @@ export default function WhiteboardPage() {
         {saveMsg && <span className="text-sm text-green-600">{saveMsg}</span>}
         {error && <span className="text-sm text-red-600">{error}</span>}
       </div>
-      <div className={cn('min-h-0 flex-1 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700')}>
+      <div
+        className={cn(
+          'min-h-0 flex-1 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700'
+        )}
+      >
         <Excalidraw
           excalidrawAPI={(api) => {
             apiRef.current = api;
