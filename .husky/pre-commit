@@ -1,17 +1,2 @@
 #!/usr/bin/env sh
-
-# Try to find npm in common locations
-if command -v npm >/dev/null 2>&1; then
-  NPM_CMD="npm"
-elif [ -f "$HOME/.nvm/nvm.sh" ]; then
-  . "$HOME/.nvm/nvm.sh"
-  NPM_CMD="npm"
-elif [ -f "$NVM_DIR/nvm.sh" ]; then
-  . "$NVM_DIR/nvm.sh"
-  NPM_CMD="npm"
-else
-  echo "npm not found. Skipping pre-commit checks."
-  exit 0
-fi
-
-$NPM_CMD exec lint-staged
+bunx lint-staged

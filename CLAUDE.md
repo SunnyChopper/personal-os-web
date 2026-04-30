@@ -1,31 +1,35 @@
 # CLAUDE.md — Repo Quick Start (LLM)
 
+## Workspace layout (read first)
+
+This repository is a **Bun + Turborepo** workspace: `apps/web` (Vite admin SPA), `apps/garden` (Next.js public site), and `packages/*` (shared types, portfolio data, UI). **Never import across `apps/web` ↔ `apps/garden`** — share code only via `packages/*`.
+
 ## What this repo is
 
 - **Frontend**: React + TypeScript + Vite + Tailwind.
 - **App shape**: Public site + `/admin/*` “Personal OS” (auth-gated) with AI-powered, LLM-driven features.
-- **Deploy**: GitHub Pages via GitHub Actions; **build-time** Vite env vars come from **GitHub Secrets**.
+- **Deploy**: AWS S3 + CloudFront (`base: /admin/`) via `**personal-os-web`** repo `.github/workflows/deploy-spa.yml` (canonical); **build-time** Vite env vars from GitHub **Environment** secrets. IaC: `**https://github.com/SunnyChopper/personal-os-infra`** (`envs/<dev|prod>/`). **Monorepo:\*\* `../infrastructure/envs/<dev|prod>/`.
 
 ## Open these first (entrypoints)
 
 If you are new to the codebase or debugging app behavior, start here for the fastest context.
 
-- **App bootstrap + providers**: `src/main.tsx` (provider tree, `configureAmplify()`, theme init).
-- **Routes/layouts**: `src/App.tsx` + `src/routes.ts` (routing ownership, layouts, `ProtectedRoute`). Admin **Memory Audit** route: `ROUTES.admin.memoryAudit` → `/admin/memory-audit` (`MemoryAuditPage`).
-- **HTTP + auth header wiring**: `src/lib/api-client.ts` (baseURL, auth header, 401 refresh/redirect, response wrapping).
-- **Auth + token lifecycle**: `src/lib/auth/auth.service.ts` (Cognito sign-in/out, token storage, refresh, `apiClient` sync).
-- **Cognito env usage**: `src/lib/aws-config.ts`, `src/lib/auth/cognito-config.ts` (env vars + “is configured” logic).
-- **Build quirks**: `vite.config.ts` (Node polyfills, `async_hooks` polyfill, CNAME copy).
+- **App bootstrap + providers**: `apps/web/src/main.tsx` (provider tree, `configureAmplify()`, theme init).
+- **Routes/layouts**: `apps/web/src/App.tsx` + `apps/web/src/routes.ts` (routing ownership, layouts, `ProtectedRoute`). Admin **Memory Audit** route: `ROUTES.admin.memoryAudit` → `/admin/memory-audit` (`MemoryAuditPage`).
+- **HTTP + auth header wiring**: `apps/web/src/lib/api-client.ts` (baseURL, auth header, 401 refresh/redirect, response wrapping).
+- **Auth + token lifecycle**: `apps/web/src/lib/auth/auth.service.ts` (Cognito sign-in/out, token storage, refresh, `apiClient` sync).
+- **Cognito env usage**: `apps/web/src/lib/aws-config.ts`, `apps/web/src/lib/auth/cognito-config.ts` (env vars + “is configured” logic).
+- **Build quirks**: `apps/web/vite.config.ts` (Node polyfills, `async_hooks` polyfill, `base: '/admin/'`).
 
 Quick mapping:
 
-- **Assistant LTM audit UI** (not Knowledge Vault) → `src/pages/admin/MemoryAuditPage.tsx`, `src/services/ltm.service.ts` (HTTP `/ltm` on the API host). Contract: monorepo `docs/backend/API_ENDPOINTS.md` (LTM audit). Do not call `/assistant/memory/*` for this page.
-- **Proactive assistant UI** → `src/pages/admin/ProactiveAutomationsPage.tsx`, `ROUTES.admin.assistantProactive` in `src/routes.ts` (`/admin/assistant/proactive`); API via `apiClient` proactive + `preferences/time-zone` methods. Ops/architecture: monorepo `docs/backend/PROACTIVE_ASSISTANT.md`.
-- Auth/login/redirect issues → `src/lib/auth/auth.service.ts`, then `src/lib/api-client.ts`
-- Routes/layout/rendering issues → `src/App.tsx`, then `src/routes.ts`
-- Backend calls/401/headers → `src/lib/api-client.ts`
-- Cognito env misconfig → `src/lib/aws-config.ts`, `src/lib/auth/cognito-config.ts`
-- Build/deploy quirks → `vite.config.ts`
+- **Assistant LTM audit UI** (not Knowledge Vault) → `apps/web/src/pages/admin/MemoryAuditPage.tsx`, `apps/web/src/services/ltm.service.ts` (HTTP `/ltm` on the API host). Contract: monorepo `docs/backend/API_ENDPOINTS.md` (LTM audit). Do not call `/assistant/memory/*` for this page.
+- **Proactive assistant UI** → `apps/web/src/pages/admin/ProactiveAutomationsPage.tsx`, `ROUTES.admin.assistantProactive` in `apps/web/src/routes.ts` (`/admin/assistant/proactive`); API via `apiClient` proactive + `preferences/time-zone` methods. Ops/architecture: monorepo `docs/backend/PROACTIVE_ASSISTANT.md`.
+- Auth/login/redirect issues → `apps/web/src/lib/auth/auth.service.ts`, then `apps/web/src/lib/api-client.ts`
+- Routes/layout/rendering issues → `apps/web/src/App.tsx`, then `apps/web/src/routes.ts`
+- Backend calls/401/headers → `apps/web/src/lib/api-client.ts`
+- Cognito env misconfig → `apps/web/src/lib/aws-config.ts`, `apps/web/src/lib/auth/cognito-config.ts`
+- Build/deploy quirks → `apps/web/vite.config.ts`
 
 ## API Contracts & DTOs
 
@@ -33,34 +37,34 @@ Quick mapping:
 
 ## API endpoint checklist (frontend)
 
-1. Define/extend types in `src/types/api-contracts.ts` and/or `src/types/api/*.dto.ts`.
-2. Implement service calls in `src/services/**` using `apiClient.get/post/patch/delete`.
+1. Define/extend types in `apps/web/src/types/api-contracts.ts` and/or `apps/web/src/types/api/*.dto.ts`.
+2. Implement service calls in `apps/web/src/services/`\*\* using `apiClient.get/post/patch/delete`.
 3. (Optional, dev-only) Pass Zod schemas into `apiClient.get/post` for response validation.
 4. Ensure React Query caches store contract-aligned domain models (not raw DTOs with mismatched shapes).
 
-## Commands (source of truth: `package.json`)
+## Commands (source of truth: root `package.json` + `apps/web/package.json`)
 
-When this repo is opened inside the monorepo workspace (sibling `personal-os-backend/`, root `package.json`), prefer workspace-root **`npm run verify:frontend`** for the standard lint + type-check chain; use **`npm run verify:frontend:all`** for the stricter gate.
+When this repo is opened inside the monorepo workspace (sibling `personal-os-backend/`, root `package.json`), prefer workspace-root `**bun run --cwd personal-os-web --filter web type-check**` + `**lint**` (or outer `bun run verify:frontend` from the monorepo root).
 
-- **Dev**: `npm run dev`
-- **Build/preview**: `npm run build`, `npm run preview`
-- **Quality**: `npm run lint`, `npm run type-check`, `npm run format:check`
-- **Tests**: `npm run test` (Vitest), `npm run test:e2e` (Playwright)
-- **Meta**: `npm run validate` (runs repo validation scripts)
+- **Dev (web)**: `bun run --filter web dev` (from `personal-os-web/`)
+- **Build/preview**: `bun run --filter web build`, `bun run --filter web preview`
+- **Quality (workspace)**: `bun run lint`, `bun run type-check`, `bun run format:check`
+- **Tests**: `bun run --filter web test` (Vitest), `bun run --filter web test:e2e` (Playwright)
+- **Meta**: `bun run --filter web validate` (runs repo validation scripts)
 
 ## Local logging
 
 - Frontend dev logs are written to `../logs/frontend/app.jsonl`
 - Backend dev logs are in `../logs/backend/app.jsonl` and `../logs/backend/error.jsonl`
-- Use the centralized logger in `src/lib/logger.ts`; do not add raw `console.*` calls in app code
+- Use the centralized logger in `apps/web/src/lib/logger.ts`; do not add raw `console.*` calls in app code
 - Search logs with `rg`; see `../docs/agent-learnings/log-analysis-guide.md`
 
 ## Environment variables (canonical)
 
 ### Runtime usage in code
 
-- **API base URL**: `VITE_API_BASE_URL` (fallback: `'/api'`) in `src/lib/api-client.ts`.
-- **Assistant WebSocket URL**: `VITE_WS_URL` (e.g. `wss://...`) in `src/hooks/useAssistantStreaming.ts`.
+- **API base URL**: `VITE_API_BASE_URL` (fallback: hosted dev API when running `vite` in dev; `'/api'` in production builds) via `apps/web/src/lib/vite-public-env.ts` + `apps/web/src/lib/api-client.ts`.
+- **Assistant WebSocket URL**: `VITE_WS_URL` (e.g. `wss://...`; dev server defaults to the documented dev-stage URL when unset) in `apps/web/src/hooks/useAssistantStreaming.ts`.
 - **AWS Cognito**:
   - `VITE_AWS_REGION` (fallback: `'us-east-1'`)
   - `VITE_AWS_USER_POOL_ID`
@@ -69,74 +73,36 @@ When this repo is opened inside the monorepo workspace (sibling `personal-os-bac
 
 ### Local dev vs deploy
 
-- **Local dev**: use `.env` (see `.env.example`).
-- **Deploy (GitHub Pages)**: build step injects env vars from **GitHub Secrets** in `.github/workflows/deploy.yml`.
+- **Local dev**: use `apps/web/.env` (see `apps/web/.env.example`).
+- **Deploy (AWS)**: `.github/workflows/deploy-spa.yml` at monorepo root injects `VITE_*` from the active GitHub **Environment** (`dev` / `prod`) and runs `bun run --cwd personal-os-web --filter web build`.
+- **Deploy from your machine** (same S3 paths + invalidation as CI): copy `.env.deploy.example` → `.env.deploy.dev` or `.env.deploy.prod`. From **monorepo root**, dry-run with **`bun run check:infra:frontend:<stage>`** (edge only) or **`bun run check:infra:<stage>`** (edge + API). Apply edge only + refresh deploy env keys: **`bun run deploy:infra:frontend:<stage>`**. Apply API Terraform only: **`bun run deploy:infra:backend:<stage>`**. Apply **both** stacks: **`bun run deploy:infra:<stage>`**. Add `VITE_*` and garden secrets to `.env.deploy.*` as needed. Then **`bun run deploy:frontend:dev`** (Vite + OpenNext), or **`bun run deploy:frontend:personal-os:<stage>`** / **`bun run deploy:frontend:public-garden:<stage>`**. From `personal-os-web/`, the same names are wired via `../scripts/`. OpenNext builds are unreliable on Windows without WSL (symlinks); use Linux, macOS, or WSL for full `deploy:frontend:*` including public garden.
 
-Note: Some older docs mention `VITE_API_URL` / `VITE_COGNITO_*`. For this frontend build, treat **`VITE_API_BASE_URL` + `VITE_AWS_*` as canonical**.
+Note: Some older docs mention `VITE_API_URL` / `VITE_COGNITO_*`. For this frontend build, treat `**VITE_API_BASE_URL` + `VITE_AWS_*` as canonical\*\*.
 
 ## AI / LLM subsystem (where to look)
 
-- **Adapter (API-only)**: `src/lib/llm/llm-config.ts`, `src/lib/llm/api-llm-adapter.ts`
-- **Main façade used by UI/services**: `src/services/llm.service.ts` (delegates to `getLLMAdapter()`).
+- **Adapter (API-only)**: `apps/web/src/lib/llm/llm-config.ts`, `apps/web/src/lib/llm/api-llm-adapter.ts`
+- **Main façade used by UI/services**: `apps/web/src/services/llm.service.ts` (delegates to `getLLMAdapter()`).
 - **Per-feature provider/model selection** (loaded from backend w/ defaults):
-  - `src/lib/llm/config/feature-config-store.ts`
-  - `src/lib/llm/config/feature-types.ts`
+  - `apps/web/src/lib/llm/config/feature-config-store.ts`
+  - `apps/web/src/lib/llm/config/feature-types.ts`
 - **Provider + model catalog (frontend choices)**:
-  - `src/lib/llm/config/provider-types.ts`
-  - `src/lib/llm/config/model-catalog.ts`
+  - `apps/web/src/lib/llm/config/provider-types.ts`
+  - `apps/web/src/lib/llm/config/model-catalog.ts`
 - **Backend contract**: `docs/backend/API_ENDPOINTS.md` (AI endpoints + response shape)
 
 Debug heuristic: “AI not working” is usually **(1) auth/token issue**, **(2) backend `/ai/*` endpoint shape or availability**, **(3) feature config fetch/cache**, or **(4) backend LLM configuration**.
 Note: `APILLMAdapter` expects `{ success, data: { result, confidence, provider, model, cached } }` from AI endpoints.
 
-## Deploy-time env vars via Terraform (GitHub Secrets)
+## Deploy-time secrets (GitHub Environments)
 
-Goal: ensure the GitHub Pages workflow has the required secrets **before** `npm run build` runs in Actions.
+After `terraform apply` in `**../infrastructure/envs/<dev|prod>/`** (monorepo) or any clone of `**personal-os-infra**`, copy outputs into GitHub **Settings → Environments → secrets** on `**personal-os-web`\*\* for that environment:
 
-### What Terraform manages
+- `AWS_DEPLOY_ROLE_ARN`, `SPA_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`, `GARDEN_ASSETS_BUCKET`, `GARDEN_LAMBDA_NAME`
+- `VITE_API_BASE_URL`, `VITE_WS_URL`, `VITE_AWS_REGION`, `VITE_AWS_USER_POOL_ID`, `VITE_AWS_USER_POOL_WEB_CLIENT_ID`, `VITE_AWS_IDENTITY_POOL_ID`
+- Public garden (OpenNext / `deploy-garden.yml`): `NEXT_PUBLIC_SITE_URL`, `PUBLIC_GARDEN_DATABASE_URL`, `PUBLIC_GARDEN_USER_ID`, `OPENAI_API_KEY`
 
-Terraform in `infrastructure/` creates/updates GitHub Actions secrets:
-
-- `VITE_API_BASE_URL`
-- `VITE_WS_URL`
-- `VITE_AWS_REGION`
-- `VITE_AWS_USER_POOL_ID`
-- `VITE_AWS_USER_POOL_WEB_CLIENT_ID`
-- `VITE_AWS_IDENTITY_POOL_ID`
-
-Implementation: `infrastructure/github-secrets.tf` (provider `integrations/github`).
-
-### One-time setup (local machine)
-
-1. Create `infrastructure/terraform.tfvars` from `infrastructure/terraform.tfvars.example` and fill values.
-
-- **Never commit** `terraform.tfvars` (it is gitignored).
-
-2. Provide a GitHub token (classic PAT with `repo` scope):
-
-- Option A: set `github_token` in `terraform.tfvars`
-- Option B: set env var `GITHUB_TOKEN` (provider fallback)
-
-### Apply
-
-From `infrastructure/`:
-
-- `terraform init`
-- `terraform plan`
-- `terraform apply`
-
-### Verify (safe)
-
-- `terraform plan` shows masked outputs; see `infrastructure/outputs.tf`.
-- Optional local checks: `infrastructure/verify-values.ps1` or `infrastructure/verify-values.sh` (masked display).
-
-### Gotchas
-
-- `infrastructure/github-secrets.tf` currently hardcodes:
-  - GitHub **owner**: `SunnyChopper`
-  - GitHub **repository**: `sunnychopper.github.io`
-    Update these if you fork/rename.
-- GitHub token must be a **classic** PAT (fine-grained tokens often fail here).
+Optional legacy: `personal-os-web/infrastructure/github-secrets.tf` (Terraform GitHub provider) can still manage `VITE_*` if you use that stack; canonical hosting runbook is `**https://github.com/SunnyChopper/personal-os-infra**` `README.md`.
 
 ## Type Alignment: Frontend Should Match Backend
 

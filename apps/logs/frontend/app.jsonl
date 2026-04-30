@@ -1,0 +1,43 @@
+{"timestamp":"2026-04-21T06:14:24.870Z","level":"info","context":"Auth","message":"Periodic auth check found expired token"}
+{"timestamp":"2026-04-21T06:14:56.566Z","level":"warn","context":"ApiClient","message":"Error initializing token from storage:","meta":{"name":"ReferenceError","message":"Cannot access 'authService' before initialization","stack":"ReferenceError: Cannot access 'authService' before initialization\n    at ApiClient.initializeTokenFromStorage (http://localhost:5173/admin/src/lib/api-client.ts:32:22)\n    at new ApiClient (http://localhost:5173/admin/src/lib/api-client.ts:27:10)\n    at http://localhost:5173/admin/src/lib/api-client.ts:611:26"}}
+{"timestamp":"2026-04-21T06:14:56.932Z","level":"debug","context":"Auth","message":"AuthProvider mounted, checking user"}
+{"timestamp":"2026-04-21T06:14:56.933Z","level":"debug","context":"Auth","message":"checkUser started"}
+{"timestamp":"2026-04-21T06:14:56.934Z","level":"debug","context":"Auth","message":"checkUser token lookup complete","meta":{"hasAccessToken":true}}
+{"timestamp":"2026-04-21T06:14:56.934Z","level":"debug","context":"Auth","message":"checkUser token expiry evaluated","meta":{"tokensExpired":true}}
+{"timestamp":"2026-04-21T06:14:56.935Z","level":"info","context":"Auth","message":"checkUser found expired tokens, attempting refresh"}
+{"timestamp":"2026-04-21T06:14:56.935Z","level":"debug","context":"Auth","message":"AuthProvider state changed","meta":{"hasUser":false,"loading":true,"error":null}}
+{"timestamp":"2026-04-21T06:14:56.938Z","level":"debug","context":"Auth","message":"AuthProvider unmounting, clearing token check interval"}
+{"timestamp":"2026-04-21T06:14:56.944Z","level":"debug","context":"Auth","message":"AuthProvider mounted, checking user"}
+{"timestamp":"2026-04-21T06:14:56.944Z","level":"debug","context":"Auth","message":"checkUser started"}
+{"timestamp":"2026-04-21T06:14:56.945Z","level":"debug","context":"Auth","message":"checkUser token lookup complete","meta":{"hasAccessToken":true}}
+{"timestamp":"2026-04-21T06:14:56.946Z","level":"debug","context":"Auth","message":"checkUser token expiry evaluated","meta":{"tokensExpired":true}}
+{"timestamp":"2026-04-21T06:14:56.946Z","level":"info","context":"Auth","message":"checkUser found expired tokens, attempting refresh"}
+{"timestamp":"2026-04-21T06:14:56.946Z","level":"debug","context":"Auth","message":"AuthProvider state changed","meta":{"hasUser":false,"loading":true,"error":null}}
+{"timestamp":"2026-04-21T06:14:56.947Z","level":"warn","context":"Auth","message":"checkUser token refresh failed, clearing auth state"}
+{"timestamp":"2026-04-21T06:14:56.948Z","level":"log","context":"ApiClient","message":"Token set:","meta":{"hasToken":false,"tokenPreview":null}}
+{"timestamp":"2026-04-21T06:14:56.948Z","level":"log","context":"ApiClient","message":"Token set:","meta":{"hasToken":false,"tokenPreview":null}}
+{"timestamp":"2026-04-21T06:14:56.949Z","level":"warn","context":"Auth","message":"checkUser token refresh failed, clearing auth state"}
+{"timestamp":"2026-04-21T06:14:56.949Z","level":"log","context":"ApiClient","message":"Token set:","meta":{"hasToken":false,"tokenPreview":null}}
+{"timestamp":"2026-04-21T06:14:56.949Z","level":"log","context":"ApiClient","message":"Token set:","meta":{"hasToken":false,"tokenPreview":null}}
+{"timestamp":"2026-04-21T06:14:57.210Z","level":"debug","context":"Auth","message":"AuthProvider state changed","meta":{"hasUser":false,"loading":false,"error":null}}
+{"timestamp":"2026-04-21T06:14:57.362Z","level":"warn","context":"ApiClient","message":"Request interceptor: No token available for request","meta":{"url":"/health","hasToken":false}}
+{"timestamp":"2026-04-21T06:15:19.728Z","level":"info","context":"Auth","message":"Calling authService.signIn"}
+{"timestamp":"2026-04-21T06:15:19.761Z","level":"debug","context":"Auth","message":"AuthProvider state changed","meta":{"hasUser":false,"loading":true,"error":null}}
+{"timestamp":"2026-04-21T06:15:19.762Z","level":"debug","context":"Auth","message":"Sign-in response received","meta":{"success":false,"hasData":false,"hasError":true,"errorMessage":"Cognito is not configured. Please check your environment variables."}}
+{"timestamp":"2026-04-21T06:15:19.763Z","level":"error","context":"Auth","message":"Sign-in failed","meta":{"errorMessage":"Cognito is not configured. Please check your environment variables."}}
+{"timestamp":"2026-04-21T06:15:19.763Z","level":"error","context":"Auth","message":"Sign-in threw","meta":{"name":"Error","message":"Cognito is not configured. Please check your environment variables.","stack":"Error: Cognito is not configured. Please check your environment variables.\n    at handleSignIn (http://localhost:5173/admin/src/contexts/Auth/AuthProvider.tsx:202:15)\n    at async handleSubmit (http://localhost:5173/admin/src/pages/admin/LoginPage.tsx:78:7)"}}
+{"timestamp":"2026-04-21T06:15:19.791Z","level":"debug","context":"Auth","message":"AuthProvider state changed","meta":{"hasUser":false,"loading":false,"error":"Cognito is not configured. Please check your environment variables."}}
+{"timestamp":"2026-04-21T06:16:23.378Z","level":"warn","context":"ApiClient","message":"Error initializing token from storage:","meta":{"name":"ReferenceError","message":"Cannot access 'authService' before initialization","stack":"ReferenceError: Cannot access 'authService' before initialization\n    at ApiClient.initializeTokenFromStorage (http://localhost:5173/admin/src/lib/api-client.ts:32:22)\n    at new ApiClient (http://localhost:5173/admin/src/lib/api-client.ts:27:10)\n    at http://localhost:5173/admin/src/lib/api-client.ts:611:26"}}
+{"timestamp":"2026-04-21T06:16:23.645Z","level":"debug","context":"Auth","message":"AuthProvider mounted, checking user"}
+{"timestamp":"2026-04-21T06:16:23.646Z","level":"debug","context":"Auth","message":"checkUser started"}
+{"timestamp":"2026-04-21T06:16:23.646Z","level":"debug","context":"Auth","message":"checkUser token lookup complete","meta":{"hasAccessToken":false}}
+{"timestamp":"2026-04-21T06:16:23.646Z","level":"debug","context":"Auth","message":"checkUser found no tokens, clearing user"}
+{"timestamp":"2026-04-21T06:16:23.647Z","level":"debug","context":"Auth","message":"AuthProvider state changed","meta":{"hasUser":false,"loading":true,"error":null}}
+{"timestamp":"2026-04-21T06:16:23.649Z","level":"debug","context":"Auth","message":"AuthProvider unmounting, clearing token check interval"}
+{"timestamp":"2026-04-21T06:16:23.655Z","level":"debug","context":"Auth","message":"AuthProvider mounted, checking user"}
+{"timestamp":"2026-04-21T06:16:23.655Z","level":"debug","context":"Auth","message":"checkUser started"}
+{"timestamp":"2026-04-21T06:16:23.656Z","level":"debug","context":"Auth","message":"checkUser token lookup complete","meta":{"hasAccessToken":false}}
+{"timestamp":"2026-04-21T06:16:23.656Z","level":"debug","context":"Auth","message":"checkUser found no tokens, clearing user"}
+{"timestamp":"2026-04-21T06:16:23.656Z","level":"debug","context":"Auth","message":"AuthProvider state changed","meta":{"hasUser":false,"loading":true,"error":null}}
+{"timestamp":"2026-04-21T06:16:23.893Z","level":"debug","context":"Auth","message":"AuthProvider state changed","meta":{"hasUser":false,"loading":false,"error":null}}
+{"timestamp":"2026-04-21T06:16:23.965Z","level":"warn","context":"ApiClient","message":"Request interceptor: No token available for request","meta":{"url":"/health","hasToken":false}}

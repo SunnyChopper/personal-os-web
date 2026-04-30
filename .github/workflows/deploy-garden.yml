@@ -1,0 +1,126 @@
+name: Deploy Public Garden (OpenNext)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main]
+    paths:
+      - "apps/garden/**"
+      - "packages/**"
+      - "bun.lock"
+      - "package.json"
+      - ".github/workflows/deploy-garden.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-dev:
+    if: |-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.repository == github.event.pull_request.head.repo.full_name &&
+       contains(github.event.pull_request.labels.*.name, 'deploy-dev'))
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run --filter garden lint
+
+      - name: Type check
+        run: bun run --filter garden type-check
+
+      - name: Build OpenNext
+        run: bun run --filter garden build:opennext
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          PUBLIC_GARDEN_DATABASE_URL: ${{ secrets.PUBLIC_GARDEN_DATABASE_URL }}
+          PUBLIC_GARDEN_USER_ID: ${{ secrets.PUBLIC_GARDEN_USER_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Monorepo script at personal-os-web root (standalone repo checkout compatible).
+      - name: Upload OpenNext to S3 / Lambda / CloudFront invalidation
+        env:
+          GARDEN_ASSETS_BUCKET: ${{ secrets.GARDEN_ASSETS_BUCKET }}
+          GARDEN_LAMBDA_NAME: ${{ secrets.GARDEN_LAMBDA_NAME }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+          AWS_REGION: us-east-1
+        run: node scripts/deploy-garden.mjs dev --no-build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: garden-open-next-dev
+          path: apps/garden/.open-next
+          if-no-files-found: error
+
+  deploy-prod:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run --filter garden lint
+
+      - name: Type check
+        run: bun run --filter garden type-check
+
+      - name: Build OpenNext
+        run: bun run --filter garden build:opennext
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          PUBLIC_GARDEN_DATABASE_URL: ${{ secrets.PUBLIC_GARDEN_DATABASE_URL }}
+          PUBLIC_GARDEN_USER_ID: ${{ secrets.PUBLIC_GARDEN_USER_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Upload OpenNext to S3 / Lambda / CloudFront invalidation
+        env:
+          GARDEN_ASSETS_BUCKET: ${{ secrets.GARDEN_ASSETS_BUCKET }}
+          GARDEN_LAMBDA_NAME: ${{ secrets.GARDEN_LAMBDA_NAME }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+          AWS_REGION: us-east-1
+        run: node scripts/deploy-garden.mjs prod --no-build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: garden-open-next-prod
+          path: apps/garden/.open-next
+          if-no-files-found: error

@@ -1,7 +1,9 @@
 # Deployment Guide
 
+> **Superseded:** Use monorepo [`docs/backend/DEPLOYMENT.md`](../../../docs/backend/DEPLOYMENT.md) and `infrastructure/envs-api/`. This copy is a **historical** Serverless-oriented guide.
+
 **Target Infrastructure:** AWS (Lambda, API Gateway, DynamoDB, Cognito, Secrets Manager)  
-**IaC Tool:** Serverless Framework  
+**IaC (historical doc):** Serverless Framework  
 **Domain:** api.sunnysingh.tech (prod), dev-api.sunnysingh.tech (dev)
 
 ---

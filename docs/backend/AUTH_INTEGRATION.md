@@ -41,9 +41,11 @@ Authentication flow:
    - Cognito domain: `personal-os` (or custom domain)
    - Used for hosted UI (optional)
 
-### Serverless Framework Setup (Recommended)
+### Infrastructure note (current monorepo)
 
-Add to `serverless.yml`:
+Cognito is created by Terraform (**`infrastructure/modules/api-cognito`**). The YAML below is a **legacy illustration** only.
+
+Legacy shape (reference only):
 
 ```yaml
 resources:

@@ -2,10 +2,14 @@ name: CI Validation
 
 on:
   pull_request:
-    branches: ['*']
+    branches: ["*"]
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -15,34 +19,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - uses: oven-sh/setup-bun@v2
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Type Check
-        run: npm run type-check
+        run: bun run type-check
 
       - name: Lint
-        run: npm run lint
+        run: bun run lint
 
       - name: Format Check
-        run: npm run format:check
+        run: bun run format:check
 
       - name: Build
-        run: npm run build
+        run: bun run build
 
       - name: Architecture Validation
-        run: npm run validate-architecture
-        continue-on-error: true
+        run: bun run --filter web validate-architecture
 
       - name: Pattern Check
-        run: npm run check-patterns
-        continue-on-error: true
+        run: bun run --filter web check-patterns
 
   test:
     name: Run Tests
@@ -51,26 +54,54 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - uses: oven-sh/setup-bun@v2
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: bun x playwright install --with-deps chromium
 
       - name: Run Unit Tests
-        run: npm run test
+        run: bun run --filter web test
 
       - name: Run E2E Tests
-        run: npm run test:e2e
-        continue-on-error: true
+        run: bun run --filter web test:e2e
 
       - name: Upload Coverage
         uses: codecov/codecov-action@v4
         if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage/coverage-final.json
+          files: ./apps/web/coverage/coverage-final.json
           fail_ci_if_error: false
+
+  garden:
+    name: Garden (Next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run --filter garden type-check
+
+      - name: Lint
+        run: bun run --filter garden lint
+
+      - name: Build
+        run: bun run --filter garden build
