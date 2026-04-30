@@ -1,0 +1,5 @@
+# Next.js build cache and output
+.next/
+
+# OpenNext build output (regenerate with npm run build:opennext)
+.open-next/

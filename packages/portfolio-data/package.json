@@ -1,0 +1,16 @@
+{
+  "name": "@personal-os-web/portfolio-data",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@personal-os-web/portfolio-types": "workspace:*"
+  },
+  "scripts": {
+    "lint": "node -e \"process.exit(0)\"",
+    "type-check": "node -e \"process.exit(0)\""
+  }
+}

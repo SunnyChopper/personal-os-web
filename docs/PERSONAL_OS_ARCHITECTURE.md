@@ -935,12 +935,8 @@ Specialized utility modules ([`src/utils/`](../src/utils/)):
 
 ### AI & LLM
 
-- **LangChain 1.x**: LLM orchestration framework
-  - `@langchain/anthropic`: Claude integration
-  - `@langchain/openai`: GPT integration
-  - `@langchain/google-genai`: Gemini integration
-  - `@langchain/groq`: Groq integration
-- **Zod 4.3**: Schema validation for structured outputs
+- **Backend-only LLM access**: The admin UI calls the Personal OS HTTP and WebSocket APIs; prompts, providers, and LangChain (Python) run on the **backend**, not in the browser.
+- **Zod 4.3**: Schema validation and shared shapes on the client where applicable
 - **zod-to-json-schema 3.25**: Convert Zod → JSON Schema for LLMs
 
 ### Utilities
@@ -971,7 +967,7 @@ Specialized utility modules ([`src/utils/`](../src/utils/)):
 
 ```bash
 git clone <repo-url>
-cd portfolio-site
+cd personal-os-web
 npm install
 ```
 
@@ -992,7 +988,7 @@ npm run dev
 ### Project Structure
 
 ```
-portfolio-site/
+personal-os-web/
 ├── src/
 │   ├── components/        # Atomic design components
 │   │   ├── atoms/
@@ -1075,7 +1071,7 @@ Based on the architecture, potential next steps:
 Replace `LocalStorageAdapter` with real API:
 
 - Implement `APIStorageAdapter` with axios calls
-- Set up backend (Node.js, Python, or serverless)
+- Set up backend (Node.js, Python, FastAPI on Lambda)
 - Add authentication (JWT tokens)
 - Database (PostgreSQL, MongoDB)
 

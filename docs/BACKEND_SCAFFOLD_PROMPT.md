@@ -1,5 +1,7 @@
 # Backend Scaffold Prompt Template
 
+> **Superseded for IaC:** The backend repo uses **Terraform** + **`npm run deploy:*`** (monorepo [`docs/backend/DEPLOYMENT.md`](../../docs/backend/DEPLOYMENT.md)). This file is **historical** scaffolding text.
+
 **Purpose:** This document serves as the primary prompt template for scaffolding the Personal OS backend API. Use this with an AI coding assistant to generate the complete backend project structure.
 
 **Last Updated:** January 2026
@@ -8,7 +10,7 @@
 
 ## Project Overview
 
-Create a serverless Python backend API for **Personal OS**, a personal productivity and growth tracking system. The backend will replace the current localStorage-based persistence with a production-grade AWS infrastructure.
+Create a Python backend API for **Personal OS** (FastAPI on AWS Lambda), a personal productivity and growth tracking system. The backend replaces localStorage-based persistence with production-grade AWS infrastructure.
 
 ### Technical Stack
 
@@ -16,8 +18,8 @@ Create a serverless Python backend API for **Personal OS**, a personal productiv
 | ------------------ | ----------------------- | ---------------------------------------------------- |
 | **Runtime**        | Python 3.12             | LangChain native support, AWS Lambda compatibility   |
 | **Framework**      | FastAPI + Mangum        | Modern async API, auto OpenAPI docs, Lambda adapter  |
-| **IaC**            | Serverless Framework    | Easy deployment, multi-environment, plugin ecosystem |
-| **Database**       | DynamoDB (single-table) | Serverless, pay-per-use, scales to zero              |
+| **IaC**            | Terraform (`infrastructure/envs-api/`) + deploy scripts | API resources + Lambda code |
+| **Database**       | DynamoDB (single-table) | Pay-per-use, scales to zero              |
 | **Authentication** | AWS Cognito User Pool   | Managed auth, JWT tokens, email/password             |
 | **Secrets**        | AWS Secrets Manager     | Secure LLM API key storage                           |
 | **API Gateway**    | HTTP API (v2)           | Lower cost, faster than REST API                     |
@@ -35,12 +37,12 @@ Create a serverless Python backend API for **Personal OS**, a personal productiv
 ## Prompt: Scaffold Backend Project
 
 ````
-You are an expert Python backend developer. Create a complete serverless backend project for Personal OS with the following specifications:
+You are an expert Python backend developer. Create a complete Lambda-hosted backend project for Personal OS with the following specifications:
 
 ### Project Structure
 
 personal-os-api/
-├── serverless.yml              # Serverless Framework configuration
+├── infrastructure/envs-api/     # Terraform API stack (monorepo layout)
 ├── requirements.txt            # Python dependencies
 ├── requirements-dev.txt        # Dev dependencies (pytest, black, mypy)
 ├── pyproject.toml             # Python project config
@@ -227,16 +229,15 @@ All entities include:
 3. Extract `sub` claim as `userId`
 4. All queries scoped to authenticated user's data
 
-### serverless.yml Configuration
+### Terraform + routes (monorepo)
 
-Create serverless.yml with:
+Define API resources in **`infrastructure/envs-api/`** and HTTP routes in **`data/http_routes.json`**. Legacy scaffold expected:
 - Provider: aws, runtime: python3.12, region: us-east-1
 - Custom domain: api.sunnysingh.tech (prod), dev-api.sunnysingh.tech (dev)
 - Environment variables: STAGE, TABLE_NAME, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID
 - IAM permissions: DynamoDB, Secrets Manager, Cognito
 - HTTP API with JWT authorizer (Cognito)
-- 10 Lambda functions (one per domain)
-- Plugins: serverless-python-requirements, serverless-domain-manager
+- Multiple Lambda functions + Docker-built layer (`docs/backend/DEPLOYMENT.md`)
 
 ### FastAPI App Structure
 
@@ -320,14 +321,14 @@ pip install -r requirements.txt
 # Local development
 uvicorn src.main:app --reload --port 8000
 
-# Deploy to dev
-serverless deploy --stage dev
+# Deploy to dev (from monorepo root)
+npm run deploy:dev
 
 # Deploy to prod
-serverless deploy --stage prod
+npm run deploy:prod
 
-# View logs
-serverless logs -f tasks -t --stage dev
+# View logs (example)
+aws logs tail /aws/lambda/personal-os-api-dev-api --follow
 
 # Run tests
 pytest tests/ -v

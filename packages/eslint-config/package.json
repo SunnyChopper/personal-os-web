@@ -1,0 +1,10 @@
+{
+  "name": "@personal-os-web/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared ESLint custom rules (custom-rules.cjs) for the web app.",
+  "scripts": {
+    "lint": "node -e \"process.exit(0)\"",
+    "type-check": "node -e \"process.exit(0)\""
+  }
+}

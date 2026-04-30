@@ -56,19 +56,9 @@ Create secret: `personal-os/{stage}/llm-keys`
 }
 ```
 
-### Serverless Framework IAM
+### Lambda execution role (IAM)
 
-```yaml
-provider:
-  iam:
-    role:
-      statements:
-        - Effect: Allow
-          Action:
-            - secretsmanager:GetSecretValue
-          Resource:
-            - arn:aws:secretsmanager:${self:provider.region}:*:secret:personal-os/${self:provider.stage}/llm-keys*
-```
+The **API Terraform** stack attaches an execution role that must allow **`secretsmanager:GetSecretValue`** on `personal-os/${stage}/llm-keys*`. See monorepo `infrastructure/modules/api-lambda-execution-role/`.
 
 ### Python Secret Retrieval
 

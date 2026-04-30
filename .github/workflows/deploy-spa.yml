@@ -1,0 +1,129 @@
+name: Deploy Portfolio SPA (S3 + CloudFront)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "packages/**"
+      - "bun.lock"
+      - "package.json"
+      - ".github/workflows/deploy-spa.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-dev:
+    if: |-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.repository == github.event.pull_request.head.repo.full_name &&
+       contains(github.event.pull_request.labels.*.name, 'deploy-dev'))
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run --filter web type-check
+
+      - name: Lint
+        run: bun run --filter web lint
+
+      - name: Build
+        run: bun run --filter web build
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_WS_URL: ${{ secrets.VITE_WS_URL }}
+          VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
+          VITE_AWS_USER_POOL_ID: ${{ secrets.VITE_AWS_USER_POOL_ID }}
+          VITE_AWS_USER_POOL_WEB_CLIENT_ID: ${{ secrets.VITE_AWS_USER_POOL_WEB_CLIENT_ID }}
+          VITE_AWS_IDENTITY_POOL_ID: ${{ secrets.VITE_AWS_IDENTITY_POOL_ID }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Sync to S3 and invalidate CloudFront
+        env:
+          SPA_BUCKET: ${{ secrets.SPA_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          set -eux
+          aws s3 sync apps/web/dist/assets/ "s3://${SPA_BUCKET}/admin/assets/" --delete \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 sync apps/web/dist/ "s3://${SPA_BUCKET}/admin/" --delete --exclude "assets/*" \
+            --cache-control "public, max-age=60"
+          aws cloudfront create-invalidation \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths "/admin/index.html" "/admin/*"
+
+  deploy-prod:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run --filter web type-check
+
+      - name: Lint
+        run: bun run --filter web lint
+
+      - name: Build
+        run: bun run --filter web build
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_WS_URL: ${{ secrets.VITE_WS_URL }}
+          VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
+          VITE_AWS_USER_POOL_ID: ${{ secrets.VITE_AWS_USER_POOL_ID }}
+          VITE_AWS_USER_POOL_WEB_CLIENT_ID: ${{ secrets.VITE_AWS_USER_POOL_WEB_CLIENT_ID }}
+          VITE_AWS_IDENTITY_POOL_ID: ${{ secrets.VITE_AWS_IDENTITY_POOL_ID }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Sync to S3 and invalidate CloudFront
+        env:
+          SPA_BUCKET: ${{ secrets.SPA_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          set -eux
+          aws s3 sync apps/web/dist/assets/ "s3://${SPA_BUCKET}/admin/assets/" --delete \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 sync apps/web/dist/ "s3://${SPA_BUCKET}/admin/" --delete --exclude "assets/*" \
+            --cache-control "public, max-age=60"
+          aws cloudfront create-invalidation \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths "/admin/index.html" "/admin/*"

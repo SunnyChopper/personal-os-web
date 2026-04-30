@@ -1,6 +1,15 @@
 node_modules/
 .env
+.env.deploy.dev
+.env.deploy.prod
 dist/
+.turbo/
+.refactor-baseline/
+**/.next/
+**/.open-next/
+apps/*/dist/
+apps/*/coverage/
+apps/*/test-results/
 
 # Terraform
 *.tfstate
@@ -11,3 +20,6 @@ terraform.tfvars
 *.tfvars
 !terraform.tfvars.example
 .cursor/debug.log
+apps/web/.env.dev
+apps/web/.env.prod
+apps/web/.env.production

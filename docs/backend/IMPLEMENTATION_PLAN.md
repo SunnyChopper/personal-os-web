@@ -1,5 +1,7 @@
 # Backend Implementation Plan
 
+> **Superseded for infra/deploy:** Canonical backend lives in **`personal-os-backend/`** with Terraform **`infrastructure/envs-api/`** and **`npm run deploy:*`**. See monorepo [`docs/backend/DEPLOYMENT.md`](../../../docs/backend/DEPLOYMENT.md).
+
 **Objective:** Build a production-ready backend API for Personal OS  
 **Timeline Estimate:** 4-6 weeks (solo developer, part-time)  
 **Approach:** Phased rollout with vertical slices
@@ -24,7 +26,7 @@ The implementation is divided into 6 phases, each delivering a working vertical 
 ### Tasks
 
 - [ ] Create backend repository with project structure
-- [ ] Configure `serverless.yml` with basic settings
+- [ ] Configure API routes (`infrastructure/envs-api/data/http_routes.json`) and Terraform `envs-api/`
 - [ ] Set up Python virtual environment and dependencies
 - [ ] Deploy DynamoDB table (empty)
 - [ ] Deploy Cognito User Pool
@@ -50,7 +52,7 @@ Create the initial project structure for personal-os-api backend with:
 3. handlers/health_handler.py
 4. src/core/config.py with pydantic-settings for environment variables
 5. .env.example with all required variables
-6. Basic serverless.yml with single health function
+6. Basic HTTP route map + health Lambda wired in Terraform
 
 The health endpoint should return:
 { "status": "healthy", "stage": "{stage}", "timestamp": "..." }
