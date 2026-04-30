@@ -39,7 +39,17 @@ function validateAtomicDesign(): ValidationResult {
   // Allowed atomic design directories
   const atomicDirs = ['atoms', 'molecules', 'organisms', 'templates', 'pages'];
   // Utility directories that don't follow atomic design but are acceptable
-  const utilityDirs = ['auth', 'routing', 'settings', 'shared'];
+  // Feature-group folders (not strict atomic levels) — keep aligned with src/components/* layout.
+  const utilityDirs = [
+    'auth',
+    'routing',
+    'settings',
+    'shared',
+    'assistant',
+    'proactive',
+    'tools',
+    'chatbot',
+  ];
   const allowedDirs = [...atomicDirs, ...utilityDirs];
 
   const dirs = readdirSync(componentsPath, { withFileTypes: true })
@@ -218,6 +228,63 @@ function validateImports(): ValidationResult {
 }
 
 /**
+ * File naming under components/: .tsx PascalCase; plain .ts kebab-case or camelCase; co-located tests.
+ */
+function validateComponentFileNames(): string[] {
+  const violations: string[] = [];
+  const componentsRoot = join(srcPath, 'components');
+  if (!existsSync(componentsRoot)) return violations;
+
+  const files = readdirSync(componentsRoot, { recursive: true }).filter(
+    (f) => f.endsWith('.tsx') || f.endsWith('.ts')
+  );
+
+  for (const file of files) {
+    const normalizedPath = file.replace(/\\/g, '/');
+    const fileName = normalizedPath.split('/').pop() || '';
+    if (!fileName) continue;
+    const displayPath = `components/${normalizedPath}`;
+
+    if (/\.test\.tsx$/i.test(fileName)) {
+      if (!/^[A-Z][a-zA-Z0-9]+\.test\.tsx$/.test(fileName)) {
+        violations.push(
+          `${displayPath}: Component test files use PascalCase basename, e.g. Foo.test.tsx`
+        );
+      }
+      continue;
+    }
+    if (/\.test\.ts$/i.test(fileName)) {
+      const ok =
+        /^[A-Z][a-zA-Z0-9]+\.test\.ts$/.test(fileName) ||
+        /^[a-z][a-zA-Z0-9]+\.test\.ts$/.test(fileName) ||
+        /^[a-z][a-z0-9-]+\.test\.ts$/.test(fileName);
+      if (!ok) {
+        violations.push(
+          `${displayPath}: Test helpers use PascalCase, camelCase, or kebab-case before .test.ts`
+        );
+      }
+      continue;
+    }
+    if (fileName.endsWith('.tsx')) {
+      if (!/^[A-Z][a-zA-Z0-9]*\.tsx$/.test(fileName)) {
+        violations.push(`${displayPath}: Should follow PascalCase naming`);
+      }
+      continue;
+    }
+    if (fileName.endsWith('.ts')) {
+      const ok = /^[a-z][a-z0-9-]*\.ts$/.test(fileName) || /^[a-z][a-zA-Z0-9]+\.ts$/.test(fileName);
+      if (!ok) {
+        violations.push(
+          `${displayPath}: Plain .ts modules use kebab-case or camelCase starting with lowercase`
+        );
+      }
+    }
+  }
+
+  return violations;
+}
+
+/**
  * Check file naming conventions
  */
 function validateFileNaming(): ValidationResult {
@@ -232,20 +299,16 @@ function validateFileNaming(): ValidationResult {
     );
 
     for (const file of files) {
-      // Normalize path separators and extract just the filename
       const normalizedPath = file.replace(/\\/g, '/');
       const fileName = normalizedPath.split('/').pop() || '';
 
-      // Test the full filename (including extension) against the pattern
       if (fileName && !pattern.test(fileName)) {
         violations.push(`${dir}/${file}: Should follow ${type} naming`);
       }
     }
   };
 
-  // Components should be PascalCase (allows compound names like CodeBlockToolbar)
-  // Pattern: starts with capital, followed by alphanumeric (including multiple capitals)
-  checkDirectory('components', /^[A-Z][a-zA-Z0-9]*\.tsx$/, 'PascalCase');
+  violations.push(...validateComponentFileNames());
 
   // Services should be kebab-case (allows .service.ts and .agent.ts patterns)
   checkDirectory('services', /^[a-z][a-z0-9-]*(\.(service|agent))?\.ts$/, 'kebab-case');
