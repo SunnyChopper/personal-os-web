@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { Brain, ChevronDown } from 'lucide-react';
 import type { AssistantModelCatalogEntry } from '@/types/chatbot';
@@ -172,6 +172,18 @@ export function ManualModelListbox({
     return () => document.removeEventListener('pointerdown', onDoc);
   }, [open]);
 
+  const portalMenuStyle: CSSProperties | null =
+    open && menuRect
+      ? {
+          position: 'fixed',
+          top: menuRect.top,
+          left: menuRect.left,
+          width: menuRect.width,
+          maxHeight: menuRect.maxHeight,
+          zIndex: 100,
+        }
+      : null;
+
   return (
     <div className="relative" ref={rootRef}>
       <span
@@ -218,7 +230,7 @@ export function ManualModelListbox({
           aria-hidden
         />
       </button>
-      {open && menuRect && typeof document !== 'undefined'
+      {open && menuRect && portalMenuStyle && typeof document !== 'undefined'
         ? createPortal(
             <ul
               ref={menuRef}
@@ -226,14 +238,7 @@ export function ManualModelListbox({
               role="listbox"
               aria-labelledby={`${listId}-label`}
               data-assistant-model-menu
-              style={{
-                position: 'fixed',
-                top: menuRect.top,
-                left: menuRect.left,
-                width: menuRect.width,
-                maxHeight: menuRect.maxHeight,
-                zIndex: 100,
-              }}
+              style={portalMenuStyle}
               className="overflow-y-auto overscroll-contain rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 shadow-lg py-1"
             >
               {models.map((m) => {

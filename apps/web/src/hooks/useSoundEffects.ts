@@ -30,13 +30,13 @@ export function useSoundEffects() {
    * Wrap an onClick handler to play a sound effect
    */
   const withSound = useCallback(
-    <T extends (...args: any[]) => any>(
+    <T extends (...args: unknown[]) => unknown>(
       handler: T,
       soundType: 'click' | 'pop' | 'success' | 'error' | 'whoosh' = 'click'
     ): T => {
       return ((...args: Parameters<T>) => {
         play(soundType);
-        return handler(...args);
+        return handler(...args) as ReturnType<T>;
       }) as T;
     },
     [play]
