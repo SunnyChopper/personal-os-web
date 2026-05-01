@@ -60,9 +60,10 @@ function copyDirectoryFiles(fromDir, toDir) {
 function resolveTraceSource(absResolved) {
   if (existsSync(absResolved)) return absResolved;
   const appNmRoot = path.join(appRoot, "node_modules");
-  const normalized = normalizePath(absResolved);
-  const appNmPrefix = normalizePath(appNmRoot) + path.sep;
-  if (normalized === normalizePath(appNmRoot) || normalized.startsWith(appNmPrefix)) {
+  const normAbs = normalizePath(absResolved);
+  const normAppNm = normalizePath(appNmRoot);
+  const appNmPrefix = `${normAppNm}/`;
+  if (normAbs === normAppNm || normAbs.startsWith(appNmPrefix)) {
     const tail = path.relative(appNmRoot, absResolved);
     const atRoot = path.join(webRoot, "node_modules", tail);
     if (existsSync(atRoot)) return atRoot;
@@ -74,9 +75,16 @@ function normalizePath(p) {
   return path.normalize(p).replaceAll("\\", "/");
 }
 
+/** NFT entries from Windows builds use "\\". On Linux, path.resolve treats "\\" as a literal, so OpenNext resolves to apps/.../node_modules while we do not — normalize to "/". */
+function normalizeNftRel(rel) {
+  return rel.replaceAll("\\", "/");
+}
+
 /** True if filePath is a strict descendant of dirPath (same path → false). */
 function isStrictDescendant(filePath, dirPath) {
-  const rel = path.relative(dirPath, filePath);
+  const a = path.resolve(filePath);
+  const b = path.resolve(dirPath);
+  const rel = path.relative(b, a);
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
@@ -164,21 +172,25 @@ for (const nftPath of nftFiles) {
 
   for (const rel of files) {
     if (typeof rel !== "string") continue;
+    const relPosix = normalizeNftRel(rel);
 
     // Match OpenNext copyTracedFiles: same `path.resolve(openNextBase, rel)` it uses.
     // Some NFT entries climb out of `.next/standalone/...` with `../` segments and land on
     // real workspace paths (e.g. apps/garden/node_modules/next/...). Hoisted installs only
     // have those files under personal-os-web/node_modules; we must materialize at the exact
     // resolved path or copyTracedFiles hits ENOENT with src === dest.
-    const destOpenNext = path.resolve(openNextBase, rel);
-    if (!existsSync(destOpenNext) && isStrictDescendant(destOpenNext, webRoot)) {
+    const destOpenNext = path.resolve(openNextBase, relPosix);
+    if (
+      !existsSync(destOpenNext) &&
+      isStrictDescendant(destOpenNext, webRoot)
+    ) {
       const src =
-        resolveTraceSource(path.resolve(nftParentDir, rel)) ??
+        resolveTraceSource(path.resolve(nftParentDir, relPosix)) ??
         resolveTraceSource(destOpenNext);
       if (src && stageCopy(src, destOpenNext)) openNextTraceStaged++;
     }
 
-    const absForBun = path.resolve(nftParentDir, rel);
+    const absForBun = path.resolve(nftParentDir, relPosix);
     if (!bunStorePrefixes.some((prefix) => absForBun.startsWith(prefix))) continue;
     const relFromWeb = path.relative(webRoot, absForBun);
     const dest = path.join(standaloneExpectedRoot, relFromWeb);
@@ -188,7 +200,30 @@ for (const nftPath of nftFiles) {
   }
 }
 
+// Failsafe: trace includes often reference apps/<pkg>/node_modules/next/dist/compiled/jest-worker
+// with hoisted installs missing that tree. Copy the small folder from the workspace root.
+const jestWorkerSrc = path.join(
+  webRoot,
+  "node_modules",
+  "next",
+  "dist",
+  "compiled",
+  "jest-worker",
+);
+const jestWorkerDest = path.join(
+  appRoot,
+  "node_modules",
+  "next",
+  "dist",
+  "compiled",
+  "jest-worker",
+);
+const jestWorkerStaged = existsSync(jestWorkerSrc)
+  ? copyDirectoryFiles(jestWorkerSrc, jestWorkerDest)
+  : 0;
+
 const parts = [];
 if (openNextTraceStaged) parts.push(`traces ${openNextTraceStaged}`);
 if (bunStoreStaged) parts.push(`bun ${bunStoreStaged}`);
+if (jestWorkerStaged) parts.push(`jest-worker ${jestWorkerStaged}`);
 console.log(parts.length ? `[fix-standalone] ok (${parts.join(", ")})` : "[fix-standalone] ok");
