@@ -1,0 +1,8 @@
+# OpenNext traces Next's NFT manifests; Bun's default isolated workspaces layout
+# (`configVersion = 1` in bun.lock) can leave symlinked `.bun/` paths missing files that
+# `copyFileSync` expects → ENOENT during `open-next build`. Hoisted linker matches npm-like
+# `node_modules` and fixes OpenNext bundle steps in CI/Linux.
+#
+# https://bun.sh/docs/install/linker
+[install]
+linker = "hoisted"
