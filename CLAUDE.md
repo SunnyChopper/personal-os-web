@@ -8,7 +8,7 @@ This repository is a **Bun + Turborepo** workspace: `apps/web` (Vite admin SPA),
 
 - **Frontend**: React + TypeScript + Vite + Tailwind.
 - **App shape**: Public site + `/admin/*` “Personal OS” (auth-gated) with AI-powered, LLM-driven features.
-- **Deploy**: AWS S3 + CloudFront (`base: /admin/`) via `**personal-os-web`** repo `.github/workflows/deploy-spa.yml` (canonical); **build-time** Vite env vars from GitHub **Environment** secrets. IaC: `**https://github.com/SunnyChopper/personal-os-infra`** (`envs/<dev|prod>/`). **Monorepo:\*\* `../infrastructure/envs/<dev|prod>/`.
+- **Deploy**: AWS S3 + CloudFront (`base: /admin/`) via `**.github/workflows/deploy-spa.yml**` in **this repo** (`SunnyChopper/personal-os-web`). **Dev SPA** builds use **`vite build --mode ci-dev`** plus committed **`apps/web/.env.ci-dev`** (hosted dev API + Cognito — never `.env.production`). **Prod** uses GitHub **Environment** secrets for `VITE_*`. IaC: `**https://github.com/SunnyChopper/personal-os-infra**` (`envs/<dev|prod>/`).
 
 ## Open these first (entrypoints)
 
@@ -74,7 +74,7 @@ When this repo is opened inside the monorepo workspace (sibling `personal-os-bac
 ### Local dev vs deploy
 
 - **Local dev**: use `apps/web/.env` (see `apps/web/.env.example`).
-- **Deploy (AWS)**: `.github/workflows/deploy-spa.yml` at monorepo root injects `VITE_*` from the active GitHub **Environment** (`dev` / `prod`) and runs `bun run --cwd personal-os-web --filter web build`.
+- **Deploy CI (SPA)**: this repo `**.github/workflows/deploy-spa.yml**` runs **`vite build --mode ci-dev`** for the **`deploy-dev`** job (loads **`apps/web/.env.ci-dev`**) plus **`SPA_CI_STAGE`** for Turbo cache isolation; **`deploy-prod`** still injects **`VITE_*`** from the **`prod`** Environment secrets only.
 - **Deploy from your machine** (same S3 paths + invalidation as CI): copy `.env.deploy.example` → `.env.deploy.dev` or `.env.deploy.prod`. From **monorepo root**, dry-run with **`bun run check:infra:frontend:<stage>`** (edge only) or **`bun run check:infra:<stage>`** (edge + API). Apply edge only + refresh deploy env keys: **`bun run deploy:infra:frontend:<stage>`**. Apply API Terraform only: **`bun run deploy:infra:backend:<stage>`**. Apply **both** stacks: **`bun run deploy:infra:<stage>`**. Add `VITE_*` and garden secrets to `.env.deploy.*` as needed. Then **`bun run deploy:frontend:dev`** (Vite + OpenNext), or **`bun run deploy:frontend:personal-os:<stage>`** / **`bun run deploy:frontend:public-garden:<stage>`**. From `personal-os-web/`, the same names are wired via `../scripts/`. OpenNext builds are unreliable on Windows without WSL (symlinks); use Linux, macOS, or WSL for full `deploy:frontend:*` including public garden.
 
 Note: Some older docs mention `VITE_API_URL` / `VITE_COGNITO_*`. For this frontend build, treat `**VITE_API_BASE_URL` + `VITE_AWS_*` as canonical\*\*.

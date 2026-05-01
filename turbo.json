@@ -3,6 +3,7 @@
   "globalEnv": [
     "NODE_ENV",
     "CI",
+    "SPA_CI_STAGE",
     "VITE_API_BASE_URL",
     "VITE_WS_URL",
     "VITE_AWS_REGION",

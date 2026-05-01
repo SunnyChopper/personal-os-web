@@ -67,6 +67,7 @@ jobs:
           name: garden-open-next-dev-failure
           path: apps/garden/.open-next
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
         env:
@@ -98,6 +99,7 @@ jobs:
           name: garden-open-next-dev
           path: apps/garden/.open-next
           if-no-files-found: error
+          include-hidden-files: true
 
   deploy-prod:
     if: |-
@@ -137,6 +139,7 @@ jobs:
           name: garden-open-next-prod-failure
           path: apps/garden/.open-next
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
         env:
@@ -167,3 +170,4 @@ jobs:
           name: garden-open-next-prod
           path: apps/garden/.open-next
           if-no-files-found: error
+          include-hidden-files: true

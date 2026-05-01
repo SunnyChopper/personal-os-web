@@ -52,14 +52,12 @@ jobs:
       - name: Lint
         run: bun run --filter web lint
 
+      # Dedicated Vite mode + committed `.env.ci-dev` so this job never inherits
+      # `.env.production` (often present only locally but may point at prod stack).
       - name: Build
-        run: bun run --filter web build
+        run: bun run --filter web build -- --mode ci-dev
         env:
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-          VITE_WS_URL: ${{ secrets.VITE_WS_URL }}
-          VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
-          VITE_AWS_USER_POOL_ID: ${{ secrets.VITE_AWS_USER_POOL_ID }}
-          VITE_AWS_USER_POOL_WEB_CLIENT_ID: ${{ secrets.VITE_AWS_USER_POOL_WEB_CLIENT_ID }}
+          SPA_CI_STAGE: spa-ci-dev
           VITE_AWS_IDENTITY_POOL_ID: ${{ secrets.VITE_AWS_IDENTITY_POOL_ID }}
 
       - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
