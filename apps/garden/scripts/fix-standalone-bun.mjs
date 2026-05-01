@@ -3,6 +3,7 @@ import {
   mkdirSync,
   readdirSync,
   copyFileSync,
+  cpSync,
   statSync,
   lstatSync,
   readFileSync,
@@ -47,6 +48,7 @@ function copyDirectoryFiles(fromDir, toDir) {
   for (const ent of readdirSync(fromDir, { withFileTypes: true })) {
     const from = path.join(fromDir, ent.name);
     const to = path.join(toDir, ent.name);
+    if (!existsSync(from)) continue;
     if (ent.isDirectory()) {
       n += copyDirectoryFiles(from, to);
       continue;
@@ -88,6 +90,22 @@ function isStrictDescendant(filePath, dirPath) {
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
+/** Top-level npm folder under `rootNodeModules` (`foo` or `@scope/pkg`), or null if outside it. */
+function hoistedRootPkgNameUnder(rootNodeModules, absPath) {
+  const resolved = path.resolve(absPath);
+  const rootResolved = path.resolve(rootNodeModules);
+  const rel = path.relative(rootResolved, resolved);
+  if (!rel || rel === "." || rel.startsWith("..") || path.isAbsolute(rel)) return null;
+  const parts = rel.split(/[/\\]/).filter(Boolean);
+  if (!parts.length) return null;
+  if (parts[0].startsWith("@")) {
+    if (parts.length < 2) return null;
+    return `${parts[0]}/${parts[1]}`;
+  }
+  return parts[0];
+}
+
+const appNodeModules = path.join(appRoot, "node_modules");
 const standaloneRoot = path.join(appRoot, ".next", "standalone");
 if (!existsSync(standaloneRoot)) {
   console.log("[fix-standalone] skip — no .next/standalone");
@@ -157,6 +175,8 @@ const bunStorePrefixes = [
 const nftFiles = walkNftFiles(path.join(appRoot, ".next"));
 let openNextTraceStaged = 0;
 let bunStoreStaged = 0;
+/** Packages NFT traces expect under apps/garden/node_modules (OpenNext copyTracedFiles uses app-local paths). */
+const nftReferencedPkgs = new Set();
 
 for (const nftPath of nftFiles) {
   let parsed;
@@ -180,6 +200,12 @@ for (const nftPath of nftFiles) {
     // have those files under personal-os-web/node_modules; we must materialize at the exact
     // resolved path or copyTracedFiles hits ENOENT with src === dest.
     const destOpenNext = path.resolve(openNextBase, relPosix);
+    const absFromNft = path.resolve(nftParentDir, relPosix);
+    for (const candidate of [destOpenNext, absFromNft]) {
+      const pkg = hoistedRootPkgNameUnder(appNodeModules, candidate);
+      if (pkg && !pkg.startsWith("@personal-os-web/")) nftReferencedPkgs.add(pkg);
+    }
+
     if (
       !existsSync(destOpenNext) &&
       isStrictDescendant(destOpenNext, webRoot)
@@ -200,30 +226,52 @@ for (const nftPath of nftFiles) {
   }
 }
 
-// Failsafe: trace includes often reference apps/<pkg>/node_modules/next/dist/compiled/jest-worker
-// with hoisted installs missing that tree. Copy the small folder from the workspace root.
-const jestWorkerSrc = path.join(
-  webRoot,
-  "node_modules",
-  "next",
-  "dist",
-  "compiled",
-  "jest-worker",
-);
-const jestWorkerDest = path.join(
-  appRoot,
-  "node_modules",
-  "next",
-  "dist",
-  "compiled",
-  "jest-worker",
-);
-const jestWorkerStaged = existsSync(jestWorkerSrc)
-  ? copyDirectoryFiles(jestWorkerSrc, jestWorkerDest)
-  : 0;
+/** Hoisted package names declared by `next` (transitives like styled-jsx live here, not in the app package). */
+function hoistedNamesFromNextRuntime() {
+  const nextPkgPath = path.join(webRoot, "node_modules", "next", "package.json");
+  if (!existsSync(nextPkgPath)) return [];
+  const nextPkg = JSON.parse(readFileSync(nextPkgPath, "utf8"));
+  return [
+    ...Object.keys(nextPkg.dependencies ?? {}),
+    ...Object.keys(nextPkg.optionalDependencies ?? {}),
+  ];
+}
+
+// Failsafe: OpenNext resolves many NFT paths to apps/garden/node_modules/... but hoisted
+// installs only populate personal-os-web/node_modules. Copy declared deps + common Next
+// server transitive packages. Use cpSync(dereference) so nested symlinks become real files.
+function mirrorHoistedPkgsUnderApp(nftPkgNames = []) {
+  const pkg = JSON.parse(readFileSync(path.join(appRoot, "package.json"), "utf8"));
+  const names = new Set([
+    ...Object.keys(pkg.dependencies ?? {}),
+    ...Object.keys(pkg.optionalDependencies ?? {}),
+    ...hoistedNamesFromNextRuntime(),
+    ...nftPkgNames,
+    "client-only",
+    "scheduler",
+  ]);
+  let pkgs = 0;
+  for (const name of names) {
+    if (name.startsWith("@personal-os-web/")) continue;
+    const src = path.join(webRoot, "node_modules", name);
+    const dest = path.join(appRoot, "node_modules", name);
+    if (!existsSync(src)) continue;
+    mkdirSync(path.dirname(dest), { recursive: true });
+    try {
+      cpSync(src, dest, { recursive: true, force: true, dereference: true });
+      pkgs++;
+    } catch {
+      copyDirectoryFiles(src, dest);
+      pkgs++;
+    }
+  }
+  return pkgs;
+}
+
+const depsStaged = mirrorHoistedPkgsUnderApp([...nftReferencedPkgs]);
 
 const parts = [];
 if (openNextTraceStaged) parts.push(`traces ${openNextTraceStaged}`);
 if (bunStoreStaged) parts.push(`bun ${bunStoreStaged}`);
-if (jestWorkerStaged) parts.push(`jest-worker ${jestWorkerStaged}`);
+if (depsStaged) parts.push(`dep-pkgs ${depsStaged}`);
 console.log(parts.length ? `[fix-standalone] ok (${parts.join(", ")})` : "[fix-standalone] ok");
