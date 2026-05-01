@@ -90,21 +90,6 @@ function isStrictDescendant(filePath, dirPath) {
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
-/** Top-level npm folder under `rootNodeModules` (`foo` or `@scope/pkg`), or null if outside it. */
-function hoistedRootPkgNameUnder(rootNodeModules, absPath) {
-  const resolved = path.resolve(absPath);
-  const rootResolved = path.resolve(rootNodeModules);
-  const rel = path.relative(rootResolved, resolved);
-  if (!rel || rel === "." || rel.startsWith("..") || path.isAbsolute(rel)) return null;
-  const parts = rel.split(/[/\\]/).filter(Boolean);
-  if (!parts.length) return null;
-  if (parts[0].startsWith("@")) {
-    if (parts.length < 2) return null;
-    return `${parts[0]}/${parts[1]}`;
-  }
-  return parts[0];
-}
-
 const standaloneRoot = path.join(appRoot, ".next", "standalone");
 if (!existsSync(standaloneRoot)) {
   console.log("[fix-standalone] skip — no .next/standalone");
@@ -171,13 +156,10 @@ const bunStorePrefixes = [
   path.join(appRoot, "node_modules", ".bun") + path.sep,
 ];
 
-const appNodeModules = path.join(appRoot, "node_modules");
 const nftFiles = walkNftFiles(path.join(appRoot, ".next"));
 console.log(`[fix-standalone] ${nftFiles.length} nft manifests; staging traces + hoisted mirror …`);
 let openNextTraceStaged = 0;
 let bunStoreStaged = 0;
-/** Unscoped package names NFTs resolve under the app node_modules (scoped trees mirror wholesale). */
-const nftExtraUnscoped = new Set();
 
 for (const nftPath of nftFiles) {
   let parsed;
@@ -201,12 +183,6 @@ for (const nftPath of nftFiles) {
     // have those files under personal-os-web/node_modules; we must materialize at the exact
     // resolved path or copyTracedFiles hits ENOENT with src === dest.
     const destOpenNext = path.resolve(openNextBase, relPosix);
-    for (const candidate of [destOpenNext, path.resolve(nftParentDir, relPosix)]) {
-      const rootPkg = hoistedRootPkgNameUnder(appNodeModules, candidate);
-      if (!rootPkg || rootPkg.startsWith("@personal-os-web/")) continue;
-      if (rootPkg.startsWith("@")) continue;
-      nftExtraUnscoped.add(rootPkg);
-    }
     if (
       !existsSync(destOpenNext) &&
       isStrictDescendant(destOpenNext, webRoot)
@@ -227,40 +203,19 @@ for (const nftPath of nftFiles) {
   }
 }
 
-// OpenNext copyTracedFiles resolves NFT paths into apps/<app>/node_modules/... while hoisted
-// installs store files in the workspace root node_modules. Copy enough hoisted trees that
-// same-path copies exist, without mirroring the entire root node_modules (minutes of silent I/O).
-//
-// Strategy: mirror every @scope (except @personal-os-web) + unscoped packages from the app,
-// next, NFT-derived extras. Skip sharp/caniuse-lite — OpenNext skips those copyTracedFiles rows.
+// OpenNext maps many traced paths to apps/<app>/node_modules/... while Bun/npm hoists lazily:
+// files often live under personal-os-web/node_modules only. copyTracedFiles uses
+// `from.replace(standaloneDir, outputDir)`; when that is a no-op, src===dest and the file
+// must exist under the app. Mirror every hoisted *top-level* package (all @ scopes + all
+// unscoped dirs). Unscoped transitives (e.g. detect-libc for @img/native) are hoisted to
+// root but are NOT listed in next/package.json — selective lists always lose eventually.
+// Skip .bun/.cache, workspace scope, and packages OpenNext never copies anyway.
 const HOIST_MIRROR_SKIP = new Set([".bun", ".cache"]);
 
-/** OpenNext skips copying these; mirroring them is slow and unnecessary for copyTracedFiles. */
+/** OpenNext skips these paths in copyTracedFiles; mirroring adds I/O without helping. */
 const OPENNEXT_SKIPPED_UNSCOPED = new Set(["sharp", "caniuse-lite"]);
 
-function unscopedHoistMirrorNames(nftExtraUnscoped) {
-  const appPkg = JSON.parse(readFileSync(path.join(appRoot, "package.json"), "utf8"));
-  const names = new Set();
-  for (const k of Object.keys(appPkg.dependencies ?? {})) names.add(k);
-  for (const k of Object.keys(appPkg.optionalDependencies ?? {})) names.add(k);
-  const nextPkgPath = path.join(webRoot, "node_modules", "next", "package.json");
-  if (existsSync(nextPkgPath)) {
-    const nextPkg = JSON.parse(readFileSync(nextPkgPath, "utf8"));
-    for (const k of Object.keys(nextPkg.dependencies ?? {})) names.add(k);
-    for (const k of Object.keys(nextPkg.optionalDependencies ?? {})) names.add(k);
-  }
-  names.add("client-only");
-  names.add("scheduler");
-  for (const x of nftExtraUnscoped) names.add(x);
-  for (const n of [...names]) {
-    if (n.startsWith("@")) names.delete(n);
-  }
-  for (const n of OPENNEXT_SKIPPED_UNSCOPED) names.delete(n);
-  return names;
-}
-
-function mirrorHoistedNodeModuleRoots(nftExtraUnscoped) {
-  const unscoped = unscopedHoistMirrorNames(nftExtraUnscoped);
+function mirrorHoistedNodeModuleRoots() {
   const srcRoot = path.join(webRoot, "node_modules");
   const destRoot = path.join(appRoot, "node_modules");
   if (!existsSync(srcRoot)) return 0;
@@ -273,7 +228,8 @@ function mirrorHoistedNodeModuleRoots(nftExtraUnscoped) {
     const dest = path.join(destRoot, ent.name);
     if (!existsSync(src)) continue;
     const mirrorScoped = ent.name.startsWith("@");
-    const mirrorUnscoped = !mirrorScoped && unscoped.has(ent.name);
+    const mirrorUnscoped =
+      !mirrorScoped && !OPENNEXT_SKIPPED_UNSCOPED.has(ent.name);
     if (!mirrorScoped && !mirrorUnscoped) continue;
     mkdirSync(destRoot, { recursive: true });
     const label = mirrorScoped ? `${ent.name}/*` : ent.name;
@@ -292,7 +248,7 @@ function mirrorHoistedNodeModuleRoots(nftExtraUnscoped) {
   return n;
 }
 
-const depsStaged = mirrorHoistedNodeModuleRoots(nftExtraUnscoped);
+const depsStaged = mirrorHoistedNodeModuleRoots();
 
 const parts = [];
 if (openNextTraceStaged) parts.push(`traces ${openNextTraceStaged}`);
