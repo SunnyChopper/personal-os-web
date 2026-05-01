@@ -14,25 +14,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.join(__dirname, "..");
 const webRoot = path.join(appRoot, "..", ".."); // personal-os-web
 
-function newestMatchingDir(parent, prefix) {
-  if (!existsSync(parent)) return null;
-  const entries = readdirSync(parent, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && d.name.startsWith(prefix))
-    .map((d) => d.name);
-  if (entries.length === 0) return null;
-  // Prefer deterministic sort; these include hashes so "newest" is meaningless.
-  entries.sort((a, b) => a.localeCompare(b));
-  return entries[entries.length - 1];
-}
-
-function ensureFileCopied(from, to) {
+/** Copy or mkdir; skip if dest exists. Returns true if a new file was written or dir created. */
+function stageCopy(from, to) {
+  if (existsSync(to)) return false;
   if (!existsSync(from)) {
-    throw new Error(`[fix-standalone] missing source file: ${from}`);
+    throw new Error(`[fix-standalone] missing source: ${from}`);
   }
-  if (existsSync(to)) return;
-  // Some traced paths can be directories (or symlinks to directories). In that case,
-  // create the directory and move on — OpenNext only needs the directory to exist
-  // so subsequent file copies can succeed.
   let st;
   try {
     st = lstatSync(from);
@@ -41,42 +28,61 @@ function ensureFileCopied(from, to) {
   }
   if (st && (st.isDirectory() || (st.isSymbolicLink() && statSync(from).isDirectory()))) {
     mkdirSync(to, { recursive: true });
-    console.log(`[fix-standalone] mkdir ${path.relative(appRoot, to)}`);
-    return;
+    return true;
   }
   mkdirSync(path.dirname(to), { recursive: true });
   copyFileSync(from, to);
   const s = statSync(to);
   if (!s.isFile()) {
-    throw new Error(`[fix-standalone] failed to copy to: ${to}`);
+    throw new Error(`[fix-standalone] expected file at ${to}`);
   }
-  console.log(`[fix-standalone] copied ${path.relative(appRoot, to)}`);
+  return true;
 }
 
 function copyDirectoryFiles(fromDir, toDir) {
   if (!existsSync(fromDir)) return 0;
 
-  let copiedCount = 0;
+  let n = 0;
   mkdirSync(toDir, { recursive: true });
   for (const ent of readdirSync(fromDir, { withFileTypes: true })) {
     const from = path.join(fromDir, ent.name);
     const to = path.join(toDir, ent.name);
     if (ent.isDirectory()) {
-      copiedCount += copyDirectoryFiles(from, to);
+      n += copyDirectoryFiles(from, to);
       continue;
     }
-
-    const alreadyExists = existsSync(to);
-    ensureFileCopied(from, to);
-    if (!alreadyExists && existsSync(to)) copiedCount++;
+    if (stageCopy(from, to)) n++;
   }
+  return n;
+}
 
-  return copiedCount;
+/** Resolve a traced path; if app-local node_modules is missing, use hoisted workspace root. */
+function resolveTraceSource(absResolved) {
+  if (existsSync(absResolved)) return absResolved;
+  const appNmRoot = path.join(appRoot, "node_modules");
+  const normalized = normalizePath(absResolved);
+  const appNmPrefix = normalizePath(appNmRoot) + path.sep;
+  if (normalized === normalizePath(appNmRoot) || normalized.startsWith(appNmPrefix)) {
+    const tail = path.relative(appNmRoot, absResolved);
+    const atRoot = path.join(webRoot, "node_modules", tail);
+    if (existsSync(atRoot)) return atRoot;
+  }
+  return null;
+}
+
+function normalizePath(p) {
+  return path.normalize(p).replaceAll("\\", "/");
+}
+
+/** True if filePath is a strict descendant of dirPath (same path → false). */
+function isStrictDescendant(filePath, dirPath) {
+  const rel = path.relative(dirPath, filePath);
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
 const standaloneRoot = path.join(appRoot, ".next", "standalone");
 if (!existsSync(standaloneRoot)) {
-  console.log(`[fix-standalone] no standalone output found at ${standaloneRoot}`);
+  console.log("[fix-standalone] skip — no .next/standalone");
   process.exit(0);
 }
 
@@ -88,15 +94,13 @@ const appNextDir = path.join(appRoot, ".next");
 const standaloneInnerNextDir = path.join(standaloneRoot, ".next");
 mkdirSync(standaloneInnerNextDir, { recursive: true });
 
-// Copy file entries from `.next/*` → `.next/standalone/.next/*`
 for (const ent of readdirSync(appNextDir, { withFileTypes: true })) {
   if (!ent.isFile()) continue;
   const from = path.join(appNextDir, ent.name);
   const to = path.join(standaloneInnerNextDir, ent.name);
-  ensureFileCopied(from, to);
+  stageCopy(from, to);
 }
 
-// Copy file entries from `.next/server/*` → `.next/standalone/.next/server/*`
 const appNextServerDir = path.join(appNextDir, "server");
 const standaloneNextServerDir = path.join(standaloneInnerNextDir, "server");
 mkdirSync(standaloneNextServerDir, { recursive: true });
@@ -105,21 +109,15 @@ if (existsSync(appNextServerDir)) {
     if (!ent.isFile()) continue;
     const from = path.join(appNextServerDir, ent.name);
     const to = path.join(standaloneNextServerDir, ent.name);
-    ensureFileCopied(from, to);
+    stageCopy(from, to);
   }
 }
 
-// Next's standalone output can omit directory-level app router artifacts even when
-// `.next/server/app-paths-manifest.json` points at them. OpenNext packages from
-// standalone, so missing files here become generic 500s in Lambda for every page.
 for (const serverDir of ["app", "pages"]) {
-  const copiedServerFiles = copyDirectoryFiles(
+  copyDirectoryFiles(
     path.join(appNextServerDir, serverDir),
     path.join(standaloneNextServerDir, serverDir),
   );
-  if (copiedServerFiles > 0) {
-    console.log(`[fix-standalone] copied .next/server/${serverDir}/ (${copiedServerFiles} files)`);
-  }
 }
 
 // OpenNext (in monorepo mode) expects files under `.next/standalone/<workspaceRootName>/...`.
@@ -127,9 +125,6 @@ for (const serverDir of ["app", "pages"]) {
 // We create the expected nested paths by copying only the specific files OpenNext later tries to copy.
 const standaloneExpectedRoot = path.join(standaloneRoot, "personal-os-web");
 
-// Include `.next/*.nft.json` (e.g. `next-server.js.nft.json`) — not only `.next/server/**/*.nft.json`.
-// OpenNext traces the default server bundle from those root manifests; omitting them leaves
-// `next/dist/server/lib/start-server.js` (and peers) unstaged in standalone → copyTracedFiles ENOENT.
 const NFT_SKIP_DIRS = new Set(["cache", "standalone", "export", "trace"]);
 function walkNftFiles(dir) {
   const out = [];
@@ -143,20 +138,17 @@ function walkNftFiles(dir) {
   return out;
 }
 
-const nftFiles = walkNftFiles(path.join(appRoot, ".next"));
-if (nftFiles.length === 0) {
-  console.log(`[fix-standalone] no .nft.json files found; skipping`);
-  process.exit(0);
-}
+const packagePath = path.relative(webRoot, appRoot);
+const standaloneNextDir = path.join(standaloneRoot, packagePath, ".next");
 
-// Bun isolated installs trace into workspace-root `.bun` and sometimes `apps/<pkg>/node_modules/.bun`.
-// OpenNext copies from traced paths later — only prefix(es) we materialize into standalone survive.
 const bunStorePrefixes = [
   path.join(webRoot, "node_modules", ".bun") + path.sep,
   path.join(appRoot, "node_modules", ".bun") + path.sep,
 ];
 
-let copied = 0;
+const nftFiles = walkNftFiles(path.join(appRoot, ".next"));
+let openNextTraceStaged = 0;
+let bunStoreStaged = 0;
 
 for (const nftPath of nftFiles) {
   let parsed;
@@ -166,20 +158,37 @@ for (const nftPath of nftFiles) {
     throw new Error(`[fix-standalone] failed to parse ${nftPath}: ${e}`);
   }
   const files = Array.isArray(parsed?.files) ? parsed.files : [];
+  const nftParentDir = path.dirname(nftPath);
+  const relFromDotNext = path.relative(appNextDir, nftParentDir);
+  const openNextBase = path.join(standaloneNextDir, relFromDotNext);
+
   for (const rel of files) {
     if (typeof rel !== "string") continue;
-    const abs = path.resolve(path.dirname(nftPath), rel);
-    if (!bunStorePrefixes.some((prefix) => abs.startsWith(prefix))) continue;
-    const relFromWeb = path.relative(webRoot, abs);
+
+    // Match OpenNext copyTracedFiles: same `path.resolve(openNextBase, rel)` it uses.
+    // Some NFT entries climb out of `.next/standalone/...` with `../` segments and land on
+    // real workspace paths (e.g. apps/garden/node_modules/next/...). Hoisted installs only
+    // have those files under personal-os-web/node_modules; we must materialize at the exact
+    // resolved path or copyTracedFiles hits ENOENT with src === dest.
+    const destOpenNext = path.resolve(openNextBase, rel);
+    if (!existsSync(destOpenNext) && isStrictDescendant(destOpenNext, webRoot)) {
+      const src =
+        resolveTraceSource(path.resolve(nftParentDir, rel)) ??
+        resolveTraceSource(destOpenNext);
+      if (src && stageCopy(src, destOpenNext)) openNextTraceStaged++;
+    }
+
+    const absForBun = path.resolve(nftParentDir, rel);
+    if (!bunStorePrefixes.some((prefix) => absForBun.startsWith(prefix))) continue;
+    const relFromWeb = path.relative(webRoot, absForBun);
     const dest = path.join(standaloneExpectedRoot, relFromWeb);
     if (existsSync(dest)) continue;
-    // Only copy files (not directories). If source doesn't exist, that's a different kind of trace issue.
-    if (!existsSync(abs)) continue;
-    ensureFileCopied(abs, dest);
-    copied++;
+    if (!existsSync(absForBun)) continue;
+    if (stageCopy(absForBun, dest)) bunStoreStaged++;
   }
 }
 
-if (copied === 0) {
-  console.log(`[fix-standalone] nothing to copy (standalone already contains traced .bun files)`);
-}
+const parts = [];
+if (openNextTraceStaged) parts.push(`traces ${openNextTraceStaged}`);
+if (bunStoreStaged) parts.push(`bun ${bunStoreStaged}`);
+console.log(parts.length ? `[fix-standalone] ok (${parts.join(", ")})` : "[fix-standalone] ok");
