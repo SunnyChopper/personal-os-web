@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Approximate GitHub Actions "deploy-garden" Build OpenNext step (Ubuntu + Bun hoisted).
 # Copies the repo to /tmp so bind-mounted host node_modules/.next (e.g. Windows + fix-standalone
-# mirrors) does not poison Linux resolution — otherwise Next can load two React copies and fail
+# staging) does not poison Linux resolution — otherwise Next can load two React copies and fail
 # prerender with ReactSharedInternals / useContext errors before OpenNext runs.
 #
 # Usage (from Windows / macOS, Docker Desktop):
@@ -58,5 +58,17 @@ bun install --frozen-lockfile --linker hoisted
 
 say "garden build:opennext"
 bun run --filter garden build:opennext
+
+say "post-build: server bundle size + reject node_modules/.bin in Lambda tree"
+SF="apps/garden/.open-next/server-functions/default"
+if [[ ! -d "$SF" ]]; then
+  echo "ERROR: missing $SF"
+  exit 1
+fi
+du -sh "$SF" || true
+if [[ -d "$SF/node_modules/.bin" ]] || [[ -d "$SF/apps/garden/node_modules/.bin" ]]; then
+  echo "ERROR: node_modules/.bin must not appear in OpenNext server bundle"
+  exit 1
+fi
 
 say "done"

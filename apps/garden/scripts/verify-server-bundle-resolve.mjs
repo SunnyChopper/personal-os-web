@@ -10,10 +10,9 @@
  * Add a line to `modules` when a new Runtime.ImportModuleError names a package.
  */
 import { createRequire } from "node:module";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dirname } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const gardenRoot = join(__dirname, "..");
@@ -34,8 +33,79 @@ const modulesFromGarden = ["pg-types", "pg-protocol", "pgpass", "pg/package.json
 
 const errors = [];
 
-function validateAppRouteArtifacts() {
-  const manifestPath = join(serverFnRoot, ".next", "server", "app-paths-manifest.json");
+/** OpenNext puts `.next` under `apps/garden/` in monorepo mode; fallback to bundle root. */
+function findBundledDotNextRoot() {
+  const candidates = [
+    join(serverFnRoot, "apps", "garden", ".next"),
+    join(serverFnRoot, ".next"),
+  ];
+  for (const base of candidates) {
+    const required = join(base, "required-server-files.json");
+    const manifestDir = join(base, "server", "app-paths-manifest.json");
+    if (existsSync(required) || existsSync(manifestDir)) return base;
+  }
+  return null;
+}
+
+/** Fail if tooling/.bin leaked into Lambda bundle via bloated traces. */
+function assertBundleNodeModulesLean() {
+  const forbiddenExact = new Set([".bin", "eslint", "vitest", "vite"]);
+
+  function inspectNodeModulesDir(nmAbs) {
+    let dirents;
+    try {
+      dirents = readdirSync(nmAbs, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const d of dirents) {
+      if (!d.isDirectory()) continue;
+      const name = d.name;
+      if (forbiddenExact.has(name)) {
+        errors.push({
+          spec: join(nmAbs, name),
+          message: `${name} must not ship in Lambda server bundle`,
+        });
+        continue;
+      }
+      const scopeBad =
+        name.startsWith("@playwright") ||
+        name.startsWith("@vitest") ||
+        name.startsWith("@vitejs") ||
+        name.startsWith("@eslint");
+      if (scopeBad) {
+        errors.push({
+          spec: join(nmAbs, name),
+          message: `${name} must not ship in Lambda server bundle (dev tooling)`,
+        });
+      }
+    }
+  }
+
+  /** @param {string} dir */
+  function walk(dir) {
+    if (!existsSync(dir)) return;
+    let dirents;
+    try {
+      dirents = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const d of dirents) {
+      if (!d.isDirectory()) continue;
+      const p = join(dir, d.name);
+      if (d.name === "node_modules") {
+        inspectNodeModulesDir(p);
+      }
+      walk(p);
+    }
+  }
+
+  walk(serverFnRoot);
+}
+
+function validateAppRouteArtifacts(dotNextRoot) {
+  const manifestPath = join(dotNextRoot, "server", "app-paths-manifest.json");
   if (!existsSync(manifestPath)) {
     errors.push({
       spec: ".next/server/app-paths-manifest.json",
@@ -60,7 +130,7 @@ function validateAppRouteArtifacts() {
   );
 
   for (const [, rel] of routeEntries) {
-    const artifactPath = join(serverFnRoot, ".next", "server", rel);
+    const artifactPath = join(dotNextRoot, "server", rel);
     if (!existsSync(artifactPath)) {
       errors.push({
         spec: `.next/server/${rel}`,
@@ -108,7 +178,18 @@ function findNextPackageJson() {
   return null;
 }
 
-const routeArtifactCount = validateAppRouteArtifacts();
+const bundledDotNext = findBundledDotNextRoot();
+if (!bundledDotNext && !existsSync(serverFnRoot)) {
+  errors.push({
+    spec: serverFnRoot,
+    message: "OpenNext server bundle directory missing — run build:opennext first",
+  });
+}
+
+const routeArtifactCount =
+  bundledDotNext != null ? validateAppRouteArtifacts(bundledDotNext) : 0;
+assertBundleNodeModulesLean();
+
 const nextPkg = findNextPackageJson();
 if (!nextPkg) {
   // Newer OpenNext outputs can embed runtime bits without shipping a traditional
@@ -117,8 +198,11 @@ if (!nextPkg) {
   // server function entrypoint + required-server-files manifest as a sufficient
   // smoke check and skip module-resolution probing.
   const entry = join(serverFnRoot, "index.mjs");
-  const required = join(serverFnRoot, ".next", "required-server-files.json");
-  if (existsSync(entry) && existsSync(required) && errors.length === 0) {
+  const dotNextMeta = bundledDotNext ?? join(serverFnRoot, ".next");
+  const requiredAlt = existsSync(join(dotNextMeta, "required-server-files.json"))
+    ? join(dotNextMeta, "required-server-files.json")
+    : join(serverFnRoot, ".next", "required-server-files.json");
+  if (existsSync(entry) && existsSync(requiredAlt) && errors.length === 0) {
     console.warn(
       "[verify-server-bundle] No `next/package.json` found in server bundle, but OpenNext output looks valid " +
         "(found index.mjs + .next/required-server-files.json). Skipping module resolution probe.",

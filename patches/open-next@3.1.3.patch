@@ -1,0 +1,156 @@
+diff --git a/dist/build/copyTracedFiles.js b/dist/build/copyTracedFiles.js
+index dcff4864076ce845c541dc7d55bbccd15d887126..8a2b85619c706601df42efa42e03cb6cb121b52a 100644
+--- a/dist/build/copyTracedFiles.js
++++ b/dist/build/copyTracedFiles.js
+@@ -3,6 +3,88 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, readlin
+ import path from "path";
+ import logger from "../logger.js";
+ const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
++
++/** Walk up from app dir using packagePath segments (e.g. apps/garden → workspace root). */
++function inferMonorepoRoot(buildOutputPath, packagePath) {
++    const trimmed = typeof packagePath === "string"
++        ? packagePath.replace(/^[./\\]+/, "").trim()
++        : "";
++    if (!trimmed || trimmed === ".") {
++        return buildOutputPath;
++    }
++    const depth = trimmed.split(/[/\\]+/).filter(Boolean).length;
++    let root = buildOutputPath;
++    for (let i = 0; i < depth; i++) {
++        root = path.dirname(root);
++    }
++    return root;
++}
++
++function withTrailingSep(p) {
++    const n = path.normalize(p);
++    return n.endsWith(path.sep) ? n : n + path.sep;
++}
++
++/**
++ * Hoisted installs trace to app-local node_modules paths that may not exist; fall back to workspace root node_modules.
++ */
++function resolveTracedSource(absFrom, buildOutputPath, monorepoRoot) {
++    const normFrom = path.normalize(absFrom);
++    if (existsSync(normFrom)) {
++        return normFrom;
++    }
++    const appNm = path.join(buildOutputPath, "node_modules");
++    const rootNm = path.join(monorepoRoot, "node_modules");
++    const appPrefix = withTrailingSep(appNm);
++    if (normFrom === path.normalize(appNm) || normFrom.startsWith(appPrefix)) {
++        const tail = path.relative(appNm, normFrom);
++        const alt = path.join(rootNm, tail);
++        if (existsSync(alt)) {
++            return alt;
++        }
++    }
++    return normFrom;
++}
++
++/**
++ * Map a traced file `from` under `.next/standalone/...` or hoisted workspace paths into
++ * OpenNext's server bundle output tree. Default `from.replace(standaloneDir, outputDir)` breaks when
++ * NFT resolves outside `standaloneDir` (same-path copy / ENOENT).
++ */
++function mapStandaloneOrWorkspaceToOutput(from, standaloneDir, outputDir, buildOutputPath, monorepoRoot) {
++    const normStandalone = path.normalize(standaloneDir);
++    const standalonePrefix = withTrailingSep(normStandalone);
++    const normFrom = path.normalize(from);
++    if (normFrom === normStandalone || normFrom.startsWith(standalonePrefix)) {
++        const rel = path.relative(normStandalone, normFrom);
++        const to = path.join(outputDir, rel);
++        return {
++            from: resolveTracedSource(normFrom, buildOutputPath, monorepoRoot),
++            to,
++        };
++    }
++    const pkgRelFromMono = path.relative(monorepoRoot, buildOutputPath); // e.g. apps/garden
++    const normMono = path.normalize(monorepoRoot);
++    const rootNm = path.join(normMono, "node_modules");
++    const rootNmPrefix = withTrailingSep(rootNm);
++    if (normFrom === path.normalize(rootNm) || normFrom.startsWith(rootNmPrefix)) {
++        const tail = path.relative(rootNm, normFrom);
++        const to = path.join(outputDir, "node_modules", tail);
++        return { from: resolveTracedSource(normFrom, buildOutputPath, monorepoRoot), to };
++    }
++    const appNm = path.join(buildOutputPath, "node_modules");
++    const appNmPrefix = withTrailingSep(appNm);
++    if (normFrom === path.normalize(appNm) || normFrom.startsWith(appNmPrefix)) {
++        const tail = path.relative(appNm, normFrom);
++        const to = path.join(outputDir, pkgRelFromMono, "node_modules", tail);
++        return { from: resolveTracedSource(normFrom, buildOutputPath, monorepoRoot), to };
++    }
++    // Fallback: legacy behavior (only works when `from` was under standalone)
++    return {
++        from: resolveTracedSource(normFrom, buildOutputPath, monorepoRoot),
++        to: normFrom.replace(standaloneDir, outputDir),
++    };
++}
+ function copyPatchFile(outputDir) {
+     const patchFile = path.join(__dirname, "patch", "patchedAsyncStorage.js");
+     const outputPatchFile = path.join(outputDir, "patchedAsyncStorage.cjs");
+@@ -10,6 +92,7 @@ function copyPatchFile(outputDir) {
+ }
+ export async function copyTracedFiles(buildOutputPath, packagePath, outputDir, routes, bundledNextServer) {
+     const tsStart = Date.now();
++    const monorepoRoot = inferMonorepoRoot(buildOutputPath, packagePath);
+     const dotNextDir = path.join(buildOutputPath, ".next");
+     const standaloneDir = path.join(dotNextDir, "standalone");
+     const standaloneNextDir = path.join(standaloneDir, packagePath, ".next");
+@@ -18,14 +101,15 @@ export async function copyTracedFiles(buildOutputPath, packagePath, outputDir, r
+         return files.map((f) => path.resolve(from, f));
+     };
+     // On next 14+, we might not have to include those files
+-    // For next 13, we need to include them otherwise we get runtime error
++    // On next 13, we need to include them otherwise we get runtime error
+     const requiredServerFiles = JSON.parse(readFileSync(path.join(dotNextDir, bundledNextServer
+         ? "next-minimal-server.js.nft.json"
+         : "next-server.js.nft.json"), "utf8"));
+     const filesToCopy = new Map();
+     // Files necessary by the server
+     extractFiles(requiredServerFiles.files).forEach((f) => {
+-        filesToCopy.set(f, f.replace(standaloneDir, outputDir));
++        const { from, to } = mapStandaloneOrWorkspaceToOutput(f, standaloneDir, outputDir, buildOutputPath, monorepoRoot);
++        filesToCopy.set(from, to);
+     });
+     // create directory for pages
+     if (existsSync(path.join(standaloneDir, ".next/server/pages"))) {
+@@ -68,7 +152,8 @@ File ${fullFilePath} does not exist
+         }
+         const dir = path.dirname(fullFilePath);
+         extractFiles(requiredFiles.files, path.join(standaloneNextDir, dir)).forEach((f) => {
+-            filesToCopy.set(f, f.replace(standaloneDir, outputDir));
++            const { from, to } = mapStandaloneOrWorkspaceToOutput(f, standaloneDir, outputDir, buildOutputPath, monorepoRoot);
++            filesToCopy.set(from, to);
+         });
+         if (!existsSync(path.join(standaloneNextDir, `${fullFilePath}`))) {
+             throw new Error(`This error should only happen for static 404 and 500 page from page router. Report this if that's not the case.,
+@@ -119,6 +204,12 @@ File ${fullFilePath} does not exist
+             from.includes(path.join("node_modules", "sharp"))) {
+             return;
+         }
++        if (!existsSync(from)) {
++            throw new Error(`OpenNext copyTracedFiles: missing traced source "${from}" (resolved for copy to "${to}").`);
++        }
++        if (path.normalize(from) === path.normalize(to)) {
++            return;
++        }
+         mkdirSync(path.dirname(to), { recursive: true });
+         let symlink = null;
+         // For pnpm symlink we need to do that
+diff --git a/dist/build.js b/dist/build.js
+index e524f832221605af6983d063b205d3a12becdcd3..f251695897ef231df8c3a97531456fee3b79040e 100644
+--- a/dist/build.js
++++ b/dist/build.js
+@@ -90,7 +90,9 @@ function findMonorepoRoot(appPath) {
+             { file: "package-lock.json", packager: "npm" },
+             { file: "yarn.lock", packager: "yarn" },
+             { file: "pnpm-lock.yaml", packager: "pnpm" },
++            // Bun supports both legacy binary lockfile and modern text bun.lock (see bun install docs).
+             { file: "bun.lockb", packager: "bun" },
++            { file: "bun.lock", packager: "bun" },
+         ].find((f) => fs.existsSync(path.join(currentPath, f.file)));
+         if (found) {
+             if (currentPath !== appPath) {

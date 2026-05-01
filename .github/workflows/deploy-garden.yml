@@ -9,6 +9,7 @@ on:
       - "apps/garden/**"
       - "packages/**"
       - "bun.lock"
+      - "patches/**"
       - "package.json"
       - ".github/workflows/deploy-garden.yml"
     tags:
@@ -59,6 +60,13 @@ jobs:
           PUBLIC_GARDEN_DATABASE_URL: ${{ secrets.PUBLIC_GARDEN_DATABASE_URL }}
           PUBLIC_GARDEN_USER_ID: ${{ secrets.PUBLIC_GARDEN_USER_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: garden-open-next-dev-failure
+          path: apps/garden/.open-next
+          if-no-files-found: ignore
 
       - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
         env:
@@ -122,6 +130,13 @@ jobs:
           PUBLIC_GARDEN_DATABASE_URL: ${{ secrets.PUBLIC_GARDEN_DATABASE_URL }}
           PUBLIC_GARDEN_USER_ID: ${{ secrets.PUBLIC_GARDEN_USER_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: garden-open-next-prod-failure
+          path: apps/garden/.open-next
+          if-no-files-found: ignore
 
       - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
         env:
