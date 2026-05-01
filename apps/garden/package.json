@@ -6,9 +6,9 @@
     "dev": "next dev -p 3040",
     "build": "next build",
     "build:standalone:fix": "next build && mkdir -p .next/standalone/.next && node ./scripts/fix-standalone-bun.mjs",
-    "build:opennext": "next build && node ./scripts/fix-standalone-bun.mjs && open-next build",
+    "build:opennext": "next build && node ./scripts/fix-standalone-bun.mjs && open-next build && node ./scripts/verify-server-bundle-resolve.mjs",
     "verify:server-bundle": "node ./scripts/verify-server-bundle-resolve.mjs",
-    "build:opennext:verify": "open-next build && node ./scripts/verify-server-bundle-resolve.mjs",
+    "build:opennext:verify": "next build && node ./scripts/fix-standalone-bun.mjs && open-next build && node ./scripts/verify-server-bundle-resolve.mjs",
     "start": "next start -p 3040",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
@@ -46,7 +46,7 @@
     "@types/react-dom": "^19.0.2",
     "eslint": "^9.17.0",
     "eslint-config-next": "15.2.4",
-    "open-next": "^3.1.3",
+    "open-next": "3.1.3",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2"

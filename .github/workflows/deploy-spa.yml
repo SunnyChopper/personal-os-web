@@ -44,7 +44,7 @@ jobs:
           node-version: "20"
 
       - name: Install
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --linker hoisted
 
       - name: Type check
         run: bun run --filter web type-check
@@ -52,14 +52,12 @@ jobs:
       - name: Lint
         run: bun run --filter web lint
 
+      # Dedicated Vite mode + committed `.env.ci-dev` so this job never inherits
+      # `.env.production` (often present only locally but may point at prod stack).
       - name: Build
-        run: bun run --filter web build
+        run: bun run --filter web build -- --mode ci-dev
         env:
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-          VITE_WS_URL: ${{ secrets.VITE_WS_URL }}
-          VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
-          VITE_AWS_USER_POOL_ID: ${{ secrets.VITE_AWS_USER_POOL_ID }}
-          VITE_AWS_USER_POOL_WEB_CLIENT_ID: ${{ secrets.VITE_AWS_USER_POOL_WEB_CLIENT_ID }}
+          SPA_CI_STAGE: spa-ci-dev
           VITE_AWS_IDENTITY_POOL_ID: ${{ secrets.VITE_AWS_IDENTITY_POOL_ID }}
 
       - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
@@ -78,19 +76,18 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Sync to S3 and invalidate CloudFront
+      - name: Deploy SPA via shared script (--no-build; build step above)
         env:
           SPA_BUCKET: ${{ secrets.SPA_BUCKET }}
           CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
-        run: |
-          set -eux
-          aws s3 sync apps/web/dist/assets/ "s3://${SPA_BUCKET}/admin/assets/" --delete \
-            --cache-control "public, max-age=31536000, immutable"
-          aws s3 sync apps/web/dist/ "s3://${SPA_BUCKET}/admin/" --delete --exclude "assets/*" \
-            --cache-control "public, max-age=60"
-          aws cloudfront create-invalidation \
-            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
-            --paths "/admin/index.html" "/admin/*"
+          AWS_REGION: us-east-1
+        run: node scripts/deploy-spa.mjs dev --no-build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-spa-dist-dev
+          path: apps/web/dist
+          if-no-files-found: error
 
   deploy-prod:
     if: |-
@@ -108,7 +105,7 @@ jobs:
           node-version: "20"
 
       - name: Install
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --linker hoisted
 
       - name: Type check
         run: bun run --filter web type-check
@@ -142,16 +139,15 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Sync to S3 and invalidate CloudFront
+      - name: Deploy SPA via shared script (--no-build; build step above)
         env:
           SPA_BUCKET: ${{ secrets.SPA_BUCKET }}
           CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
-        run: |
-          set -eux
-          aws s3 sync apps/web/dist/assets/ "s3://${SPA_BUCKET}/admin/assets/" --delete \
-            --cache-control "public, max-age=31536000, immutable"
-          aws s3 sync apps/web/dist/ "s3://${SPA_BUCKET}/admin/" --delete --exclude "assets/*" \
-            --cache-control "public, max-age=60"
-          aws cloudfront create-invalidation \
-            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
-            --paths "/admin/index.html" "/admin/*"
+          AWS_REGION: us-east-1
+        run: node scripts/deploy-spa.mjs prod --no-build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-spa-dist-prod
+          path: apps/web/dist
+          if-no-files-found: error

@@ -9,6 +9,7 @@ on:
       - "apps/garden/**"
       - "packages/**"
       - "bun.lock"
+      - "patches/**"
       - "package.json"
       - ".github/workflows/deploy-garden.yml"
     tags:
@@ -60,6 +61,14 @@ jobs:
           PUBLIC_GARDEN_USER_ID: ${{ secrets.PUBLIC_GARDEN_USER_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: garden-open-next-dev-failure
+          path: apps/garden/.open-next
+          if-no-files-found: ignore
+          include-hidden-files: true
+
       - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
         env:
           ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
@@ -90,6 +99,7 @@ jobs:
           name: garden-open-next-dev
           path: apps/garden/.open-next
           if-no-files-found: error
+          include-hidden-files: true
 
   deploy-prod:
     if: |-
@@ -123,6 +133,14 @@ jobs:
           PUBLIC_GARDEN_USER_ID: ${{ secrets.PUBLIC_GARDEN_USER_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: garden-open-next-prod-failure
+          path: apps/garden/.open-next
+          if-no-files-found: ignore
+          include-hidden-files: true
+
       - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
         env:
           ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
@@ -152,3 +170,4 @@ jobs:
           name: garden-open-next-prod
           path: apps/garden/.open-next
           if-no-files-found: error
+          include-hidden-files: true

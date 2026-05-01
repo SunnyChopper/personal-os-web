@@ -69,6 +69,16 @@ const traceExcludeGlobs = [
   '../../node_modules/.bun/vite@*/node_modules/**',
   '../../node_modules/.bun/vitest@*/node_modules/**',
   '../../node_modules/.bun/@playwright+test@*/node_modules/**',
+  // Bin shims / dev tooling at workspace root — never needed in Lambda
+  '../../node_modules/.bin/**',
+  '../../node_modules/eslint/**',
+  '../../node_modules/eslint-*/**',
+  '../../node_modules/@eslint/**',
+  '../../node_modules/vite/**',
+  '../../node_modules/vitest/**',
+  '../../node_modules/@vitejs/**',
+  '../../node_modules/@vitest/**',
+  '../../node_modules/@playwright/**',
 ];
 
 const nextConfig: NextConfig = {

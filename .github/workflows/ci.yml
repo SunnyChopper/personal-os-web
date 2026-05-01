@@ -103,5 +103,11 @@ jobs:
       - name: Lint
         run: bun run --filter garden lint
 
-      - name: Build
-        run: bun run --filter garden build
+      # Full OpenNext + verify (mirrors CI deploy); placeholders satisfy next build compile only.
+      - name: Build OpenNext
+        run: bun run --filter garden build:opennext
+        env:
+          NEXT_PUBLIC_SITE_URL: http://localhost
+          PUBLIC_GARDEN_DATABASE_URL: postgres://u:p@localhost:5432/db
+          PUBLIC_GARDEN_USER_ID: ci-user
+          OPENAI_API_KEY: sk-ci-placeholder-unused-at-build-static-analysis
