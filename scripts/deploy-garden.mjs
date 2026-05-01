@@ -8,8 +8,8 @@
  *   node scripts/deploy-garden.mjs prod --no-build
  */
 import { existsSync, unlinkSync, rmSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
 import { execSync, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { buildViteBuildEnv } from './lib/deploy-env.mjs';
@@ -26,11 +26,10 @@ function cleanOpenNextDir() {
   rmSync(dir, { recursive: true, force: true, maxRetries: 12, retryDelay: 100 });
 }
 
+/** AWS CLI v2 insists on a `fileb://` URI and a payload that is a real ZIP archive. */
 function filebParamFromPath(absPath) {
-  const s = absPath.replace(/\\/g, '/');
-  if (/^[A-Za-z]:\//.test(s)) return `fileb://${s}`;
-  if (s.startsWith('/')) return `fileb://${s}`;
-  return `fileb://${s}`;
+  const href = pathToFileURL(resolve(absPath)).href;
+  return href.replace(/^file:/i, 'fileb:');
 }
 
 function assertNextJestWorkerChildPresent() {
@@ -56,8 +55,28 @@ function assertNextJestWorkerChildPresent() {
 
 function zipServerBundle(serverFnDir, zipPath) {
   if (existsSync(zipPath)) unlinkSync(zipPath);
-  const follow = process.platform === 'win32' || process.platform === 'darwin' ? ['-L'] : ['-h'];
-  const r = spawnSync('tar', [...follow, '-a', '-c', '-f', zipPath, '.'], {
+  const absZip = resolve(zipPath);
+
+  // Linux/macOS CI: GNU `tar -a -f '*.zip'` often writes a POSIX tar disguised as .zip;
+  // aws lambda update-function-code then fails ParamValidation (“fileb://” + zip).
+  // Info-ZIP follows symlinks with `-y` like GNU tar `-h`.
+  if (process.platform !== 'win32') {
+    const r = spawnSync('zip', ['-ry', absZip, '.'], {
+      cwd: serverFnDir,
+      stdio: 'inherit',
+      shell: false,
+    });
+    if (r.error || r.status !== 0) {
+      console.error(
+        '[deploy-garden] `zip -ry` failed creating Lambda zip (install Info-ZIP `zip` on this OS).',
+      );
+      process.exit(1);
+    }
+    return;
+  }
+
+  const follow = ['-L'];
+  const r = spawnSync('tar', [...follow, '-a', '-c', '-f', absZip, '.'], {
     cwd: serverFnDir,
     stdio: 'inherit',
     shell: false,
