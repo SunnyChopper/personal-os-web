@@ -60,6 +60,17 @@ jobs:
           PUBLIC_GARDEN_USER_ID: ${{ secrets.PUBLIC_GARDEN_USER_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+      - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
+        env:
+          ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ROLE_ARN}" ]]; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN missing in GitHub Environment **dev** — see personal-os-web/CLAUDE.md (Terraform github_deploy_role_arn)."
+            exit 1
+          fi
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
@@ -111,6 +122,17 @@ jobs:
           PUBLIC_GARDEN_DATABASE_URL: ${{ secrets.PUBLIC_GARDEN_DATABASE_URL }}
           PUBLIC_GARDEN_USER_ID: ${{ secrets.PUBLIC_GARDEN_USER_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
+        env:
+          ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ROLE_ARN}" ]]; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN missing in GitHub Environment **prod** — see personal-os-web/CLAUDE.md (Terraform github_deploy_role_arn)."
+            exit 1
+          fi
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:

@@ -62,6 +62,17 @@ jobs:
           VITE_AWS_USER_POOL_WEB_CLIENT_ID: ${{ secrets.VITE_AWS_USER_POOL_WEB_CLIENT_ID }}
           VITE_AWS_IDENTITY_POOL_ID: ${{ secrets.VITE_AWS_IDENTITY_POOL_ID }}
 
+      - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
+        env:
+          ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ROLE_ARN}" ]]; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN missing in GitHub Environment **dev**. Set Terraform output github_deploy_role_arn (edge stack) — see personal-os-web/CLAUDE.md."
+            exit 1
+          fi
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
@@ -114,6 +125,17 @@ jobs:
           VITE_AWS_USER_POOL_ID: ${{ secrets.VITE_AWS_USER_POOL_ID }}
           VITE_AWS_USER_POOL_WEB_CLIENT_ID: ${{ secrets.VITE_AWS_USER_POOL_WEB_CLIENT_ID }}
           VITE_AWS_IDENTITY_POOL_ID: ${{ secrets.VITE_AWS_IDENTITY_POOL_ID }}
+
+      - name: Require AWS_DEPLOY_ROLE_ARN for OIDC
+        env:
+          ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ROLE_ARN}" ]]; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN missing in GitHub Environment **prod**. Set Terraform output github_deploy_role_arn (edge stack) — see personal-os-web/CLAUDE.md."
+            exit 1
+          fi
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:

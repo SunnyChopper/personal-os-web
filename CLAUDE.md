@@ -102,6 +102,23 @@ After `terraform apply` in `**../infrastructure/envs/<dev|prod>/`** (monorepo) o
 - `VITE_API_BASE_URL`, `VITE_WS_URL`, `VITE_AWS_REGION`, `VITE_AWS_USER_POOL_ID`, `VITE_AWS_USER_POOL_WEB_CLIENT_ID`, `VITE_AWS_IDENTITY_POOL_ID`
 - Public garden (OpenNext / `deploy-garden.yml`): `NEXT_PUBLIC_SITE_URL`, `PUBLIC_GARDEN_DATABASE_URL`, `PUBLIC_GARDEN_USER_ID`, `OPENAI_API_KEY`
 
+**OIDC role ARN** (`AWS_DEPLOY_ROLE_ARN`): `terraform output -raw github_deploy_role_arn` from the **edge** stack (`infrastructure/envs/<stage>`).
+
+**Bootstrap from Terraform (PowerShell)** after `terraform apply`:
+
+```powershell
+cd ../infrastructure/envs/<dev|prod>
+$repo = "SunnyChopper/personal-os-web"
+$stage = "<dev|prod>"
+terraform output -raw github_deploy_role_arn | gh secret set AWS_DEPLOY_ROLE_ARN --env $stage --repo $repo
+terraform output -raw spa_bucket | gh secret set SPA_BUCKET --env $stage --repo $repo
+terraform output -raw cloudfront_distribution_id | gh secret set CLOUDFRONT_DISTRIBUTION_ID --env $stage --repo $repo
+terraform output -raw garden_assets_bucket | gh secret set GARDEN_ASSETS_BUCKET --env $stage --repo $repo
+terraform output -raw garden_lambda_name | gh secret set GARDEN_LAMBDA_NAME --env $stage --repo $repo
+```
+
+`VITE_*` can stay repository-level or be duplicated per environment as you prefer—workflows merge environment + repo secrets.
+
 Optional legacy: `personal-os-web/infrastructure/github-secrets.tf` (Terraform GitHub provider) can still manage `VITE_*` if you use that stack; canonical hosting runbook is `**https://github.com/SunnyChopper/personal-os-infra**` `README.md`.
 
 ## Type Alignment: Frontend Should Match Backend
