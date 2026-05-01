@@ -127,24 +127,35 @@ for (const serverDir of ["app", "pages"]) {
 // We create the expected nested paths by copying only the specific files OpenNext later tries to copy.
 const standaloneExpectedRoot = path.join(standaloneRoot, "personal-os-web");
 
-function walk(dir) {
+// Include `.next/*.nft.json` (e.g. `next-server.js.nft.json`) — not only `.next/server/**/*.nft.json`.
+// OpenNext traces the default server bundle from those root manifests; omitting them leaves
+// `next/dist/server/lib/start-server.js` (and peers) unstaged in standalone → copyTracedFiles ENOENT.
+const NFT_SKIP_DIRS = new Set(["cache", "standalone", "export", "trace"]);
+function walkNftFiles(dir) {
   const out = [];
   if (!existsSync(dir)) return out;
   for (const ent of readdirSync(dir, { withFileTypes: true })) {
+    if (NFT_SKIP_DIRS.has(ent.name)) continue;
     const p = path.join(dir, ent.name);
-    if (ent.isDirectory()) out.push(...walk(p));
-    else out.push(p);
+    if (ent.isDirectory()) out.push(...walkNftFiles(p));
+    else if (ent.name.endsWith(".nft.json")) out.push(p);
   }
   return out;
 }
 
-const nftFiles = walk(path.join(appRoot, ".next", "server")).filter((p) => p.endsWith(".nft.json"));
+const nftFiles = walkNftFiles(path.join(appRoot, ".next"));
 if (nftFiles.length === 0) {
   console.log(`[fix-standalone] no .nft.json files found; skipping`);
   process.exit(0);
 }
 
-const bunStoreRoot = path.join(webRoot, "node_modules", ".bun") + path.sep;
+// Bun isolated installs trace into workspace-root `.bun` and sometimes `apps/<pkg>/node_modules/.bun`.
+// OpenNext copies from traced paths later — only prefix(es) we materialize into standalone survive.
+const bunStorePrefixes = [
+  path.join(webRoot, "node_modules", ".bun") + path.sep,
+  path.join(appRoot, "node_modules", ".bun") + path.sep,
+];
+
 let copied = 0;
 
 for (const nftPath of nftFiles) {
@@ -158,7 +169,7 @@ for (const nftPath of nftFiles) {
   for (const rel of files) {
     if (typeof rel !== "string") continue;
     const abs = path.resolve(path.dirname(nftPath), rel);
-    if (!abs.startsWith(bunStoreRoot)) continue; // only patch Bun store deps
+    if (!bunStorePrefixes.some((prefix) => abs.startsWith(prefix))) continue;
     const relFromWeb = path.relative(webRoot, abs);
     const dest = path.join(standaloneExpectedRoot, relFromWeb);
     if (existsSync(dest)) continue;
