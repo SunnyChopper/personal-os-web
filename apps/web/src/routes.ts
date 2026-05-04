@@ -78,6 +78,9 @@ export const ROUTES = {
     },
     markdownViewer: `${ADMIN_BASE}/markdown-viewer` as const,
     markdownViewerFile: `${ADMIN_BASE}/markdown-viewer/:filePath` as const,
+    /** Career hub + resume tooling (requires backend Postgres DATABASE_URL). */
+    careerDevelopment: `${ADMIN_BASE}/career` as const,
+    careerResume: `${ADMIN_BASE}/career/resume` as const,
     /** Leisure-only travel lounge (route access gated — see LeisureOnlyRoute). */
     voyager: `${ADMIN_BASE}/voyager` as const,
     voyagerTrips: `${ADMIN_BASE}/voyager/trips` as const,
@@ -153,4 +156,5 @@ export const ADMIN_CHILD_ROUTES = {
   markdownViewer: 'markdown-viewer' as const,
   markdownViewerFile: 'markdown-viewer/:filePath' as const,
   voyager: 'voyager' as const,
+  career: 'career' as const,
 } as const;

@@ -61,6 +61,9 @@ import VoyagerLayout from './pages/admin/voyager/VoyagerLayout';
 import VoyagerTripsTab from './pages/admin/voyager/VoyagerTripsTab';
 import VoyagerMilestonesTab from './pages/admin/voyager/VoyagerMilestonesTab';
 import VoyagerItineraryTab from './pages/admin/voyager/VoyagerItineraryTab';
+import CareerLayout from './pages/admin/career/CareerLayout';
+import CareerDevelopmentOverviewPage from './pages/admin/career/CareerDevelopmentOverviewPage';
+import ResumeBuilderPage from './pages/admin/career/ResumeBuilderPage';
 import MemoryAuditPage from './pages/admin/MemoryAuditPage';
 import AssistantSettingsPage from './pages/admin/AssistantSettingsPage';
 import ProactiveAutomationsPage from './pages/admin/ProactiveAutomationsPage';
@@ -169,6 +172,10 @@ function AppContent() {
               <Route path="milestones" element={<VoyagerMilestonesTab />} />
               <Route path="itinerary" element={<VoyagerItineraryTab />} />
             </Route>
+          </Route>
+          <Route path={ADMIN_CHILD_ROUTES.career} element={<CareerLayout />}>
+            <Route index element={<CareerDevelopmentOverviewPage />} />
+            <Route path="resume" element={<ResumeBuilderPage />} />
           </Route>
           <Route path={ADMIN_CHILD_ROUTES.growthSystem} element={<GrowthSystemPage />} />
           <Route path={ADMIN_CHILD_ROUTES.tasks} element={<TasksPage />} />

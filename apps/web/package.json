@@ -7,7 +7,7 @@
     "node": ">=20.19.0 || >=22.12.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --mode dev",
     "build": "vite build",
     "lint": "node ../../node_modules/eslint/bin/eslint.js .",
     "lint:fix": "node ../../node_modules/eslint/bin/eslint.js . --fix",
