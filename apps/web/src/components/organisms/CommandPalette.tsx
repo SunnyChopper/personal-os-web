@@ -20,6 +20,7 @@ import {
   Dumbbell,
   Coffee,
   LayoutGrid,
+  Briefcase,
 } from 'lucide-react';
 import { useNavigate, generatePath } from 'react-router-dom';
 import {
@@ -136,6 +137,28 @@ function CommandPaletteContent({ onClose }: CommandPaletteContentProps) {
         action: () => navigate(ROUTES.admin.dashboard),
         keywords: ['dashboard', 'home', 'overview'],
       },
+      ...(!isLeisureMode
+        ? [
+            {
+              id: 'nav-career-overview',
+              title: 'Career',
+              subtitle: 'Overview & roadmap',
+              icon: <Briefcase size={18} />,
+              type: 'navigation' as const,
+              action: () => navigate(ROUTES.admin.careerDevelopment),
+              keywords: ['career', 'overview', 'hub', 'jobs'],
+            },
+            {
+              id: 'nav-career-resume',
+              title: 'Resume Builder',
+              subtitle: 'Profile, achievements & AI tailoring',
+              icon: <FileText size={18} />,
+              type: 'navigation' as const,
+              action: () => navigate(ROUTES.admin.careerResume),
+              keywords: ['career', 'resume', 'cv', 'job', 'builder', 'achievements', 'linkedin'],
+            },
+          ]
+        : []),
       {
         id: 'nav-tasks',
         title: 'Tasks',

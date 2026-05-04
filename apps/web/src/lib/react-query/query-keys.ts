@@ -289,6 +289,27 @@ export const queryKeys = {
     },
   },
 
+  // Career Development / Resume Builder (Postgres)
+  careerResume: {
+    all: ['career-resume'] as const,
+    profile: () => [...queryKeys.careerResume.all, 'profile'] as const,
+    education: () => [...queryKeys.careerResume.all, 'education'] as const,
+    jobs: () => [...queryKeys.careerResume.all, 'jobs'] as const,
+    /** Invalidate every suggestions query subtree. */
+    suggestionsPrefix: () => [...queryKeys.careerResume.all, 'suggestions'] as const,
+    suggestions: (filters?: { jobId?: string | null; status?: string | null }) =>
+      [
+        ...queryKeys.careerResume.suggestionsPrefix(),
+        filters?.jobId ?? 'all',
+        filters?.status ?? 'all',
+      ] as const,
+    generatedPrefix: () => [...queryKeys.careerResume.all, 'generated-list'] as const,
+    generated: (limit?: number) =>
+      [...queryKeys.careerResume.generatedPrefix(), limit ?? 'default'] as const,
+    generatedDetail: (resumeId: string) =>
+      [...queryKeys.careerResume.all, 'generated-detail', resumeId] as const,
+  },
+
   // Rewards
   rewards: {
     all: ['rewards'] as const,

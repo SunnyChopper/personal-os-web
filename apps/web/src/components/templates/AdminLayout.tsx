@@ -46,6 +46,7 @@ import {
   BarChart2,
   Ship,
   Dumbbell,
+  Briefcase,
 } from 'lucide-react';
 import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { CommandPalette } from '@/components/organisms/CommandPalette';
@@ -65,6 +66,8 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ size?: number }>;
   children?: NavItem[];
+  /** When true, this leaf is active only on an exact pathname match (avoids `/career` matching `/career/resume`). */
+  exact?: boolean;
   hideInLeisure?: boolean;
   hideInWork?: boolean;
 }
@@ -174,6 +177,20 @@ const workNavigation: NavItem[] = [
       { name: 'Cheat Sheets', href: ROUTES.admin.knowledgeVaultCheatSheet, icon: ClipboardList },
       { name: 'Task Links', href: ROUTES.admin.knowledgeVaultTaskLinks, icon: Link2 },
       { name: 'Daily Learning', href: ROUTES.admin.knowledgeVaultDailyLearning, icon: Newspaper },
+    ],
+  },
+  {
+    name: 'Career',
+    href: ROUTES.admin.careerDevelopment,
+    icon: Briefcase,
+    children: [
+      {
+        name: 'Overview',
+        href: ROUTES.admin.careerDevelopment,
+        icon: LayoutGrid,
+        exact: true,
+      },
+      { name: 'Resume Builder', href: ROUTES.admin.careerResume, icon: FileText },
     ],
   },
   {
@@ -479,8 +496,9 @@ function AdminLayoutContent() {
         );
       }
       const ChildIcon = child.icon;
-      const isChildActive =
-        location.pathname === child.href || location.pathname.startsWith(`${child.href}/`);
+      const isChildActive = child.exact
+        ? location.pathname === child.href
+        : location.pathname === child.href || location.pathname.startsWith(`${child.href}/`);
       return (
         <Link
           key={`${child.name}-${child.href}`}
