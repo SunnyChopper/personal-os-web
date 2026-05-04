@@ -20,11 +20,7 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(function F
     <input
       ref={ref}
       type={type}
-      className={cn(
-        formFieldClassName,
-        type === 'month' && 'dark:[color-scheme:dark]',
-        className
-      )}
+      className={cn(formFieldClassName, type === 'month' && 'dark:[color-scheme:dark]', className)}
       {...props}
     />
   );

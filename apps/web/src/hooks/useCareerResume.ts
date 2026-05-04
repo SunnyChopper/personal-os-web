@@ -45,8 +45,7 @@ export function useCareerResume() {
 
   const patchProfile = useMutation({
     mutationFn: careerService.patchProfile,
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: queryKeys.careerResume.profile() }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.careerResume.profile() }),
   });
 
   const createEducation = useMutation({
@@ -55,13 +54,8 @@ export function useCareerResume() {
   });
 
   const patchEducation = useMutation({
-    mutationFn: ({
-      id,
-      body,
-    }: {
-      id: string;
-      body: Record<string, unknown>;
-    }) => careerService.patchEducation(id, body),
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
+      careerService.patchEducation(id, body),
     onSuccess: invalidateEducation,
   });
 
@@ -151,13 +145,8 @@ export function useCareerResume() {
   });
 
   const rejectSuggestion = useMutation({
-    mutationFn: ({
-      id,
-      feedback,
-    }: {
-      id: string;
-      feedback?: string | null;
-    }) => careerService.rejectSuggestion(id, feedback),
+    mutationFn: ({ id, feedback }: { id: string; feedback?: string | null }) =>
+      careerService.rejectSuggestion(id, feedback),
     onSuccess: invalidateSuggestions,
   });
 
@@ -201,12 +190,11 @@ export function useCareerResume() {
   });
 
   /** Flat achievements for tailoring checkboxes — excludes archived; jobs newest-first. */
-  const achievementOptions =
-    jobs.data?.items
-      ? sortJobsByRecency(jobs.data.items).flatMap((j: CareerJob) =>
-          j.achievements.filter((a) => !a.archived).map((a) => ({ job: j, achievement: a }))
-        )
-      : [];
+  const achievementOptions = jobs.data?.items
+    ? sortJobsByRecency(jobs.data.items).flatMap((j: CareerJob) =>
+        j.achievements.filter((a) => !a.archived).map((a) => ({ job: j, achievement: a }))
+      )
+    : [];
 
   return {
     profile,

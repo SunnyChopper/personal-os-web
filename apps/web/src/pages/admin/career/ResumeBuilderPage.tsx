@@ -76,9 +76,7 @@ function formatJobListDateRange(job: CareerJob): string {
   return '';
 }
 
-function Btn(
-  props: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }
-) {
+function Btn(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) {
   const { loading, children, className, disabled, ...rest } = props;
   return (
     <button
@@ -159,7 +157,9 @@ function CollapsibleAiBucket({
         )}
       </button>
       {open ? (
-        <div className="p-3 space-y-3 border-t border-gray-200 dark:border-gray-700">{children}</div>
+        <div className="p-3 space-y-3 border-t border-gray-200 dark:border-gray-700">
+          {children}
+        </div>
       ) : null}
     </div>
   );
@@ -406,8 +406,8 @@ export default function ResumeBuilderPage() {
     <div className="space-y-2">
       {apiErr ? (
         <div className="rounded-lg border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-          We couldn&apos;t load your career data right now. Please refresh the page. If it keeps happening, try again
-          later.
+          We couldn&apos;t load your career data right now. Please refresh the page. If it keeps
+          happening, try again later.
         </div>
       ) : null}
 
@@ -489,7 +489,10 @@ export default function ResumeBuilderPage() {
             </form>
           </Section>
 
-          <Section title="Education" subtitle="Degrees and certifications (display order preserved).">
+          <Section
+            title="Education"
+            subtitle="Degrees and certifications (display order preserved)."
+          >
             <div className="space-y-3 mb-6">
               {(cr.education.data?.items ?? []).map((e) => (
                 <div
@@ -605,7 +608,9 @@ export default function ResumeBuilderPage() {
                     </div>
                   ) : (
                     <>
-                      <div className="font-medium text-gray-900 dark:text-white">{e.institution}</div>
+                      <div className="font-medium text-gray-900 dark:text-white">
+                        {e.institution}
+                      </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400">
                         {[e.degree, e.field].filter(Boolean).join(' · ') || '—'}
                         {e.gpa ? ` · GPA: ${e.gpa}` : ''}
@@ -614,7 +619,9 @@ export default function ResumeBuilderPage() {
                           : ''}
                       </div>
                       {e.courses ? (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-3">{e.courses}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-3">
+                          {e.courses}
+                        </p>
                       ) : null}
                       <div className="flex flex-wrap gap-2">
                         <OutlineBtn type="button" onClick={() => startEditEducation(e)}>
@@ -725,389 +732,408 @@ export default function ResumeBuilderPage() {
           subtitle="Each job nests bullet achievements — generation only cites facts from this bank."
         >
           <div className="space-y-6">
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              <FormInput
-                placeholder="Company"
-                value={jobDraft.company}
-                onChange={(ev) => setJobDraft((s) => ({ ...s, company: ev.target.value }))}
-              />
-              <FormInput
-                placeholder="Title Role"
-                value={jobDraft.title}
-                onChange={(ev) => setJobDraft((s) => ({ ...s, title: ev.target.value }))}
-              />
-              <FormInput
-                placeholder="Location"
-                className="md:col-span-2"
-                value={jobDraft.location}
-                onChange={(ev) => setJobDraft((s) => ({ ...s, location: ev.target.value }))}
-              />
-              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
-                <FormCheckbox
-                  checked={jobDraft.isCurrent}
-                  onChange={(ev) => setJobDraft((s) => ({ ...s, isCurrent: ev.target.checked }))}
-                />
-                Current role
-              </label>
-              <label className="flex flex-col gap-1 text-gray-700 dark:text-gray-300">
-                Start (month)
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <FormInput
-                  type="month"
-                  value={jobDraft.startMonth}
-                  onChange={(ev) => setJobDraft((s) => ({ ...s, startMonth: ev.target.value }))}
+                  placeholder="Company"
+                  value={jobDraft.company}
+                  onChange={(ev) => setJobDraft((s) => ({ ...s, company: ev.target.value }))}
                 />
-              </label>
-              {!jobDraft.isCurrent ? (
+                <FormInput
+                  placeholder="Title Role"
+                  value={jobDraft.title}
+                  onChange={(ev) => setJobDraft((s) => ({ ...s, title: ev.target.value }))}
+                />
+                <FormInput
+                  placeholder="Location"
+                  className="md:col-span-2"
+                  value={jobDraft.location}
+                  onChange={(ev) => setJobDraft((s) => ({ ...s, location: ev.target.value }))}
+                />
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
+                  <FormCheckbox
+                    checked={jobDraft.isCurrent}
+                    onChange={(ev) => setJobDraft((s) => ({ ...s, isCurrent: ev.target.checked }))}
+                  />
+                  Current role
+                </label>
                 <label className="flex flex-col gap-1 text-gray-700 dark:text-gray-300">
-                  End (month)
+                  Start (month)
                   <FormInput
                     type="month"
-                    value={jobDraft.endMonth}
-                    onChange={(ev) => setJobDraft((s) => ({ ...s, endMonth: ev.target.value }))}
+                    value={jobDraft.startMonth}
+                    onChange={(ev) => setJobDraft((s) => ({ ...s, startMonth: ev.target.value }))}
                   />
                 </label>
-              ) : null}
+                {!jobDraft.isCurrent ? (
+                  <label className="flex flex-col gap-1 text-gray-700 dark:text-gray-300">
+                    End (month)
+                    <FormInput
+                      type="month"
+                      value={jobDraft.endMonth}
+                      onChange={(ev) => setJobDraft((s) => ({ ...s, endMonth: ev.target.value }))}
+                    />
+                  </label>
+                ) : null}
+              </div>
+              <Btn type="button" loading={jobAdding} onClick={() => void addJobSubmit()}>
+                Add job
+              </Btn>
             </div>
-            <Btn type="button" loading={jobAdding} onClick={() => void addJobSubmit()}>
-              Add job
-            </Btn>
-          </div>
 
-          <div className="space-y-3">
-            {jobsList.map((job) => {
-              const expanded = expandedJobId === job.id;
-              const achKey = job.id;
-              const draftText = achDraft[achKey] ?? '';
-              const aiOpen = aiOpenForjob === job.id;
-              const headerDateRange = formatJobListDateRange(job);
-              return (
-                <div
-                  key={job.id}
-                  className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
-                >
-                  <div className="w-full flex items-stretch bg-gray-50/90 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
-                    <button
-                      type="button"
-                      className="flex-1 text-left px-4 py-3 flex justify-between gap-4"
-                      onClick={() => setExpandedJobId(expanded ? null : job.id)}
-                    >
-                      <span className="font-medium text-gray-900 dark:text-white">
-                        {job.title || 'Untitled'}{' '}
-                        <span className="text-gray-500 font-normal">· {job.company || 'Company TBD'}</span>
-                        {headerDateRange ? (
-                          <span className="text-gray-500 font-normal text-sm"> · {headerDateRange}</span>
-                        ) : null}
-                        {job.location ? (
-                          <span className="text-gray-500 font-normal text-sm"> · {job.location}</span>
-                        ) : null}
-                      </span>
-                      <span className="text-xs text-gray-500 shrink-0 flex items-center gap-1">
-                        {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}{' '}
-                        {expanded ? 'Hide' : 'Expand'}
-                      </span>
-                    </button>
-                  </div>
+            <div className="space-y-3">
+              {jobsList.map((job) => {
+                const expanded = expandedJobId === job.id;
+                const achKey = job.id;
+                const draftText = achDraft[achKey] ?? '';
+                const aiOpen = aiOpenForjob === job.id;
+                const headerDateRange = formatJobListDateRange(job);
+                return (
+                  <div
+                    key={job.id}
+                    className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+                  >
+                    <div className="w-full flex items-stretch bg-gray-50/90 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                      <button
+                        type="button"
+                        className="flex-1 text-left px-4 py-3 flex justify-between gap-4"
+                        onClick={() => setExpandedJobId(expanded ? null : job.id)}
+                      >
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {job.title || 'Untitled'}{' '}
+                          <span className="text-gray-500 font-normal">
+                            · {job.company || 'Company TBD'}
+                          </span>
+                          {headerDateRange ? (
+                            <span className="text-gray-500 font-normal text-sm">
+                              {' '}
+                              · {headerDateRange}
+                            </span>
+                          ) : null}
+                          {job.location ? (
+                            <span className="text-gray-500 font-normal text-sm">
+                              {' '}
+                              · {job.location}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="text-xs text-gray-500 shrink-0 flex items-center gap-1">
+                          {expanded ? (
+                            <ChevronDown className="size-4" />
+                          ) : (
+                            <ChevronRight className="size-4" />
+                          )}{' '}
+                          {expanded ? 'Hide' : 'Expand'}
+                        </span>
+                      </button>
+                    </div>
 
-                  {expanded ? (
-                    <div className="p-4 space-y-6">
-                      {editingJobId === job.id ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm w-full">
-                          <FormInput
-                            value={jobEditDraft.company}
-                            onChange={(ev) =>
-                              setJobEditDraft((d) => ({ ...d, company: ev.target.value }))
-                            }
-                            placeholder="Company"
-                          />
-                          <FormInput
-                            value={jobEditDraft.title}
-                            onChange={(ev) => setJobEditDraft((d) => ({ ...d, title: ev.target.value }))}
-                            placeholder="Title"
-                          />
-                          <FormInput
-                            className="md:col-span-2"
-                            value={jobEditDraft.location}
-                            onChange={(ev) =>
-                              setJobEditDraft((d) => ({ ...d, location: ev.target.value }))
-                            }
-                            placeholder="Location"
-                          />
-                          <label className="flex items-center gap-2 text-gray-700 dark:text-gray-300 md:col-span-2">
-                            <FormCheckbox
-                              checked={jobEditDraft.isCurrent}
-                              onChange={(ev) =>
-                                setJobEditDraft((d) => ({ ...d, isCurrent: ev.target.checked }))
-                              }
-                            />
-                            Current role
-                          </label>
-                          <label className="flex flex-col gap-1 text-gray-700 dark:text-gray-300">
-                            Start
+                    {expanded ? (
+                      <div className="p-4 space-y-6">
+                        {editingJobId === job.id ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm w-full">
                             <FormInput
-                              type="month"
-                              value={jobEditDraft.startMonth}
+                              value={jobEditDraft.company}
                               onChange={(ev) =>
-                                setJobEditDraft((d) => ({ ...d, startMonth: ev.target.value }))
+                                setJobEditDraft((d) => ({ ...d, company: ev.target.value }))
                               }
+                              placeholder="Company"
                             />
-                          </label>
-                          {!jobEditDraft.isCurrent ? (
+                            <FormInput
+                              value={jobEditDraft.title}
+                              onChange={(ev) =>
+                                setJobEditDraft((d) => ({ ...d, title: ev.target.value }))
+                              }
+                              placeholder="Title"
+                            />
+                            <FormInput
+                              className="md:col-span-2"
+                              value={jobEditDraft.location}
+                              onChange={(ev) =>
+                                setJobEditDraft((d) => ({ ...d, location: ev.target.value }))
+                              }
+                              placeholder="Location"
+                            />
+                            <label className="flex items-center gap-2 text-gray-700 dark:text-gray-300 md:col-span-2">
+                              <FormCheckbox
+                                checked={jobEditDraft.isCurrent}
+                                onChange={(ev) =>
+                                  setJobEditDraft((d) => ({ ...d, isCurrent: ev.target.checked }))
+                                }
+                              />
+                              Current role
+                            </label>
                             <label className="flex flex-col gap-1 text-gray-700 dark:text-gray-300">
-                              End
+                              Start
                               <FormInput
                                 type="month"
-                                value={jobEditDraft.endMonth}
+                                value={jobEditDraft.startMonth}
                                 onChange={(ev) =>
-                                  setJobEditDraft((d) => ({ ...d, endMonth: ev.target.value }))
+                                  setJobEditDraft((d) => ({ ...d, startMonth: ev.target.value }))
                                 }
                               />
                             </label>
-                          ) : null}
-                          <div className="md:col-span-2 flex gap-2">
-                            <Btn
-                              type="button"
-                              loading={cr.patchJob.isPending}
-                              onClick={() => {
-                                cr.patchJob.mutate(
-                                  {
-                                    id: job.id,
-                                    body: {
-                                      company: jobEditDraft.company,
-                                      title: jobEditDraft.title,
-                                      location: jobEditDraft.location || null,
-                                      startDate: monthToApiDate(jobEditDraft.startMonth, false),
-                                      endDate: jobEditDraft.isCurrent
-                                        ? null
-                                        : monthToApiDate(jobEditDraft.endMonth, true),
-                                      isCurrent: jobEditDraft.isCurrent,
-                                    },
-                                  },
-                                  { onSuccess: () => setEditingJobId(null) }
-                                );
-                              }}
-                            >
-                              Save role
-                            </Btn>
-                            <OutlineBtn type="button" onClick={() => setEditingJobId(null)}>
-                              Cancel
-                            </OutlineBtn>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          <OutlineBtn
-                            type="button"
-                            onClick={() => {
-                              setEditingJobId(job.id);
-                              setJobEditDraft({
-                                company: job.company,
-                                title: job.title,
-                                location: job.location ?? '',
-                                startMonth: job.startDate?.slice(0, 7) ?? '',
-                                endMonth: job.endDate?.slice(0, 7) ?? '',
-                                isCurrent: job.isCurrent,
-                              });
-                            }}
-                          >
-                            Edit role
-                          </OutlineBtn>
-                        </div>
-                      )}
-
-                      <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
-                        <button
-                          type="button"
-                          className="flex w-full items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-200"
-                          onClick={() => setAiOpenForJob((j) => (j === job.id ? null : job.id))}
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <Sparkles className="size-4 text-blue-600" />
-                            AI assistant
-                          </span>
-                          {aiOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-                        </button>
-                        {aiOpen ? (
-                          <div className="mt-3 space-y-3 text-sm w-full">
-                            <div className="grid grid-cols-2 gap-2">
-                              <label className="flex flex-col gap-1">
-                                Provider
-                                <select
-                                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900"
-                                  value={aiOpts.provider}
+                            {!jobEditDraft.isCurrent ? (
+                              <label className="flex flex-col gap-1 text-gray-700 dark:text-gray-300">
+                                End
+                                <FormInput
+                                  type="month"
+                                  value={jobEditDraft.endMonth}
                                   onChange={(ev) =>
-                                    setAiOpts((o) => ({ ...o, provider: ev.target.value }))
-                                  }
-                                >
-                                  {AI_PROVIDER_PRESETS.map((p) => (
-                                    <option key={p.id} value={p.id}>
-                                      {p.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              <label className="flex flex-col gap-1">
-                                Model (optional)
-                                <input
-                                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900"
-                                  placeholder="Backend default"
-                                  value={aiOpts.model}
-                                  onChange={(ev) =>
-                                    setAiOpts((o) => ({ ...o, model: ev.target.value }))
+                                    setJobEditDraft((d) => ({ ...d, endMonth: ev.target.value }))
                                   }
                                 />
                               </label>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
+                            ) : null}
+                            <div className="md:col-span-2 flex gap-2">
                               <Btn
                                 type="button"
-                                loading={cr.aiTags.isPending}
-                                onClick={() =>
-                                  cr.aiTags.mutate({
-                                    jobId: job.id,
-                                    provider: aiOpts.provider || null,
-                                    model: aiOpts.model.trim() || null,
-                                  })
-                                }
+                                loading={cr.patchJob.isPending}
+                                onClick={() => {
+                                  cr.patchJob.mutate(
+                                    {
+                                      id: job.id,
+                                      body: {
+                                        company: jobEditDraft.company,
+                                        title: jobEditDraft.title,
+                                        location: jobEditDraft.location || null,
+                                        startDate: monthToApiDate(jobEditDraft.startMonth, false),
+                                        endDate: jobEditDraft.isCurrent
+                                          ? null
+                                          : monthToApiDate(jobEditDraft.endMonth, true),
+                                        isCurrent: jobEditDraft.isCurrent,
+                                      },
+                                    },
+                                    { onSuccess: () => setEditingJobId(null) }
+                                  );
+                                }}
                               >
-                                Infer tags
+                                Save role
                               </Btn>
-                              <Btn
-                                type="button"
-                                loading={cr.aiBrainstorm.isPending}
-                                onClick={() =>
-                                  cr.aiBrainstorm.mutate({
-                                    jobId: job.id,
-                                    feedback: null,
-                                    provider: aiOpts.provider || null,
-                                    model: aiOpts.model.trim() || null,
-                                  })
-                                }
-                              >
-                                Brainstorm bullets
-                              </Btn>
+                              <OutlineBtn type="button" onClick={() => setEditingJobId(null)}>
+                                Cancel
+                              </OutlineBtn>
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Rejection feedback you enter when declining a suggestion is fed into the next brainstorm
-                              automatically—no separate “brainstorm feedback” box needed.
-                            </p>
                           </div>
-                        ) : null}
-                      </div>
-
-                      <div>
-                        <h4 className="text-sm font-semibold mb-3">Achievements</h4>
-                        <ul className="space-y-2 mb-4">
-                          {job.achievements.map((a) => (
-                            <li
-                              key={a.id}
-                              className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-900/30 px-3 py-3"
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            <OutlineBtn
+                              type="button"
+                              onClick={() => {
+                                setEditingJobId(job.id);
+                                setJobEditDraft({
+                                  company: job.company,
+                                  title: job.title,
+                                  location: job.location ?? '',
+                                  startMonth: job.startDate?.slice(0, 7) ?? '',
+                                  endMonth: job.endDate?.slice(0, 7) ?? '',
+                                  isCurrent: job.isCurrent,
+                                });
+                              }}
                             >
-                              {editingAch?.jobId === job.id && editingAch.id === a.id ? (
-                                <div className="space-y-2">
-                                  <textarea
-                                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-2 text-sm bg-white dark:bg-gray-900 min-h-[80px]"
-                                    value={achEditText}
-                                    onChange={(ev) => setAchEditText(ev.target.value)}
+                              Edit role
+                            </OutlineBtn>
+                          </div>
+                        )}
+
+                        <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
+                          <button
+                            type="button"
+                            className="flex w-full items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-200"
+                            onClick={() => setAiOpenForJob((j) => (j === job.id ? null : job.id))}
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <Sparkles className="size-4 text-blue-600" />
+                              AI assistant
+                            </span>
+                            {aiOpen ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
+                          {aiOpen ? (
+                            <div className="mt-3 space-y-3 text-sm w-full">
+                              <div className="grid grid-cols-2 gap-2">
+                                <label className="flex flex-col gap-1">
+                                  Provider
+                                  <select
+                                    className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900"
+                                    value={aiOpts.provider}
+                                    onChange={(ev) =>
+                                      setAiOpts((o) => ({ ...o, provider: ev.target.value }))
+                                    }
+                                  >
+                                    {AI_PROVIDER_PRESETS.map((p) => (
+                                      <option key={p.id} value={p.id}>
+                                        {p.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                  Model (optional)
+                                  <input
+                                    className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900"
+                                    placeholder="Backend default"
+                                    value={aiOpts.model}
+                                    onChange={(ev) =>
+                                      setAiOpts((o) => ({ ...o, model: ev.target.value }))
+                                    }
                                   />
-                                  <div className="flex gap-2">
-                                    <Btn
-                                      type="button"
-                                      loading={cr.patchAchievement.isPending}
-                                      onClick={() => {
-                                        cr.patchAchievement.mutate(
-                                          {
+                                </label>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Btn
+                                  type="button"
+                                  loading={cr.aiTags.isPending}
+                                  onClick={() =>
+                                    cr.aiTags.mutate({
+                                      jobId: job.id,
+                                      provider: aiOpts.provider || null,
+                                      model: aiOpts.model.trim() || null,
+                                    })
+                                  }
+                                >
+                                  Infer tags
+                                </Btn>
+                                <Btn
+                                  type="button"
+                                  loading={cr.aiBrainstorm.isPending}
+                                  onClick={() =>
+                                    cr.aiBrainstorm.mutate({
+                                      jobId: job.id,
+                                      feedback: null,
+                                      provider: aiOpts.provider || null,
+                                      model: aiOpts.model.trim() || null,
+                                    })
+                                  }
+                                >
+                                  Brainstorm bullets
+                                </Btn>
+                              </div>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Rejection feedback you enter when declining a suggestion is fed into
+                                the next brainstorm automatically—no separate “brainstorm feedback”
+                                box needed.
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div>
+                          <h4 className="text-sm font-semibold mb-3">Achievements</h4>
+                          <ul className="space-y-2 mb-4">
+                            {job.achievements.map((a) => (
+                              <li
+                                key={a.id}
+                                className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-900/30 px-3 py-3"
+                              >
+                                {editingAch?.jobId === job.id && editingAch.id === a.id ? (
+                                  <div className="space-y-2">
+                                    <textarea
+                                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-2 text-sm bg-white dark:bg-gray-900 min-h-[80px]"
+                                      value={achEditText}
+                                      onChange={(ev) => setAchEditText(ev.target.value)}
+                                    />
+                                    <div className="flex gap-2">
+                                      <Btn
+                                        type="button"
+                                        loading={cr.patchAchievement.isPending}
+                                        onClick={() => {
+                                          cr.patchAchievement.mutate(
+                                            {
+                                              jobId: job.id,
+                                              achievementId: a.id,
+                                              body: { text: achEditText.trim() },
+                                            },
+                                            { onSuccess: () => setEditingAch(null) }
+                                          );
+                                        }}
+                                      >
+                                        Save
+                                      </Btn>
+                                      <OutlineBtn type="button" onClick={() => setEditingAch(null)}>
+                                        Cancel
+                                      </OutlineBtn>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
+                                      {a.text}
+                                    </p>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                                        onClick={() => {
+                                          setEditingAch({ jobId: job.id, id: a.id });
+                                          setAchEditText(a.text);
+                                        }}
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                                        onClick={() =>
+                                          cr.deleteAchievement.mutate({
                                             jobId: job.id,
                                             achievementId: a.id,
-                                            body: { text: achEditText.trim() },
-                                          },
-                                          { onSuccess: () => setEditingAch(null) }
-                                        );
-                                      }}
-                                    >
-                                      Save
-                                    </Btn>
-                                    <OutlineBtn type="button" onClick={() => setEditingAch(null)}>
-                                      Cancel
-                                    </OutlineBtn>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
-                                    {a.text}
-                                  </p>
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    <button
-                                      type="button"
-                                      className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                                      onClick={() => {
-                                        setEditingAch({ jobId: job.id, id: a.id });
-                                        setAchEditText(a.text);
-                                      }}
-                                    >
-                                      Edit
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="text-xs text-red-600 dark:text-red-400 hover:underline"
-                                      onClick={() =>
-                                        cr.deleteAchievement.mutate({
-                                          jobId: job.id,
-                                          achievementId: a.id,
-                                        })
-                                      }
-                                    >
-                                      Delete
-                                    </button>
-                                  </div>
-                                </>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="flex flex-col sm:flex-row gap-2 w-full">
-                          <textarea
-                            placeholder="New achievement bullet…"
-                            className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-900 min-h-[72px]"
-                            value={draftText}
-                            onChange={(ev) =>
-                              setAchDraft((m) => ({ ...m, [achKey]: ev.target.value }))
-                            }
-                          />
-                          <Btn
-                            type="button"
-                            className="self-end shrink-0"
-                            loading={achAddingJobId === job.id}
-                            onClick={async () => {
-                              const t = draftText.trim();
-                              if (!t) return;
-                              setAchAddingJobId(job.id);
-                              try {
-                                await cr.createAchievement.mutateAsync({
-                                  jobId: job.id,
-                                  body: { text: t },
-                                });
-                                setAchDraft((m) => ({ ...m, [achKey]: '' }));
-                              } finally {
-                                setAchAddingJobId(null);
+                                          })
+                                        }
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="flex flex-col sm:flex-row gap-2 w-full">
+                            <textarea
+                              placeholder="New achievement bullet…"
+                              className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-900 min-h-[72px]"
+                              value={draftText}
+                              onChange={(ev) =>
+                                setAchDraft((m) => ({ ...m, [achKey]: ev.target.value }))
                               }
-                            }}
-                          >
-                            Add bullet
-                          </Btn>
+                            />
+                            <Btn
+                              type="button"
+                              className="self-end shrink-0"
+                              loading={achAddingJobId === job.id}
+                              onClick={async () => {
+                                const t = draftText.trim();
+                                if (!t) return;
+                                setAchAddingJobId(job.id);
+                                try {
+                                  await cr.createAchievement.mutateAsync({
+                                    jobId: job.id,
+                                    body: { text: t },
+                                  });
+                                  setAchDraft((m) => ({ ...m, [achKey]: '' }));
+                                } finally {
+                                  setAchAddingJobId(null);
+                                }
+                              }}
+                            >
+                              Add bullet
+                            </Btn>
+                          </div>
                         </div>
-                      </div>
 
-                      <OutlineBtn type="button" onClick={() => cr.deleteJob.mutate(job.id)}>
-                        Delete role
-                      </OutlineBtn>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
+                        <OutlineBtn type="button" onClick={() => cr.deleteJob.mutate(job.id)}>
+                          Delete role
+                        </OutlineBtn>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </Section>
       ) : null}
@@ -1148,7 +1174,10 @@ export default function ResumeBuilderPage() {
                       <div className="text-xs uppercase tracking-wide text-gray-500">{s.kind}</div>
                       {ctx ? (
                         <div className="text-xs text-gray-600 dark:text-gray-400">
-                          <span className="font-medium text-gray-700 dark:text-gray-300">Role:</span> {ctx}
+                          <span className="font-medium text-gray-700 dark:text-gray-300">
+                            Role:
+                          </span>{' '}
+                          {ctx}
                           {s.jobLocation ? ` · ${s.jobLocation}` : ''}
                         </div>
                       ) : null}
@@ -1195,7 +1224,9 @@ export default function ResumeBuilderPage() {
                                   await cr.patchSuggestion.mutateAsync({
                                     id: s.id,
                                     body: {
-                                      suggestedText: isTags ? null : suggestionEditText.trim() || null,
+                                      suggestedText: isTags
+                                        ? null
+                                        : suggestionEditText.trim() || null,
                                       suggestedTags: isTags ? tags : null,
                                       rationale: suggestionEditRationale.trim() || null,
                                     },
@@ -1230,7 +1261,9 @@ export default function ResumeBuilderPage() {
                             </div>
                           ) : null}
                           {s.rationale ? (
-                            <div className="text-xs text-gray-600 dark:text-gray-400">{s.rationale}</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
+                              {s.rationale}
+                            </div>
                           ) : null}
                         </>
                       )}
@@ -1337,8 +1370,9 @@ export default function ResumeBuilderPage() {
                             try {
                               await cr.rejectSuggestion.mutateAsync({
                                 id: s.id,
-                                feedback:
-                                  rejectFeedback[s.id]?.trim() ? rejectFeedback[s.id].trim() : null,
+                                feedback: rejectFeedback[s.id]?.trim()
+                                  ? rejectFeedback[s.id].trim()
+                                  : null,
                               });
                             } finally {
                               setSuggestionBusy(null);
@@ -1362,9 +1396,7 @@ export default function ResumeBuilderPage() {
                         <OutlineBtn
                           type="button"
                           disabled={Boolean(suggestionBusy)}
-                          onClick={() =>
-                            setReviseOpenFor((cur) => (cur === s.id ? null : s.id))
-                          }
+                          onClick={() => setReviseOpenFor((cur) => (cur === s.id ? null : s.id))}
                         >
                           Ask AI to revise
                         </OutlineBtn>
@@ -1375,7 +1407,11 @@ export default function ResumeBuilderPage() {
               )}
             </CollapsibleAiBucket>
 
-            <CollapsibleAiBucket title="Accepted" count={suggestionGroups.accepted.length} defaultOpen={false}>
+            <CollapsibleAiBucket
+              title="Accepted"
+              count={suggestionGroups.accepted.length}
+              defaultOpen={false}
+            >
               {suggestionGroups.accepted.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">No accepted rows yet.</p>
               ) : (
@@ -1390,7 +1426,9 @@ export default function ResumeBuilderPage() {
                       {ctx ? (
                         <div className="text-xs text-gray-600 dark:text-gray-400">{ctx}</div>
                       ) : null}
-                      {s.suggestedTags?.length ? <div>Tags: {s.suggestedTags.join(', ')}</div> : null}
+                      {s.suggestedTags?.length ? (
+                        <div>Tags: {s.suggestedTags.join(', ')}</div>
+                      ) : null}
                       {s.suggestedText ? <div className="italic">{s.suggestedText}</div> : null}
                     </div>
                   );
@@ -1398,7 +1436,11 @@ export default function ResumeBuilderPage() {
               )}
             </CollapsibleAiBucket>
 
-            <CollapsibleAiBucket title="Rejected" count={suggestionGroups.rejected.length} defaultOpen={false}>
+            <CollapsibleAiBucket
+              title="Rejected"
+              count={suggestionGroups.rejected.length}
+              defaultOpen={false}
+            >
               {suggestionGroups.rejected.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">No rejected rows.</p>
               ) : (
@@ -1413,7 +1455,9 @@ export default function ResumeBuilderPage() {
                       {ctx ? (
                         <div className="text-xs text-gray-600 dark:text-gray-400">{ctx}</div>
                       ) : null}
-                      {s.suggestedTags?.length ? <div>Tags: {s.suggestedTags.join(', ')}</div> : null}
+                      {s.suggestedTags?.length ? (
+                        <div>Tags: {s.suggestedTags.join(', ')}</div>
+                      ) : null}
                       {s.suggestedText ? <div className="italic">{s.suggestedText}</div> : null}
                       {s.feedback ? (
                         <div className="text-xs text-amber-800 dark:text-amber-200">
@@ -1485,18 +1529,22 @@ export default function ResumeBuilderPage() {
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 text-sm bg-gray-50/50 dark:bg-gray-900/40">
                   <h3 className="font-semibold text-gray-900 dark:text-white">Parsed posting</h3>
                   <p className="text-xs text-gray-600 dark:text-gray-400">
-                    This context is used when you click <span className="font-medium">Generate resume</span> below.
+                    This context is used when you click{' '}
+                    <span className="font-medium">Generate resume</span> below.
                   </p>
                   <div>
                     <span className="text-gray-500">Role:</span> {lastPosting.roleGuess ?? '—'}
                   </div>
                   <div>
-                    <span className="text-gray-500">Company:</span> {lastPosting.companyGuess ?? '—'}
+                    <span className="text-gray-500">Company:</span>{' '}
+                    {lastPosting.companyGuess ?? '—'}
                   </div>
                   {lastPosting.jobBoard ? (
                     <div className="text-xs font-mono text-gray-600 dark:text-gray-400">
                       Tracked board: {lastPosting.jobBoard}
-                      {lastPosting.jobBoardCompanyId ? ` · company key: ${lastPosting.jobBoardCompanyId}` : ''}
+                      {lastPosting.jobBoardCompanyId
+                        ? ` · company key: ${lastPosting.jobBoardCompanyId}`
+                        : ''}
                     </div>
                   ) : null}
                   <div>
@@ -1592,7 +1640,8 @@ export default function ResumeBuilderPage() {
                 </select>
               </label>
               <label className="flex flex-col text-sm gap-1">
-                Extra job text (optional — added on top of analyzed posting, or use alone without Analyze)
+                Extra job text (optional — added on top of analyzed posting, or use alone without
+                Analyze)
                 <textarea
                   className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 min-h-[100px]"
                   value={genRawPosting}
@@ -1653,7 +1702,9 @@ export default function ResumeBuilderPage() {
                     </label>
                   ))}
                   {cr.achievementOptions.length === 0 ? (
-                    <span className="text-gray-500">No achievements yet — add bullets under a job.</span>
+                    <span className="text-gray-500">
+                      No achievements yet — add bullets under a job.
+                    </span>
                   ) : null}
                 </div>
               </div>

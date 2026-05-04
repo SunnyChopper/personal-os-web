@@ -11,7 +11,9 @@ function splitHighlights(text: string, terms: string[]): ReactNode {
   );
   if (!uniq.length) return text;
 
-  const patternParts = uniq.map((t) => (/\s/.test(t) ? escapeRegExp(t) : `\\b${escapeRegExp(t)}\\b`));
+  const patternParts = uniq.map((t) =>
+    /\s/.test(t) ? escapeRegExp(t) : `\\b${escapeRegExp(t)}\\b`
+  );
   const re = new RegExp(`(${patternParts.join('|')})`, 'gi');
   const parts: ReactNode[] = [];
   let last = 0;
@@ -40,9 +42,7 @@ function highlightChildren(children: ReactNode, terms: string[]): ReactNode {
     return splitHighlights(children, terms);
   }
   if (Array.isArray(children)) {
-    return children.map((c, i) => (
-      <Fragment key={i}>{highlightChildren(c, terms)}</Fragment>
-    ));
+    return children.map((c, i) => <Fragment key={i}>{highlightChildren(c, terms)}</Fragment>);
   }
   return children;
 }

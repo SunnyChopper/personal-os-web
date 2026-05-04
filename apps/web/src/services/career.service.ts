@@ -39,7 +39,10 @@ export const careerService = {
     return unwrap(apiClient.post<CareerEducation>(`${BASE}/education`, body));
   },
 
-  async patchEducation(educationId: string, body: Record<string, unknown>): Promise<CareerEducation> {
+  async patchEducation(
+    educationId: string,
+    body: Record<string, unknown>
+  ): Promise<CareerEducation> {
     return unwrap(
       apiClient.patch<CareerEducation>(`${BASE}/education/${encodeURIComponent(educationId)}`, body)
     );
@@ -65,7 +68,10 @@ export const careerService = {
     await unwrap(apiClient.delete<null>(`${BASE}/jobs/${encodeURIComponent(jobId)}`));
   },
 
-  async createAchievement(jobId: string, body: Record<string, unknown>): Promise<CareerAchievement> {
+  async createAchievement(
+    jobId: string,
+    body: Record<string, unknown>
+  ): Promise<CareerAchievement> {
     return unwrap(
       apiClient.post<CareerAchievement>(
         `${BASE}/jobs/${encodeURIComponent(jobId)}/achievements`,
@@ -140,7 +146,10 @@ export const careerService = {
     );
   },
 
-  async rejectSuggestion(suggestionId: string, feedback?: string | null): Promise<CareerAiSuggestion> {
+  async rejectSuggestion(
+    suggestionId: string,
+    feedback?: string | null
+  ): Promise<CareerAiSuggestion> {
     return unwrap(
       apiClient.post<CareerAiSuggestion>(
         `${BASE}/suggestions/${encodeURIComponent(suggestionId)}/reject`,

@@ -47,12 +47,15 @@ export default function CareerDevelopmentOverviewPage() {
   return (
     <div className="space-y-10">
       <section className="rounded-2xl border border-gray-200/80 bg-white/80 p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900/40">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">What lives here today</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+          What lives here today
+        </h2>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed max-w-3xl">
-          The <strong className="font-medium text-gray-800 dark:text-gray-200">Resume Builder</strong> is
-          the active tool in this area: a profile bank, experience editor, tailored résumé generation, and
-          AI-assisted suggestions. Use it when you are preparing materials for a specific role or refreshing
-          your master content.
+          The{' '}
+          <strong className="font-medium text-gray-800 dark:text-gray-200">Resume Builder</strong>{' '}
+          is the active tool in this area: a profile bank, experience editor, tailored résumé
+          generation, and AI-assisted suggestions. Use it when you are preparing materials for a
+          specific role or refreshing your master content.
         </p>
         <div className="mt-5">
           <Link
