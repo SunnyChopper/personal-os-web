@@ -9,6 +9,7 @@ import { ChatComposer, type ChatComposerHandle } from '@/components/organisms/Ch
 import { AssistantChatTranscript } from '@/components/organisms/AssistantChatTranscript';
 import { AssistantMemoryPanel } from '@/components/organisms/AssistantMemoryPanel';
 import { ChatThreadList } from '@/components/organisms/ChatThreadList';
+import { DeleteThreadDialog } from '@/components/molecules/DeleteThreadDialog';
 
 function formatContextTokens(n: number): string {
   if (!Number.isFinite(n)) return '—';
@@ -30,6 +31,7 @@ export default function ChatbotPage() {
     sidebarCollapsed,
     setSidebarCollapsed,
     threadListProps,
+    deleteDialogProps,
     ToastContainer,
     activeThread,
     isTreeLoading,
@@ -593,6 +595,7 @@ export default function ChatbotPage() {
             Select or create a chat to get started
           </div>
         )}
+        <DeleteThreadDialog {...deleteDialogProps} />
         <ToastContainer />
       </div>
     </div>
