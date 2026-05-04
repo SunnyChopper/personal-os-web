@@ -53,6 +53,7 @@ export function useAssistantChatPage({
   const [streamingThreadOverrideId, setStreamingThreadOverrideId] = useState<string | null>(null);
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [thinkingExpanded, setThinkingExpanded] = useState<Record<string, boolean>>({});
   const [executionTraceExpanded, setExecutionTraceExpanded] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
@@ -96,7 +97,8 @@ export function useAssistantChatPage({
   const isLocalDraft =
     Boolean(resolvedThreadId) && isLocalAssistantThreadId(resolvedThreadId ?? '');
 
-  const { createThread, updateThread, deleteThread, isUpdating } = useChatThreadMutations();
+  const { createThread, updateThread, deleteThread, isUpdating, isDeleting } =
+    useChatThreadMutations();
   const { createMessage } = useChatMessageMutations();
   const { editMessage } = useEditMessage();
 
@@ -645,22 +647,10 @@ export function useAssistantChatPage({
     navigate(`/admin/assistant/${createLocalAssistantThreadId()}`);
   }, [modelCatalogQuery.data?.defaults, navigate]);
 
-  const handleDeleteThread = useCallback(
-    async (id: string) => {
-      try {
-        if (isLocalAssistantThreadId(id)) {
-          const remainingThread = threads.find((t) => t.id !== id);
-          if (resolvedThreadId === id) {
-            if (remainingThread) {
-              navigate(`/admin/assistant/${remainingThread.id}`, { replace: true });
-            } else {
-              navigate('/admin/assistant', { replace: true });
-            }
-          }
-          return;
-        }
+  const requestDeleteThread = useCallback(
+    (id: string) => {
+      if (isLocalAssistantThreadId(id)) {
         const remainingThread = threads.find((t) => t.id !== id);
-        await deleteThread(id);
         if (resolvedThreadId === id) {
           if (remainingThread) {
             navigate(`/admin/assistant/${remainingThread.id}`, { replace: true });
@@ -668,12 +658,39 @@ export function useAssistantChatPage({
             navigate('/admin/assistant', { replace: true });
           }
         }
-      } catch (error) {
-        wsLogger.error('Error deleting thread', error);
+        return;
       }
+      const thread = threads.find((t) => t.id === id);
+      setDeleteTarget({ id, title: thread?.title?.trim() || 'Chat' });
     },
-    [deleteThread, navigate, resolvedThreadId, threads]
+    [navigate, resolvedThreadId, threads]
   );
+
+  const confirmDeleteThread = useCallback(async () => {
+    const id = deleteTarget?.id;
+    if (!id) return;
+    try {
+      const remainingThread = threads.find((t) => t.id !== id);
+      await deleteThread(id);
+      setDeleteTarget(null);
+      if (resolvedThreadId === id) {
+        if (remainingThread) {
+          navigate(`/admin/assistant/${remainingThread.id}`, { replace: true });
+        } else {
+          navigate('/admin/assistant', { replace: true });
+        }
+      }
+    } catch (error) {
+      wsLogger.error('Error deleting thread', error);
+      const apiError = extractApiError(error);
+      const message = apiError?.message || extractErrorMessage(error, 'Failed to delete chat');
+      showToast({
+        type: 'error',
+        title: 'Unable to delete chat',
+        message,
+      });
+    }
+  }, [deleteTarget?.id, deleteThread, navigate, resolvedThreadId, showToast, threads]);
 
   const handleRenameThread = useCallback(
     async (id: string) => {
@@ -786,7 +803,7 @@ export function useAssistantChatPage({
       onCancelEdit: onCancelEditThread,
       onConfirmRename: handleRenameThread,
       isUpdating,
-      onDeleteThread: handleDeleteThread,
+      onDeleteThread: requestDeleteThread,
       onSelectThread: handleThreadSelect,
     }),
     [
@@ -794,7 +811,7 @@ export function useAssistantChatPage({
       editingThreadId,
       editingTitle,
       handleCreateThread,
-      handleDeleteThread,
+      requestDeleteThread,
       handleRenameThread,
       handleThreadSelect,
       isThreadsError,
@@ -814,6 +831,13 @@ export function useAssistantChatPage({
     sidebarCollapsed,
     setSidebarCollapsed,
     threadListProps,
+    deleteDialogProps: {
+      isOpen: Boolean(deleteTarget),
+      onClose: () => setDeleteTarget(null),
+      onConfirm: confirmDeleteThread,
+      threadTitle: deleteTarget?.title,
+      isDeleting,
+    },
     ToastContainer,
     activeThread,
     isTreeLoading,
