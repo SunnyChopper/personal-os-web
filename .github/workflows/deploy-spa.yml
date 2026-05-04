@@ -1,8 +1,9 @@
 name: Deploy Portfolio SPA (S3 + CloudFront)
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
+  workflow_run:
+    workflows: ["CI Validation"]
+    types: [completed]
   push:
     branches: [main, master]
     paths:
@@ -21,7 +22,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -29,13 +30,16 @@ jobs:
     if: |-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/tags/deploy/dev') ||
-      (github.event_name == 'pull_request' &&
-       github.repository == github.event.pull_request.head.repo.full_name &&
-       contains(github.event.pull_request.labels.*.name, 'deploy-dev'))
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     environment: dev
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - uses: oven-sh/setup-bun@v2
 
