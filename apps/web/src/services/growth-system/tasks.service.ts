@@ -134,9 +134,7 @@ export const tasksService = {
 
   async getDependenciesBatch(
     taskIds: string[]
-  ): Promise<
-    ApiResponse<{ items: Array<{ taskId: string; dependencies: TaskDependency[] }> }>
-  > {
+  ): Promise<ApiResponse<{ items: Array<{ taskId: string; dependencies: TaskDependency[] }> }>> {
     const response = await apiClient.post<{
       items: Array<{ taskId: string; dependencies: TaskDependency[] }>;
     }>('/tasks/dependencies/batch', { taskIds });

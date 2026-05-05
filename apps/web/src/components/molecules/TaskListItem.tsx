@@ -57,7 +57,8 @@ export function TaskListItem({
 
     if (diffDays < 0) {
       return {
-        text: formatDateString(dateString, { month: 'short', day: 'numeric', year: 'numeric' }) ?? '',
+        text:
+          formatDateString(dateString, { month: 'short', day: 'numeric', year: 'numeric' }) ?? '',
         overdue: true,
       };
     }

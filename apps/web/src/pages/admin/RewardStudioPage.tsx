@@ -545,7 +545,9 @@ const RewardStudioPage = () => {
         ) : (
           <div className="space-y-4">
             {brainstormModelLabel ? (
-              <p className="text-xs text-gray-500 dark:text-gray-400">Model: {brainstormModelLabel}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Model: {brainstormModelLabel}
+              </p>
             ) : null}
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Edit fields if needed, then Accept to save to your studio, or Reject with feedback so
