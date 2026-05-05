@@ -103,3 +103,51 @@ export interface RewardWithRedemptions extends Reward {
   canRedeem: boolean;
   cooldownMessage: string | null;
 }
+
+/** AI brainstorm — matches POST /ai/rewards/brainstorm and /resolve responses. */
+export interface RewardSuggestionPayload {
+  title: string;
+  description?: string | null;
+  category: RewardCategory;
+  pointCost: number;
+  icon?: string | null;
+  cooldownHours?: number | null;
+  maxRedemptionsPerDay?: number | null;
+}
+
+export interface RewardSuggestionReasons {
+  pointCostReason: string;
+  categoryReason: string;
+  cooldownHoursReason: string;
+  maxRedemptionsPerDayReason: string;
+  overall?: string | null;
+}
+
+export interface RewardSuggestionItem {
+  id: string;
+  status: string;
+  proposedReward: RewardSuggestionPayload;
+  reasons: RewardSuggestionReasons;
+  model?: string | null;
+  resolutionFeedback?: string | null;
+  resolvedReward?: RewardSuggestionPayload | null;
+  createdRewardId?: string | null;
+  feedbackSignals?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RewardBrainstormApiResult {
+  suggestions: RewardSuggestionItem[];
+  model: string;
+  contextStats: {
+    existingRewardCount: number;
+    memorySnippetCount: number;
+    recentDecisionsCount: number;
+  };
+}
+
+export interface RewardSuggestionResolveApiResult {
+  suggestion: RewardSuggestionItem;
+  reward?: Reward | null;
+}

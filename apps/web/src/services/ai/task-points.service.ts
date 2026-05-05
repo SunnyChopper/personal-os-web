@@ -1,4 +1,9 @@
 import type { Area, Priority } from '@/types/growth-system';
+import type {
+  RewardBrainstormApiResult,
+  RewardSuggestionPayload,
+  RewardSuggestionResolveApiResult,
+} from '@/types/rewards';
 import { z } from 'zod';
 import { apiClient } from '@/lib/api-client';
 
@@ -53,28 +58,46 @@ export const taskPointsAIService = {
     throw new Error(response.error?.message || 'Failed to calculate reward point cost');
   },
 
-  async brainstormRewards(context: {
-    existingRewards: Array<{ title: string; category: string }>;
-    userInterests?: string;
+  /**
+   * Server loads existing rewards + feedback history. Optional userPreferences for extra hint text.
+   */
+  async brainstormRewards(body: {
     count?: number;
-  }): Promise<
-    Array<{ title: string; description: string; category: string; suggestedPointCost: number }>
-  > {
-    const response = await apiClient.post<{
-      data: {
-        result: Array<{
-          title: string;
-          description: string;
-          category: string;
-          suggestedPointCost: number;
-        }>;
-      };
-    }>('/ai/rewards/brainstorm', context);
+    userPreferences?: string;
+  }): Promise<RewardBrainstormApiResult> {
+    const response = await apiClient.post<RewardBrainstormApiResult>('/ai/rewards/brainstorm', {
+      count: body.count ?? 8,
+      userPreferences: body.userPreferences,
+    });
 
     if (response.success && response.data) {
-      return response.data.data.result;
+      return response.data;
     }
 
     throw new Error(response.error?.message || 'Failed to brainstorm rewards');
+  },
+
+  async resolveRewardSuggestion(
+    suggestionId: string,
+    body: {
+      approve: boolean;
+      feedback?: string;
+      resolvedReward?: RewardSuggestionPayload;
+    }
+  ): Promise<RewardSuggestionResolveApiResult> {
+    const response = await apiClient.post<RewardSuggestionResolveApiResult>(
+      `/ai/rewards/suggestions/${encodeURIComponent(suggestionId)}/resolve`,
+      {
+        approve: body.approve,
+        ...(body.feedback ? { feedback: body.feedback } : {}),
+        ...(body.resolvedReward ? { resolvedReward: body.resolvedReward } : {}),
+      }
+    );
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.error?.message || 'Failed to update reward suggestion');
   },
 };
