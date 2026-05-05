@@ -51,11 +51,9 @@ export default function WebhookDetailPage() {
       getAccessToken: async () => authService.getAccessToken(),
       reconnect: true,
       onOpen: () => {
-        try {
-          clientRef.current?.sendSubscribeToolsEvent(catcherId);
-        } catch {
-          /* not connected */
-        }
+        void client.sendSubscribeToolsEvent(catcherId).catch(() => {
+          /* subscribe failed */
+        });
       },
       onToolsEvent: (payload) => {
         startTransition(() => {

@@ -126,10 +126,7 @@ export class AssistantWsClient {
   }
 
   async connect(): Promise<void> {
-    if (
-      this.socket &&
-      (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)
-    ) {
+    if (this.socket?.readyState === WebSocket.OPEN) {
       return;
     }
     if (this.connectPromise) {
@@ -165,21 +162,24 @@ export class AssistantWsClient {
     }
   }
 
-  sendUserMessage(payload: WsUserMessagePayload): void {
+  async sendUserMessage(payload: WsUserMessagePayload): Promise<void> {
+    await this.connect();
     this.send({
       type: 'userMessage',
       payload,
     });
   }
 
-  cancelRun(payload: WsCancelRunPayload): void {
+  async cancelRun(payload: WsCancelRunPayload): Promise<void> {
+    await this.connect();
     this.send({
       type: 'cancelRun',
       payload,
     });
   }
 
-  sendToolApprovalResponse(payload: WsToolApprovalResponsePayload): void {
+  async sendToolApprovalResponse(payload: WsToolApprovalResponsePayload): Promise<void> {
+    await this.connect();
     this.send({
       type: 'toolApprovalResponse',
       payload,
@@ -187,7 +187,8 @@ export class AssistantWsClient {
   }
 
   /** Subscribe to Tools fanout (e.g. webhook catcher live events). Requires an open connection. */
-  sendSubscribeToolsEvent(catcherId: string): void {
+  async sendSubscribeToolsEvent(catcherId: string): Promise<void> {
+    await this.connect();
     this.send({
       type: 'subscribeToolsEvent',
       payload: { catcherId },
@@ -220,10 +221,7 @@ export class AssistantWsClient {
     if (!this.shouldReconnect || attemptId !== this.connectionAttemptId) {
       return;
     }
-    if (
-      this.socket &&
-      (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)
-    ) {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       return;
     }
     const url = new URL(this.wsBaseUrl);
@@ -233,37 +231,68 @@ export class AssistantWsClient {
       url.searchParams.set(this.authTokenParam, token);
     }
 
-    this.socket = new WebSocket(url.toString());
-    this.socket.onopen = () => {
-      if (this.pendingCloseOnOpen && this.socket) {
-        this.pendingCloseOnOpen = false;
-        this.socket.close();
+    const ws = new WebSocket(url.toString());
+    this.socket = ws;
+
+    await new Promise<void>((resolveHandshake, rejectHandshake) => {
+      let handshakeSettled = false;
+
+      const failHandshake = (reason: Error) => {
+        if (handshakeSettled) {
+          return;
+        }
+        handshakeSettled = true;
+        rejectHandshake(reason);
+      };
+
+      ws.onopen = () => {
+        if (!this.shouldReconnect || attemptId !== this.connectionAttemptId) {
+          ws.close();
+          failHandshake(new Error('WebSocket connection aborted'));
+          return;
+        }
+        if (this.pendingCloseOnOpen) {
+          this.pendingCloseOnOpen = false;
+          ws.close();
+          failHandshake(new Error('WebSocket closed before establishing session'));
+          this.setConnectionState('disconnected');
+          return;
+        }
+        handshakeSettled = true;
+        this.reconnectAttempts = 0;
+        this.setConnectionState('connected');
+        this.startKeepAlive();
+        this.handlers.onOpen?.();
+        resolveHandshake();
+      };
+
+      ws.onclose = (event) => {
+        if (!handshakeSettled) {
+          failHandshake(new Error('WebSocket closed before open'));
+          return;
+        }
+        this.handlers.onClose?.(event);
+        this.clearKeepAliveTimer();
+        if (this.shouldReconnect && this.reconnectEnabled) {
+          this.setConnectionState('reconnecting');
+          this.scheduleReconnect();
+        } else {
+          this.setConnectionState('disconnected');
+        }
         this.socket = null;
-        this.setConnectionState('disconnected');
-        return;
-      }
-      this.reconnectAttempts = 0;
-      this.setConnectionState('connected');
-      this.startKeepAlive();
-      this.handlers.onOpen?.();
-    };
-    this.socket.onclose = (event) => {
-      this.handlers.onClose?.(event);
-      this.clearKeepAliveTimer();
-      if (this.shouldReconnect && this.reconnectEnabled) {
-        this.setConnectionState('reconnecting');
-        this.scheduleReconnect();
-      } else {
-        this.setConnectionState('disconnected');
-      }
-      this.socket = null;
-    };
-    this.socket.onerror = (event) => {
-      this.handlers.onError?.(event);
-    };
-    this.socket.onmessage = (event) => {
-      this.handleIncoming(event.data);
-    };
+      };
+
+      ws.onerror = (event) => {
+        this.handlers.onError?.(event);
+        if (!handshakeSettled) {
+          failHandshake(new Error('WebSocket handshake error'));
+        }
+      };
+
+      ws.onmessage = (event) => {
+        this.handleIncoming(event.data);
+      };
+    });
   }
 
   private send(message: { type: string; payload: unknown }): void {

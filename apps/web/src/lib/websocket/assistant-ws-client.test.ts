@@ -8,7 +8,7 @@ class MockWebSocket {
   static CLOSED = 3;
   static instances: MockWebSocket[] = [];
 
-  readyState = MockWebSocket.OPEN;
+  readyState = MockWebSocket.CONNECTING;
   onopen: ((event: Event) => void) | null = null;
   onclose: ((event: CloseEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
@@ -19,7 +19,13 @@ class MockWebSocket {
 
   constructor(url: string) {
     this.url = url;
+    this.readyState = MockWebSocket.CONNECTING;
     MockWebSocket.instances.push(this);
+    queueMicrotask(() => {
+      if (this.readyState !== MockWebSocket.CONNECTING) return;
+      this.readyState = MockWebSocket.OPEN;
+      this.onopen?.({} as Event);
+    });
   }
 }
 
@@ -181,9 +187,8 @@ describe('AssistantWsClient', () => {
     await client.connect();
     const socket = MockWebSocket.instances[0];
     expect(socket).toBeDefined();
-    socket.onopen?.(new Event('open'));
 
-    client.sendToolApprovalResponse({
+    await client.sendToolApprovalResponse({
       runId: 'run-1',
       approvalId: 'apr-9',
       decision: 'reject',
@@ -212,11 +217,9 @@ describe('AssistantWsClient', () => {
 
     await client.connect();
     expect(onConnectionStateChange).toHaveBeenCalledWith('connecting');
-
-    const socket = MockWebSocket.instances[0];
-    socket.onopen?.(new Event('open'));
     expect(onConnectionStateChange).toHaveBeenCalledWith('connected');
 
+    const socket = MockWebSocket.instances[0];
     socket.onclose?.({} as CloseEvent);
     expect(onConnectionStateChange).toHaveBeenCalledWith('reconnecting');
     expect(onConnectionStateChange).toHaveBeenCalledWith('failed');
@@ -238,8 +241,9 @@ describe('AssistantWsClient', () => {
 
     client.manualReconnect();
     await Promise.resolve();
-    expect(client.getConnectionState()).toBe('connecting');
+    await Promise.resolve();
     expect(MockWebSocket.instances.length).toBe(2);
+    expect(client.getConnectionState()).toBe('connected');
   });
 
   it('does not open socket after disconnect while token fetch is pending', async () => {
