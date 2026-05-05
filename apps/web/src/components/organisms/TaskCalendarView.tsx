@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-reac
 import type { Task } from '@/types/growth-system';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import Button from '@/components/atoms/Button';
+import { extractDateOnly, toLocalDateKey } from '@/utils/date-formatters';
 
 interface TaskCalendarViewProps {
   tasks: Task[];
@@ -26,10 +27,10 @@ export function TaskCalendarView({ tasks, isLoading = false, onTaskClick }: Task
   };
 
   const getTasksForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toLocalDateKey(date);
     return tasks.filter((task) => {
       if (!task.dueDate) return false;
-      const taskDate = task.dueDate.split('T')[0];
+      const taskDate = extractDateOnly(task.dueDate);
       return taskDate === dateStr;
     });
   };

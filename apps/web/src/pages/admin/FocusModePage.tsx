@@ -22,6 +22,7 @@ import {
 import { useTasks } from '@/hooks/useGrowthSystem';
 import { ROUTES } from '@/routes';
 import type { Task } from '@/types/growth-system';
+import { formatDateString } from '@/utils/date-formatters';
 
 const POMODORO_DURATION = 25 * 60;
 
@@ -447,7 +448,12 @@ export default function FocusModePage() {
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg">
                               <Target className="w-4 h-4 text-cyan-400" />
                               <span className="text-sm text-white">
-                                Due {new Date(currentTask.dueDate).toLocaleDateString()}
+                                Due{' '}
+                                {formatDateString(currentTask.dueDate, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                }) ?? ''}
                               </span>
                             </div>
                           )}

@@ -1,5 +1,11 @@
 import { Calendar, AlertTriangle } from 'lucide-react';
 
+import {
+  differenceInCalendarDaysLocal,
+  formatDateString,
+  parseDateInput,
+} from '@/utils/date-formatters';
+
 interface DateDisplayProps {
   date: string | null;
   label?: string;
@@ -11,10 +17,14 @@ interface DateDisplayProps {
 }
 
 function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffTime = date.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diffDays = differenceInCalendarDaysLocal(dateString);
+  if (diffDays === null) {
+    return parseDateInput(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Tomorrow';
@@ -22,21 +32,24 @@ function formatDate(dateString: string): string {
   if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
   if (diffDays < -1 && diffDays >= -7) return `${Math.abs(diffDays)} days ago`;
 
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return (
+    formatDateString(dateString, { month: 'short', day: 'numeric', year: 'numeric' }) ??
+    parseDateInput(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  );
 }
 
 function isOverdue(dateString: string): boolean {
-  const date = new Date(dateString);
-  const now = new Date();
-  return date < now;
+  const d = differenceInCalendarDaysLocal(dateString);
+  return d !== null && d < 0;
 }
 
 function isUpcoming(dateString: string, days: number = 3): boolean {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffTime = date.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays >= 0 && diffDays <= days;
+  const d = differenceInCalendarDaysLocal(dateString);
+  return d !== null && d >= 0 && d <= days;
 }
 
 const sizeClasses = {

@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Sparkles, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { Sparkles, ChevronDown, ChevronUp, AlertCircle, GitBranch } from 'lucide-react';
 import type {
   CreateTaskInput,
   Area,
   SubCategory,
   Priority,
   TaskStatus,
+  EntitySummary,
 } from '@/types/growth-system';
 import Button from '@/components/atoms/Button';
+import { RelationshipPicker } from '@/components/organisms/RelationshipPicker';
 import { AITaskAssistPanel } from '@/components/molecules/AITaskAssistPanel';
 import { llmConfig } from '@/lib/llm';
 import {
@@ -24,9 +26,16 @@ interface TaskCreateFormProps {
   onSubmit: (input: CreateTaskInput) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
+  /** Tasks that can be selected as "depends on" (excludes the draft task). */
+  dependencyPickerEntities?: EntitySummary[];
 }
 
-export function TaskCreateForm({ onSubmit, onCancel, isLoading }: TaskCreateFormProps) {
+export function TaskCreateForm({
+  onSubmit,
+  onCancel,
+  isLoading,
+  dependencyPickerEntities = [],
+}: TaskCreateFormProps) {
   const [formData, setFormData] = useState<CreateTaskInput>({
     title: '',
     description: '',
@@ -47,6 +56,8 @@ export function TaskCreateForm({ onSubmit, onCancel, isLoading }: TaskCreateForm
   const [aiMode, setAIMode] = useState<'parse' | 'categorize' | 'estimate'>('parse');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dependencyPickerOpen, setDependencyPickerOpen] = useState(false);
+  const [dependsOnTaskIds, setDependsOnTaskIds] = useState<string[]>([]);
   const isAIConfigured = llmConfig.isConfigured();
 
   const extractValidationErrors = (details: unknown): string => {
@@ -87,6 +98,7 @@ export function TaskCreateForm({ onSubmit, onCancel, isLoading }: TaskCreateForm
         scheduledDate: formData.scheduledDate || undefined,
         size: formData.size || undefined,
         pointValue: formData.pointValue || undefined,
+        ...(dependsOnTaskIds.length ? { dependsOnTaskIds } : {}),
       };
       await onSubmit(input);
     } catch (err) {
@@ -125,7 +137,8 @@ export function TaskCreateForm({ onSubmit, onCancel, isLoading }: TaskCreateForm
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <>
+      <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
           <div className="flex items-start gap-3">
@@ -409,6 +422,25 @@ export function TaskCreateForm({ onSubmit, onCancel, isLoading }: TaskCreateForm
         />
       </div>
 
+      {dependencyPickerEntities.length > 0 ? (
+        <div className="rounded-lg border border-gray-200 dark:border-gray-600 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Depends on</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {dependsOnTaskIds.length
+                  ? `${dependsOnTaskIds.length} predecessor task${dependsOnTaskIds.length === 1 ? '' : 's'} selected`
+                  : 'Optional — link blocking tasks'}
+              </p>
+            </div>
+            <Button type="button" variant="secondary" onClick={() => setDependencyPickerOpen(true)}>
+              <GitBranch className="w-4 h-4 mr-2 inline" />
+              Choose
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
         <Button
           type="button"
@@ -423,5 +455,16 @@ export function TaskCreateForm({ onSubmit, onCancel, isLoading }: TaskCreateForm
         </Button>
       </div>
     </form>
+
+      <RelationshipPicker
+        isOpen={dependencyPickerOpen}
+        onClose={() => setDependencyPickerOpen(false)}
+        title="Task depends on"
+        entities={dependencyPickerEntities}
+        selectedIds={dependsOnTaskIds}
+        onSelectionChange={setDependsOnTaskIds}
+        entityType="task"
+      />
+    </>
   );
 }

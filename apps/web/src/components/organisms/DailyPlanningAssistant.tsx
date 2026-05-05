@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom';
 import { ROUTES } from '@/routes';
 import { usePlannerWeek } from '@/hooks/usePlanner';
 import { mondayISO, todayISOLocal } from '@/lib/planner/week';
+import { differenceInCalendarDaysLocal, extractDateOnly } from '@/utils/date-formatters';
 
 interface DailyPlan {
   topTasks: Task[];
@@ -89,6 +90,7 @@ export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantPro
 
     const today = new Date();
     const hour = today.getHours();
+    const todayKey = todayISOLocal();
 
     let energyLevel: 'morning' | 'afternoon' | 'evening';
     if (hour < 12) energyLevel = 'morning';
@@ -104,22 +106,16 @@ export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantPro
       else score += 10;
 
       if (task.dueDate) {
-        const dueDate = new Date(task.dueDate);
-        const daysUntilDue = Math.floor(
-          (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        if (daysUntilDue <= 0) score += 50;
-        else if (daysUntilDue <= 2) score += 30;
-        else if (daysUntilDue <= 7) score += 10;
+        const daysUntilDue = differenceInCalendarDaysLocal(task.dueDate, today);
+        if (daysUntilDue !== null) {
+          if (daysUntilDue <= 0) score += 50;
+          else if (daysUntilDue <= 2) score += 30;
+          else if (daysUntilDue <= 7) score += 10;
+        }
       }
 
-      if (task.scheduledDate) {
-        const scheduled = new Date(task.scheduledDate);
-        const todayStr = today.toDateString();
-        const scheduledStr = scheduled.toDateString();
-        if (scheduledStr === todayStr) {
-          score += 25;
-        }
+      if (task.scheduledDate && extractDateOnly(task.scheduledDate) === todayKey) {
+        score += 25;
       }
 
       if (task.size === 1) score += 15;
@@ -133,8 +129,7 @@ export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantPro
     scoredTasks.sort((a: ScoredTask, b: ScoredTask) => b.score - a.score);
     const fallbackTop = scoredTasks.slice(0, 3).map((s: ScoredTask) => s.task);
 
-    const todayStr = todayISOLocal();
-    const todayDay = plannerWeek?.days.find((d) => d.date === todayStr);
+    const todayDay = plannerWeek?.days.find((d) => d.date === todayKey);
     const plannerTop: Task[] = [];
     if (todayDay) {
       const ids: string[] = [];

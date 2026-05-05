@@ -11,6 +11,33 @@ export function parseDateInput(dateString: string): Date {
 }
 
 /**
+ * Calendar day key for a local `Date` (YYYY-MM-DD). Use instead of `toISOString().split('T')[0]`
+ * for grid cells — ISO date is UTC and can mismatch the user's calendar day.
+ */
+export function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Signed calendar-day difference: `target − reference` in the local timezone.
+ * Suitable for overdue / due-today semantics on date-only strings and ISO timestamps.
+ */
+export function differenceInCalendarDaysLocal(
+  dateInput: string,
+  reference: Date = new Date()
+): number | null {
+  const target = parseDateInput(dateInput);
+  if (Number.isNaN(target.getTime())) return null;
+
+  const refDay = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate());
+  const targetDay = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  return Math.round((targetDay.getTime() - refDay.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/**
  * Extract date-only string (YYYY-MM-DD) from a date string, handling both ISO format and plain date strings.
  * This prevents timezone conversion issues when the backend returns ISO strings.
  * IMPORTANT: Never create Date objects that could cause timezone shifts - always extract the string directly.
@@ -69,7 +96,7 @@ export function formatDateString(
  * Format a date as a relative string (e.g., "2 days ago", "Today", "Yesterday")
  */
 export function formatRelativeDate(date: Date | string): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const dateObj = typeof date === 'string' ? parseDateInput(date) : date;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 

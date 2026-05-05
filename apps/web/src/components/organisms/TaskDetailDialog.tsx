@@ -6,6 +6,7 @@ import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { SUBCATEGORIES_BY_AREA } from '@/constants/growth-system';
+import { parseDateInput, formatDateString } from '@/utils/date-formatters';
 import { JitKnowledgePanel } from '@/components/organisms/JitKnowledgePanel';
 import { CookedTaskButton } from '@/components/organisms/planner/CookedTaskButton';
 
@@ -19,18 +20,14 @@ interface TaskDetailDialogProps {
 export function TaskDetailDialog({ task, isOpen, onClose, onEdit }: TaskDetailDialogProps) {
   if (!task) return null;
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return null;
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
+  const formatDate = (dateString: string | null) =>
+    formatDateString(dateString, { year: 'numeric', month: 'long', day: 'numeric' });
 
   const formatDateTime = (dateString: string | null) => {
     if (!dateString) return null;
-    return new Date(dateString).toLocaleString('en-US', {
+    const parsed = parseDateInput(dateString);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toLocaleString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
