@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import type { Task } from '@/types/growth-system';
+import { formatDateString } from '@/utils/date-formatters';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { Pencil } from 'lucide-react';
@@ -130,10 +131,7 @@ export function KanbanCard({
         ) : null}
         {task.dueDate ? (
           <span className="rounded-md bg-amber-100/90 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-            {new Date(task.dueDate).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-            })}
+            {formatDateString(task.dueDate, { month: 'short', day: 'numeric' }) ?? ''}
           </span>
         ) : null}
       </div>

@@ -17,6 +17,12 @@ import {
 import { useTasks, useHabits, useGoals } from '@/hooks/useGrowthSystem';
 import { useFitnessRecoveryRange, useUpsertRecoveryMutation } from '@/hooks/useFitness';
 import { localCalendarDate } from '@/lib/date/local-calendar';
+import {
+  differenceInCalendarDaysLocal,
+  extractDateOnly,
+  formatDateString,
+  parseDateInput,
+} from '@/utils/date-formatters';
 import type { Task, Habit, Goal } from '@/types/growth-system';
 import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/routes';
@@ -62,19 +68,17 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
   };
 
   const filteredAndSortedTasks = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toDateString();
+    const todayKey = localCalendarDate();
 
     const activeTasks = tasks.filter((task) => {
       if (task.status === 'Done' || task.status === 'Cancelled') return false;
 
       const isScheduledForToday =
-        task.scheduledDate && new Date(task.scheduledDate).toDateString() === todayStr;
+        !!task.scheduledDate && extractDateOnly(task.scheduledDate) === todayKey;
 
-      const isOverdue = task.dueDate && new Date(task.dueDate) < today;
-
-      const isDueToday = task.dueDate && new Date(task.dueDate).toDateString() === todayStr;
+      const dueDelta = task.dueDate ? differenceInCalendarDaysLocal(task.dueDate) : null;
+      const isOverdue = dueDelta !== null && dueDelta < 0;
+      const isDueToday = dueDelta === 0;
 
       return isScheduledForToday || isOverdue || isDueToday;
     });
@@ -86,7 +90,7 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
       if (priorityDiff !== 0) return priorityDiff;
 
       if (a.dueDate && b.dueDate) {
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        return parseDateInput(a.dueDate).getTime() - parseDateInput(b.dueDate).getTime();
       }
       if (a.dueDate) return -1;
       if (b.dueDate) return 1;
@@ -400,7 +404,12 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
                                 <div className="flex items-center gap-1.5 text-gray-400">
                                   <Calendar className="w-4 h-4" />
                                   <span className="text-sm">
-                                    Due {new Date(task.dueDate).toLocaleDateString()}
+                                    Due{' '}
+                                    {formatDateString(task.dueDate, {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    }) ?? ''}
                                   </span>
                                 </div>
                               )}

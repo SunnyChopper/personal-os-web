@@ -5,16 +5,14 @@ import { useRescueTask } from '@/hooks/usePlanner';
 import { mondayISO } from '@/lib/planner/week';
 import type { CookedTaskResult } from '@/types/planner';
 import type { Task } from '@/types/growth-system';
+import { differenceInCalendarDaysLocal } from '@/utils/date-formatters';
 
 import { CookedTaskDrawer } from './CookedTaskDrawer';
 
 function isOverdue(task: Task): boolean {
   if (!task.dueDate || task.status === 'Done' || task.status === 'Cancelled') return false;
-  const due = new Date(task.dueDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  due.setHours(0, 0, 0, 0);
-  return due < today;
+  const d = differenceInCalendarDaysLocal(task.dueDate);
+  return d !== null && d < 0;
 }
 
 export interface CookedTaskButtonProps {

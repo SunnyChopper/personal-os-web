@@ -450,6 +450,7 @@ export interface CreateTaskInput {
   estimatedDurationMinutes?: number;
   scheduleStatus?: Task['scheduleStatus'];
   scheduleSource?: NonNullable<Task['scheduleSource']>;
+  dependsOnTaskIds?: string[];
 }
 
 export interface UpdateTaskInput {
@@ -631,6 +632,14 @@ export interface UpdateLogbookEntryInput {
   energy?: number;
 }
 
+export type TaskListSortField =
+  | 'priority'
+  | 'size'
+  | 'pointValue'
+  | 'dueDate'
+  | 'createdAt'
+  | 'updatedAt';
+
 export interface FilterOptions {
   search?: string;
   area?: Area;
@@ -647,7 +656,7 @@ export interface FilterOptions {
   progressRange?: { min: number; max: number };
   startDate?: string;
   endDate?: string;
-  sortBy?: string;
+  sortBy?: TaskListSortField | string;
   sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
@@ -655,7 +664,10 @@ export interface FilterOptions {
   // Task-specific filters
   projectId?: string;
   goalId?: string;
-  dueDate?: string;
+  /** Inclusive lower bound on task dueDate (YYYY-MM-DD or ISO). */
+  dueDateFrom?: string;
+  /** Inclusive upper bound on task dueDate. */
+  dueDateTo?: string;
 }
 
 export interface PaginatedResponse<T> {

@@ -650,22 +650,26 @@ export function useAssistantStreaming(threadId: string | undefined) {
         });
         return;
       }
-      try {
-        setError(null);
-        setPendingRunStartCount((current) => current + 1);
-        client.sendUserMessage({
-          threadId,
-          ...payload,
-        });
-      } catch {
-        setPendingRunStartCount((current) => Math.max(0, current - 1));
-        setError({
-          runId: 'connection',
-          threadId,
-          message: 'Assistant connection is not available.',
-          code: 'CONNECTION_FAILED',
-        });
-      }
+      const runSend = async () => {
+        try {
+          await client.sendUserMessage({
+            threadId,
+            ...payload,
+          });
+        } catch {
+          setPendingRunStartCount((current) => Math.max(0, current - 1));
+          setError({
+            runId: 'connection',
+            threadId,
+            message: 'Assistant connection is not available.',
+            code: 'CONNECTION_FAILED',
+          });
+        }
+      };
+
+      setError(null);
+      setPendingRunStartCount((current) => current + 1);
+      void runSend();
     },
     [ensureClient, threadId]
   );
@@ -706,7 +710,10 @@ export function useAssistantStreaming(threadId: string | undefined) {
   const cancelRun = useCallback(
     (runId: string) => {
       const client = ensureClient();
-      client?.cancelRun({ runId });
+      if (!client) {
+        return;
+      }
+      void client.cancelRun({ runId }).catch(() => {});
     },
     [ensureClient]
   );
@@ -723,53 +730,57 @@ export function useAssistantStreaming(threadId: string | undefined) {
         });
         return;
       }
-      try {
-        client.sendToolApprovalResponse({ runId, approvalId, decision });
-      } catch {
-        setError({
-          runId: 'connection',
-          threadId: threadId ?? '',
-          message: 'Assistant connection is not available.',
-          code: 'CONNECTION_FAILED',
+      const approve = async () => {
+        try {
+          await client.sendToolApprovalResponse({ runId, approvalId, decision });
+        } catch {
+          setError({
+            runId: 'connection',
+            threadId: threadId ?? '',
+            message: 'Assistant connection is not available.',
+            code: 'CONNECTION_FAILED',
+          });
+          return;
+        }
+        startTransition(() => {
+          setRuns((current) => {
+            const run = current[runId];
+            if (!run) {
+              return current;
+            }
+            const { [approvalId]: _removed, ...restPending } = run.pendingToolApprovals ?? {};
+            const nextPending = Object.keys(restPending).length > 0 ? restPending : undefined;
+            const resolvedLabel =
+              decision === 'approve' ? 'Approved — running tool' : 'Rejected — skipped';
+            const updatedHistory = run.statusHistory.map((entry) =>
+              entry.approvalId === approvalId && entry.stage === 'awaitingApproval'
+                ? {
+                    ...entry,
+                    stage: 'approvalResolved' as const,
+                    message: resolvedLabel,
+                  }
+                : entry
+            );
+            const stillAwaiting = Object.keys(restPending).length > 0;
+            return {
+              ...current,
+              [runId]: {
+                ...run,
+                pendingToolApprovals: nextPending,
+                statusHistory: updatedHistory,
+                ...(stillAwaiting
+                  ? {}
+                  : {
+                      statusStage: 'runningTools' as const,
+                      statusMessage: undefined,
+                    }),
+              },
+            };
+          });
         });
-        return;
-      }
-      startTransition(() => {
-        setRuns((current) => {
-          const run = current[runId];
-          if (!run) {
-            return current;
-          }
-          const { [approvalId]: _removed, ...restPending } = run.pendingToolApprovals ?? {};
-          const nextPending = Object.keys(restPending).length > 0 ? restPending : undefined;
-          const resolvedLabel =
-            decision === 'approve' ? 'Approved — running tool' : 'Rejected — skipped';
-          const updatedHistory = run.statusHistory.map((entry) =>
-            entry.approvalId === approvalId && entry.stage === 'awaitingApproval'
-              ? {
-                  ...entry,
-                  stage: 'approvalResolved' as const,
-                  message: resolvedLabel,
-                }
-              : entry
-          );
-          const stillAwaiting = Object.keys(restPending).length > 0;
-          return {
-            ...current,
-            [runId]: {
-              ...run,
-              pendingToolApprovals: nextPending,
-              statusHistory: updatedHistory,
-              ...(stillAwaiting
-                ? {}
-                : {
-                    statusStage: 'runningTools' as const,
-                    statusMessage: undefined,
-                  }),
-            },
-          };
-        });
-      });
+      };
+
+      void approve().catch(() => {});
     },
     [ensureClient, threadId]
   );

@@ -21,6 +21,8 @@ import type {
   TaskStatus,
   EntitySummary,
   TaskDependency,
+  FilterOptions,
+  TaskListSortField,
 } from '@/types/growth-system';
 import { useTasks, useProjects, useGoals, useTaskDependencies } from '@/hooks/useGrowthSystem';
 import { tasksService, goalsService, projectsService } from '@/services/growth-system';
@@ -43,6 +45,7 @@ import Dialog from '@/components/molecules/Dialog';
 import { EmptyState } from '@/components/molecules/EmptyState';
 import { AISuggestionBanner } from '@/components/molecules/AISuggestionBanner';
 import { useToast } from '@/hooks/use-toast';
+import { addCalendarDays, localCalendarDate } from '@/lib/date/local-calendar';
 import {
   AREAS,
   PRIORITIES,
@@ -56,6 +59,8 @@ type ViewMode = 'list' | 'kanban' | 'calendar' | 'graph';
 const AREA_OPTIONS: Area[] = [...AREAS];
 const STATUS_OPTIONS: TaskStatus[] = [...TASK_STATUSES];
 const PRIORITY_OPTIONS: Priority[] = [...PRIORITIES];
+
+type DuePreset = 'none' | 'today' | 'tomorrow' | 'week' | 'month';
 
 // Animation variants for mobile UI enhancements
 const containerVariants = {
@@ -107,6 +112,8 @@ export default function TasksPage() {
   const [selectedArea, setSelectedArea] = useState<Area | undefined>();
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | undefined>();
   const [selectedPriority, setSelectedPriority] = useState<Priority | undefined>();
+  const [duePreset, setDuePreset] = useState<DuePreset>('none');
+  const [taskSortField, setTaskSortField] = useState<TaskListSortField>('priority');
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -121,6 +128,42 @@ export default function TasksPage() {
   const [taskToView, setTaskToView] = useState<Task | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
+  const apiTaskFilters = useMemo<FilterOptions>(() => {
+    const f: FilterOptions = {
+      pageSize: 100,
+      sortBy: taskSortField,
+      sortOrder: 'asc',
+    };
+    if (selectedArea) f.area = selectedArea;
+    if (selectedStatus) f.status = selectedStatus;
+    if (selectedPriority) f.priority = selectedPriority;
+
+    const todayKey = localCalendarDate();
+    if (duePreset === 'today') {
+      f.dueDateFrom = todayKey;
+      f.dueDateTo = todayKey;
+    } else if (duePreset === 'tomorrow') {
+      const tk = addCalendarDays(todayKey, 1);
+      f.dueDateFrom = tk;
+      f.dueDateTo = tk;
+    } else if (duePreset === 'week') {
+      const dow = new Date().getDay();
+      const weekStartKey = addCalendarDays(todayKey, -dow);
+      const weekEndKey = addCalendarDays(weekStartKey, 6);
+      f.dueDateFrom = weekStartKey;
+      f.dueDateTo = weekEndKey;
+    } else if (duePreset === 'month') {
+      const ref = new Date();
+      const y = ref.getFullYear();
+      const m = ref.getMonth();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      f.dueDateFrom = `${y}-${pad(m + 1)}-01`;
+      const lastDom = localCalendarDate(new Date(y, m + 1, 0));
+      f.dueDateTo = lastDom;
+    }
+    return f;
+  }, [selectedArea, selectedStatus, selectedPriority, duePreset, taskSortField]);
+
   // Use individual hooks for data fetching and mutations
   const {
     tasks,
@@ -129,7 +172,7 @@ export default function TasksPage() {
     updateTask,
     completeTask,
     deleteTask,
-  } = useTasks();
+  } = useTasks(apiTaskFilters);
   const { projects } = useProjects();
   const { goals } = useGoals();
 
@@ -195,25 +238,32 @@ export default function TasksPage() {
     [goals]
   );
 
-  // Filter tasks based on search and filters
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      return (
-        (!searchQuery || task.title.toLowerCase().includes(searchQuery.toLowerCase())) &&
-        (!selectedArea || task.area === selectedArea) &&
-        (!selectedStatus || task.status === selectedStatus) &&
-        (!selectedPriority || task.priority === selectedPriority)
-      );
-    });
-  }, [tasks, searchQuery, selectedArea, selectedStatus, selectedPriority]);
+  const taskEntitiesForCreateDeps = useMemo<EntitySummary[]>(
+    () =>
+      tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        type: 'task' as const,
+        area: t.area,
+        status: t.status,
+      })),
+    [tasks]
+  );
 
-  // Load dependencies for all tasks using batched hook
-  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks]);
+  // Primary filters + sort applied server-side; search stays client-side (no backend full-text contract).
+  const filteredTasks = useMemo(() => {
+    const sq = searchQuery.trim().toLowerCase();
+    if (!sq) return tasks;
+    return tasks.filter((task) => task.title.toLowerCase().includes(sq));
+  }, [tasks, searchQuery]);
+
+  // Graph dependencies for currently visible tasks
+  const taskIds = useMemo(() => filteredTasks.map((t) => t.id), [filteredTasks]);
   const {
     dependencyMap,
     allDependencies: rawDependencies,
     isLoading: dependenciesLoading,
-  } = useTaskDependencies(taskIds, { enabled: viewMode === 'graph' });
+  } = useTaskDependencies(taskIds);
 
   // Convert raw dependencies to TaskDependency format
   const allDependencies = useMemo<TaskDependency[]>(() => {
@@ -224,7 +274,7 @@ export default function TasksPage() {
   const { taskDependencies, taskBlockedBy } = useMemo(() => {
     const depMap = new Map<string, string[]>();
     const blockedMap = new Map<string, string[]>();
-    const taskMap = new Map(tasks.map((t) => [t.id, t]));
+    const taskMap = new Map(filteredTasks.map((t) => [t.id, t]));
 
     dependencyMap.forEach((deps, taskId) => {
       const depIds = deps.map((d: { dependsOnTaskId: string }) => d.dependsOnTaskId);
@@ -242,7 +292,7 @@ export default function TasksPage() {
     });
 
     return { taskDependencies: depMap, taskBlockedBy: blockedMap };
-  }, [dependencyMap, tasks]);
+  }, [dependencyMap, filteredTasks]);
 
   const graphViewLoading = tasksDataLoading || dependenciesLoading;
 
@@ -371,6 +421,7 @@ export default function TasksPage() {
     setSelectedArea(undefined);
     setSelectedStatus(undefined);
     setSelectedPriority(undefined);
+    setDuePreset('none');
   };
 
   const handleDependencyAdd = async (taskId: string, dependsOnId: string) => {
@@ -429,7 +480,19 @@ export default function TasksPage() {
     return [];
   };
 
-  const activeFilterCount = [selectedArea, selectedStatus, selectedPriority].filter(Boolean).length;
+  const activeFilterCount = [
+    selectedArea,
+    selectedStatus,
+    selectedPriority,
+    duePreset !== 'none' ? duePreset : null,
+  ].filter(Boolean).length;
+
+  const hasTaskRefinements =
+    !!searchQuery.trim() ||
+    !!selectedArea ||
+    !!selectedStatus ||
+    !!selectedPriority ||
+    duePreset !== 'none';
 
   return (
     <div
@@ -486,31 +549,29 @@ export default function TasksPage() {
           />
         </div>
 
-        {viewMode === 'list' && (
-          <motion.div
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.02 }}
-            className="min-h-[44px] min-w-[44px]"
+        <motion.div
+          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.02 }}
+          className="min-h-[44px] min-w-[44px]"
+        >
+          <Button
+            variant="secondary"
+            onClick={() => setShowFilters(!showFilters)}
+            className="relative w-full sm:w-auto"
           >
-            <Button
-              variant="secondary"
-              onClick={() => setShowFilters(!showFilters)}
-              className="relative w-full sm:w-auto"
-            >
-              <Filter className="w-4 h-4 mr-2" />
-              Filters
-              {activeFilterCount > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="ml-2 px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full"
-                >
-                  {activeFilterCount}
-                </motion.span>
-              )}
-            </Button>
-          </motion.div>
-        )}
+            <Filter className="w-4 h-4 mr-2" />
+            Filters
+            {activeFilterCount > 0 ? (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="ml-2 px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full"
+              >
+                {activeFilterCount}
+              </motion.span>
+            ) : null}
+          </Button>
+        </motion.div>
 
         <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-1">
           {(['list', 'kanban', 'calendar', 'graph'] as ViewMode[]).map((mode, index) => {
@@ -560,7 +621,7 @@ export default function TasksPage() {
       </motion.div>
 
       <AnimatePresence mode="wait">
-        {viewMode === 'list' && showFilters && (
+        {showFilters && (
           <motion.div
             variants={filterPanelVariants}
             initial="hidden"
@@ -590,7 +651,40 @@ export default function TasksPage() {
                 </motion.button>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sort by
+                </label>
+                <select
+                  value={taskSortField}
+                  onChange={(e) => setTaskSortField(e.target.value as TaskListSortField)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="priority">Priority</option>
+                  <option value="size">Story points</option>
+                  <option value="pointValue">Reward points</option>
+                  <option value="dueDate">Due date</option>
+                  <option value="createdAt">Created</option>
+                  <option value="updatedAt">Updated</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Due date
+                </label>
+                <select
+                  value={duePreset}
+                  onChange={(e) => setDuePreset(e.target.value as DuePreset)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="none">Any due date</option>
+                  <option value="today">Due today</option>
+                  <option value="tomorrow">Due tomorrow</option>
+                  <option value="week">Due this week</option>
+                  <option value="month">Due this month</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Area
@@ -702,7 +796,7 @@ export default function TasksPage() {
               <EmptyState
                 title="No tasks found"
                 description={
-                  searchQuery || selectedArea || selectedStatus || selectedPriority
+                  hasTaskRefinements
                     ? 'Try adjusting your filters or search query'
                     : 'Get started by creating your first task'
                 }
@@ -814,6 +908,7 @@ export default function TasksPage() {
         title="Create New Task"
       >
         <TaskCreateForm
+          dependencyPickerEntities={taskEntitiesForCreateDeps}
           onSubmit={handleCreateTask}
           onCancel={() => {
             setIsCreateDialogOpen(false);

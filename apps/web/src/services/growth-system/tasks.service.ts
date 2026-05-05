@@ -32,7 +32,8 @@ export const tasksService = {
     if (filters?.subCategory) queryParams.append('subCategory', filters.subCategory);
     if (filters?.projectId) queryParams.append('projectId', filters.projectId);
     if (filters?.goalId) queryParams.append('goalId', filters.goalId);
-    if (filters?.dueDate) queryParams.append('dueDate', filters.dueDate);
+    if (filters?.dueDateFrom) queryParams.append('dueDateFrom', filters.dueDateFrom);
+    if (filters?.dueDateTo) queryParams.append('dueDateTo', filters.dueDateTo);
     if (filters?.page) queryParams.append('page', String(filters.page));
     if (filters?.pageSize) queryParams.append('pageSize', String(filters.pageSize));
     if (filters?.sortBy) queryParams.append('sortBy', filters.sortBy);
@@ -131,6 +132,15 @@ export const tasksService = {
     return response;
   },
 
+  async getDependenciesBatch(
+    taskIds: string[]
+  ): Promise<ApiResponse<{ items: Array<{ taskId: string; dependencies: TaskDependency[] }> }>> {
+    const response = await apiClient.post<{
+      items: Array<{ taskId: string; dependencies: TaskDependency[] }>;
+    }>('/tasks/dependencies/batch', { taskIds });
+    return response;
+  },
+
   async linkToProject(taskId: string, projectId: string): Promise<ApiResponse<void>> {
     const response = await apiClient.post<void>(`/projects/${projectId}/tasks`, { taskId });
     return response;
@@ -192,12 +202,26 @@ export const tasksService = {
     const tasks = tasksResponse.data;
     const taskIds = new Set(tasks.map((t) => t.id));
 
-    // Get dependencies for all tasks
     const allDeps: TaskDependency[] = [];
-    for (const task of tasks) {
-      const depsResponse = await this.getDependencies(task.id);
-      if (depsResponse.success && depsResponse.data) {
-        allDeps.push(...depsResponse.data);
+    const ids = tasks.map((t) => t.id);
+    if (ids.length > 0) {
+      const batch = await this.getDependenciesBatch(ids);
+      if (!batch.success || !batch.data?.items) {
+        return {
+          success: false,
+          error: {
+            code: 'FETCH_DEPS_ERROR',
+            message: batch.error?.message || 'Failed to fetch task dependencies',
+          },
+        };
+      }
+      const depSeen = new Set<string>();
+      for (const row of batch.data.items) {
+        for (const d of row.dependencies) {
+          if (depSeen.has(d.id)) continue;
+          depSeen.add(d.id);
+          allDeps.push(d);
+        }
       }
     }
 

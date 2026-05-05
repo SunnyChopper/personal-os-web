@@ -9,6 +9,7 @@ import { DependencyBadge } from '@/components/atoms/DependencyBadge';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
 import { formatTaskStoryPointsLabel } from '@/constants/growth-system';
+import { differenceInCalendarDaysLocal, formatDateString } from '@/utils/date-formatters';
 
 interface TaskListItemProps {
   task: Task;
@@ -51,21 +52,23 @@ export function TaskListItem({
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return null;
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const diffDays = differenceInCalendarDaysLocal(dateString);
+    if (diffDays === null) return null;
 
     if (diffDays < 0) {
-      return { text: date.toLocaleDateString(), overdue: true };
-    } else if (diffDays === 0) {
-      return { text: 'Today', urgent: true };
-    } else if (diffDays === 1) {
-      return { text: 'Tomorrow', urgent: true };
-    } else if (diffDays <= 7) {
-      return { text: `${diffDays} days`, warning: true };
-    } else {
-      return { text: date.toLocaleDateString(), normal: true };
+      return {
+        text:
+          formatDateString(dateString, { month: 'short', day: 'numeric', year: 'numeric' }) ?? '',
+        overdue: true,
+      };
     }
+    if (diffDays === 0) return { text: 'Today', urgent: true };
+    if (diffDays === 1) return { text: 'Tomorrow', urgent: true };
+    if (diffDays <= 7) return { text: `${diffDays} days`, warning: true };
+    return {
+      text: formatDateString(dateString, { month: 'short', day: 'numeric', year: 'numeric' }) ?? '',
+      normal: true,
+    };
   };
 
   const dueInfo = formatDate(task.dueDate);

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { QueryKey } from '@tanstack/react-query';
 import {
@@ -23,6 +24,8 @@ import type {
   CreateLogbookEntryInput,
   UpdateLogbookEntryInput,
   LogbookEntry,
+  FilterOptions,
+  TaskDependency,
 } from '@/types/growth-system';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import { queryKeys } from '@/lib/react-query/query-keys';
@@ -50,10 +53,20 @@ import {
 // Currently will fail until backend is implemented or mock data is provided
 // Auth requirement is temporarily bypassed (see ProtectedRoute component)
 
-export const useTasks = () => {
+export const useTasks = (filters?: FilterOptions) => {
   // TODO: Temporarily not checking user authentication (bypassed in ProtectedRoute)
   const queryClient = useQueryClient();
   const { recordError, recordSuccess } = useBackendStatus();
+
+  const listFilters = useMemo<FilterOptions>(
+    () => ({
+      sortBy: 'priority',
+      sortOrder: 'asc',
+      pageSize: 100,
+      ...(filters ?? {}),
+    }),
+    [filters]
+  );
 
   // Block list fetches while the dashboard query is pending/successful
   const dashboardQueryState = queryClient.getQueryState(queryKeys.growthSystem.data());
@@ -61,10 +74,10 @@ export const useTasks = () => {
 
   // TODO: Temporarily allowing queries without user authentication
   const { data, isLoading, error, isError } = useQuery({
-    queryKey: queryKeys.growthSystem.tasks.lists(),
+    queryKey: queryKeys.growthSystem.tasks.list(listFilters as Record<string, unknown>),
     queryFn: async () => {
       try {
-        const result = await tasksService.getAll();
+        const result = await tasksService.getAll(listFilters);
         // Record success if we got data
         if (result.data) {
           recordSuccess();
@@ -649,36 +662,51 @@ export const useLogbook = () => {
 };
 
 /**
- * Hook to fetch task dependencies for multiple tasks in a batched manner
- * This is more efficient than calling getDependencies for each task individually
+ * Hook to fetch task dependencies for multiple tasks via POST /tasks/dependencies/batch.
  */
 export const useTaskDependencies = (taskIds: string[], options?: { enabled?: boolean }) => {
   const { recordError, recordSuccess } = useBackendStatus();
-  const depsEnabled = (options?.enabled ?? true) && taskIds.length > 0;
+
+  const { stableOrdered, sortedKey } = useMemo(() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const id of taskIds) {
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+    return {
+      stableOrdered: out,
+      sortedKey: [...out].sort((a, b) => a.localeCompare(b)).join(','),
+    };
+  }, [taskIds]);
+
+  const depsEnabled = (options?.enabled ?? true) && stableOrdered.length > 0;
 
   const { data, isLoading, error, isError } = useQuery({
-    queryKey: [...queryKeys.growthSystem.tasks.all(), 'dependencies', taskIds.sort().join(',')],
+    queryKey: [...queryKeys.growthSystem.tasks.all(), 'dependencies', 'batch', sortedKey],
     queryFn: async () => {
       try {
-        // Batch fetch dependencies for all tasks in parallel
         const { tasksService } = await import('@/services/growth-system/tasks.service');
-        const dependencyPromises = taskIds.map((taskId) =>
-          tasksService.getDependencies(taskId).then((res) => ({
-            taskId,
-            dependencies: res.success && res.data ? res.data : [],
-          }))
-        );
+        const batch = await tasksService.getDependenciesBatch(stableOrdered);
+        if (!batch.success || !batch.data?.items) {
+          throw new Error(batch.error?.message || 'Failed to batch-load task dependencies');
+        }
 
-        const results = await Promise.all(dependencyPromises);
-        const dependencyMap = new Map<string, (typeof results)[0]['dependencies']>();
-        const allDependencies: (typeof results)[0]['dependencies'] = [];
+        const dependencyMap = new Map<string, TaskDependency[]>();
+        const allDependencies: TaskDependency[] = [];
+        const depSeen = new Set<string>();
 
-        results.forEach(({ taskId, dependencies }) => {
-          dependencyMap.set(taskId, dependencies);
-          allDependencies.push(...dependencies);
-        });
+        for (const row of batch.data.items) {
+          dependencyMap.set(row.taskId, row.dependencies);
+          for (const dep of row.dependencies) {
+            if (depSeen.has(dep.id)) continue;
+            depSeen.add(dep.id);
+            allDependencies.push(dep);
+          }
+        }
 
-        if (results.length > 0) {
+        if (batch.data.items.length > 0) {
           recordSuccess();
         }
 
@@ -695,7 +723,7 @@ export const useTaskDependencies = (taskIds: string[], options?: { enabled?: boo
       }
     },
     enabled: depsEnabled,
-    staleTime: 2 * 60 * 1000, // 2 minutes - dependencies don't change frequently
+    staleTime: 2 * 60 * 1000,
   });
 
   const apiError = error ? extractApiError(error) : null;

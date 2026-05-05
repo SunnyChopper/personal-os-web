@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CheckSquare, Plus, Filter } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { Task } from '@/types/growth-system';
+import { formatDateString } from '@/utils/date-formatters';
 import { EmptyState } from './EmptyState';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
@@ -119,7 +120,12 @@ export function GoalTasksSection({
                       <StatusBadge status={task.status} size="sm" />
                       {task.dueDate && (
                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                          Due: {new Date(task.dueDate).toLocaleDateString()}
+                          Due:{' '}
+                          {formatDateString(task.dueDate, {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          }) ?? ''}
                         </span>
                       )}
                     </div>
