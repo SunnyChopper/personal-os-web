@@ -10,6 +10,7 @@ import {
 import { isBackendUnavailable, markdownFilesService } from '@/services/markdown-files.service';
 import { isLocalFileResult } from '@/lib/markdown/file-utils';
 import { invalidateAfterFileOperation } from '@/lib/markdown/query-invalidation';
+import { queryKeys } from '@/lib/react-query/query-keys';
 import { logger } from '@/lib/logger';
 
 export interface SaveFileResult {
@@ -55,6 +56,13 @@ export function useFileSave() {
 
       // Backend save succeeded
       deleteLocalFile(filePath);
+
+      if (result.data) {
+        queryClient.setQueryData(queryKeys.markdownFiles.detail(filePath), {
+          success: true,
+          data: { ...result.data, content },
+        });
+      }
 
       // Save metadata if present
       if (localFile?.tags || localFile?.category) {
@@ -126,6 +134,13 @@ export function useFileSave() {
       const localFile = getLocalFile(filePath);
       if (localFile && !localFile.syncedToBackend) {
         deleteLocalFile(filePath);
+      }
+
+      if (result.data) {
+        queryClient.setQueryData(queryKeys.markdownFiles.detail(filePath), {
+          success: true,
+          data: { ...result.data, content },
+        });
       }
 
       invalidateAfterFileOperation(queryClient, filePath);

@@ -276,11 +276,21 @@ export function AIInsightsWidget() {
           <p className="text-sm text-gray-500 dark:text-gray-500">Backend connection unavailable</p>
         </div>
       ) : isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-3 animate-pulse" aria-busy="true">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-4 animate-pulse">
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+            <div
+              key={i}
+              className="rounded-lg border border-amber-200/80 dark:border-amber-800/80 bg-white/55 dark:bg-gray-900/35 p-4 flex items-start gap-3 pr-6"
+            >
+              <div
+                className="flex-shrink-0 mt-0.5 w-10 h-10 rounded-md bg-gray-200 dark:bg-gray-700"
+                aria-hidden
+              />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-[72%]" aria-hidden />
+                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full" aria-hidden />
+                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-[86%]" aria-hidden />
+              </div>
             </div>
           ))}
         </div>

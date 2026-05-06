@@ -274,7 +274,7 @@ export default function MarkdownEditor({
               placeholder={placeholder}
               className={cn(
                 'flex-1 w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono text-sm resize-none focus:outline-none overflow-y-auto',
-                fullWidth ? 'px-8 py-6' : 'px-4 py-3'
+                fullWidth ? 'px-8 pt-6 pb-32' : 'px-4 pt-3 pb-24'
               )}
               style={{ minHeight }}
             />
@@ -287,7 +287,7 @@ export default function MarkdownEditor({
             className={cn(
               'flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900',
               viewMode === 'preview' && 'w-full',
-              fullWidth ? 'px-8 py-6' : 'px-4 py-3'
+              fullWidth ? 'px-8 pt-6 pb-32' : 'px-4 pt-3 pb-24'
             )}
           >
             {isLoading ? (

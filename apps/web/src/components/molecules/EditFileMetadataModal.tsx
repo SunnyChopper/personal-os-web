@@ -3,6 +3,7 @@ import { X, Tag, FolderKanban } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { markdownFilesService } from '@/services/markdown-files.service';
 import type { MarkdownFile } from '@/types/markdown-files';
+import CategoryCombobox from '@/components/molecules/CategoryCombobox';
 
 interface EditFileMetadataModalProps {
   isOpen: boolean;
@@ -173,24 +174,13 @@ export default function EditFileMetadataModal({
               <FolderKanban size={14} className="inline mr-1" />
               Category
             </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                list="category-suggestions"
-                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter category"
-                disabled={isSaving}
-              />
-              {availableCategories?.data && availableCategories.data.length > 0 && (
-                <datalist id="category-suggestions">
-                  {availableCategories.data.map((cat) => (
-                    <option key={cat} value={cat} />
-                  ))}
-                </datalist>
-              )}
-            </div>
+            <CategoryCombobox
+              value={category}
+              onChange={setCategory}
+              options={availableCategories?.data ?? []}
+              disabled={isSaving}
+              placeholder="Enter or select a category"
+            />
           </div>
 
           {error && (

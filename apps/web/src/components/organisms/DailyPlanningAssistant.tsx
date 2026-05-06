@@ -202,15 +202,48 @@ export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantPro
 
   if (isLoading || isGeneratingPlan || !plan) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
-          <div className="space-y-2">
-            <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
+      <div
+        className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-6"
+        aria-busy="true"
+      >
+        <div className="flex items-center justify-between mb-4 gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg shrink-0">
+              <Sun className="w-6 h-6 text-blue-600/35 dark:text-blue-400/30" aria-hidden />
+            </div>
+            <div className="flex-1 min-w-0 space-y-2 animate-pulse">
+              <div className="h-7 bg-blue-200/80 dark:bg-blue-800/50 rounded-md w-48 max-w-[85%]" />
+              <div className="h-4 bg-blue-100/90 dark:bg-blue-900/45 rounded w-40 max-w-[70%]" />
+            </div>
           </div>
+          <div
+            className="h-10 w-[7.5rem] rounded-lg bg-blue-200/90 dark:bg-blue-800/50 shrink-0 animate-pulse"
+            aria-hidden
+          />
+        </div>
+
+        <div className="mb-4 p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg animate-pulse space-y-2">
+          <div className="h-4 bg-blue-100 dark:bg-gray-700 rounded w-full" />
+          <div className="h-4 bg-blue-100 dark:bg-gray-700 rounded w-[94%]" />
+        </div>
+
+        <div className="space-y-2 animate-pulse">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-100 dark:border-gray-700 flex items-center gap-3"
+            >
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/40 shrink-0" />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-[72%]" />
+                <div className="flex gap-2">
+                  <div className="h-5 w-9 bg-gray-200 dark:bg-gray-600 rounded" />
+                  <div className="h-4 w-11 bg-gray-200 dark:bg-gray-600 rounded self-end" />
+                </div>
+              </div>
+              <div className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-600 shrink-0" />
+            </div>
+          ))}
         </div>
       </div>
     );

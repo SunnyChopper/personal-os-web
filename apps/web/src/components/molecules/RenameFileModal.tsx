@@ -10,6 +10,10 @@ interface RenameFileModalProps {
   currentPath: string;
   currentName: string;
   isRenaming?: boolean;
+  /** When `saveAs`, same path is allowed (first save of untitled file). */
+  mode?: 'rename' | 'saveAs';
+  /** Primary action button label; defaults by mode. */
+  primaryLabel?: string;
 }
 
 export default function RenameFileModal({
@@ -19,6 +23,8 @@ export default function RenameFileModal({
   currentPath,
   currentName,
   isRenaming = false,
+  mode = 'rename',
+  primaryLabel,
 }: RenameFileModalProps) {
   const [newFileName, setNewFileName] = useState('');
   const [folderPath, setFolderPath] = useState('');
@@ -85,8 +91,8 @@ export default function RenameFileModal({
       ? `${folderPath.trim()}/${newFileName.trim()}`
       : newFileName.trim();
 
-    // Check if path is the same
-    if (fullPath === currentPath) {
+    // In rename mode, require a different path; saveAs allows keeping Untitled-N.md
+    if (mode !== 'saveAs' && fullPath === currentPath) {
       setError('New path must be different from current path');
       return;
     }
@@ -131,7 +137,7 @@ export default function RenameFileModal({
             id="rename-modal-title"
             className="text-lg font-semibold text-gray-900 dark:text-white"
           >
-            Rename File
+            {mode === 'saveAs' ? 'Save File As' : 'Rename File'}
           </h2>
           <button
             onClick={handleClose}
@@ -235,7 +241,11 @@ export default function RenameFileModal({
             disabled={isRenaming || !newFileName.trim()}
             size="sm"
           >
-            {isRenaming ? 'Renaming...' : 'Rename File'}
+            {isRenaming
+              ? mode === 'saveAs'
+                ? 'Saving...'
+                : 'Renaming...'
+              : primaryLabel ?? (mode === 'saveAs' ? 'Save with this name' : 'Rename File')}
           </Button>
         </div>
       </div>

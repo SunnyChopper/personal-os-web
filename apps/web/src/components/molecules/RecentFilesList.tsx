@@ -4,6 +4,7 @@ import { useNavigate, generatePath } from 'react-router-dom';
 import { getRecentFiles, removeRecentFile, type RecentFile } from '@/hooks/useRecentFiles';
 import { ROUTES } from '@/routes';
 import { cn } from '@/lib/utils';
+import MarqueeText from '@/components/atoms/MarqueeText';
 
 interface RecentFilesListProps {
   maxItems?: number;
@@ -73,23 +74,30 @@ export default function RecentFilesList({
         </div>
         <div className="space-y-1">
           {recentFiles.map((file) => (
-            <button
+            <div
               key={file.path}
-              onClick={() => handleFileClick(file.path)}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
+              className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
             >
-              <FileText size={12} className="flex-shrink-0 text-gray-400" />
-              <span className="flex-1 truncate text-xs text-gray-600 dark:text-gray-400">
-                {file.name}
-              </span>
               <button
+                type="button"
+                onClick={() => handleFileClick(file.path)}
+                className="flex-1 flex items-center gap-2 min-w-0 text-left"
+              >
+                <FileText size={12} className="flex-shrink-0 text-gray-400" />
+                <MarqueeText
+                  text={file.name}
+                  className="min-w-0 flex-1 text-xs text-gray-600 dark:text-gray-400"
+                />
+              </button>
+              <button
+                type="button"
                 onClick={(e) => handleRemove(e, file.path)}
-                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition"
+                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition flex-shrink-0"
                 aria-label="Remove from recent"
               >
                 <X size={10} className="text-gray-400" />
               </button>
-            </button>
+            </div>
           ))}
         </div>
       </div>

@@ -298,7 +298,7 @@ export default function MarkdownFileTree({
       </div>
 
       {/* Recent Files (only in tree view) */}
-      {viewMode === 'tree' && <RecentFilesList onFileSelect={onFileSelect} maxItems={10} />}
+      {viewMode === 'tree' && <RecentFilesList onFileSelect={onFileSelect} maxItems={5} />}
 
       {/* Search and Actions Header */}
       <div className="p-2 border-b border-gray-200 dark:border-gray-700">

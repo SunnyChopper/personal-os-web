@@ -17,13 +17,66 @@ interface GoalsDashboardWidgetProps {
   goals: Goal[];
   goalsProgress: Map<string, number>;
   className?: string;
+  /** Shows skeleton goal rows instead of empty state while dashboard data loads */
+  isLoading?: boolean;
 }
 
 export function GoalsDashboardWidget({
   goals,
   goalsProgress,
   className = '',
+  isLoading = false,
 }: GoalsDashboardWidgetProps) {
+  if (isLoading) {
+    return (
+      <div
+        className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 ${className}`}
+        aria-busy="true"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Target className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            Focus Goals
+          </h2>
+          <Link
+            to={ROUTES.admin.goals}
+            className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+          >
+            View All
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 min-h-[140px] flex flex-col animate-pulse"
+            >
+              <div className="flex items-start justify-between mb-3 gap-3">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="w-7 h-7 rounded-full bg-gray-300 dark:bg-gray-600 shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-[78%]" />
+                    <div className="flex items-center gap-2">
+                      <div className="h-5 w-14 bg-gray-200 dark:bg-gray-600 rounded-md" />
+                      <div className="h-3 w-16 bg-gray-200 dark:bg-gray-600 rounded" />
+                    </div>
+                  </div>
+                </div>
+                <div className="w-11 h-11 rounded-full bg-gray-200 dark:bg-gray-600 shrink-0" />
+              </div>
+              <div className="h-2 bg-gray-200 dark:bg-gray-600 rounded-full mb-2" />
+              <div className="flex items-center justify-between mt-auto pt-1 gap-4">
+                <div className="h-3 w-28 bg-gray-200 dark:bg-gray-600 rounded" />
+                <div className="h-3 w-20 bg-gray-200 dark:bg-gray-600 rounded shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Get top 3 priority goals
   const activeGoals = goals
     .filter((g) => g.status === 'Active' || g.status === 'On Track' || g.status === 'At Risk')

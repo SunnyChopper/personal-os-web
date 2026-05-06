@@ -21,7 +21,7 @@ import LocalOnlyFileWarning from '@/components/molecules/LocalOnlyFileWarning';
 import MarkdownBackendWarning from '@/components/molecules/MarkdownBackendWarning';
 import DeleteFileDialog from '@/components/molecules/DeleteFileDialog';
 import RenameFileModal from '@/components/molecules/RenameFileModal';
-import { updateLocalFile, getLocalFile } from '@/hooks/useLocalFiles';
+import { updateLocalFile, getLocalFile, isUntitledLocalPath } from '@/hooks/useLocalFiles';
 import { useFileTree } from '@/hooks/useFileTree';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ROUTES } from '@/routes';
@@ -36,13 +36,17 @@ import { useFileMetadata } from '@/hooks/markdown/useFileMetadata';
 import { useFileOperationFeedback } from '@/hooks/markdown/useFileOperationFeedback';
 import { useModalState } from '@/hooks/markdown/useModalState';
 import { extractErrorMessage } from '@/lib/react-query/error-utils';
+import MarqueeText from '@/components/atoms/MarqueeText';
+import { formatFileSize } from '@/utils/file-formatters';
+import { formatRelativeDate } from '@/utils/date-formatters';
 
 interface MarkdownViewerProps {
   filePath: string | undefined;
 }
 
 export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
-  const { file, isLoading, error, isUpdating, isLocalOnly } = useMarkdownFile(filePath);
+  const { file, isLoading, isFetching, error, isUpdating, isLocalOnly } =
+    useMarkdownFile(filePath);
   const { isOnline: isBackendOnline } = useMarkdownBackendStatus();
   const { isLoading: isFileTreeLoading } = useFileTree();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -89,21 +93,23 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
     }
   }, [file, filePath, isLocalOnly]);
 
-  // Handle reload completion after save
+  // Handle reload completion after save (wait for refetch, not just initial load)
   useEffect(() => {
-    if (isReloadingAfterSave && file && !isLoading) {
-      // File has finished reloading after save - now hide the overlay
-      // Both states are set to false to ensure overlay disappears
+    if (isReloadingAfterSave && file && !isFetching) {
       setIsReloadingAfterSave(false);
       setIsSaving(false);
     }
-  }, [isReloadingAfterSave, file, isLoading]);
+  }, [isReloadingAfterSave, file, isFetching]);
 
   // Reset state when filePath changes (using key-like behavior)
   // This is a valid pattern for syncing state from props/external data
   // We need to sync editedContent when the file changes to reset the editor
   // Note: This pattern is necessary for syncing editor state with file content changes
   useEffect(() => {
+    if (isReloadingAfterSave) {
+      return;
+    }
+
     const filePathChanged = filePath !== filePathRef.current;
     const contentChanged = file?.content !== fileContentRef.current;
 
@@ -133,10 +139,15 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
         }
       }
     }
-  }, [filePath, file, file?.content, isLocalOnly, clearMessages]);
+  }, [filePath, file, file?.content, isLocalOnly, clearMessages, isReloadingAfterSave]);
 
   const handleSave = async () => {
     if (!filePath) return;
+    // Untitled local-only: confirm name via modal first (plan: Save File As)
+    if (isLocalOnly && isUntitledLocalPath(filePath)) {
+      openModal('rename');
+      return;
+    }
     // Allow saving local-only files even if content hasn't changed (they need to be saved to cloud)
     // For regular files, require hasChanges
     if (!isLocalOnly && !hasChanges) return;
@@ -185,6 +196,35 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
       const content = isLocalOnly
         ? editedContent || getLocalFile(filePath)?.content || ''
         : file?.content || editedContent || '';
+
+      // First save of untitled file keeping the same path: upload without delete/recreate
+      if (
+        newPath === filePath &&
+        isLocalOnly &&
+        isUntitledLocalPath(filePath)
+      ) {
+        setIsSaving(true);
+        setIsReloadingAfterSave(true);
+        try {
+          const result = await saveFile(filePath, content, true);
+          setIsEditing(false);
+          setHasChanges(false);
+          if (result.local) {
+            setSaveSuccess('File saved locally');
+          } else {
+            setSaveSuccess('File saved successfully');
+          }
+          setTimeout(() => {
+            setSaveSuccess(null);
+          }, 5000);
+          closeModal();
+        } catch (saveErr) {
+          setIsSaving(false);
+          setIsReloadingAfterSave(false);
+          throw saveErr;
+        }
+        return;
+      }
 
       await renameFile(filePath, newPath, content);
       closeModal();
@@ -314,12 +354,27 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
           {/* Title and Actions */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-3 sm:px-4 pb-4">
             <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                {file?.name || filePath.split('/').pop() || 'Untitled'}
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <MarqueeText
+                  text={file?.name || filePath.split('/').pop() || 'Untitled'}
+                  className="w-full"
+                />
               </h2>
-              {file?.path && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{file.path}</p>
-              )}
+              <div className="mt-1 space-y-0.5">
+                {file?.path && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={file.path}>
+                    {file.path}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                  {typeof file?.size === 'number' && file.size >= 0 && (
+                    <span>{formatFileSize(file.size)}</span>
+                  )}
+                  {file?.updatedAt && (
+                    <span>{formatRelativeDate(file.updatedAt)}</span>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {/* Action buttons - View mode: Edit, Tags, Rename, Delete | Edit mode: Cancel, Tags, Rename, Delete, Save */}
@@ -495,7 +550,10 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
           onRename={handleRename}
           currentPath={filePath}
           currentName={file?.name || filePath.split('/').pop() || 'Untitled'}
-          isRenaming={isRenaming}
+          isRenaming={isRenaming || isSaving}
+          mode={
+            isLocalOnly && isUntitledLocalPath(filePath) ? 'saveAs' : 'rename'
+          }
         />
       )}
 
