@@ -1188,6 +1188,22 @@ export const authService = {
   },
 
   /**
+   * Access token suitable for WebSocket URL auth (refreshes when expired or near expiry).
+   */
+  async getValidAccessToken(): Promise<string | null> {
+    if (!this.isAuthenticated()) {
+      return null;
+    }
+    if (this.areStoredTokensExpired() || this.shouldRefreshTokenProactively()) {
+      const result = await this.refreshToken();
+      if (!result.success) {
+        return null;
+      }
+    }
+    return this.getAccessToken();
+  },
+
+  /**
    * Clear tokens without making an API call
    * Use this when you need to clear auth state without calling the backend
    */

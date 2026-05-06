@@ -244,7 +244,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
     }
     const client = new AssistantWsClient({
       wsBaseUrl: WS_BASE_URL,
-      getAccessToken: async () => authService.getAccessToken(),
+      getAccessToken: async () => authService.getValidAccessToken(),
       keepAliveIntervalMs: 240_000,
       onConnectionStateChange: (state) => {
         setConnectionState(state);
@@ -605,16 +605,22 @@ export function useAssistantStreaming(threadId: string | undefined) {
       if (isDisposed) {
         return;
       }
-      client.connect().catch(() => {
+      client.connect().catch((reason: unknown) => {
         if (isDisposed) {
           return;
         }
         setConnectionState('failed');
+        const handshakeMessage =
+          reason instanceof Error ? reason.message : String(reason);
         setError({
           runId: 'connection',
           threadId: threadIdRef.current ?? '',
           message: 'Failed to connect to assistant streaming service.',
           code: 'CONNECTION_FAILED',
+          details: {
+            handshakeError: handshakeMessage,
+            ...(reason instanceof Error && reason.name ? { errorName: reason.name } : {}),
+          },
         });
       });
     }, 0);

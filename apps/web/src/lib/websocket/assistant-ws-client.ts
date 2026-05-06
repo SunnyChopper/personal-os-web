@@ -13,6 +13,7 @@ import type {
   WsRunErrorPayload,
   WsAssistantModelResolvedPayload,
 } from '@/types/chatbot';
+import { wsLogger } from '@/lib/logger';
 
 export type WsContextBudgetMetaPayload = {
   runId: string;
@@ -254,7 +255,9 @@ export class AssistantWsClient {
         if (this.pendingCloseOnOpen) {
           this.pendingCloseOnOpen = false;
           ws.close();
-          failHandshake(new Error('WebSocket closed before establishing session'));
+          failHandshake(
+            new Error('WebSocket closed before establishing session (pendingCloseOnOpen)')
+          );
           this.setConnectionState('disconnected');
           return;
         }
@@ -268,7 +271,16 @@ export class AssistantWsClient {
 
       ws.onclose = (event) => {
         if (!handshakeSettled) {
-          failHandshake(new Error('WebSocket closed before open'));
+          wsLogger.warn('WebSocket handshake closed before open', {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean,
+          });
+          failHandshake(
+            new Error(
+              `WebSocket closed before open (code=${event.code} reason=${event.reason || 'n/a'} wasClean=${event.wasClean})`
+            )
+          );
           return;
         }
         this.handlers.onClose?.(event);
@@ -285,7 +297,8 @@ export class AssistantWsClient {
       ws.onerror = (event) => {
         this.handlers.onError?.(event);
         if (!handshakeSettled) {
-          failHandshake(new Error('WebSocket handshake error'));
+          wsLogger.warn('WebSocket handshake error event', { type: event.type });
+          failHandshake(new Error(`WebSocket handshake error (${event.type})`));
         }
       };
 
