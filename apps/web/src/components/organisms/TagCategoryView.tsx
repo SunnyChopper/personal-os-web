@@ -165,7 +165,10 @@ export default function TagCategoryView({ viewMode, onFileSelect }: TagCategoryV
                     >
                       <div className="flex items-center gap-2 min-w-0 w-full">
                         <FileText size={14} className="flex-shrink-0" />
-                        <MarqueeText text={file.name} className="flex-1 min-w-0 text-sm font-medium" />
+                        <MarqueeText
+                          text={file.name}
+                          className="flex-1 min-w-0 text-sm font-medium"
+                        />
                       </div>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-6 text-[11px] text-gray-500 dark:text-gray-400">
                         {typeof file.size === 'number' && file.size >= 0 && (

@@ -10,9 +10,7 @@ export interface CategoryComboboxProps {
   placeholder?: string;
 }
 
-type Row =
-  | { kind: 'opt'; label: string }
-  | { kind: 'create'; label: string; createValue: string };
+type Row = { kind: 'opt'; label: string } | { kind: 'create'; label: string; createValue: string };
 
 /**
  * Text input with dropdown of known categories; supports creating a new value.

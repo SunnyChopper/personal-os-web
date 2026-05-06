@@ -31,14 +31,7 @@ interface StatCardProps {
   isLoading?: boolean;
 }
 
-const StatCard = ({
-  title,
-  value,
-  icon,
-  link,
-  description,
-  isLoading = false,
-}: StatCardProps) => {
+const StatCard = ({ title, value, icon, link, description, isLoading = false }: StatCardProps) => {
   return (
     <Link
       to={link}

@@ -610,8 +610,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
           return;
         }
         setConnectionState('failed');
-        const handshakeMessage =
-          reason instanceof Error ? reason.message : String(reason);
+        const handshakeMessage = reason instanceof Error ? reason.message : String(reason);
         setError({
           runId: 'connection',
           threadId: threadIdRef.current ?? '',

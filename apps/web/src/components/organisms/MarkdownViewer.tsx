@@ -45,8 +45,7 @@ interface MarkdownViewerProps {
 }
 
 export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
-  const { file, isLoading, isFetching, error, isUpdating, isLocalOnly } =
-    useMarkdownFile(filePath);
+  const { file, isLoading, isFetching, error, isUpdating, isLocalOnly } = useMarkdownFile(filePath);
   const { isOnline: isBackendOnline } = useMarkdownBackendStatus();
   const { isLoading: isFileTreeLoading } = useFileTree();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -198,11 +197,7 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
         : file?.content || editedContent || '';
 
       // First save of untitled file keeping the same path: upload without delete/recreate
-      if (
-        newPath === filePath &&
-        isLocalOnly &&
-        isUntitledLocalPath(filePath)
-      ) {
+      if (newPath === filePath && isLocalOnly && isUntitledLocalPath(filePath)) {
         setIsSaving(true);
         setIsReloadingAfterSave(true);
         try {
@@ -362,7 +357,10 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
               </h2>
               <div className="mt-1 space-y-0.5">
                 {file?.path && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={file.path}>
+                  <p
+                    className="text-xs text-gray-500 dark:text-gray-400 truncate"
+                    title={file.path}
+                  >
                     {file.path}
                   </p>
                 )}
@@ -370,9 +368,7 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
                   {typeof file?.size === 'number' && file.size >= 0 && (
                     <span>{formatFileSize(file.size)}</span>
                   )}
-                  {file?.updatedAt && (
-                    <span>{formatRelativeDate(file.updatedAt)}</span>
-                  )}
+                  {file?.updatedAt && <span>{formatRelativeDate(file.updatedAt)}</span>}
                 </div>
               </div>
             </div>
@@ -551,9 +547,7 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
           currentPath={filePath}
           currentName={file?.name || filePath.split('/').pop() || 'Untitled'}
           isRenaming={isRenaming || isSaving}
-          mode={
-            isLocalOnly && isUntitledLocalPath(filePath) ? 'saveAs' : 'rename'
-          }
+          mode={isLocalOnly && isUntitledLocalPath(filePath) ? 'saveAs' : 'rename'}
         />
       )}
 

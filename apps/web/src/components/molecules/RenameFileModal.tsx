@@ -245,7 +245,7 @@ export default function RenameFileModal({
               ? mode === 'saveAs'
                 ? 'Saving...'
                 : 'Renaming...'
-              : primaryLabel ?? (mode === 'saveAs' ? 'Save with this name' : 'Rename File')}
+              : (primaryLabel ?? (mode === 'saveAs' ? 'Save with this name' : 'Rename File'))}
           </Button>
         </div>
       </div>
