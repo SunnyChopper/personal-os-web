@@ -10,6 +10,7 @@ export {
   getAllLocalFiles,
   getLocalFile,
   isLocalOnlyFile,
+  isUntitledLocalPath,
   markAsSynced,
   purgeLocalFile,
   updateLocalFile,
@@ -22,6 +23,7 @@ import {
   getAllLocalFiles,
   getLocalFile,
   isLocalOnlyFile,
+  isUntitledLocalPath,
   markAsSynced,
   purgeLocalFile,
   updateLocalFile,
@@ -37,6 +39,7 @@ export function useLocalFiles() {
     purgeLocalFile,
     getAllLocalFiles,
     isLocalOnlyFile,
+    isUntitledLocalPath,
     markAsSynced,
     updateLocalFileMetadata,
   };

@@ -8,7 +8,7 @@ vi.mock('@/lib/sound-effects', () => ({
 }));
 
 vi.mock('@/lib/auth/auth.service', () => ({
-  authService: { getAccessToken: vi.fn().mockResolvedValue('token') },
+  authService: { getValidAccessToken: vi.fn().mockResolvedValue('token') },
 }));
 
 class MockWebSocket {

@@ -42,7 +42,7 @@ export function useMarkdownFile(filePath: string | undefined) {
     !isTreeLoading &&
     (treeData?.success === true || (treeData?.data && treeData.data.length > 0) || tree.length > 0);
 
-  const { data, isLoading, error, isError } = useQuery({
+  const { data, isLoading, isFetching, error, isError } = useQuery({
     queryKey: queryKeys.markdownFiles.detail(filePath || ''),
     queryFn: async () => {
       if (!filePath) {
@@ -254,6 +254,7 @@ export function useMarkdownFile(filePath: string | undefined) {
   return {
     file: data?.data,
     isLoading,
+    isFetching,
     isError,
     error: apiError || error,
     updateFile: updateMutation.mutateAsync,

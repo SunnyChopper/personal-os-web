@@ -7,6 +7,9 @@ import { useQuery } from '@tanstack/react-query';
 import { ROUTES } from '@/routes';
 import { cn } from '@/lib/utils';
 import type { MarkdownFile } from '@/types/markdown-files';
+import MarqueeText from '@/components/atoms/MarqueeText';
+import { formatFileSize } from '@/utils/file-formatters';
+import { formatRelativeDate } from '@/utils/date-formatters';
 
 interface TagCategoryViewProps {
   viewMode: 'tags' | 'categories';
@@ -156,11 +159,27 @@ export default function TagCategoryView({ viewMode, onFileSelect }: TagCategoryV
                   {groupFiles.map((file) => (
                     <button
                       key={file.id}
+                      type="button"
                       onClick={() => handleFileClick(file.path)}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                      className="w-full flex flex-col items-stretch gap-0.5 px-3 py-2 rounded-lg transition text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                     >
-                      <FileText size={14} className="flex-shrink-0" />
-                      <span className="flex-1 truncate text-sm">{file.name}</span>
+                      <div className="flex items-center gap-2 min-w-0 w-full">
+                        <FileText size={14} className="flex-shrink-0" />
+                        <MarqueeText
+                          text={file.name}
+                          className="flex-1 min-w-0 text-sm font-medium"
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-6 text-[11px] text-gray-500 dark:text-gray-400">
+                        {typeof file.size === 'number' && file.size >= 0 && (
+                          <span>{formatFileSize(file.size)}</span>
+                        )}
+                        {file.updatedAt && (
+                          <span className="hidden sm:inline">
+                            {formatRelativeDate(file.updatedAt)}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>

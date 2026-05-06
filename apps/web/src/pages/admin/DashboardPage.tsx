@@ -27,12 +27,15 @@ interface StatCardProps {
   icon: React.ReactNode;
   link: string;
   description: string;
+  /** When true, shows skeleton placeholders for value and description instead of misleading zeros */
+  isLoading?: boolean;
 }
 
-const StatCard = ({ title, value, icon, link, description }: StatCardProps) => {
+const StatCard = ({ title, value, icon, link, description, isLoading = false }: StatCardProps) => {
   return (
     <Link
       to={link}
+      aria-busy={isLoading}
       className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:accent-border-300 dark:hover:accent-border-600 hover:shadow-md transition group"
     >
       <div className="flex items-center gap-4">
@@ -40,9 +43,25 @@ const StatCard = ({ title, value, icon, link, description }: StatCardProps) => {
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{value}</h3>
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{title}</p>
-          <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{description}</p>
+          {isLoading ? (
+            <>
+              <div
+                className="h-9 w-16 rounded-md bg-gray-200 dark:bg-gray-700 animate-pulse mb-2"
+                aria-hidden
+              />
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{title}</p>
+              <div
+                className="mt-1 h-3 max-w-[85%] rounded bg-gray-200 dark:bg-gray-700 animate-pulse"
+                aria-hidden
+              />
+            </>
+          ) : (
+            <>
+              <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{value}</h3>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{title}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{description}</p>
+            </>
+          )}
         </div>
       </div>
     </Link>
@@ -136,6 +155,7 @@ export default function DashboardPage() {
               icon={<CheckSquare size={24} />}
               link={ROUTES.admin.tasks}
               description={dashboardError ? 'Connection error' : `${tasks.length} total tasks`}
+              isLoading={dashboardLoading}
             />
             <StatCard
               title="Metrics Tracked"
@@ -143,6 +163,7 @@ export default function DashboardPage() {
               icon={<TrendingUp size={24} />}
               link={ROUTES.admin.metrics}
               description={dashboardError ? 'Connection error' : 'Key performance indicators'}
+              isLoading={dashboardLoading}
             />
             <StatCard
               title="Active Goals"
@@ -150,6 +171,7 @@ export default function DashboardPage() {
               icon={<Target size={24} />}
               link={ROUTES.admin.goals}
               description={dashboardError ? 'Connection error' : `${goals.length} total goals`}
+              isLoading={dashboardLoading}
             />
             <StatCard
               title="Active Projects"
@@ -159,6 +181,7 @@ export default function DashboardPage() {
               description={
                 dashboardError ? 'Connection error' : `${projects.length} total projects`
               }
+              isLoading={dashboardLoading}
             />
           </>
         )}
@@ -168,6 +191,7 @@ export default function DashboardPage() {
           icon={<Calendar size={24} />}
           link={ROUTES.admin.habits}
           description={dashboardError ? 'Connection error' : `${habits.length} total habits`}
+          isLoading={dashboardLoading}
         />
         <StatCard
           title="Journal Entries"
@@ -175,6 +199,7 @@ export default function DashboardPage() {
           icon={<BookOpen size={24} />}
           link={ROUTES.admin.logbook}
           description={dashboardError ? 'Connection error' : 'Daily reflections'}
+          isLoading={dashboardLoading}
         />
         {isLeisureMode && (
           <>
@@ -205,7 +230,13 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <DailyPlanningAssistant onStartDay={() => setIsLaunchpadOpen(true)} />
-        {!isLeisureMode && <GoalsDashboardWidget goals={goals} goalsProgress={goalsProgress} />}
+        {!isLeisureMode && (
+          <GoalsDashboardWidget
+            goals={goals}
+            goalsProgress={goalsProgress}
+            isLoading={dashboardLoading}
+          />
+        )}
         <AIInsightsWidget />
       </div>
 
@@ -224,9 +255,18 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : dashboardLoading ? (
-              <div className="space-y-2 animate-pulse">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-16 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-3 p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg animate-pulse"
+                  >
+                    <div className="w-2 h-2 rounded-full mt-2 bg-gray-300 dark:bg-gray-600 shrink-0" />
+                    <div className="flex-1 min-w-0 space-y-2 pt-0.5">
+                      <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-[82%]" />
+                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-24" />
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : activeTasks.length > 0 ? (
@@ -280,9 +320,15 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : dashboardLoading ? (
-              <div className="space-y-2 animate-pulse">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-16 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className="p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg animate-pulse flex items-start justify-between gap-3"
+                  >
+                    <div className="h-4 flex-1 max-w-[72%] bg-gray-200 dark:bg-gray-600 rounded" />
+                    <div className="h-3 w-14 shrink-0 bg-gray-200 dark:bg-gray-600 rounded mt-0.5" />
+                  </div>
                 ))}
               </div>
             ) : activeProjects.length > 0 ? (

@@ -4,7 +4,9 @@ import { useNavigate, generatePath } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { ROUTES } from '@/routes';
 import type { FileTreeNode } from '@/types/markdown-files';
+import { formatFileSize } from '@/utils/file-formatters';
 import { formatRelativeDate } from '@/utils/date-formatters';
+import MarqueeText from '@/components/atoms/MarqueeText';
 import FileContextMenu from './FileContextMenu';
 import { isLocalOnlyFile } from '@/hooks/useLocalFiles';
 import { useMarkdownBackendStatus } from '@/hooks/useMarkdownBackendStatus';
@@ -55,14 +57,7 @@ export default function MarkdownFileItem({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('Context menu triggered for:', node.name, { x: e.clientX, y: e.clientY });
     setContextMenu({ x: e.clientX, y: e.clientY });
-  };
-
-  const formatSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   // Get the correct file size, checking sessionStorage if metadata size is 0
@@ -164,7 +159,7 @@ export default function MarkdownFileItem({
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
         className={cn(
-          'w-full flex items-center gap-2 px-3 py-2 rounded-lg transition text-left',
+          'w-full flex flex-col items-stretch gap-0.5 px-3 py-2 rounded-lg transition text-left',
           'hover:bg-gray-100 dark:hover:bg-gray-700',
           'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1',
           isActive && 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium',
@@ -174,17 +169,19 @@ export default function MarkdownFileItem({
         aria-label={`Open file ${node.name}`}
         aria-current={isActive ? 'page' : undefined}
       >
-        <FileText size={16} className="flex-shrink-0" />
-        <span className="flex-1 truncate">{node.name}</span>
-        {getStatusIcon()}
+        <div className="flex items-center gap-2 min-w-0 w-full">
+          <FileText size={16} className="flex-shrink-0" />
+          <MarqueeText text={node.name} className="flex-1 min-w-0 font-medium" />
+          {getStatusIcon()}
+        </div>
         {metadata && (
-          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-6 text-[11px] text-gray-500 dark:text-gray-400">
             {metadata.tags && metadata.tags.length > 0 && (
-              <span className="hidden sm:inline" title={`Tags: ${metadata.tags.join(', ')}`}>
+              <span title={`Tags: ${metadata.tags.join(', ')}`}>
                 {metadata.tags.length} tag{metadata.tags.length !== 1 ? 's' : ''}
               </span>
             )}
-            <span>{formatSize(fileSize)}</span>
+            <span>{formatFileSize(fileSize)}</span>
             {metadata.updatedAt && (
               <span className="hidden sm:inline">{formatRelativeDate(metadata.updatedAt)}</span>
             )}
