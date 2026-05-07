@@ -8,6 +8,7 @@ import type {
   GetFileResponse,
   CreateFileRequest,
   CreateFileResponse,
+  UpdateFileMetadataRequest,
   UpdateFileRequest,
   UpdateFileResponse,
   DeleteFileResponse,
@@ -393,8 +394,8 @@ export const markdownFilesService = {
     category: string
   ): Promise<ApiResponse<MarkdownFile>> {
     const encodedPath = encodeURIComponent(filePath);
-    const request: UpdateFileRequest = { tags, category };
-    const response = await apiClient.put<UpdateFileResponse>(
+    const request: UpdateFileMetadataRequest = { tags, category };
+    const response = await apiClient.patch<UpdateFileResponse>(
       `/markdown-files/${encodedPath}`,
       request
     );
@@ -463,8 +464,11 @@ export const markdownFilesService = {
     tags: string[],
     category: string
   ): Promise<ApiResponse<MarkdownFile>> {
-    const request: UpdateFileRequest = { tags, category };
-    const response = await apiClient.put<UpdateFileResponse>(`/markdown-files/${fileId}`, request);
+    const request: UpdateFileMetadataRequest = { tags, category };
+    const response = await apiClient.patch<UpdateFileResponse>(
+      `/markdown-files/${fileId}`,
+      request
+    );
 
     if (response.success && response.data) {
       return {
