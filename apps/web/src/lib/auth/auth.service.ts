@@ -1197,6 +1197,9 @@ export const authService = {
     if (this.areStoredTokensExpired() || this.shouldRefreshTokenProactively()) {
       const result = await this.refreshToken();
       if (!result.success) {
+        authLogger.warn('getValidAccessToken: refresh failed (WebSocket / streaming auth path)', {
+          error: result.error,
+        });
         return null;
       }
     }
