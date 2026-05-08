@@ -52,6 +52,14 @@ export interface UpdateFileRequest {
   category?: string;
 }
 
+/** Body for `PATCH /markdown-files/{fileId}` (metadata partial update). */
+export interface UpdateFileMetadataRequest {
+  tags?: string[];
+  category?: string;
+  path?: string;
+  sharedWith?: string[];
+}
+
 export interface UpdateFileResponse {
   file: MarkdownFile;
 }

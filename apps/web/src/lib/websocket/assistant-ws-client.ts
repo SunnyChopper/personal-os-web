@@ -14,6 +14,29 @@ import type {
   WsAssistantModelResolvedPayload,
 } from '@/types/chatbot';
 import { wsLogger } from '@/lib/logger';
+import {
+  WsHandshakeClosedError,
+  WsHandshakeRefusedError,
+  WsNoTokenError,
+} from '@/lib/websocket/assistant-ws-errors';
+
+function jwtExpRemainingSeconds(token: string): number | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) {
+      return null;
+    }
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '=');
+    const payload = JSON.parse(atob(padded)) as { exp?: number };
+    if (!payload.exp || typeof payload.exp !== 'number') {
+      return null;
+    }
+    return payload.exp - Math.floor(Date.now() / 1000);
+  } catch {
+    return null;
+  }
+}
 
 export type WsContextBudgetMetaPayload = {
   runId: string;
@@ -48,6 +71,8 @@ type WsEventHandlers = {
 type AssistantWsClientOptions = WsEventHandlers & {
   wsBaseUrl: string;
   getAccessToken: () => Promise<string | null>;
+  /** Runs once before the first socket open (e.g. HTTP preflight). Reset on disconnect/manualReconnect. */
+  beforeConnect?: () => Promise<void>;
   reconnect?: boolean;
   maxReconnectAttempts?: number;
   reconnectBaseDelayMs?: number;
@@ -93,6 +118,8 @@ export class AssistantWsClient {
   private readonly reconnectMaxDelayMs: number;
   private readonly authTokenParam: string;
   private readonly keepAliveIntervalMs: number;
+  private readonly beforeConnect?: () => Promise<void>;
+  private beforeConnectCompleted = false;
   private connectionState: AssistantWsConnectionState = 'disconnected';
   private pendingCloseOnOpen = false;
   private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
@@ -124,6 +151,7 @@ export class AssistantWsClient {
     this.reconnectMaxDelayMs = options.reconnectMaxDelayMs ?? 8000;
     this.authTokenParam = options.authTokenParam ?? 'authToken';
     this.keepAliveIntervalMs = options.keepAliveIntervalMs ?? 0;
+    this.beforeConnect = options.beforeConnect;
   }
 
   async connect(): Promise<void> {
@@ -136,18 +164,28 @@ export class AssistantWsClient {
 
     this.shouldReconnect = true;
     this.setConnectionState('connecting');
-    const attemptId = ++this.connectionAttemptId;
-    const pendingConnect = this.openSocket(attemptId).finally(() => {
-      if (this.connectPromise === pendingConnect) {
-        this.connectPromise = null;
+    try {
+      if (this.beforeConnect && !this.beforeConnectCompleted) {
+        await this.beforeConnect();
+        this.beforeConnectCompleted = true;
       }
-    });
-    this.connectPromise = pendingConnect;
-    await pendingConnect;
+      const attemptId = ++this.connectionAttemptId;
+      const pendingConnect = this.openSocket(attemptId).finally(() => {
+        if (this.connectPromise === pendingConnect) {
+          this.connectPromise = null;
+        }
+      });
+      this.connectPromise = pendingConnect;
+      await pendingConnect;
+    } catch (err) {
+      this.setConnectionState('failed');
+      throw err;
+    }
   }
 
   disconnect(): void {
     this.shouldReconnect = false;
+    this.beforeConnectCompleted = false;
     this.connectionAttemptId += 1;
     this.connectPromise = null;
     this.clearReconnectTimer();
@@ -198,6 +236,7 @@ export class AssistantWsClient {
 
   manualReconnect(): void {
     this.shouldReconnect = true;
+    this.beforeConnectCompleted = false;
     this.connectionAttemptId += 1;
     this.connectPromise = null;
     this.reconnectAttempts = 0;
@@ -225,12 +264,24 @@ export class AssistantWsClient {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       return;
     }
-    const url = new URL(this.wsBaseUrl);
-    if (token) {
-      // Browsers cannot set custom Authorization headers for WebSocket connections.
-      // Provide the token via query param; backend should accept it or map it internally.
-      url.searchParams.set(this.authTokenParam, token);
+    if (!token || !token.trim()) {
+      wsLogger.warn('Assistant WebSocket: skipping open — no access token', {
+        wsUrlHost: new URL(this.wsBaseUrl).host,
+      });
+      throw new WsNoTokenError();
     }
+
+    const expRemain = jwtExpRemainingSeconds(token);
+    wsLogger.info('Assistant WebSocket opening', {
+      tokenPresent: true,
+      tokenExpSecondsRemaining: expRemain,
+      wsUrlHost: new URL(this.wsBaseUrl).host,
+    });
+
+    const url = new URL(this.wsBaseUrl);
+    // Browsers cannot set custom Authorization headers for WebSocket connections.
+    // Provide the token via query param; backend should accept it or map it internally.
+    url.searchParams.set(this.authTokenParam, token);
 
     const ws = new WebSocket(url.toString());
     this.socket = ws;
@@ -277,8 +328,11 @@ export class AssistantWsClient {
             wasClean: event.wasClean,
           });
           failHandshake(
-            new Error(
-              `WebSocket closed before open (code=${event.code} reason=${event.reason || 'n/a'} wasClean=${event.wasClean})`
+            new WsHandshakeClosedError(
+              `WebSocket closed before open (code=${event.code} reason=${event.reason || 'n/a'} wasClean=${event.wasClean})`,
+              event.code,
+              event.reason || '',
+              event.wasClean
             )
           );
           return;
@@ -298,7 +352,7 @@ export class AssistantWsClient {
         this.handlers.onError?.(event);
         if (!handshakeSettled) {
           wsLogger.warn('WebSocket handshake error event', { type: event.type });
-          failHandshake(new Error(`WebSocket handshake error (${event.type})`));
+          failHandshake(new WsHandshakeRefusedError(`WebSocket handshake error (${event.type})`));
         }
       };
 

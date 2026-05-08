@@ -40,6 +40,14 @@ import {
 import { invalidateGrowthSystemCachesAfterTaskTool } from '@/hooks/assistant-streaming/growth-system-tool-invalidation';
 import { formatAssistantRunErrorForDisplay } from '@/lib/chat/assistant-error-display';
 import { getResolvedWsUrl } from '@/lib/vite-public-env';
+import { apiClient } from '@/lib/api-client';
+import {
+  AssistantWsPreflightError,
+  isAssistantWsPreflightError,
+  isWsHandshakeClosedError,
+  isWsHandshakeRefusedError,
+  isWsNoTokenError,
+} from '@/lib/websocket/assistant-ws-errors';
 
 export { getRunProgressLabel } from '@/hooks/assistant-streaming/stream-helpers';
 
@@ -81,6 +89,108 @@ export type AssistantStreamingMeterSnapshot = {
 };
 
 const WS_BASE_URL = getResolvedWsUrl();
+
+/** Map WebSocket connect / preflight failures to a UI payload (distinct codes for session vs backend). */
+export function mapAssistantConnectionFailure(
+  reason: unknown,
+  threadId: string
+): WsRunErrorPayload {
+  if (isAssistantWsPreflightError(reason)) {
+    return {
+      runId: 'connection',
+      threadId,
+      message:
+        reason.preflightCode === 'SESSION_EXPIRED'
+          ? 'Your session expired or is invalid. Please sign in again.'
+          : 'Could not reach the API to verify your session. Check your network and try again.',
+      code: reason.preflightCode,
+      details: {
+        errorName: reason.name,
+        ...(reason.preflightDetails ?? {}),
+      },
+    };
+  }
+  if (isWsNoTokenError(reason)) {
+    return {
+      runId: 'connection',
+      threadId,
+      message: 'Your session expired or is not available. Please sign in again.',
+      code: 'SESSION_EXPIRED',
+      details: { errorName: reason.name },
+    };
+  }
+
+  const handshakeMessage = reason instanceof Error ? reason.message : String(reason);
+  const errorName = reason instanceof Error ? reason.name : 'Error';
+  const details: Record<string, unknown> = {
+    handshakeError: handshakeMessage,
+    errorName,
+    preflightHttpOk: true,
+  };
+  if (isWsHandshakeClosedError(reason)) {
+    details.closeCode = reason.closeCode;
+    details.closeReason = reason.closeReason;
+    details.wasClean = reason.wasClean;
+  }
+  if (isWsHandshakeRefusedError(reason)) {
+    details.handshakePhase = 'onerror';
+  }
+
+  return {
+    runId: 'connection',
+    threadId,
+    message:
+      'The assistant streaming service rejected the WebSocket connection. If this persists, check $connect logs in CloudWatch.',
+    code: 'WS_BACKEND_REJECTED',
+    details,
+  };
+}
+
+async function runAssistantStreamingPreflight(): Promise<void> {
+  const token = await authService.getValidAccessToken();
+  if (!token) {
+    throw new AssistantWsPreflightError(
+      'SESSION_EXPIRED',
+      'No access token available for streaming. Sign in again.'
+    );
+  }
+  apiClient.setAuthToken(token);
+  const me = await apiClient.get<unknown>('/auth/me');
+  if (!me.success) {
+    const errCode = me.error?.code ?? '';
+    const isAuth =
+      errCode === 'HTTP_401' ||
+      errCode === 'HTTP_403' ||
+      errCode === 'NO_ACCESS_TOKEN' ||
+      errCode === 'TOKEN_REFRESH_FAILED' ||
+      errCode === 'REFRESH_FAILED';
+    const isNet =
+      errCode === 'NETWORK_ERROR' ||
+      errCode === 'ERR_CONNECTION_REFUSED' ||
+      (typeof errCode === 'string' && errCode.toUpperCase().includes('NETWORK'));
+    if (isAuth) {
+      throw new AssistantWsPreflightError(
+        'SESSION_EXPIRED',
+        'The API rejected your session. Sign in again.',
+        { probeErrorCode: errCode }
+      );
+    }
+    if (isNet) {
+      throw new AssistantWsPreflightError(
+        'WS_NETWORK_FAILURE',
+        'Could not verify your session with the API (network error).',
+        { probeErrorCode: errCode }
+      );
+    }
+    throw new AssistantWsPreflightError(
+      'WS_NETWORK_FAILURE',
+      me.error?.message ?? 'Preflight failed',
+      {
+        probeErrorCode: errCode,
+      }
+    );
+  }
+}
 
 const cancelScheduledDeltaFlush = (handle: number): void => {
   if (typeof window !== 'undefined') {
@@ -245,6 +355,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
     const client = new AssistantWsClient({
       wsBaseUrl: WS_BASE_URL,
       getAccessToken: async () => authService.getValidAccessToken(),
+      beforeConnect: runAssistantStreamingPreflight,
       keepAliveIntervalMs: 240_000,
       onConnectionStateChange: (state) => {
         setConnectionState(state);
@@ -610,17 +721,11 @@ export function useAssistantStreaming(threadId: string | undefined) {
           return;
         }
         setConnectionState('failed');
-        const handshakeMessage = reason instanceof Error ? reason.message : String(reason);
-        setError({
-          runId: 'connection',
-          threadId: threadIdRef.current ?? '',
-          message: 'Failed to connect to assistant streaming service.',
-          code: 'CONNECTION_FAILED',
-          details: {
-            handshakeError: handshakeMessage,
-            ...(reason instanceof Error && reason.name ? { errorName: reason.name } : {}),
-          },
+        wsLogger.warn('Assistant WebSocket connect failed', {
+          threadId: threadIdRef.current,
+          errorName: reason instanceof Error ? reason.name : typeof reason,
         });
+        setError(mapAssistantConnectionFailure(reason, threadIdRef.current ?? ''));
       });
     }, 0);
     return () => {
@@ -661,14 +766,9 @@ export function useAssistantStreaming(threadId: string | undefined) {
             threadId,
             ...payload,
           });
-        } catch {
+        } catch (sendErr: unknown) {
           setPendingRunStartCount((current) => Math.max(0, current - 1));
-          setError({
-            runId: 'connection',
-            threadId,
-            message: 'Assistant connection is not available.',
-            code: 'CONNECTION_FAILED',
-          });
+          setError(mapAssistantConnectionFailure(sendErr, threadId));
         }
       };
 

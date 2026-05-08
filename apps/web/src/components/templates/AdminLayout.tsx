@@ -1,3 +1,4 @@
+import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/Auth';
@@ -48,18 +49,17 @@ import {
   Dumbbell,
   Briefcase,
 } from 'lucide-react';
-import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
-import { CommandPalette } from '@/components/organisms/CommandPalette';
-
-const DebugInspector = lazy(() =>
-  import('@/components/organisms/DebugInspector').then((m) => ({ default: m.DebugInspector }))
-);
 import LeisureModeToggle from '@/components/atoms/LeisureModeToggle';
+import { CommandPalette } from '@/components/organisms/CommandPalette';
 import { WalletWidget } from '@/components/molecules/WalletWidget';
 import { BackendStatusBanner } from '@/components/molecules/BackendStatusBanner';
 import { ROUTES } from '@/routes';
 import { cn } from '@/lib/utils';
 import { taskLinksService } from '@/services/knowledge-vault/task-links.service';
+
+const DebugInspector = lazy(() =>
+  import('@/components/organisms/DebugInspector').then((m) => ({ default: m.DebugInspector }))
+);
 
 interface NavItem {
   name: string;
@@ -445,7 +445,7 @@ function AdminLayoutContent() {
           <div
             key={navExpandKey(child)}
             className={
-              depth > 0 ? 'ml-2 mt-1 border-l border-gray-200 pl-2 dark:border-gray-700' : ''
+              depth > 0 ? 'ml-2 mt-0.5 border-l border-gray-200 pl-2 dark:border-gray-700' : ''
             }
           >
             <div
@@ -461,8 +461,8 @@ function AdminLayoutContent() {
                   clearRouteCollapseForExpandKey(navExpandKey(child));
                   closeMainNav();
                 }}
-                className={`flex min-w-0 flex-1 items-center gap-3 rounded-l-lg ${
-                  depth > 0 ? 'px-3 py-2' : 'px-4 py-2'
+                className={`flex min-w-0 flex-1 items-center gap-3 rounded-l-lg leading-snug ${
+                  depth > 0 ? 'px-3 py-2.5' : 'px-4 py-2.5'
                 }`}
               >
                 <span className="shrink-0">
@@ -484,13 +484,15 @@ function AdminLayoutContent() {
                     ? `Collapse ${child.name} submenu`
                     : `Expand ${child.name} submenu`
                 }
-                className="flex shrink-0 items-center justify-center rounded-r-lg border-l border-gray-200/80 px-2 py-2 dark:border-gray-600/80 hover:bg-black/5 dark:hover:bg-white/5"
+                className="flex shrink-0 items-center justify-center self-stretch rounded-r-lg border-l border-gray-200/80 px-2 py-2 dark:border-gray-600/80 hover:bg-black/5 dark:hover:bg-white/5"
               >
                 {isNestedExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               </button>
             </div>
             {isNestedExpanded && (
-              <div className="mt-1 space-y-1">{renderNavBranch(child.children!, depth + 1)}</div>
+              <div className="mt-2 space-y-1.5 pb-0.5">
+                {renderNavBranch(child.children!, depth + 1)}
+              </div>
             )}
           </div>
         );
@@ -504,7 +506,7 @@ function AdminLayoutContent() {
           key={`${child.name}-${child.href}`}
           to={child.href}
           onClick={closeMainNav}
-          className={`flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition ${
+          className={`flex min-h-10 items-center gap-3 rounded-lg px-4 py-2.5 text-sm leading-snug transition ${
             depth > 0 ? 'pl-3' : ''
           } ${
             isChildActive
@@ -633,7 +635,7 @@ function AdminLayoutContent() {
             </button>
           </div>
 
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 space-y-1.5 overflow-y-auto p-4">
             {navigation.map((item) => {
               const Icon = item.icon;
               const isActive = isItemActive(item);
@@ -689,7 +691,7 @@ function AdminLayoutContent() {
                         </button>
                       </div>
                       {isExpanded && item.children && (
-                        <div className="ml-4 mt-1 space-y-1">
+                        <div className="ml-3 mt-2 space-y-1.5 border-l border-gray-200/70 pl-3 dark:border-gray-600/60">
                           {renderNavBranch(item.children, 0)}
                         </div>
                       )}
