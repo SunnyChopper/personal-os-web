@@ -1,3 +1,4 @@
+import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/Auth';
@@ -48,18 +49,17 @@ import {
   Dumbbell,
   Briefcase,
 } from 'lucide-react';
-import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
-import { CommandPalette } from '@/components/organisms/CommandPalette';
-
-const DebugInspector = lazy(() =>
-  import('@/components/organisms/DebugInspector').then((m) => ({ default: m.DebugInspector }))
-);
 import LeisureModeToggle from '@/components/atoms/LeisureModeToggle';
+import { CommandPalette } from '@/components/organisms/CommandPalette';
 import { WalletWidget } from '@/components/molecules/WalletWidget';
 import { BackendStatusBanner } from '@/components/molecules/BackendStatusBanner';
 import { ROUTES } from '@/routes';
 import { cn } from '@/lib/utils';
 import { taskLinksService } from '@/services/knowledge-vault/task-links.service';
+
+const DebugInspector = lazy(() =>
+  import('@/components/organisms/DebugInspector').then((m) => ({ default: m.DebugInspector }))
+);
 
 interface NavItem {
   name: string;
@@ -445,9 +445,7 @@ function AdminLayoutContent() {
           <div
             key={navExpandKey(child)}
             className={
-              depth > 0
-                ? 'ml-2 mt-0.5 border-l border-gray-200 pl-2 dark:border-gray-700'
-                : ''
+              depth > 0 ? 'ml-2 mt-0.5 border-l border-gray-200 pl-2 dark:border-gray-700' : ''
             }
           >
             <div

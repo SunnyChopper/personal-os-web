@@ -352,9 +352,7 @@ export class AssistantWsClient {
         this.handlers.onError?.(event);
         if (!handshakeSettled) {
           wsLogger.warn('WebSocket handshake error event', { type: event.type });
-          failHandshake(
-            new WsHandshakeRefusedError(`WebSocket handshake error (${event.type})`)
-          );
+          failHandshake(new WsHandshakeRefusedError(`WebSocket handshake error (${event.type})`));
         }
       };
 

@@ -182,9 +182,13 @@ async function runAssistantStreamingPreflight(): Promise<void> {
         { probeErrorCode: errCode }
       );
     }
-    throw new AssistantWsPreflightError('WS_NETWORK_FAILURE', me.error?.message ?? 'Preflight failed', {
-      probeErrorCode: errCode,
-    });
+    throw new AssistantWsPreflightError(
+      'WS_NETWORK_FAILURE',
+      me.error?.message ?? 'Preflight failed',
+      {
+        probeErrorCode: errCode,
+      }
+    );
   }
 }
 

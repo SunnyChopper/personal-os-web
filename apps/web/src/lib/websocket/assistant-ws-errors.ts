@@ -35,12 +35,7 @@ export class WsHandshakeClosedError extends Error {
 
   readonly wasClean: boolean;
 
-  constructor(
-    message: string,
-    closeCode: number,
-    closeReason: string,
-    wasClean: boolean
-  ) {
+  constructor(message: string, closeCode: number, closeReason: string, wasClean: boolean) {
     super(message);
     Object.setPrototypeOf(this, new.target.prototype);
     this.closeCode = closeCode;
