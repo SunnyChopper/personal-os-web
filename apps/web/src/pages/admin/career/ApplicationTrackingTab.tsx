@@ -1,10 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
 import type { useCareerResume } from '@/hooks/useCareerResume';
-import {
-  useCareerApplicationDetail,
-  useCareerApplications,
-} from '@/hooks/useCareerApplications';
+import { useCareerApplicationDetail, useCareerApplications } from '@/hooks/useCareerApplications';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import type {
@@ -141,11 +138,9 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
   const detailQ = useCareerApplicationDetail(selectedId);
 
   const insightCounts = useMemo(() => {
-    const items =
-      appsHook.listApps.data?.items ?? ([] as CareerApplicationSummary[]);
+    const items = appsHook.listApps.data?.items ?? ([] as CareerApplicationSummary[]);
 
-    const by = (s: string) =>
-      items.filter((i: CareerApplicationSummary) => i.status === s).length;
+    const by = (s: string) => items.filter((i: CareerApplicationSummary) => i.status === s).length;
     const active = items.filter(
       (i: CareerApplicationSummary) =>
         !i.archived && !['rejected', 'acceptedOffer'].includes(i.status)
@@ -157,8 +152,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
     return {
       active,
       rejected: by('rejected'),
-      interviewing:
-        by('firstInterview') + by('nthInterview') + by('finalInterview'),
+      interviewing: by('firstInterview') + by('nthInterview') + by('finalInterview'),
       offers: by('offerReceived') + by('acceptedOffer'),
       themesSample: themesSample ?? [],
     };
@@ -310,9 +304,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:col-span-3 lg:col-span-1">
           <div className="text-gray-500 text-xs">Sample rejection themes</div>
           <div className="text-xs text-gray-700 dark:text-gray-200 line-clamp-2">
-            {insightCounts.themesSample?.length
-              ? insightCounts.themesSample.join(' • ')
-              : '—'}
+            {insightCounts.themesSample?.length ? insightCounts.themesSample.join(' • ') : '—'}
           </div>
         </div>
       </div>
@@ -324,8 +316,8 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
             Job capture &amp; fit
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Analyze a posting, optionally attach the resume you intend to submit, then get an
-            apply / maybe / skip readout before tracking.
+            Analyze a posting, optionally attach the resume you intend to submit, then get an apply
+            / maybe / skip readout before tracking.
           </p>
         </div>
 
@@ -399,7 +391,10 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
-          <Btn loading={appsHook.recommendApplications.isPending} onClick={() => void handleRecommend()}>
+          <Btn
+            loading={appsHook.recommendApplications.isPending}
+            onClick={() => void handleRecommend()}
+          >
             Get fit recommendation
           </Btn>
           {gens.length ? (
@@ -499,9 +494,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                 <select
                   className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
                   value={newStatus}
-                  onChange={(e) =>
-                    setNewStatus(e.target.value as CareerApplicationStatusApi)
-                  }
+                  onChange={(e) => setNewStatus(e.target.value as CareerApplicationStatusApi)}
                 >
                   {PIPELINE_STATUSES.filter((x) => x.value).map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -520,7 +513,10 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
               </label>
             </div>
 
-            <Btn loading={appsHook.createApplication.isPending} onClick={() => void handleSaveApplication()}>
+            <Btn
+              loading={appsHook.createApplication.isPending}
+              onClick={() => void handleSaveApplication()}
+            >
               Save to tracker
             </Btn>
           </div>
@@ -535,9 +531,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
             <select
               className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
               value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as CareerApplicationStatusApi | '')
-              }
+              onChange={(e) => setStatusFilter(e.target.value as CareerApplicationStatusApi | '')}
             >
               {PIPELINE_STATUSES.map((opt) => (
                 <option key={opt.label} value={opt.value}>
@@ -576,9 +570,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                   <div className="font-medium text-gray-900 dark:text-white truncate">
                     {app.company} — {app.role}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {applicationStatusLabel(app.status)}
-                  </div>
+                  <div className="text-xs text-gray-500">{applicationStatusLabel(app.status)}</div>
                 </button>
               ))
             )}
@@ -682,7 +674,10 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                   value={eventNotes}
                   onChange={(e) => setEventNotes(e.target.value)}
                 />
-                <Btn loading={appsHook.addApplicationEvent.isPending} onClick={() => void handleAddInterview()}>
+                <Btn
+                  loading={appsHook.addApplicationEvent.isPending}
+                  onClick={() => void handleAddInterview()}
+                >
                   Log interview round
                 </Btn>
               </div>
@@ -723,8 +718,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                     >
                       <div className="flex justify-between gap-2 text-xs text-gray-500">
                         <span>
-                          {ev.eventType}{' '}
-                          {ev.status ? `· ${applicationStatusLabel(ev.status)}` : ''}
+                          {ev.eventType} {ev.status ? `· ${applicationStatusLabel(ev.status)}` : ''}
                         </span>
                         <span>{new Date(ev.eventAt).toLocaleString()}</span>
                       </div>
@@ -732,7 +726,9 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                         <div className="text-xs mt-1">Round {ev.interviewRound}</div>
                       ) : null}
                       {ev.title ? <div className="font-medium">{ev.title}</div> : null}
-                      {ev.notes ? <div className="text-gray-700 dark:text-gray-300">{ev.notes}</div> : null}
+                      {ev.notes ? (
+                        <div className="text-gray-700 dark:text-gray-300">{ev.notes}</div>
+                      ) : null}
                       {ev.rejectionThemes?.length ? (
                         <div className="mt-1 flex flex-wrap gap-1">
                           {ev.rejectionThemes.map((t) => (

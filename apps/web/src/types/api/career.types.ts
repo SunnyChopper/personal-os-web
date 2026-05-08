@@ -134,11 +134,7 @@ export type CareerApplicationStatusApi =
 
 export type CareerFitRecommendationApi = 'apply' | 'maybe' | 'skip';
 
-export type CareerApplicationEventTypeApi =
-  | 'statusChange'
-  | 'interview'
-  | 'note'
-  | 'rejection';
+export type CareerApplicationEventTypeApi = 'statusChange' | 'interview' | 'note' | 'rejection';
 
 export interface CareerApplicationRecommendation {
   id: string;
