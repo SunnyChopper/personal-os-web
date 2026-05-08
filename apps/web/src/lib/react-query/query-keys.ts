@@ -308,6 +308,11 @@ export const queryKeys = {
       [...queryKeys.careerResume.generatedPrefix(), limit ?? 'default'] as const,
     generatedDetail: (resumeId: string) =>
       [...queryKeys.careerResume.all, 'generated-detail', resumeId] as const,
+    applicationsPrefix: () => [...queryKeys.careerResume.all, 'applications'] as const,
+    applicationsList: (filters?: Record<string, unknown>) =>
+      [...queryKeys.careerResume.applicationsPrefix(), 'list', filters ?? {}] as const,
+    applicationDetail: (id: string) =>
+      [...queryKeys.careerResume.applicationsPrefix(), 'detail', id] as const,
   },
 
   // Rewards
