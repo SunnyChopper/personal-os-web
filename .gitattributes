@@ -1,4 +1,17 @@
 * text=auto
 
-# Prettier-checked and CI paths: keep LF so `prettier --check` matches Ubuntu (GitHub Actions).
-*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css,scss,html} text eol=lf
+# Git does not treat `{ts,tsx}` as brace expansion here — list extensions so `eol=lf`
+# applies and Prettier --check matches Linux CI (endOfLine: lf in .prettierrc).
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.html text eol=lf
