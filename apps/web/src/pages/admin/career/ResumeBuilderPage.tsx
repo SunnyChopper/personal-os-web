@@ -6,6 +6,7 @@ import MarkdownRenderer from '@/components/molecules/MarkdownRenderer';
 import { useCareerResume } from '@/hooks/useCareerResume';
 import { sortJobsByRecency } from '@/lib/career-job-sort';
 import { cn } from '@/lib/utils';
+import ApplicationTrackingTab from '@/pages/admin/career/ApplicationTrackingTab';
 import type {
   CareerEducation,
   CareerGeneratedResume,
@@ -20,6 +21,7 @@ const BUILDER_TABS = [
   { id: 'experience', label: 'Experience' },
   { id: 'ai', label: 'AI suggestions' },
   { id: 'generate', label: 'Tailor & generate' },
+  { id: 'applications', label: 'Application Tracking' },
 ] as const;
 
 type BuilderTabId = (typeof BUILDER_TABS)[number]['id'];
@@ -1875,6 +1877,8 @@ export default function ResumeBuilderPage() {
           </Section>
         </div>
       ) : null}
+
+      {activeTab === 'applications' ? <ApplicationTrackingTab cr={cr} /> : null}
     </div>
   );
 }
