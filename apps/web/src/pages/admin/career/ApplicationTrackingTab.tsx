@@ -1,27 +1,20 @@
-import { useMemo, useState } from 'react';
-import { Loader2, Sparkles } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { ClipboardPaste, ListPlus, Loader2, Upload } from 'lucide-react';
 import type { useCareerResume } from '@/hooks/useCareerResume';
 import { useCareerApplicationDetail, useCareerApplications } from '@/hooks/useCareerApplications';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
+import { careerService } from '@/services/career.service';
 import type {
   CareerApplicationEvent,
-  CareerApplicationRecommendation,
   CareerApplicationStatusApi,
   CareerApplicationSummary,
-  CareerJobPosting,
   CareerGeneratedResume,
 } from '@/types/api/career.types';
 
 import { applicationStatusLabel } from './application-tracking-labels';
 
 type Cr = ReturnType<typeof useCareerResume>;
-
-function fitRecommendationLabel(v: string): string {
-  if (v === 'apply') return 'Apply';
-  if (v === 'skip') return 'Skip';
-  return 'Maybe';
-}
 
 const PIPELINE_STATUSES: { value: CareerApplicationStatusApi | ''; label: string }[] = [
   { value: '', label: 'All' },
@@ -62,43 +55,12 @@ function OutlineBtn(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   );
 }
 
-function ChipList({
-  title,
-  items,
-  tone,
-}: {
-  title: string;
-  items: string[];
-  tone: 'blue' | 'amber' | 'rose' | 'emerald';
-}) {
-  const tones = {
-    blue: 'bg-blue-100/80 dark:bg-blue-900/40',
-    amber: 'bg-amber-100/80 dark:bg-amber-900/40',
-    rose: 'bg-rose-100/80 dark:bg-rose-900/40',
-    emerald: 'bg-emerald-100/80 dark:bg-emerald-900/40',
-  };
-  return (
-    <div>
-      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{title}</p>
-      <div className="flex flex-wrap gap-1">
-        {items?.length ? (
-          items.map((k, i) => (
-            <span
-              key={`${title}-${i}-${k}`}
-              className={cn(
-                'rounded-full px-2 py-0.5 text-xs text-gray-900 dark:text-gray-100',
-                tones[tone]
-              )}
-            >
-              {k}
-            </span>
-          ))
-        ) : (
-          <span className="text-xs text-gray-400">None</span>
-        )}
-      </div>
-    </div>
-  );
+function generatedDraftLabel(g: CareerGeneratedResume): string {
+  const meta = [g.companyName, g.jobTitle].filter(Boolean).join(' · ');
+  const tail = [g.resumeTemplate ?? 'draft', g.createdAt?.slice?.(0, 10) ?? '']
+    .filter(Boolean)
+    .join(' · ');
+  return meta ? `${meta} · ${tail}` : tail || g.id.slice(0, 8);
 }
 
 export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
@@ -109,8 +71,6 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
   const [captureUrl, setCaptureUrl] = useState('');
   const [captureRaw, setCaptureRaw] = useState('');
   const [jobPostingId, setJobPostingId] = useState<string | null>(null);
-  const [lastPosting, setLastPosting] = useState<CareerJobPosting | null>(null);
-  const [lastRec, setLastRec] = useState<CareerApplicationRecommendation | null>(null);
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
   const [location, setLocation] = useState('');
@@ -128,6 +88,9 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
   const [interviewTitle, setInterviewTitle] = useState('');
   const [rejectionText, setRejectionText] = useState('');
   const [rejectCategory, setRejectCategory] = useState('');
+  const [pdfParsing, setPdfParsing] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
+  const snapshotFileRef = useRef<HTMLInputElement | null>(null);
 
   const appsHook = useCareerApplications({
     status: statusFilter || undefined,
@@ -162,26 +125,23 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
 
   const gens = cr.generated.data?.items ?? [];
 
-  async function handleRecommend() {
+  async function handleExtractMetadata() {
+    if (!captureUrl.trim() && !captureRaw.trim()) {
+      alert('Enter a posting URL or paste a job description first.');
+      return;
+    }
     try {
-      const res = await appsHook.recommendApplications.mutateAsync({
+      const posting = await cr.analyzePosting.mutateAsync({
         sourceUrl: captureUrl.trim() || null,
         rawText: captureRaw.trim() || null,
-        jobPostingId: jobPostingId,
-        generatedResumeId: generatedResumeId,
-        resumeSnapshotName: resumeSnapshotName.trim() || null,
-        resumeSnapshotText: resumeSnapshotText.trim() ? resumeSnapshotText : null,
-        provider: aiProvider.trim() || null,
-        model: aiModel.trim() || null,
       });
-      setLastPosting(res.jobPosting);
-      setLastRec(res.recommendation);
-      setJobPostingId(res.jobPosting.id);
-      if (!company.trim()) setCompany(res.jobPosting.companyGuess ?? '');
-      if (!role.trim()) setRole(res.jobPosting.roleGuess ?? '');
-      if (!sourceUrlSaved.trim()) setSourceUrlSaved(captureUrl.trim());
+      setJobPostingId(posting.id);
+      setCompany(posting.companyGuess ?? '');
+      setRole(posting.roleGuess ?? '');
+      if (captureUrl.trim()) setSourceUrlSaved(captureUrl.trim());
+      else if (posting.sourceUrl) setSourceUrlSaved(posting.sourceUrl);
     } catch (e) {
-      logger.warn('CareerApplication recommend failed', { error: e });
+      logger.warn('CareerApplication extract posting failed', { error: e });
     }
   }
 
@@ -193,7 +153,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
     try {
       const res = await appsHook.createApplication.mutateAsync({
         jobPostingId: jobPostingId,
-        recommendationId: lastRec?.id ?? null,
+        recommendationId: null,
         company,
         role,
         location: location.trim() || null,
@@ -252,8 +212,25 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
   async function handleResumeFile(f: File | null) {
     if (!f) return;
     const lower = f.name.toLowerCase();
+    if (lower.endsWith('.pdf')) {
+      setPdfParsing(true);
+      try {
+        const { text, truncated } = await careerService.parseResumePdf(f);
+        setResumeSnapshotText(text);
+        setResumeSnapshotName(f.name);
+        if (truncated) {
+          logger.warn('Resume PDF text truncated server-side');
+        }
+      } catch (e) {
+        logger.warn('Resume PDF parse failed', { error: e });
+        alert(e instanceof Error ? e.message : 'Could not read PDF.');
+      } finally {
+        setPdfParsing(false);
+      }
+      return;
+    }
     if (!lower.endsWith('.txt') && !lower.endsWith('.md')) {
-      alert('For now upload .txt or .md resume snapshots.');
+      alert('Upload a .pdf, .txt, or .md resume snapshot.');
       return;
     }
     try {
@@ -269,11 +246,20 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
     setGeneratedResumeId(g.id);
   }
 
+  function onDropFiles(ev: React.DragEvent) {
+    ev.preventDefault();
+    setDropActive(false);
+    const f = ev.dataTransfer.files?.[0];
+    void handleResumeFile(f ?? null);
+  }
+
   return (
     <div className="space-y-8">
       <div className="rounded-xl border border-amber-400/40 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
-        Insights improve as you capture outcomes (interviews, rejections). Fit scores use your
-        profile bank, pasted job context, rejection themes, and the resume snapshot you attach.
+        Track where you applied and what happened next. Capture rejection text for themes that also
+        inform <span className="font-medium">Application fit</span> on the Tailor &amp; generate
+        tab. Attach a resume snapshot (PDF or text) when you want that context stored on the
+        application.
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5 text-sm">
@@ -312,12 +298,14 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
       <section className="rounded-2xl border border-gray-200 dark:border-gray-700 p-4 space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Sparkles className="size-5 text-blue-500" aria-hidden />
-            Job capture &amp; fit
+            <ListPlus className="size-5 text-blue-500" aria-hidden />
+            New application
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Analyze a posting, optionally attach the resume you intend to submit, then get an apply
-            / maybe / skip readout before tracking.
+            Paste a URL or job description, use{' '}
+            <span className="font-medium">Extract metadata</span> to fill company and role, then add
+            to your pipeline. Optional: link a tailored draft or upload the resume file you
+            submitted.
           </p>
         </div>
 
@@ -340,6 +328,29 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
             />
           </label>
 
+          <div className="md:col-span-2 flex flex-wrap gap-2 items-center">
+            <Btn
+              loading={cr.analyzePosting.isPending}
+              onClick={() => void handleExtractMetadata()}
+              className="gap-2"
+            >
+              <ClipboardPaste className="size-4" aria-hidden />
+              Extract metadata
+            </Btn>
+            {jobPostingId ? (
+              <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                Posting {jobPostingId.slice(0, 8)}…
+              </span>
+            ) : null}
+            {cr.analyzePosting.error ? (
+              <span className="text-xs text-red-600 dark:text-red-400">
+                {cr.analyzePosting.error instanceof Error
+                  ? cr.analyzePosting.error.message
+                  : String(cr.analyzePosting.error)}
+              </span>
+            ) : null}
+          </div>
+
           <div className="md:col-span-2 grid sm:grid-cols-2 gap-3">
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-gray-700 dark:text-gray-300">Tailored resume (optional)</span>
@@ -353,100 +364,76 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                 <option value="">Recent generated drafts…</option>
                 {gens.map((g) => (
                   <option key={g.id} value={g.id}>
-                    {(g.resumeTemplate ?? 'draft') + ' · ' + (g.createdAt?.slice?.(0, 10) ?? '')}
+                    {generatedDraftLabel(g)}
                   </option>
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-gray-700 dark:text-gray-300">Or upload .txt/.md snapshot</span>
-              <input
-                type="file"
-                accept=".txt,.md"
-                className="text-sm"
-                onChange={(e) => void handleResumeFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
-          </div>
-
-          <div className="md:col-span-2 grid sm:grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-gray-700 dark:text-gray-300">AI provider (optional)</span>
-              <input
-                className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
-                value={aiProvider}
-                onChange={(e) => setAiProvider(e.target.value)}
-                placeholder="openai / anthropic / gemini"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-gray-700 dark:text-gray-300">Model override</span>
-              <input
-                className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
-                value={aiModel}
-                onChange={(e) => setAiModel(e.target.value)}
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2 items-center">
-          <Btn
-            loading={appsHook.recommendApplications.isPending}
-            onClick={() => void handleRecommend()}
-          >
-            Get fit recommendation
-          </Btn>
-          {gens.length ? (
-            <OutlineBtn type="button" onClick={() => gens[0] && selectGenerated(gens[0])}>
-              Use latest draft
-            </OutlineBtn>
-          ) : null}
-          {appsHook.recommendApplications.error ? (
-            <span className="text-xs text-red-600 dark:text-red-400">
-              {appsHook.recommendApplications.error instanceof Error
-                ? appsHook.recommendApplications.error.message
-                : String(appsHook.recommendApplications.error)}
-            </span>
-          ) : null}
-        </div>
-
-        {(lastPosting || lastRec) && (
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 bg-gray-50/70 dark:bg-gray-900/40">
-            <div className="flex flex-wrap gap-2 justify-between items-start">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">
-                  {fitRecommendationLabel(lastRec?.recommendation ?? 'maybe')}
-                  {typeof lastRec?.fitScore === 'number' ? ` · score ${lastRec.fitScore}` : ''}{' '}
-                  {typeof lastRec?.confidence === 'number'
-                    ? ` · confidence ${(lastRec.confidence * 100).toFixed(0)}%`
-                    : ''}
+            <div className="flex flex-col gap-1 text-sm">
+              <span className="text-gray-700 dark:text-gray-300">Resume file (PDF, .txt, .md)</span>
+              <div
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    snapshotFileRef.current?.click();
+                  }
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  setDropActive(true);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDropActive(true);
+                }}
+                onDragLeave={() => setDropActive(false)}
+                onDrop={onDropFiles}
+                onClick={() => snapshotFileRef.current?.click()}
+                className={cn(
+                  'rounded-lg border-2 border-dashed px-4 py-6 text-center cursor-pointer transition',
+                  dropActive
+                    ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30'
+                    : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50/80 dark:hover:bg-gray-800/40'
+                )}
+              >
+                <Upload className="size-8 mx-auto text-gray-400 mb-2" aria-hidden />
+                <p className="text-sm text-gray-700 dark:text-gray-200">
+                  {pdfParsing ? (
+                    <span className="inline-flex items-center gap-2 justify-center">
+                      <Loader2 className="size-4 animate-spin" /> Extracting PDF…
+                    </span>
+                  ) : (
+                    <>
+                      Drop a file here or{' '}
+                      <span className="text-blue-600 dark:text-blue-400">browse</span>
+                    </>
+                  )}
                 </p>
-                <p className="font-medium text-gray-900 dark:text-white">
-                  {(lastPosting?.roleGuess ?? role) || 'Role'} ·{' '}
-                  {(lastPosting?.companyGuess ?? company) || 'Company'}
+                <p className="text-xs text-gray-500 mt-1">
+                  {resumeSnapshotName ? `Attached: ${resumeSnapshotName}` : 'No file selected'}
                 </p>
               </div>
-              {jobPostingId ? (
-                <span className="text-xs font-mono text-gray-500">posting {jobPostingId}</span>
-              ) : null}
-            </div>
-            <p className="text-sm text-gray-700 dark:text-gray-200">{lastRec?.rationale}</p>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <ChipList title="Strengths" items={lastRec?.matchedSignals ?? []} tone="emerald" />
-              <ChipList title="Gaps" items={lastRec?.gapSignals ?? []} tone="amber" />
-              <ChipList
-                title="Rejection-risk signals"
-                items={lastRec?.rejectionRiskSignals ?? []}
-                tone="rose"
-              />
-              <ChipList
-                title="Resume tweaks"
-                items={lastRec?.resumeAdjustments ?? []}
-                tone="blue"
+              <input
+                ref={snapshotFileRef}
+                type="file"
+                accept=".pdf,.txt,.md"
+                className="sr-only"
+                onChange={(e) => void handleResumeFile(e.target.files?.[0] ?? null)}
               />
             </div>
+          </div>
 
+          {gens.length ? (
+            <div className="md:col-span-2">
+              <OutlineBtn type="button" onClick={() => gens[0] && selectGenerated(gens[0])}>
+                Use latest draft
+              </OutlineBtn>
+            </div>
+          ) : null}
+
+          <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 bg-gray-50/70 dark:bg-gray-900/40">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-xs">
                 Company
@@ -517,10 +504,17 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
               loading={appsHook.createApplication.isPending}
               onClick={() => void handleSaveApplication()}
             >
-              Save to tracker
+              Add to tracking
             </Btn>
+            {appsHook.createApplication.error ? (
+              <span className="text-xs text-red-600 dark:text-red-400 block">
+                {appsHook.createApplication.error instanceof Error
+                  ? appsHook.createApplication.error.message
+                  : String(appsHook.createApplication.error)}
+              </span>
+            ) : null}
           </div>
-        )}
+        </div>
       </section>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -698,6 +692,25 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                   value={rejectCategory}
                   onChange={(e) => setRejectCategory(e.target.value)}
                 />
+                <div className="grid sm:grid-cols-2 gap-2">
+                  <label className="flex flex-col gap-1 text-xs">
+                    AI provider (optional)
+                    <input
+                      className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900 text-sm"
+                      value={aiProvider}
+                      onChange={(e) => setAiProvider(e.target.value)}
+                      placeholder="openai / anthropic / gemini"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs">
+                    Model override
+                    <input
+                      className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900 text-sm"
+                      value={aiModel}
+                      onChange={(e) => setAiModel(e.target.value)}
+                    />
+                  </label>
+                </div>
                 <Btn
                   loading={appsHook.rejectionInsights.isPending}
                   onClick={() => void handleRejectionInsights()}

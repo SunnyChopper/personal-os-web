@@ -1,5 +1,11 @@
 /** Pure helpers for Application Tracking UI (kept out of `.tsx` for react-refresh lint). */
 
+export function fitRecommendationLabel(v: string): string {
+  if (v === 'apply') return 'Apply';
+  if (v === 'skip') return 'Skip';
+  return 'Maybe';
+}
+
 export function applicationStatusLabel(status: string): string {
   const map: Record<string, string> = {
     applied: 'Applied',
