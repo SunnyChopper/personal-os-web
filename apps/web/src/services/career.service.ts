@@ -204,8 +204,23 @@ export const careerService = {
     resumeTemplate?: string | null;
     provider?: string | null;
     model?: string | null;
+    companyName?: string | null;
+    jobTitle?: string | null;
   }) {
     return unwrap(apiClient.post<CareerGeneratedResume>(`${BASE}/generate`, body));
+  },
+
+  async parseResumePdf(file: File): Promise<{ text: string; truncated: boolean }> {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await apiClient.postFormData<{ text: string; truncated: boolean }>(
+      `${BASE}/parse-pdf`,
+      form
+    );
+    if (!res.success || res.data == null) {
+      throw new Error(res.error?.message || 'PDF parse failed');
+    }
+    return res.data;
   },
 
   async listGenerated(limit?: number): Promise<{ items: CareerGeneratedResume[] }> {

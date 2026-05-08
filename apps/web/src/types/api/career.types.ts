@@ -110,6 +110,8 @@ export interface CareerGeneratedResume {
   provider?: string | null;
   model?: string | null;
   bulletRationales?: CareerResumeBulletRationale[];
+  companyName?: string | null;
+  jobTitle?: string | null;
   createdAt: string;
   updatedAt: string;
 }

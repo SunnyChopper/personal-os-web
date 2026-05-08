@@ -12,6 +12,8 @@ export function useCareerApplications(filters?: {
   includeArchived?: boolean;
   page?: number;
   pageSize?: number;
+  /** When false, skips the list query (e.g. recommend-only usage from Resume Builder). */
+  listEnabled?: boolean;
 }) {
   const qc = useQueryClient();
 
@@ -36,6 +38,7 @@ export function useCareerApplications(filters?: {
         search: filters?.search || null,
         includeArchived: filters?.includeArchived,
       }),
+    enabled: filters?.listEnabled !== false,
   });
 
   const recommendApplications = useMutation({
