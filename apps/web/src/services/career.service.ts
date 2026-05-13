@@ -2,11 +2,14 @@ import { apiClient } from '@/lib/api-client';
 import type {
   CareerAchievement,
   CareerAiSuggestion,
+  CareerApplicationDetail,
+  CareerApplicationsListResult,
   CareerEducation,
   CareerGeneratedResume,
   CareerJob,
   CareerJobPosting,
   CareerProfile,
+  CareerRecommendApplicationsResult,
 } from '@/types/api/career.types';
 
 async function unwrap<T>(
@@ -21,6 +24,9 @@ async function unwrap<T>(
 
 /** Base prefix for Postgres-backed Career API (mounted at `/career`, router `/resume`). */
 const BASE = '/career/resume';
+
+/** Application tracker sub-router */
+const APPLICATIONS_BASE = `${BASE}/applications`;
 
 export const careerService = {
   async getProfile(): Promise<CareerProfile> {
@@ -198,8 +204,23 @@ export const careerService = {
     resumeTemplate?: string | null;
     provider?: string | null;
     model?: string | null;
+    companyName?: string | null;
+    jobTitle?: string | null;
   }) {
     return unwrap(apiClient.post<CareerGeneratedResume>(`${BASE}/generate`, body));
+  },
+
+  async parseResumePdf(file: File): Promise<{ text: string; truncated: boolean }> {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await apiClient.postFormData<{ text: string; truncated: boolean }>(
+      `${BASE}/parse-pdf`,
+      form
+    );
+    if (!res.success || res.data == null) {
+      throw new Error(res.error?.message || 'PDF parse failed');
+    }
+    return res.data;
   },
 
   async listGenerated(limit?: number): Promise<{ items: CareerGeneratedResume[] }> {
@@ -210,6 +231,95 @@ export const careerService = {
   async getGenerated(resumeId: string): Promise<CareerGeneratedResume> {
     return unwrap(
       apiClient.get<CareerGeneratedResume>(`${BASE}/generated/${encodeURIComponent(resumeId)}`)
+    );
+  },
+
+  /** Application tracking (`/applications/*`) */
+
+  async recommendApplications(body: {
+    sourceUrl?: string | null;
+    rawText?: string | null;
+    jobPostingId?: string | null;
+    generatedResumeId?: string | null;
+    resumeSnapshotName?: string | null;
+    resumeSnapshotText?: string | null;
+    provider?: string | null;
+    model?: string | null;
+  }): Promise<CareerRecommendApplicationsResult> {
+    return unwrap(
+      apiClient.post<CareerRecommendApplicationsResult>(`${APPLICATIONS_BASE}/recommend`, body)
+    );
+  },
+
+  async listApplications(params?: {
+    page?: number;
+    pageSize?: number;
+    status?: string | null;
+    search?: string | null;
+    includeArchived?: boolean;
+  }): Promise<CareerApplicationsListResult> {
+    const sp = new URLSearchParams();
+    sp.set('page', String(Math.max(1, params?.page ?? 1)));
+    sp.set('pageSize', String(Math.min(100, Math.max(1, params?.pageSize ?? 20))));
+    if (params?.status) sp.set('status', params.status);
+    if (params?.search) sp.set('search', params.search);
+    if (params?.includeArchived) sp.set('includeArchived', 'true');
+    return unwrap(
+      apiClient.get<CareerApplicationsListResult>(`${APPLICATIONS_BASE}?${sp.toString()}`)
+    );
+  },
+
+  async createApplication(body: Record<string, unknown>): Promise<CareerApplicationDetail> {
+    return unwrap(apiClient.post<CareerApplicationDetail>(APPLICATIONS_BASE, body));
+  },
+
+  async getApplication(applicationId: string): Promise<CareerApplicationDetail> {
+    return unwrap(
+      apiClient.get<CareerApplicationDetail>(
+        `${APPLICATIONS_BASE}/${encodeURIComponent(applicationId)}`
+      )
+    );
+  },
+
+  async patchApplication(
+    applicationId: string,
+    body: Record<string, unknown>
+  ): Promise<CareerApplicationDetail> {
+    return unwrap(
+      apiClient.patch<CareerApplicationDetail>(
+        `${APPLICATIONS_BASE}/${encodeURIComponent(applicationId)}`,
+        body
+      )
+    );
+  },
+
+  async addApplicationEvent(
+    applicationId: string,
+    body: Record<string, unknown>
+  ): Promise<CareerApplicationDetail> {
+    return unwrap(
+      apiClient.post<CareerApplicationDetail>(
+        `${APPLICATIONS_BASE}/${encodeURIComponent(applicationId)}/events`,
+        body
+      )
+    );
+  },
+
+  async applicationRejectionInsights(
+    applicationId: string,
+    body: {
+      rejectionEmailText: string;
+      eventId?: string | null;
+      rejectionReasonCategory?: string | null;
+      provider?: string | null;
+      model?: string | null;
+    }
+  ): Promise<CareerApplicationDetail> {
+    return unwrap(
+      apiClient.post<CareerApplicationDetail>(
+        `${APPLICATIONS_BASE}/${encodeURIComponent(applicationId)}/rejection-insights`,
+        body
+      )
     );
   },
 };

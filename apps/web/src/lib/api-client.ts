@@ -453,6 +453,46 @@ class ApiClient {
     }
   }
 
+  /** Multipart upload (e.g. PDF). Omits JSON Content-Type so the client sets multipart boundaries. */
+  async postFormData<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
+    try {
+      const response = await this.client.post<ApiResponse<T>>(endpoint, formData, {
+        transformRequest: [
+          (data, headers) => {
+            if (data instanceof FormData) {
+              delete headers['Content-Type'];
+            }
+            return data;
+          },
+        ],
+      });
+      const backendResponse = response.data;
+      if (backendResponse && typeof backendResponse === 'object' && 'success' in backendResponse) {
+        return backendResponse;
+      }
+      return {
+        success: true,
+        data: backendResponse as T,
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        const errorData = error.response.data as ApiResponse<T>;
+        if (
+          errorData &&
+          typeof errorData === 'object' &&
+          'success' in errorData &&
+          !errorData.success
+        ) {
+          return errorData;
+        }
+      }
+      return {
+        success: false,
+        error: this.handleError(error),
+      };
+    }
+  }
+
   async put<T>(
     endpoint: string,
     body?: unknown,

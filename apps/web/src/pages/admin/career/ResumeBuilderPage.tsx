@@ -4,15 +4,21 @@ import { FormCheckbox } from '@/components/atoms/FormCheckbox';
 import { FormInput } from '@/components/atoms/FormInput';
 import MarkdownRenderer from '@/components/molecules/MarkdownRenderer';
 import { useCareerResume } from '@/hooks/useCareerResume';
+import { useCareerApplications } from '@/hooks/useCareerApplications';
 import { sortJobsByRecency } from '@/lib/career-job-sort';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
+import ApplicationTrackingTab from '@/pages/admin/career/ApplicationTrackingTab';
+import { careerService } from '@/services/career.service';
 import type {
+  CareerApplicationRecommendation,
   CareerEducation,
   CareerGeneratedResume,
   CareerJob,
   CareerJobPosting,
   CareerResumeBulletRationale,
 } from '@/types/api/career.types';
+import { fitRecommendationLabel } from './application-tracking-labels';
 import { getCareerResumeMarkdownComponents } from './careerResumeMarkdown';
 
 const BUILDER_TABS = [
@@ -20,6 +26,7 @@ const BUILDER_TABS = [
   { id: 'experience', label: 'Experience' },
   { id: 'ai', label: 'AI suggestions' },
   { id: 'generate', label: 'Tailor & generate' },
+  { id: 'applications', label: 'Application Tracking' },
 ] as const;
 
 type BuilderTabId = (typeof BUILDER_TABS)[number]['id'];
@@ -74,6 +81,14 @@ function formatJobListDateRange(job: CareerJob): string {
   if (start) return start;
   if (end) return end;
   return '';
+}
+
+function formatGeneratedDraftLabel(g: CareerGeneratedResume): string {
+  const meta = [g.companyName, g.jobTitle].filter(Boolean).join(' · ');
+  const tail = [g.resumeTemplate ?? 'draft', g.createdAt?.slice?.(0, 10) ?? '']
+    .filter(Boolean)
+    .join(' · ');
+  return meta ? `${meta} · ${tail}` : tail || 'Resume draft';
 }
 
 function Btn(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) {
@@ -165,8 +180,48 @@ function CollapsibleAiBucket({
   );
 }
 
+function FitChipList({
+  title,
+  items,
+  tone,
+}: {
+  title: string;
+  items: string[];
+  tone: 'blue' | 'amber' | 'rose' | 'emerald';
+}) {
+  const tones = {
+    blue: 'bg-blue-100/80 dark:bg-blue-900/40',
+    amber: 'bg-amber-100/80 dark:bg-amber-900/40',
+    rose: 'bg-rose-100/80 dark:bg-rose-900/40',
+    emerald: 'bg-emerald-100/80 dark:bg-emerald-900/40',
+  };
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{title}</p>
+      <div className="flex flex-wrap gap-1">
+        {items?.length ? (
+          items.map((k, i) => (
+            <span
+              key={`${title}-${i}-${k}`}
+              className={cn(
+                'rounded-full px-2 py-0.5 text-xs text-gray-900 dark:text-gray-100',
+                tones[tone]
+              )}
+            >
+              {k}
+            </span>
+          ))
+        ) : (
+          <span className="text-xs text-gray-400">None</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ResumeBuilderPage() {
   const cr = useCareerResume();
+  const appsFit = useCareerApplications({ listEnabled: false });
   const [activeTab, setActiveTab] = useState<BuilderTabId>('profile');
 
   const [pf, setPf] = useState({
@@ -266,6 +321,14 @@ export default function ResumeBuilderPage() {
   const [resumeTemplate, setResumeTemplate] = useState<string>('standard_professional');
   const [achievementSelection, setAchievementSelection] = useState<Set<string>>(new Set());
 
+  const [genTargetCompany, setGenTargetCompany] = useState('');
+  const [genTargetRole, setGenTargetRole] = useState('');
+  const [fitRec, setFitRec] = useState<CareerApplicationRecommendation | null>(null);
+  const [fitResumeSnapText, setFitResumeSnapText] = useState('');
+  const [fitResumeSnapName, setFitResumeSnapName] = useState('');
+  const [fitGenResumeId, setFitGenResumeId] = useState<string | null>(null);
+  const [fitPdfBusy, setFitPdfBusy] = useState(false);
+
   const [previewMarkdown, setPreviewMarkdown] = useState('');
   const [previewMeta, setPreviewMeta] = useState<{
     atsKeywordsUsed: string[];
@@ -274,6 +337,12 @@ export default function ResumeBuilderPage() {
     humanScore?: number | null;
     bulletRationales?: CareerResumeBulletRationale[];
   } | null>(null);
+
+  useEffect(() => {
+    if (!lastPosting) return;
+    setGenTargetCompany(lastPosting.companyGuess ?? '');
+    setGenTargetRole(lastPosting.roleGuess ?? '');
+  }, [lastPosting?.id, lastPosting?.companyGuess, lastPosting?.roleGuess]);
 
   const apiErr = useMemo(() => {
     const cands = [
@@ -329,6 +398,39 @@ export default function ResumeBuilderPage() {
       else n.add(id);
       return n;
     });
+  }
+
+  async function handleFitResumeFile(f: File | null) {
+    if (!f) return;
+    const lower = f.name.toLowerCase();
+    if (lower.endsWith('.pdf')) {
+      setFitPdfBusy(true);
+      try {
+        const { text, truncated } = await careerService.parseResumePdf(f);
+        setFitResumeSnapText(text);
+        setFitResumeSnapName(f.name);
+        if (truncated) {
+          logger.warn('Fit resume PDF text truncated');
+        }
+      } catch (e) {
+        logger.warn('Fit resume PDF failed', { error: e });
+        alert(e instanceof Error ? e.message : 'Could not read PDF.');
+      } finally {
+        setFitPdfBusy(false);
+      }
+      return;
+    }
+    if (!lower.endsWith('.txt') && !lower.endsWith('.md')) {
+      alert('Upload a .pdf, .txt, or .md snapshot for fit.');
+      return;
+    }
+    try {
+      const t = await f.text();
+      setFitResumeSnapText(t.slice(0, 32000));
+      setFitResumeSnapName(f.name);
+    } catch (e) {
+      logger.warn('Fit resume file read failed', { error: e });
+    }
   }
 
   function startEditEducation(e: CareerEducation) {
@@ -1621,10 +1723,167 @@ export default function ResumeBuilderPage() {
           </Section>
 
           <Section
+            title="Application fit"
+            subtitle="Optional — uses the same URL / description as above (or an analyzed posting), your achievement bank, rejection themes, and an optional resume snapshot. Does not create a tracker row; use Application Tracking for that."
+          >
+            <div className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="text-gray-700 dark:text-gray-300">
+                    Tailored draft (optional)
+                  </span>
+                  <select
+                    className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
+                    value={fitGenResumeId ?? ''}
+                    onChange={(ev) =>
+                      setFitGenResumeId(ev.target.value.trim() ? ev.target.value : null)
+                    }
+                  >
+                    <option value="">Recent generated drafts…</option>
+                    {(cr.generated.data?.items ?? []).map((g: CareerGeneratedResume) => (
+                      <option key={g.id} value={g.id}>
+                        {formatGeneratedDraftLabel(g)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="text-gray-700 dark:text-gray-300">
+                    Resume snapshot file (.pdf, .txt, .md)
+                  </span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="file"
+                      accept=".pdf,.txt,.md"
+                      className="text-sm"
+                      disabled={fitPdfBusy}
+                      onChange={(ev) => void handleFitResumeFile(ev.target.files?.[0] ?? null)}
+                    />
+                    {fitPdfBusy ? (
+                      <Loader2 className="size-4 animate-spin text-gray-500" aria-hidden />
+                    ) : null}
+                  </span>
+                  {fitResumeSnapName ? (
+                    <span className="text-xs text-gray-500">Attached: {fitResumeSnapName}</span>
+                  ) : null}
+                </label>
+              </div>
+              {(cr.generated.data?.items ?? []).length ? (
+                <OutlineBtn
+                  type="button"
+                  onClick={() => {
+                    const g = (cr.generated.data?.items ?? [])[0];
+                    if (g) setFitGenResumeId(g.id);
+                  }}
+                >
+                  Use latest draft for fit
+                </OutlineBtn>
+              ) : null}
+              <div className="flex flex-wrap gap-2 items-center">
+                <Btn
+                  type="button"
+                  loading={appsFit.recommendApplications.isPending}
+                  onClick={async () => {
+                    if (!postUrl.trim() && !postRaw.trim() && !lastPosting?.id) {
+                      alert('Analyze a posting first, or enter a URL / description.');
+                      return;
+                    }
+                    try {
+                      const res = await appsFit.recommendApplications.mutateAsync({
+                        sourceUrl: postUrl.trim() || null,
+                        rawText: postRaw.trim() || null,
+                        jobPostingId: lastPosting?.id ?? null,
+                        generatedResumeId: fitGenResumeId,
+                        resumeSnapshotName: fitResumeSnapName.trim() || null,
+                        resumeSnapshotText: fitResumeSnapText.trim() || null,
+                        provider: aiOpts.provider || null,
+                        model: aiOpts.model.trim() || null,
+                      });
+                      setFitRec(res.recommendation);
+                      setLastPosting(res.jobPosting);
+                    } catch {
+                      /* inline error */
+                    }
+                  }}
+                >
+                  Get fit recommendation
+                </Btn>
+                {appsFit.recommendApplications.error ? (
+                  <span className="text-xs text-red-600 dark:text-red-400">
+                    {appsFit.recommendApplications.error instanceof Error
+                      ? appsFit.recommendApplications.error.message
+                      : String(appsFit.recommendApplications.error)}
+                  </span>
+                ) : null}
+              </div>
+              {fitRec ? (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 text-sm bg-gray-50/50 dark:bg-gray-900/40">
+                  <div className="flex flex-wrap gap-2 justify-between items-start">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        {fitRecommendationLabel(fitRec.recommendation ?? 'maybe')}
+                        {typeof fitRec.fitScore === 'number'
+                          ? ` · score ${fitRec.fitScore}`
+                          : ''}{' '}
+                        {typeof fitRec.confidence === 'number'
+                          ? ` · confidence ${(fitRec.confidence * 100).toFixed(0)}%`
+                          : ''}
+                      </p>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {(lastPosting?.roleGuess || genTargetRole || 'Role') + ' · '}
+                        {lastPosting?.companyGuess || genTargetCompany || 'Company'}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-700 dark:text-gray-200">{fitRec.rationale}</p>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <FitChipList
+                      title="Strengths"
+                      items={fitRec.matchedSignals ?? []}
+                      tone="emerald"
+                    />
+                    <FitChipList title="Gaps" items={fitRec.gapSignals ?? []} tone="amber" />
+                    <FitChipList
+                      title="Rejection-risk signals"
+                      items={fitRec.rejectionRiskSignals ?? []}
+                      tone="rose"
+                    />
+                    <FitChipList
+                      title="Resume tweaks"
+                      items={fitRec.resumeAdjustments ?? []}
+                      tone="blue"
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </Section>
+
+          <Section
             title="Tailored resume"
             subtitle="Achievement bank plus the analyzed posting (and any extra snippet below) → markdown on the backend."
           >
             <div className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <label className="flex flex-col text-sm gap-1">
+                  Target company (saved on draft)
+                  <input
+                    className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
+                    value={genTargetCompany}
+                    onChange={(ev) => setGenTargetCompany(ev.target.value)}
+                    placeholder="From posting or override"
+                  />
+                </label>
+                <label className="flex flex-col text-sm gap-1">
+                  Target role (saved on draft)
+                  <input
+                    className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
+                    value={genTargetRole}
+                    onChange={(ev) => setGenTargetRole(ev.target.value)}
+                    placeholder="From posting or override"
+                  />
+                </label>
+              </div>
               <label className="flex flex-col text-sm gap-1">
                 Resume template
                 <select
@@ -1724,6 +1983,8 @@ export default function ResumeBuilderPage() {
                       resumeTemplate,
                       provider: aiOpts.provider || null,
                       model: aiOpts.model.trim() || null,
+                      companyName: genTargetCompany.trim() || null,
+                      jobTitle: genTargetRole.trim() || null,
                     });
                     setPreviewMarkdown(res.resumeMarkdown);
                     setPreviewMeta({
@@ -1835,7 +2096,8 @@ export default function ResumeBuilderPage() {
           <Section title="Generated history" subtitle="Recent drafts — open to load into preview.">
             <ul className="space-y-3">
               {(cr.generated.data?.items ?? []).map((g: CareerGeneratedResume) => {
-                const labelParts = [
+                const targetLine = [g.companyName, g.jobTitle].filter(Boolean).join(' — ');
+                const scoreParts = [
                   g.resumeTemplate,
                   g.atsScore != null ? `ATS ${g.atsScore}` : null,
                   g.humanScore != null ? `Reader ${g.humanScore}` : null,
@@ -1854,13 +2116,16 @@ export default function ResumeBuilderPage() {
                           humanScore: g.humanScore,
                           bulletRationales: g.bulletRationales ?? [],
                         });
+                        setGenTargetCompany(g.companyName ?? '');
+                        setGenTargetRole(g.jobTitle ?? '');
                         setActiveTab('generate');
                       }}
                     >
                       <div className="font-medium text-gray-900 dark:text-white">
-                        {labelParts.length ? labelParts.join(' · ') : 'Resume draft'}
+                        {targetLine || formatGeneratedDraftLabel(g)}
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        {scoreParts.length ? `${scoreParts.join(' · ')} · ` : ''}
                         {formatResumeHistoryWhen(g.createdAt)}
                         {g.model ? ` · ${g.provider ?? ''} ${g.model}`.trim() : ''}
                       </div>
@@ -1875,6 +2140,8 @@ export default function ResumeBuilderPage() {
           </Section>
         </div>
       ) : null}
+
+      {activeTab === 'applications' ? <ApplicationTrackingTab cr={cr} /> : null}
     </div>
   );
 }

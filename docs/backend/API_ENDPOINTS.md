@@ -16,4 +16,4 @@ This file is a wrapper only.
 - API client: `src/lib/api-client.ts`
 - Contract types: `src/types/api/` and `src/types/api-contracts.ts`
 - Services: `src/services/`
-- **Career / Resume Builder** (`/career/resume/*`): HTTP via `src/services/career.service.ts`, admin UI `src/pages/admin/career/`; contract: root `docs/backend/API_ENDPOINTS.md` (**Career Development — Resume Builder**).
+- **Career / Resume Builder** (`/career/resume/*`) and **Application Tracking** (`/career/resume/applications/*`): HTTP via `src/services/career.service.ts`, admin UI `src/pages/admin/career/`; contract: root `docs/backend/API_ENDPOINTS.md` (**Career Development — Resume Builder** + **Application Tracking**).
