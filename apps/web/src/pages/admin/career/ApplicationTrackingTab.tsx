@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { ClipboardPaste, ListPlus, Loader2, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ClipboardPaste, ListPlus, Loader2, Plus, Upload } from 'lucide-react';
 import type { useCareerResume } from '@/hooks/useCareerResume';
 import { useCareerApplicationDetail, useCareerApplications } from '@/hooks/useCareerApplications';
 import { cn } from '@/lib/utils';
@@ -67,6 +67,8 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
   const [statusFilter, setStatusFilter] = useState<CareerApplicationStatusApi | ''>('');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [activeLogTab, setActiveLogTab] = useState<'interview' | 'rejection' | null>(null);
 
   const [captureUrl, setCaptureUrl] = useState('');
   const [captureRaw, setCaptureRaw] = useState('');
@@ -91,6 +93,10 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
   const [pdfParsing, setPdfParsing] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const snapshotFileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setActiveLogTab(null);
+  }, [selectedId, isCreating]);
 
   const appsHook = useCareerApplications({
     status: statusFilter || undefined,
@@ -166,6 +172,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
         notes: notes.trim() || null,
       });
       setSelectedId(res.application.id);
+      setIsCreating(false);
     } catch (e) {
       logger.warn('CareerApplication create failed', { error: e });
     }
@@ -186,6 +193,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
       });
       setInterviewTitle('');
       setEventNotes('');
+      setActiveLogTab(null);
     } catch (e) {
       logger.warn('Interview event failed', { error: e });
     }
@@ -204,6 +212,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
         },
       });
       setRejectionText('');
+      setActiveLogTab(null);
     } catch (e) {
       logger.warn('Rejection insights failed', { error: e });
     }
@@ -262,54 +271,131 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
         application.
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5 text-sm">
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-          <div className="text-gray-500 text-xs">Active pipeline</div>
-          <div className="text-lg font-semibold text-gray-900 dark:text-white">
+      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5 text-xs">
+        <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
+          <div className="text-gray-500 text-[11px] uppercase tracking-wide">Active pipeline</div>
+          <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
             {insightCounts.active}
           </div>
         </div>
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-          <div className="text-gray-500 text-xs">Rejected</div>
-          <div className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
+          <div className="text-gray-500 text-[11px] uppercase tracking-wide">Rejected</div>
+          <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
             {insightCounts.rejected}
           </div>
         </div>
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-          <div className="text-gray-500 text-xs">In interviews</div>
-          <div className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
+          <div className="text-gray-500 text-[11px] uppercase tracking-wide">In interviews</div>
+          <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
             {insightCounts.interviewing}
           </div>
         </div>
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-          <div className="text-gray-500 text-xs">Offers</div>
-          <div className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
+          <div className="text-gray-500 text-[11px] uppercase tracking-wide">Offers</div>
+          <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
             {insightCounts.offers}
           </div>
         </div>
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:col-span-3 lg:col-span-1">
-          <div className="text-gray-500 text-xs">Sample rejection themes</div>
-          <div className="text-xs text-gray-700 dark:text-gray-200 line-clamp-2">
+        <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2 sm:col-span-3 lg:col-span-1 min-h-0">
+          <div className="text-gray-500 text-[11px] uppercase tracking-wide">Sample themes</div>
+          <div
+            className="mt-0.5 text-[11px] leading-snug text-gray-700 dark:text-gray-200 line-clamp-3 break-words max-h-[3.75rem] overflow-hidden"
+            title={
+              insightCounts.themesSample?.length ? insightCounts.themesSample.join(' • ') : undefined
+            }
+          >
             {insightCounts.themesSample?.length ? insightCounts.themesSample.join(' • ') : '—'}
           </div>
         </div>
       </div>
 
-      <section className="rounded-2xl border border-gray-200 dark:border-gray-700 p-4 space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <ListPlus className="size-5 text-blue-500" aria-hidden />
-            New application
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Paste a URL or job description, use{' '}
-            <span className="font-medium">Extract metadata</span> to fill company and role, then add
-            to your pipeline. Optional: link a tailored draft or upload the resume file you
-            submitted.
-          </p>
-        </div>
+      <div className="grid lg:grid-cols-3 gap-6">
+        <section className="lg:col-span-1 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+          <div className="flex flex-col gap-2">
+            <Btn
+              type="button"
+              className="w-full justify-center"
+              onClick={() => {
+                setIsCreating(true);
+                setSelectedId(null);
+              }}
+            >
+              <Plus className="size-4" aria-hidden />
+              New application
+            </Btn>
+            <h3 className="font-semibold text-gray-900 dark:text-white">Pipeline</h3>
+          </div>
+          <label className="flex flex-col gap-1 text-xs">
+            Filter status
+            <select
+              className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as CareerApplicationStatusApi | '')}
+            >
+              {PIPELINE_STATUSES.map((opt) => (
+                <option key={opt.label} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <input
+            type="search"
+            className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
+            placeholder="Search company / role"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="space-y-2 max-h-[480px] overflow-auto">
+            {appsHook.listApps.isLoading ? (
+              <p className="text-sm text-gray-500 flex items-center gap-2">
+                <Loader2 className="size-4 animate-spin" /> Loading…
+              </p>
+            ) : items.length === 0 ? (
+              <p className="text-sm text-gray-500">No applications tracked yet.</p>
+            ) : (
+              items.map((app: CareerApplicationSummary) => (
+                <button
+                  key={app.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(app.id);
+                    setIsCreating(false);
+                  }}
+                  className={cn(
+                    'w-full text-left rounded-lg border px-3 py-2 text-sm transition',
+                    selectedId === app.id && !isCreating
+                      ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  )}
+                >
+                  <div className="font-medium text-gray-900 dark:text-white truncate">
+                    {app.company} — {app.role}
+                  </div>
+                  <div className="text-xs text-gray-500">{applicationStatusLabel(app.status)}</div>
+                </button>
+              ))
+            )}
+          </div>
+        </section>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <section className="lg:col-span-2 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 space-y-4 min-h-[400px]">
+          {isCreating ? (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <ListPlus className="size-5 text-blue-500" aria-hidden />
+                  New application
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Paste a URL or job description, use{' '}
+                  <span className="font-medium">Extract metadata</span> to fill company and role,
+                  then add to your pipeline. Optional: link a tailored draft or upload the resume
+                  file you submitted.
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm md:col-span-2 lg:col-span-1">
             <span className="text-gray-700 dark:text-gray-300">Posting URL</span>
             <input
@@ -392,7 +478,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                 onDrop={onDropFiles}
                 onClick={() => snapshotFileRef.current?.click()}
                 className={cn(
-                  'rounded-lg border-2 border-dashed px-4 py-6 text-center cursor-pointer transition',
+                  'rounded-lg border-2 border-dashed px-4 py-4 text-center cursor-pointer transition',
                   dropActive
                     ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30'
                     : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50/80 dark:hover:bg-gray-800/40'
@@ -515,66 +601,10 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
             ) : null}
           </div>
         </div>
-      </section>
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        <section className="lg:col-span-1 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-          <h3 className="font-semibold text-gray-900 dark:text-white">Pipeline</h3>
-          <label className="flex flex-col gap-1 text-xs">
-            Filter status
-            <select
-              className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as CareerApplicationStatusApi | '')}
-            >
-              {PIPELINE_STATUSES.map((opt) => (
-                <option key={opt.label} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <input
-            type="search"
-            className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
-            placeholder="Search company / role"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <div className="space-y-2 max-h-[480px] overflow-auto">
-            {appsHook.listApps.isLoading ? (
-              <p className="text-sm text-gray-500 flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin" /> Loading…
-              </p>
-            ) : items.length === 0 ? (
-              <p className="text-sm text-gray-500">No applications tracked yet.</p>
-            ) : (
-              items.map((app: CareerApplicationSummary) => (
-                <button
-                  key={app.id}
-                  type="button"
-                  onClick={() => setSelectedId(app.id)}
-                  className={cn(
-                    'w-full text-left rounded-lg border px-3 py-2 text-sm transition',
-                    selectedId === app.id
-                      ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40'
-                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-                  )}
-                >
-                  <div className="font-medium text-gray-900 dark:text-white truncate">
-                    {app.company} — {app.role}
-                  </div>
-                  <div className="text-xs text-gray-500">{applicationStatusLabel(app.status)}</div>
-                </button>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="lg:col-span-2 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 space-y-4 min-h-[400px]">
-          {!selectedId ? (
+            </div>
+          ) : !selectedId ? (
             <p className="text-sm text-gray-500">
-              Select an application to view its timeline and capture outcomes.
+              Select an application to view details or create a new one.
             </p>
           ) : detailQ.isLoading ? (
             <p className="text-sm text-gray-500 flex items-center gap-2">
@@ -637,86 +667,120 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                 </label>
               </div>
 
-              <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2">
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  Add interview (timeline)
-                </h4>
-                <div className="grid sm:grid-cols-3 gap-2">
-                  <label className="text-xs flex flex-col gap-1">
-                    Round
-                    <input
-                      type="number"
-                      min={1}
-                      className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1"
-                      value={interviewRound}
-                      onChange={(e) => setInterviewRound(Number(e.target.value || 1))}
-                    />
-                  </label>
-                  <label className="text-xs flex flex-col gap-1 sm:col-span-2">
-                    Title
-                    <input
-                      className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1"
-                      value={interviewTitle}
-                      onChange={(e) => setInterviewTitle(e.target.value)}
-                      placeholder="Hiring manager, loop, onsite…"
-                    />
-                  </label>
+              <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                    Log to timeline
+                  </span>
+                  <OutlineBtn
+                    type="button"
+                    onClick={() =>
+                      setActiveLogTab((t) => (t === 'interview' ? null : 'interview'))
+                    }
+                    className={cn(
+                      activeLogTab === 'interview' &&
+                        'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100'
+                    )}
+                  >
+                    Log interview
+                  </OutlineBtn>
+                  <OutlineBtn
+                    type="button"
+                    onClick={() =>
+                      setActiveLogTab((t) => (t === 'rejection' ? null : 'rejection'))
+                    }
+                    className={cn(
+                      activeLogTab === 'rejection' &&
+                        'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100'
+                    )}
+                  >
+                    Log rejection
+                  </OutlineBtn>
                 </div>
-                <textarea
-                  className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-900"
-                  placeholder="Notes"
-                  value={eventNotes}
-                  onChange={(e) => setEventNotes(e.target.value)}
-                />
-                <Btn
-                  loading={appsHook.addApplicationEvent.isPending}
-                  onClick={() => void handleAddInterview()}
-                >
-                  Log interview round
-                </Btn>
-              </div>
 
-              <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2">
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  Rejection capture + AI themes
-                </h4>
-                <textarea
-                  className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-900 min-h-[96px]"
-                  placeholder="Paste rejection email text…"
-                  value={rejectionText}
-                  onChange={(e) => setRejectionText(e.target.value)}
-                />
-                <input
-                  className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-900"
-                  placeholder="Reason category hint (optional)"
-                  value={rejectCategory}
-                  onChange={(e) => setRejectCategory(e.target.value)}
-                />
-                <div className="grid sm:grid-cols-2 gap-2">
-                  <label className="flex flex-col gap-1 text-xs">
-                    AI provider (optional)
-                    <input
-                      className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900 text-sm"
-                      value={aiProvider}
-                      onChange={(e) => setAiProvider(e.target.value)}
-                      placeholder="openai / anthropic / gemini"
+                {activeLogTab === 'interview' ? (
+                  <div className="space-y-2 pt-1 border-t border-gray-100 dark:border-gray-800">
+                    <div className="grid sm:grid-cols-3 gap-2">
+                      <label className="text-xs flex flex-col gap-1">
+                        Round
+                        <input
+                          type="number"
+                          min={1}
+                          className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1"
+                          value={interviewRound}
+                          onChange={(e) => setInterviewRound(Number(e.target.value || 1))}
+                        />
+                      </label>
+                      <label className="text-xs flex flex-col gap-1 sm:col-span-2">
+                        Title
+                        <input
+                          className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1"
+                          value={interviewTitle}
+                          onChange={(e) => setInterviewTitle(e.target.value)}
+                          placeholder="Hiring manager, loop, onsite…"
+                        />
+                      </label>
+                    </div>
+                    <textarea
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-900"
+                      placeholder="Notes"
+                      value={eventNotes}
+                      onChange={(e) => setEventNotes(e.target.value)}
                     />
-                  </label>
-                  <label className="flex flex-col gap-1 text-xs">
-                    Model override
-                    <input
-                      className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900 text-sm"
-                      value={aiModel}
-                      onChange={(e) => setAiModel(e.target.value)}
+                    <Btn
+                      loading={appsHook.addApplicationEvent.isPending}
+                      onClick={() => void handleAddInterview()}
+                    >
+                      Log interview round
+                    </Btn>
+                  </div>
+                ) : null}
+
+                {activeLogTab === 'rejection' ? (
+                  <div className="space-y-2 pt-1 border-t border-gray-100 dark:border-gray-800">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Paste rejection text; themes attach to this application and inform fit
+                      signals.
+                    </p>
+                    <textarea
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-900 min-h-[96px]"
+                      placeholder="Paste rejection email text…"
+                      value={rejectionText}
+                      onChange={(e) => setRejectionText(e.target.value)}
                     />
-                  </label>
-                </div>
-                <Btn
-                  loading={appsHook.rejectionInsights.isPending}
-                  onClick={() => void handleRejectionInsights()}
-                >
-                  Extract themes &amp; attach
-                </Btn>
+                    <input
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-900"
+                      placeholder="Reason category hint (optional)"
+                      value={rejectCategory}
+                      onChange={(e) => setRejectCategory(e.target.value)}
+                    />
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <label className="flex flex-col gap-1 text-xs">
+                        AI provider (optional)
+                        <input
+                          className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900 text-sm"
+                          value={aiProvider}
+                          onChange={(e) => setAiProvider(e.target.value)}
+                          placeholder="openai / anthropic / gemini"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs">
+                        Model override
+                        <input
+                          className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900 text-sm"
+                          value={aiModel}
+                          onChange={(e) => setAiModel(e.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <Btn
+                      loading={appsHook.rejectionInsights.isPending}
+                      onClick={() => void handleRejectionInsights()}
+                    >
+                      Extract themes &amp; attach
+                    </Btn>
+                  </div>
+                ) : null}
               </div>
 
               <div>
