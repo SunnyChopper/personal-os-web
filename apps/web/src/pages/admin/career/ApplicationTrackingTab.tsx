@@ -301,7 +301,9 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
           <div
             className="mt-0.5 text-[11px] leading-snug text-gray-700 dark:text-gray-200 line-clamp-3 break-words max-h-[3.75rem] overflow-hidden"
             title={
-              insightCounts.themesSample?.length ? insightCounts.themesSample.join(' • ') : undefined
+              insightCounts.themesSample?.length
+                ? insightCounts.themesSample.join(' • ')
+                : undefined
             }
           >
             {insightCounts.themesSample?.length ? insightCounts.themesSample.join(' • ') : '—'}
@@ -396,211 +398,217 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm md:col-span-2 lg:col-span-1">
-            <span className="text-gray-700 dark:text-gray-300">Posting URL</span>
-            <input
-              className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
-              value={captureUrl}
-              onChange={(e) => setCaptureUrl(e.target.value)}
-              placeholder="https://…"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm md:col-span-2">
-            <span className="text-gray-700 dark:text-gray-300">Paste job description</span>
-            <textarea
-              className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 min-h-[96px]"
-              value={captureRaw}
-              onChange={(e) => setCaptureRaw(e.target.value)}
-            />
-          </label>
+                <label className="flex flex-col gap-1 text-sm md:col-span-2 lg:col-span-1">
+                  <span className="text-gray-700 dark:text-gray-300">Posting URL</span>
+                  <input
+                    className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
+                    value={captureUrl}
+                    onChange={(e) => setCaptureUrl(e.target.value)}
+                    placeholder="https://…"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm md:col-span-2">
+                  <span className="text-gray-700 dark:text-gray-300">Paste job description</span>
+                  <textarea
+                    className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 min-h-[96px]"
+                    value={captureRaw}
+                    onChange={(e) => setCaptureRaw(e.target.value)}
+                  />
+                </label>
 
-          <div className="md:col-span-2 flex flex-wrap gap-2 items-center">
-            <Btn
-              loading={cr.analyzePosting.isPending}
-              onClick={() => void handleExtractMetadata()}
-              className="gap-2"
-            >
-              <ClipboardPaste className="size-4" aria-hidden />
-              Extract metadata
-            </Btn>
-            {jobPostingId ? (
-              <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                Posting {jobPostingId.slice(0, 8)}…
-              </span>
-            ) : null}
-            {cr.analyzePosting.error ? (
-              <span className="text-xs text-red-600 dark:text-red-400">
-                {cr.analyzePosting.error instanceof Error
-                  ? cr.analyzePosting.error.message
-                  : String(cr.analyzePosting.error)}
-              </span>
-            ) : null}
-          </div>
-
-          <div className="md:col-span-2 grid sm:grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-gray-700 dark:text-gray-300">Tailored resume (optional)</span>
-              <select
-                className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
-                value={generatedResumeId ?? ''}
-                onChange={(e) =>
-                  setGeneratedResumeId(e.target.value.trim() ? e.target.value : null)
-                }
-              >
-                <option value="">Recent generated drafts…</option>
-                {gens.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {generatedDraftLabel(g)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex flex-col gap-1 text-sm">
-              <span className="text-gray-700 dark:text-gray-300">Resume file (PDF, .txt, .md)</span>
-              <div
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    snapshotFileRef.current?.click();
-                  }
-                }}
-                onDragEnter={(e) => {
-                  e.preventDefault();
-                  setDropActive(true);
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDropActive(true);
-                }}
-                onDragLeave={() => setDropActive(false)}
-                onDrop={onDropFiles}
-                onClick={() => snapshotFileRef.current?.click()}
-                className={cn(
-                  'rounded-lg border-2 border-dashed px-4 py-4 text-center cursor-pointer transition',
-                  dropActive
-                    ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30'
-                    : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50/80 dark:hover:bg-gray-800/40'
-                )}
-              >
-                <Upload className="size-8 mx-auto text-gray-400 mb-2" aria-hidden />
-                <p className="text-sm text-gray-700 dark:text-gray-200">
-                  {pdfParsing ? (
-                    <span className="inline-flex items-center gap-2 justify-center">
-                      <Loader2 className="size-4 animate-spin" /> Extracting PDF…
+                <div className="md:col-span-2 flex flex-wrap gap-2 items-center">
+                  <Btn
+                    loading={cr.analyzePosting.isPending}
+                    onClick={() => void handleExtractMetadata()}
+                    className="gap-2"
+                  >
+                    <ClipboardPaste className="size-4" aria-hidden />
+                    Extract metadata
+                  </Btn>
+                  {jobPostingId ? (
+                    <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                      Posting {jobPostingId.slice(0, 8)}…
                     </span>
-                  ) : (
-                    <>
-                      Drop a file here or{' '}
-                      <span className="text-blue-600 dark:text-blue-400">browse</span>
-                    </>
-                  )}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {resumeSnapshotName ? `Attached: ${resumeSnapshotName}` : 'No file selected'}
-                </p>
+                  ) : null}
+                  {cr.analyzePosting.error ? (
+                    <span className="text-xs text-red-600 dark:text-red-400">
+                      {cr.analyzePosting.error instanceof Error
+                        ? cr.analyzePosting.error.message
+                        : String(cr.analyzePosting.error)}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="md:col-span-2 grid sm:grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="text-gray-700 dark:text-gray-300">
+                      Tailored resume (optional)
+                    </span>
+                    <select
+                      className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
+                      value={generatedResumeId ?? ''}
+                      onChange={(e) =>
+                        setGeneratedResumeId(e.target.value.trim() ? e.target.value : null)
+                      }
+                    >
+                      <option value="">Recent generated drafts…</option>
+                      {gens.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {generatedDraftLabel(g)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="flex flex-col gap-1 text-sm">
+                    <span className="text-gray-700 dark:text-gray-300">
+                      Resume file (PDF, .txt, .md)
+                    </span>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          snapshotFileRef.current?.click();
+                        }
+                      }}
+                      onDragEnter={(e) => {
+                        e.preventDefault();
+                        setDropActive(true);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDropActive(true);
+                      }}
+                      onDragLeave={() => setDropActive(false)}
+                      onDrop={onDropFiles}
+                      onClick={() => snapshotFileRef.current?.click()}
+                      className={cn(
+                        'rounded-lg border-2 border-dashed px-4 py-4 text-center cursor-pointer transition',
+                        dropActive
+                          ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30'
+                          : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50/80 dark:hover:bg-gray-800/40'
+                      )}
+                    >
+                      <Upload className="size-8 mx-auto text-gray-400 mb-2" aria-hidden />
+                      <p className="text-sm text-gray-700 dark:text-gray-200">
+                        {pdfParsing ? (
+                          <span className="inline-flex items-center gap-2 justify-center">
+                            <Loader2 className="size-4 animate-spin" /> Extracting PDF…
+                          </span>
+                        ) : (
+                          <>
+                            Drop a file here or{' '}
+                            <span className="text-blue-600 dark:text-blue-400">browse</span>
+                          </>
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {resumeSnapshotName
+                          ? `Attached: ${resumeSnapshotName}`
+                          : 'No file selected'}
+                      </p>
+                    </div>
+                    <input
+                      ref={snapshotFileRef}
+                      type="file"
+                      accept=".pdf,.txt,.md"
+                      className="sr-only"
+                      onChange={(e) => void handleResumeFile(e.target.files?.[0] ?? null)}
+                    />
+                  </div>
+                </div>
+
+                {gens.length ? (
+                  <div className="md:col-span-2">
+                    <OutlineBtn type="button" onClick={() => gens[0] && selectGenerated(gens[0])}>
+                      Use latest draft
+                    </OutlineBtn>
+                  </div>
+                ) : null}
+
+                <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 bg-gray-50/70 dark:bg-gray-900/40">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1 text-xs">
+                      Company
+                      <input
+                        className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs">
+                      Role
+                      <input
+                        className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
+                        value={role}
+                        onChange={(e) => setRole(e.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs">
+                      Location
+                      <input
+                        className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs">
+                      Saved source URL
+                      <input
+                        className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
+                        value={sourceUrlSaved}
+                        onChange={(e) => setSourceUrlSaved(e.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs sm:col-span-2">
+                      Applied date (ISO, optional)
+                      <input
+                        className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
+                        value={appliedAt}
+                        onChange={(e) => setAppliedAt(e.target.value)}
+                        placeholder="2026-05-07T17:00:00Z"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs sm:col-span-2">
+                      Status at save
+                      <select
+                        className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
+                        value={newStatus}
+                        onChange={(e) => setNewStatus(e.target.value as CareerApplicationStatusApi)}
+                      >
+                        {PIPELINE_STATUSES.filter((x) => x.value).map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs sm:col-span-2">
+                      Notes
+                      <textarea
+                        className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm min-h-[64px]"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                      />
+                    </label>
+                  </div>
+
+                  <Btn
+                    loading={appsHook.createApplication.isPending}
+                    onClick={() => void handleSaveApplication()}
+                  >
+                    Add to tracking
+                  </Btn>
+                  {appsHook.createApplication.error ? (
+                    <span className="text-xs text-red-600 dark:text-red-400 block">
+                      {appsHook.createApplication.error instanceof Error
+                        ? appsHook.createApplication.error.message
+                        : String(appsHook.createApplication.error)}
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <input
-                ref={snapshotFileRef}
-                type="file"
-                accept=".pdf,.txt,.md"
-                className="sr-only"
-                onChange={(e) => void handleResumeFile(e.target.files?.[0] ?? null)}
-              />
-            </div>
-          </div>
-
-          {gens.length ? (
-            <div className="md:col-span-2">
-              <OutlineBtn type="button" onClick={() => gens[0] && selectGenerated(gens[0])}>
-                Use latest draft
-              </OutlineBtn>
-            </div>
-          ) : null}
-
-          <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 bg-gray-50/70 dark:bg-gray-900/40">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-xs">
-                Company
-                <input
-                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs">
-                Role
-                <input
-                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs">
-                Location
-                <input
-                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs">
-                Saved source URL
-                <input
-                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
-                  value={sourceUrlSaved}
-                  onChange={(e) => setSourceUrlSaved(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-                Applied date (ISO, optional)
-                <input
-                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
-                  value={appliedAt}
-                  onChange={(e) => setAppliedAt(e.target.value)}
-                  placeholder="2026-05-07T17:00:00Z"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-                Status at save
-                <select
-                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value as CareerApplicationStatusApi)}
-                >
-                  {PIPELINE_STATUSES.filter((x) => x.value).map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-                Notes
-                <textarea
-                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm min-h-[64px]"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </label>
-            </div>
-
-            <Btn
-              loading={appsHook.createApplication.isPending}
-              onClick={() => void handleSaveApplication()}
-            >
-              Add to tracking
-            </Btn>
-            {appsHook.createApplication.error ? (
-              <span className="text-xs text-red-600 dark:text-red-400 block">
-                {appsHook.createApplication.error instanceof Error
-                  ? appsHook.createApplication.error.message
-                  : String(appsHook.createApplication.error)}
-              </span>
-            ) : null}
-          </div>
-        </div>
             </div>
           ) : !selectedId ? (
             <p className="text-sm text-gray-500">
@@ -674,9 +682,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                   </span>
                   <OutlineBtn
                     type="button"
-                    onClick={() =>
-                      setActiveLogTab((t) => (t === 'interview' ? null : 'interview'))
-                    }
+                    onClick={() => setActiveLogTab((t) => (t === 'interview' ? null : 'interview'))}
                     className={cn(
                       activeLogTab === 'interview' &&
                         'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100'
@@ -686,9 +692,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                   </OutlineBtn>
                   <OutlineBtn
                     type="button"
-                    onClick={() =>
-                      setActiveLogTab((t) => (t === 'rejection' ? null : 'rejection'))
-                    }
+                    onClick={() => setActiveLogTab((t) => (t === 'rejection' ? null : 'rejection'))}
                     className={cn(
                       activeLogTab === 'rejection' &&
                         'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100'
