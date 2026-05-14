@@ -147,9 +147,7 @@ export function LogbookCalendarView({
   }, [currentDate]);
 
   const headerTitle =
-    granularity === 'week'
-      ? weekGrid.label
-      : `${monthGrid.monthName} ${monthGrid.year}`;
+    granularity === 'week' ? weekGrid.label : `${monthGrid.monthName} ${monthGrid.year}`;
 
   const gridDays = granularity === 'week' ? weekGrid.days : monthGrid.days;
 

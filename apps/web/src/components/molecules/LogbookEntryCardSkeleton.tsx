@@ -24,7 +24,10 @@ export function LogbookEntryCardSkeleton({ count = 1 }: LogbookEntryCardSkeleton
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <div className="flex gap-0.5">
                 {Array.from({ length: 10 }).map((_, i) => (
-                  <div key={i} className="w-1.5 h-3 sm:w-2 sm:h-4 bg-gray-200 dark:bg-gray-700 rounded-sm" />
+                  <div
+                    key={i}
+                    className="w-1.5 h-3 sm:w-2 sm:h-4 bg-gray-200 dark:bg-gray-700 rounded-sm"
+                  />
                 ))}
               </div>
               <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-8" />
