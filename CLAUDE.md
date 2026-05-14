@@ -142,7 +142,7 @@ Optional legacy: `personal-os-web/infrastructure/github-secrets.tf` (Terraform G
 - Cross-repo anti-patterns (filter by `[frontend]`): `../docs/agent-learnings/anti-patterns.md`
 - After modifying API types, verify alignment with `../docs/backend/API_ENDPOINTS.md`.
 - After adding or modifying components, verify applicable `.mdc` rules in `.cursor/rules/` were followed.
-- Before declaring done, complete and report the self-assessment protocol from root `../CLAUDE.md`.
+- Before declaring done, complete and report the **8-item self-assessment** from root `../CLAUDE.md` (End criteria) and `../.cursor/rules/self-reinforcement.mdc`; use `npm run self-assessment:template` at the monorepo root for the paste-ready block.
 - Treat final completion as blocked until the self-assessment is explicitly included in the final response.
 
 ## Post-Mortems and Learnings
