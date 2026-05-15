@@ -169,7 +169,7 @@ export const METRIC_UNITS: readonly MetricUnit[] = [
   'hours',
   'minutes',
   'dollars',
-  'pounds',
+  'lbs',
   'kg',
   'percent',
   'rating',
