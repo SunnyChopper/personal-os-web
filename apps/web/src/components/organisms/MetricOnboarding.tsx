@@ -29,7 +29,7 @@ const EXAMPLE_METRICS = [
     name: 'Body Weight',
     description: 'Track your body weight',
     area: 'Health' as const,
-    unit: 'pounds' as const,
+    unit: 'lbs' as const,
     direction: 'Lower' as const,
     targetValue: 170,
   },

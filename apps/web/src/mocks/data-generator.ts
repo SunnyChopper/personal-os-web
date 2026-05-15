@@ -567,7 +567,7 @@ export function generateSeedData() {
     description: 'Track body weight to monitor health',
     area: 'Health',
     subCategory: 'Physical',
-    unit: 'pounds',
+    unit: 'lbs',
     customUnit: null,
     direction: 'Lower',
     targetValue: 175,

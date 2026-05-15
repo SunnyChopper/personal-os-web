@@ -54,7 +54,7 @@ export type MetricUnit =
   | 'hours'
   | 'minutes'
   | 'dollars'
-  | 'pounds'
+  | 'lbs'
   | 'kg'
   | 'percent'
   | 'rating'
