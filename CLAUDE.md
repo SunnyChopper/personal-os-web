@@ -52,6 +52,48 @@ When this repo is opened inside the monorepo workspace (sibling `personal-os-bac
 - **Tests**: `bun run --filter web test` (Vitest), `bun run --filter web test:e2e` (Playwright)
 - **Meta**: `bun run --filter web validate` (runs repo validation scripts)
 
+### CI parity (when asked for “full CI”, “everything CI runs”, or PR checks)
+
+Source of truth: **`.github/workflows/ci.yml`** in this repo. Do **not** substitute only monorepo-root `npm run verify:frontend` when the user explicitly wants **GitHub Actions parity** — that script omits `format:check`, full workspace **`build`**, `validate-architecture`, `check-patterns`, and tests.
+
+**1. Validate job** — run from **`personal-os-web/`** (same order as CI):
+
+```powershell
+Set-Location C:\path\to\personal-os\personal-os-web
+bun install --frozen-lockfile --linker hoisted
+bun run type-check
+bun run lint
+bun run format:check
+bun run build
+bun run --filter web validate-architecture
+bun run --filter web check-patterns
+```
+
+**2. Test job** (Vitest + Playwright — install browsers once per machine / lockfile change):
+
+```powershell
+Set-Location C:\path\to\personal-os\personal-os-web\apps\web
+bun x playwright install --with-deps chromium
+Set-Location C:\path\to\personal-os\personal-os-web
+bun run --filter web test
+bun run --filter web test:e2e
+```
+
+**3. Garden job** (only if the change touches **`apps/garden`** or the user asks for full workspace CI):
+
+```powershell
+Set-Location C:\path\to\personal-os\personal-os-web
+bun run --filter garden type-check
+bun run --filter garden lint
+# Mirrors CI compile gate; CI sets env placeholders — see ci.yml `Build OpenNext`
+bun run --filter garden build:opennext
+```
+
+**Prettier / Windows**
+
+- Workspace `.prettierrc` sets **`"endOfLine": "lf"`**. On Windows, **`bun run format:check`** may warn on hundreds of files (CRLF working tree) while **GitHub still passes** because CI checks out LF.
+- For files you edited: run **`bunx prettier --write <paths>`** then **`bunx prettier --check <paths>`**. Do **not** use **`bun run prettier`** — there is no such script; use **`bun run format`** / **`format:check`** or **`bunx prettier`**.
+
 ## Local logging
 
 - Frontend dev logs are written to `../logs/frontend/app.jsonl`
