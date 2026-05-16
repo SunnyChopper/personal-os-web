@@ -12,6 +12,7 @@ import {
 } from '@/utils/project-summary';
 import { formatDateString } from '@/utils/date-formatters';
 import { cn } from '@/lib/utils';
+import { getProjectTypeDescriptor } from '@/features/projectTypes';
 
 type ViewMode = 'grid' | 'list' | 'timeline';
 
@@ -76,6 +77,8 @@ export function ProjectCard({
     onClick(project);
   };
 
+  const ProjectTypeBadgeSlot = getProjectTypeDescriptor(project.projectType).CardBadges;
+
   // Grid View: Simplified card layout with lower information density
   if (viewMode === 'grid') {
     return (
@@ -138,6 +141,7 @@ export function ProjectCard({
               <div className="flex items-center gap-2 flex-wrap">
                 <StatusBadge status={effectiveStatus} size="sm" />
                 <AreaBadge area={project.area} size="sm" />
+                {ProjectTypeBadgeSlot ? <ProjectTypeBadgeSlot project={project} /> : null}
               </div>
             </div>
           </div>
@@ -226,6 +230,7 @@ export function ProjectCard({
             <div className="flex items-center gap-2 flex-wrap">
               <StatusBadge status={effectiveStatus} size="sm" />
               <AreaBadge area={project.area} size="sm" />
+              {ProjectTypeBadgeSlot ? <ProjectTypeBadgeSlot project={project} /> : null}
             </div>
           </div>
         </div>

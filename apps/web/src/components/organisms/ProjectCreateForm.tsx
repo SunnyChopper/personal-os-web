@@ -5,6 +5,7 @@ import type {
   SubCategory,
   Priority,
   ProjectStatus,
+  ProjectTypeId,
 } from '@/types/growth-system';
 import Button from '@/components/atoms/Button';
 import { ImpactScoreSelector } from '@/components/molecules/ImpactScoreSelector';
@@ -16,6 +17,11 @@ import {
   PROJECT_STATUS_LABELS,
   SUBCATEGORIES_BY_AREA,
 } from '@/constants/growth-system';
+import {
+  EMPTY_SOFTWARE_METADATA,
+  getProjectTypeDescriptor,
+  ProjectTypeSelect,
+} from '@/features/projectTypes';
 
 interface ProjectCreateFormProps {
   onSubmit: (input: CreateProjectInput) => void;
@@ -35,6 +41,7 @@ export function ProjectCreateForm({ onSubmit, onCancel, isLoading }: ProjectCrea
     startDate: '',
     targetEndDate: '',
     notes: '',
+    projectType: 'General',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -43,6 +50,9 @@ export function ProjectCreateForm({ onSubmit, onCancel, isLoading }: ProjectCrea
   };
 
   const availableSubCategories = SUBCATEGORIES_BY_AREA[formData.area] || [];
+  const projectType = formData.projectType ?? 'General';
+  const typeDescriptor = getProjectTypeDescriptor(projectType);
+  const TypeExtraFields = typeDescriptor.CreateFields;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -71,6 +81,33 @@ export function ProjectCreateForm({ onSubmit, onCancel, isLoading }: ProjectCrea
           rows={3}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+      </div>
+
+      <div>
+        <label
+          htmlFor="project-create-type"
+          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          Project type
+        </label>
+        <ProjectTypeSelect
+          id="project-create-type"
+          value={projectType}
+          disabled={isLoading}
+          onChange={(next: ProjectTypeId) =>
+            setFormData((prev) => ({
+              ...prev,
+              projectType: next,
+              softwareMetadata:
+                next === 'SoftwareDevelopment'
+                  ? (prev.softwareMetadata ?? EMPTY_SOFTWARE_METADATA)
+                  : undefined,
+            }))
+          }
+        />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {typeDescriptor.description}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -188,6 +225,18 @@ export function ProjectCreateForm({ onSubmit, onCancel, isLoading }: ProjectCrea
           />
         </div>
       </div>
+
+      {TypeExtraFields && projectType === 'SoftwareDevelopment' ? (
+        <TypeExtraFields
+          projectType={projectType}
+          softwareMetadata={formData.softwareMetadata ?? EMPTY_SOFTWARE_METADATA}
+          onProjectTypeChange={() => {}}
+          onSoftwareMetadataChange={(softwareMetadata) =>
+            setFormData((prev) => ({ ...prev, softwareMetadata }))
+          }
+          disabled={isLoading}
+        />
+      ) : null}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
