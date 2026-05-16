@@ -9,6 +9,7 @@ import { SUBCATEGORIES_BY_AREA } from '@/constants/growth-system';
 import { parseDateInput, formatDateString } from '@/utils/date-formatters';
 import { JitKnowledgePanel } from '@/components/organisms/JitKnowledgePanel';
 import { CookedTaskButton } from '@/components/organisms/planner/CookedTaskButton';
+import { PointBreakdownPopover } from '@/components/molecules/PointBreakdownPopover';
 
 interface TaskDetailDialogProps {
   task: Task | null;
@@ -138,21 +139,24 @@ export function TaskDetailDialog({ task, isOpen, onClose, onEdit }: TaskDetailDi
 
           {/* Wallet reward (distinct from effort) */}
           {task.pointValue !== null && task.pointValue !== undefined && (
-            <div className="flex items-start gap-3">
-              <Award className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Wallet reward
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {task.pointValue} {task.pointValue === 1 ? 'point' : 'points'}
-                  {task.rewardLedgerStatus === 'reversed'
-                    ? ' · reward was clawed back after reopening (see wallet history)'
-                    : task.pointsAwarded
-                      ? ' · credited to wallet'
-                      : ' · credited when marked Done'}
+            <div className="flex flex-col gap-2 md:col-span-2">
+              <div className="flex items-start gap-3">
+                <Award className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Wallet reward
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {task.pointValue} {task.pointValue === 1 ? 'point' : 'points'}
+                    {task.rewardLedgerStatus === 'reversed'
+                      ? ' · reward was clawed back after reopening (see wallet history)'
+                      : task.pointsAwarded
+                        ? ' · credited to wallet'
+                        : ' · credited when marked Done'}
+                  </div>
                 </div>
               </div>
+              <PointBreakdownPopover pointValue={task.pointValue} breakdown={task.pointBreakdown} />
             </div>
           )}
         </div>

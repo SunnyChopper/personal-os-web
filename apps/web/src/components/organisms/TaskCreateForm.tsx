@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, ChevronDown, ChevronUp, AlertCircle, GitBranch } from 'lucide-react';
+import { Sparkles, ChevronDown, ChevronUp, AlertCircle, GitBranch, Award } from 'lucide-react';
 import type {
   CreateTaskInput,
   Area,
@@ -12,6 +12,8 @@ import Button from '@/components/atoms/Button';
 import { RelationshipPicker } from '@/components/organisms/RelationshipPicker';
 import { AITaskAssistPanel } from '@/components/molecules/AITaskAssistPanel';
 import { llmConfig } from '@/lib/llm';
+import { PointBreakdownPopover } from '@/components/molecules/PointBreakdownPopover';
+import { pointCalculatorService } from '@/services/rewards/point-calculator.service';
 import {
   AREAS,
   PRIORITIES,
@@ -59,6 +61,13 @@ export function TaskCreateForm({
   const [dependencyPickerOpen, setDependencyPickerOpen] = useState(false);
   const [dependsOnTaskIds, setDependsOnTaskIds] = useState<string[]>([]);
   const isAIConfigured = llmConfig.isConfigured();
+
+  const previewPriority: Priority = formData.priority ?? 'P3';
+  const walletPreview = pointCalculatorService.buildWalletPreviewFromDrivers(
+    formData.size,
+    previewPriority,
+    formData.area
+  );
 
   const extractValidationErrors = (details: unknown): string => {
     if (!Array.isArray(details)) return '';
@@ -375,38 +384,26 @@ export function TaskCreateForm({
           </p>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Point Value (Optional)
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min="0"
-              value={formData.pointValue || ''}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  pointValue: e.target.value ? parseFloat(e.target.value) : undefined,
-                })
-              }
-              placeholder="AI will calculate if left empty"
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {isAIConfigured && (
-              <button
-                type="button"
-                onClick={() => setAIMode('estimate')}
-                className="px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
-                title="Calculate with AI"
-              >
-                <Sparkles size={18} />
-              </button>
-            )}
+        <div className="rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/70 dark:bg-gray-900/30 p-3 space-y-2">
+          <div className="flex items-start gap-2">
+            <Award className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                Wallet reward (after save)
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                The server assigns{' '}
+                <span className="font-semibold tabular-nums">{walletPreview.totalPoints}</span>{' '}
+                {walletPreview.totalPoints === 1 ? 'point' : 'points'} from your area, priority, and
+                story points. Credited when the task is marked Done. Override points from the task
+                editor after create if needed.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Reward points for completing this task
-          </p>
+          <PointBreakdownPopover
+            pointValue={walletPreview.totalPoints}
+            breakdown={walletPreview.breakdown}
+          />
         </div>
 
         <div>

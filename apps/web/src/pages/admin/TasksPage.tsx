@@ -31,7 +31,9 @@ import { queryKeys } from '@/lib/react-query/query-keys';
 import { extractErrorMessage } from '@/lib/react-query/error-utils';
 import {
   addTaskDependencyToCache,
+  findTaskInClientCache,
   removeTaskDependencyFromCache,
+  upsertTaskCache,
 } from '@/lib/react-query/growth-system-cache';
 import Button from '@/components/atoms/Button';
 import { TaskListItem } from '@/components/molecules/TaskListItem';
@@ -438,24 +440,59 @@ export default function TasksPage() {
     removeTaskDependencyFromCache(queryClient, taskId, dependsOnId);
   };
 
+  /** Keep list/detail cache aligned with backend after POST/DELETE link endpoints (PATCH runs earlier in edit save). */
+  const patchCachedTaskLinks = (taskId: string, updater: (t: Task) => Task) => {
+    const existing = findTaskInClientCache(queryClient, taskId);
+    const taskRow = existing ?? tasks.find((t) => t.id === taskId);
+    if (taskRow) upsertTaskCache(queryClient, updater(taskRow));
+  };
+
   const handleProjectLink = async (taskId: string, projectId: string) => {
-    await tasksService.linkToProject(taskId, projectId);
+    const response = await tasksService.linkToProject(taskId, projectId);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to link task to project');
+    }
+    patchCachedTaskLinks(taskId, (t) => ({
+      ...t,
+      projectIds: Array.from(new Set([...(t.projectIds ?? []), projectId])),
+    }));
     // Notify ProjectsPage to refresh its task list
     window.dispatchEvent(new CustomEvent('task-project-link-changed', { detail: { projectId } }));
   };
 
   const handleProjectUnlink = async (taskId: string, projectId: string) => {
-    await tasksService.unlinkFromProject(taskId, projectId);
+    const response = await tasksService.unlinkFromProject(taskId, projectId);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to unlink task from project');
+    }
+    patchCachedTaskLinks(taskId, (t) => ({
+      ...t,
+      projectIds: (t.projectIds ?? []).filter((id) => id !== projectId),
+    }));
     // Notify ProjectsPage to refresh its task list
     window.dispatchEvent(new CustomEvent('task-project-link-changed', { detail: { projectId } }));
   };
 
   const handleGoalLink = async (taskId: string, goalId: string) => {
-    await tasksService.linkToGoal(taskId, goalId);
+    const response = await tasksService.linkToGoal(taskId, goalId);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to link task to goal');
+    }
+    patchCachedTaskLinks(taskId, (t) => ({
+      ...t,
+      goalIds: Array.from(new Set([...(t.goalIds ?? []), goalId])),
+    }));
   };
 
   const handleGoalUnlink = async (taskId: string, goalId: string) => {
-    await tasksService.unlinkFromGoal(taskId, goalId);
+    const response = await tasksService.unlinkFromGoal(taskId, goalId);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to unlink task from goal');
+    }
+    patchCachedTaskLinks(taskId, (t) => ({
+      ...t,
+      goalIds: (t.goalIds ?? []).filter((id) => id !== goalId),
+    }));
   };
 
   const getTaskDependencies = (taskId: string): Task[] => {
@@ -468,16 +505,20 @@ export default function TasksPage() {
     return tasks.filter((t) => blockedIds.includes(t.id));
   };
 
-  const getLinkedProjects = (_taskId: string): EntitySummary[] => {
-    // TODO: Fetch linked projects from API if needed
-    // For now, return empty array as task-project linking wasn't fully implemented
-    return [];
+  const getLinkedProjects = (taskId: string): EntitySummary[] => {
+    const task = tasks.find((t) => t.id === taskId);
+    const ids = task?.projectIds ?? [];
+    if (ids.length === 0) return [];
+    const idSet = new Set(ids);
+    return allProjects.filter((p) => idSet.has(p.id));
   };
 
-  const getLinkedGoals = (_taskId: string): EntitySummary[] => {
-    // TODO: Fetch linked goals from API if needed
-    // For now, return empty array as task-goal linking wasn't fully implemented
-    return [];
+  const getLinkedGoals = (taskId: string): EntitySummary[] => {
+    const task = tasks.find((t) => t.id === taskId);
+    const ids = task?.goalIds ?? [];
+    if (ids.length === 0) return [];
+    const idSet = new Set(ids);
+    return allGoals.filter((g) => idSet.has(g.id));
   };
 
   const activeFilterCount = [

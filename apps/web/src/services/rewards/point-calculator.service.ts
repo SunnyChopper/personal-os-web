@@ -1,48 +1,112 @@
-import type { Task, Area, Priority } from '@/types/growth-system';
+import type * as GrowthTypes from '@/types/growth-system';
 import type { TaskPointValuation } from '@/types/rewards';
 
 /** Wallet reward base scale: points per story point (aligns with backend TasksService). */
 const BASE_POINTS_PER_STORY_POINT = 20;
 
-const PRIORITY_MULTIPLIERS: Record<Priority, number> = {
+const PRIORITY_MULTIPLIERS: Record<GrowthTypes.Priority, number> = {
   P1: 2.0,
   P2: 1.5,
   P3: 1.2,
   P4: 1.0,
 };
 
-const AREA_MULTIPLIERS: Record<Area, number> = {
-  Health: 1.3,
-  Wealth: 1.2,
-  Love: 1.2,
-  Happiness: 1.1,
-  Operations: 1.0,
-  'Day Job': 1.1,
-};
+/** Mirrors `TasksService._calculate_points` — only Health / Wealth deviate from default 1.1x area multiplier. */
+function areaMultiplier(area: GrowthTypes.Area | string): number {
+  if (area === 'Health') return 1.3;
+  if (area === 'Wealth') return 1.2;
+  return 1.1;
+}
 
+function priorityMultiplierFn(priority: GrowthTypes.Priority | string): number {
+  const p = ((priority === '' ? 'P3' : priority) || 'P3') as GrowthTypes.Priority;
+  return PRIORITY_MULTIPLIERS[p] ?? 1.0;
+}
+
+/** Integer truncation matches Python `int(total)` on non-negative totals. */
+function floorTotal(basePoints: number, prioMult: number, arrMult: number, szMult: number): number {
+  return Math.floor(basePoints * prioMult * arrMult * szMult);
+}
+
+/** Match Python `{x:g}` for multipliers when building parity reasoning strings. */
+function formatReasoningMultiplier(n: number): string {
+  if (Number.isInteger(n)) {
+    return String(n);
+  }
+  return `${parseFloat(n.toPrecision(12))}`;
+}
 export const pointCalculatorService = {
-  calculateTaskPoints(task: Task): TaskPointValuation {
+  /**
+   * Deterministic breakdown for UI before a task row exists — must stay aligned with
+   * `build_task_point_breakdown` in `personal-os-backend/src/services/tasks.py`.
+   */
+  buildWalletPreviewFromDrivers(
+    size: number | null | undefined,
+    priority: GrowthTypes.Priority,
+    area: GrowthTypes.Area
+  ): { totalPoints: number; breakdown: GrowthTypes.TaskPointBreakdown } {
+    const sp = size ?? 5;
+    const basePoints = sp * BASE_POINTS_PER_STORY_POINT;
+    const pMult = priorityMultiplierFn(priority);
+    const aMult = areaMultiplier(area);
+    const sizeMultiplier = size != null ? (size >= 13 ? 1.5 : size >= 8 ? 1.2 : 1.0) : 1.0;
+
+    const totalPoints = floorTotal(basePoints, pMult, aMult, sizeMultiplier);
+    const reasoning = [
+      `Wallet points = ${basePoints} base (${sp} story points × 20) × ${formatReasoningMultiplier(pMult)} priority`,
+      `× ${formatReasoningMultiplier(aMult)} area × ${formatReasoningMultiplier(sizeMultiplier)} size bonus → ${totalPoints}.`,
+    ].join(' ');
+
+    return {
+      totalPoints,
+      breakdown: {
+        storyPoints: sp,
+        basePoints,
+        priorityMultiplier: pMult,
+        areaMultiplier: aMult,
+        sizeBonus: sizeMultiplier,
+        total: totalPoints,
+        reasoning,
+      },
+    };
+  },
+
+  /**
+   * Same formula as POST/PATCH persisted `pointValue` (backend `TasksService._calculate_points`).
+   */
+  calculateTaskPointsFromDrivers(
+    size: number | null | undefined,
+    priority: GrowthTypes.Priority,
+    area: GrowthTypes.Area
+  ): number {
+    const sp = size ?? 5;
+    const basePoints = sp * BASE_POINTS_PER_STORY_POINT;
+    const pMult = priorityMultiplierFn(priority);
+    const aMult = areaMultiplier(area);
+    const sizeMultiplier = size != null ? (size >= 13 ? 1.5 : size >= 8 ? 1.2 : 1.0) : 1.0;
+    return floorTotal(basePoints, pMult, aMult, sizeMultiplier);
+  },
+
+  calculateTaskPoints(task: GrowthTypes.Task): TaskPointValuation {
     const sp = task.size ?? 5;
 
     const basePoints = sp * BASE_POINTS_PER_STORY_POINT;
 
-    const priorityMultiplier = PRIORITY_MULTIPLIERS[task.priority];
+    const priorityMult = priorityMultiplierFn(task.priority);
 
-    const areaMultiplier = AREA_MULTIPLIERS[task.area];
+    const areaMult = areaMultiplier(task.area);
 
     const sizeMultiplier =
       task.size != null ? (task.size >= 13 ? 1.5 : task.size >= 8 ? 1.2 : 1.0) : 1.0;
 
-    const totalPoints = Math.round(
-      basePoints * priorityMultiplier * areaMultiplier * sizeMultiplier
-    );
+    const totalPoints = floorTotal(basePoints, priorityMult, areaMult, sizeMultiplier);
 
     return {
       taskId: task.id,
       basePoints,
       sizeMultiplier,
-      priorityMultiplier,
-      areaMultiplier,
+      priorityMultiplier: priorityMult,
+      areaMultiplier: areaMult,
       totalPoints,
       calculatedAt: new Date().toISOString(),
     };
@@ -52,12 +116,12 @@ export const pointCalculatorService = {
     return BASE_POINTS_PER_STORY_POINT;
   },
 
-  getPriorityMultiplier(priority: Priority): number {
-    return PRIORITY_MULTIPLIERS[priority];
+  getPriorityMultiplier(priority: GrowthTypes.Priority): number {
+    return priorityMultiplierFn(priority);
   },
 
-  getAreaMultiplier(area: Area): number {
-    return AREA_MULTIPLIERS[area];
+  getAreaMultiplier(area: GrowthTypes.Area): number {
+    return areaMultiplier(area);
   },
 
   calculateMetricMilestonePoints(

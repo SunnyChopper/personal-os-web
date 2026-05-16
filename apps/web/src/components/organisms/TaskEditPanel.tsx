@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Link2,
@@ -19,12 +19,15 @@ import type {
   TaskStatus,
   EntitySummary,
   CreateTaskInput,
+  TaskKind,
 } from '@/types/growth-system';
 import Button from '@/components/atoms/Button';
 import { EntityLinkChip } from '@/components/atoms/EntityLinkChip';
 import { DependencyBadge } from '@/components/atoms/DependencyBadge';
 import { RelationshipPicker } from '@/components/organisms/RelationshipPicker';
+import { SubtaskList } from '@/components/molecules/SubtaskList';
 import { AITaskAssistPanel } from '@/components/molecules/AITaskAssistPanel';
+import { PointBreakdownPopover } from '@/components/molecules/PointBreakdownPopover';
 import { llmConfig } from '@/lib/llm';
 import {
   AREAS,
@@ -35,6 +38,14 @@ import {
   TASK_STATUS_LABELS,
   TASK_STORY_POINTS_FIBONACCI,
 } from '@/constants/growth-system';
+import { pointCalculatorService } from '@/services/rewards/point-calculator.service';
+
+/** Form state uses `''` for empty date inputs; submit maps cleared fields to JSON `null` for PATCH. */
+type TaskEditFormState = Omit<UpdateTaskInput, 'dueDate' | 'scheduledDate'> & {
+  dueDate: string;
+  scheduledDate: string;
+  taskKind: TaskKind;
+};
 
 interface TaskEditPanelProps {
   task: Task;
@@ -56,6 +67,8 @@ interface TaskEditPanelProps {
   onGoalLink: (taskId: string, goalId: string) => Promise<void>;
   onGoalUnlink: (taskId: string, goalId: string) => Promise<void>;
   onCreateSubtasks?: (subtasks: CreateTaskInput[]) => void;
+  /** When set (e.g. task linked to a SoftwareDevelopment project), show task kind selector. */
+  taskKindOptions?: { value: TaskKind; label: string }[];
 }
 
 export function TaskEditPanel({
@@ -78,8 +91,9 @@ export function TaskEditPanel({
   onGoalLink,
   onGoalUnlink,
   onCreateSubtasks,
+  taskKindOptions,
 }: TaskEditPanelProps) {
-  const [formData, setFormData] = useState<UpdateTaskInput>({
+  const [formData, setFormData] = useState<TaskEditFormState>({
     title: task.title,
     description: task.description || '',
     extendedDescription: task.extendedDescription || '',
@@ -92,6 +106,7 @@ export function TaskEditPanel({
     scheduledDate: task.scheduledDate || '',
     notes: task.notes || '',
     pointValue: task.pointValue || undefined,
+    taskKind: task.taskKind ?? 'Generic',
   });
 
   const [isDependencyPickerOpen, setIsDependencyPickerOpen] = useState(false);
@@ -110,6 +125,10 @@ export function TaskEditPanel({
   const [error, setError] = useState<string | null>(null);
   const { showToast, ToastContainer } = useToast();
 
+  const [pointsMode, setPointsMode] = useState<'auto' | 'manual'>(() =>
+    task.pointValueOverridden ? 'manual' : 'auto'
+  );
+
   useEffect(() => {
     setFormData({
       title: task.title,
@@ -124,11 +143,39 @@ export function TaskEditPanel({
       scheduledDate: task.scheduledDate || '',
       notes: task.notes || '',
       pointValue: task.pointValue || undefined,
+      taskKind: task.taskKind ?? 'Generic',
     });
+    setPointsMode(task.pointValueOverridden ? 'manual' : 'auto');
     setSelectedDependencies(dependencies.map((d) => d.id));
     setSelectedProjects(linkedProjects.map((p) => p.id));
     setSelectedGoals(linkedGoals.map((g) => g.id));
   }, [task, dependencies, linkedProjects, linkedGoals]);
+
+  const expectedRewardPoints = useMemo(
+    () =>
+      pointCalculatorService.calculateTaskPointsFromDrivers(
+        formData.size,
+        formData.priority ?? task.priority ?? 'P2',
+        formData.area ?? task.area
+      ),
+    [formData.size, formData.priority, formData.area, task.priority, task.area]
+  );
+
+  const isDoneTaskLocked = task.status === 'Done';
+
+  const walletPointsForBreakdownHeading = useMemo(() => {
+    if (isDoneTaskLocked) {
+      return typeof task.pointValue === 'number' ? task.pointValue : 0;
+    }
+    if (
+      pointsMode === 'manual' &&
+      typeof formData.pointValue === 'number' &&
+      Number.isFinite(formData.pointValue)
+    ) {
+      return Math.floor(formData.pointValue);
+    }
+    return expectedRewardPoints;
+  }, [isDoneTaskLocked, task.pointValue, pointsMode, formData.pointValue, expectedRewardPoints]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,15 +184,38 @@ export function TaskEditPanel({
 
     try {
       // First, save the task data
+      const trimmedDue = formData.dueDate?.trim() ?? '';
+      const trimmedScheduled = formData.scheduledDate?.trim() ?? '';
       const input: UpdateTaskInput = {
-        ...formData,
+        title: formData.title,
         description: formData.description || undefined,
         extendedDescription: formData.extendedDescription || undefined,
+        area: formData.area,
+        subCategory: formData.subCategory,
+        priority: formData.priority,
+        status: formData.status,
         notes: formData.notes || undefined,
-        dueDate: formData.dueDate || undefined,
-        scheduledDate: formData.scheduledDate || undefined,
+        // Backend PATCH uses explicit JSON null to clear optional date fields (omit key = unchanged).
+        dueDate: trimmedDue ? trimmedDue : null,
+        scheduledDate: trimmedScheduled ? trimmedScheduled : null,
         size: formData.size || undefined,
       };
+
+      if (!isDoneTaskLocked) {
+        if (pointsMode === 'manual') {
+          const pv = formData.pointValue;
+          if (pv !== undefined && pv !== null && !(typeof pv === 'number' && Number.isNaN(pv))) {
+            input.pointValue = Math.floor(Number(pv));
+          }
+        } else if (task.pointValueOverridden) {
+          input.pointValueOverridden = false;
+        }
+      }
+
+      if (taskKindOptions?.length) {
+        input.taskKind = formData.taskKind;
+      }
+
       await onSave(task.id, input);
 
       // Then, apply pending dependency changes
@@ -261,6 +331,7 @@ export function TaskEditPanel({
       type: 'task',
       area: t.area,
       status: t.status,
+      updatedAt: t.updatedAt,
     }));
 
   // Get entities to display based on pending selections
@@ -469,6 +540,27 @@ export function TaskEditPanel({
                 </div>
               </div>
 
+              {taskKindOptions && taskKindOptions.length > 0 ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Task kind
+                  </label>
+                  <select
+                    value={formData.taskKind}
+                    onChange={(e) =>
+                      setFormData({ ...formData, taskKind: e.target.value as TaskKind })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {taskKindOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -510,40 +602,110 @@ export function TaskEditPanel({
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className={isDoneTaskLocked ? 'col-span-2' : ''}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Point Value
+                    Wallet reward points
                   </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.pointValue || ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          pointValue: e.target.value ? parseFloat(e.target.value) : undefined,
-                        })
-                      }
-                      placeholder="AI-calculated"
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {isAIConfigured && (
-                      <button
-                        type="button"
-                        onClick={() => setAIMode('estimate')}
-                        className="px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
-                        title="Calculate with AI"
-                      >
-                        <Sparkles size={18} />
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Reward points earned for completing this task
-                  </p>
+                  {isDoneTaskLocked ? (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Locked while the task is Done:{' '}
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        {task.pointValue ?? '—'}
+                      </span>
+                    </p>
+                  ) : pointsMode === 'auto' ? (
+                    <>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <input
+                          readOnly
+                          type="number"
+                          aria-label="Calculated wallet reward points"
+                          value={expectedRewardPoints}
+                          className="min-w-[6rem] flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPointsMode('manual');
+                            setFormData((fd) => ({
+                              ...fd,
+                              pointValue: fd.pointValue ?? expectedRewardPoints,
+                            }));
+                          }}
+                          className="px-3 py-2 text-sm rounded-md bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                        >
+                          Override
+                        </button>
+                        {isAIConfigured && (
+                          <button
+                            type="button"
+                            onClick={() => setAIMode('estimate')}
+                            className="px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors inline-flex items-center gap-1"
+                            title="Suggest story points / reward with AI"
+                          >
+                            <Sparkles size={18} />
+                            <span className="hidden sm:inline">AI</span>
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Updates when story points, priority, or area change (formula matches the
+                        backend).
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <input
+                          type="number"
+                          min="0"
+                          value={formData.pointValue ?? ''}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              pointValue: e.target.value ? parseFloat(e.target.value) : undefined,
+                            })
+                          }
+                          aria-label="Manual wallet reward override"
+                          className="min-w-[6rem] flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPointsMode('auto');
+                          }}
+                          className="px-3 py-2 text-sm rounded-md bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                        >
+                          Reset to auto
+                        </button>
+                        {isAIConfigured && (
+                          <button
+                            type="button"
+                            onClick={() => setAIMode('estimate')}
+                            className="px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors inline-flex items-center gap-1"
+                            title="Suggest story points / reward with AI"
+                          >
+                            <Sparkles size={18} />
+                            <span className="hidden sm:inline">AI</span>
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Manual reward — clearing override recalculates from story points, priority,
+                        and area.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
+
+              {task.pointBreakdown ? (
+                <PointBreakdownPopover
+                  pointValue={walletPointsForBreakdownHeading}
+                  breakdown={task.pointBreakdown}
+                  className="mt-2"
+                />
+              ) : null}
 
               {isAIConfigured && (
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
@@ -620,6 +782,15 @@ export function TaskEditPanel({
                   )}
                 </div>
               )}
+
+              {!task.parentTaskId ? (
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                    Subtasks
+                  </h3>
+                  <SubtaskList parentTask={task} />
+                </div>
+              ) : null}
 
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
