@@ -264,4 +264,38 @@ describe('AssistantWsClient', () => {
     expect(MockWebSocket.instances.length).toBe(0);
     expect(client.getConnectionState()).toBe('disconnected');
   });
+
+  it('rejects connect when handshake never completes before connectTimeoutMs', async () => {
+    class HangingSocket {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      static instances: HangingSocket[] = [];
+
+      readyState = HangingSocket.CONNECTING;
+      onopen: ((event: Event) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      send = vi.fn();
+      close = vi.fn();
+
+      constructor(_url: string) {
+        HangingSocket.instances.push(this);
+      }
+    }
+
+    vi.stubGlobal('WebSocket', HangingSocket);
+    vi.useFakeTimers();
+    const client = new AssistantWsClient({
+      wsBaseUrl,
+      getAccessToken: async () => token,
+      connectTimeoutMs: 5000,
+      maxReconnectAttempts: 0,
+    });
+    const outcome = client.connect().catch((e) => e);
+    await vi.advanceTimersByTimeAsync(5000);
+    const thrown = await outcome;
+    expect(thrown).toMatchObject({ name: 'WsHandshakeTimeoutError' });
+    vi.useRealTimers();
+  });
 });

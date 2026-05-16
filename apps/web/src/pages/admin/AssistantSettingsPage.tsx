@@ -1,36 +1,57 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { AssistantDefaultModelsForm } from '@/components/settings/AssistantDefaultModelsForm';
 import { AssistantMemoryIngestionForm } from '@/components/settings/AssistantMemoryIngestionForm';
 import { AssistantToolApprovalForm } from '@/components/settings/AssistantToolApprovalForm';
 import { apiClient } from '@/lib/api-client';
-import type { AssistantToolApprovalMode, AssistantToolRegistryEntry } from '@/types/api-contracts';
+import {
+  assistantDefaultModelsPayloadFromDraft,
+  defaultModelsDraftFromSettings,
+  type DefaultModelsDraft,
+} from '@/lib/assistant/run-config-picker-draft';
+import { queryKeys } from '@/lib/react-query/query-keys';
+import type {
+  AssistantSettingsConfig,
+  AssistantToolApprovalMode,
+  AssistantToolRegistryEntry,
+} from '@/types/api-contracts';
 import type { AssistantModelCatalogData } from '@/types/chatbot';
 
 export default function AssistantSettingsPage() {
+  const queryClient = useQueryClient();
+
   const [mode, setMode] = useState<AssistantToolApprovalMode>('dangerousOnly');
   const [dangerousSet, setDangerousSet] = useState<Set<string>>(() => new Set());
   const [memProvider, setMemProvider] = useState('groq');
   const [memModel, setMemModel] = useState('');
   const [memIsCustom, setMemIsCustom] = useState(false);
 
+  const [dmDraft, setDmDraft] = useState<DefaultModelsDraft>({
+    mode: 'auto',
+    reasoningModelId: '',
+    responseModelId: '',
+    optimizeFor: 'intelligence',
+  });
+  const [dmIsCustom, setDmIsCustom] = useState(false);
+
   const [registry, setRegistry] = useState<AssistantToolRegistryEntry[]>([]);
   const [catalog, setCatalog] = useState<AssistantModelCatalogData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [resetting, setResetting] = useState(false);
+  const [resettingMemory, setResettingMemory] = useState(false);
+  const [resettingDefaultModels, setResettingDefaultModels] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
 
   const applyLoadedSettings = useCallback(
-    (data: {
-      toolApproval: { mode: AssistantToolApprovalMode; dangerousTools: string[] };
-      memoryIngestion: { provider: string; model: string };
-      memoryIngestionIsCustom: boolean;
-    }) => {
+    (data: AssistantSettingsConfig, cat: AssistantModelCatalogData | null) => {
       setMode(data.toolApproval.mode);
       setDangerousSet(new Set(data.toolApproval.dangerousTools));
       setMemProvider(data.memoryIngestion.provider);
       setMemModel(data.memoryIngestion.model);
       setMemIsCustom(data.memoryIngestionIsCustom);
+      setDmIsCustom(data.defaultModelsIsCustom);
+      setDmDraft(defaultModelsDraftFromSettings(data.defaultModels, cat));
     },
     []
   );
@@ -60,7 +81,7 @@ export default function AssistantSettingsPage() {
         setLoading(false);
         return;
       }
-      applyLoadedSettings(settingsRes.data);
+      applyLoadedSettings(settingsRes.data, catRes.data);
       setRegistry(regRes.data);
       setCatalog(catRes.data);
       setLoading(false);
@@ -103,29 +124,62 @@ export default function AssistantSettingsPage() {
         provider: memProvider,
         model: memModel,
       },
+      defaultModels: assistantDefaultModelsPayloadFromDraft(dmDraft),
     });
     setSaving(false);
     if (res.success && res.data) {
-      applyLoadedSettings(res.data);
+      applyLoadedSettings(res.data, catalog);
       setSavedOk(true);
+      void queryClient.invalidateQueries({
+        queryKey: [...queryKeys.chatbot.all, 'assistant-settings-preferences'],
+      });
     } else {
       setError(res.error?.message ?? 'Save failed');
     }
-  }, [applyLoadedSettings, dangerousSet, memModel, memProvider, mode]);
+  }, [
+    applyLoadedSettings,
+    catalog,
+    dangerousSet,
+    dmDraft,
+    memModel,
+    memProvider,
+    mode,
+    queryClient,
+  ]);
 
   const handleResetMemory = useCallback(async () => {
-    setResetting(true);
+    setResettingMemory(true);
     setError(null);
     setSavedOk(false);
     const res = await apiClient.resetAssistantMemoryIngestion();
-    setResetting(false);
+    setResettingMemory(false);
     if (res.success && res.data) {
-      applyLoadedSettings(res.data);
+      applyLoadedSettings(res.data, catalog);
       setSavedOk(true);
+      void queryClient.invalidateQueries({
+        queryKey: [...queryKeys.chatbot.all, 'assistant-settings-preferences'],
+      });
     } else {
       setError(res.error?.message ?? 'Reset failed');
     }
-  }, [applyLoadedSettings]);
+  }, [applyLoadedSettings, catalog, queryClient]);
+
+  const handleResetDefaultModels = useCallback(async () => {
+    setResettingDefaultModels(true);
+    setError(null);
+    setSavedOk(false);
+    const res = await apiClient.resetAssistantDefaultModels();
+    setResettingDefaultModels(false);
+    if (res.success && res.data) {
+      applyLoadedSettings(res.data, catalog);
+      setSavedOk(true);
+      void queryClient.invalidateQueries({
+        queryKey: [...queryKeys.chatbot.all, 'assistant-settings-preferences'],
+      });
+    } else {
+      setError(res.error?.message ?? 'Reset failed');
+    }
+  }, [applyLoadedSettings, catalog, queryClient]);
 
   if (loading) {
     return (
@@ -145,8 +199,8 @@ export default function AssistantSettingsPage() {
             Assistant Settings
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Configure tool confirmations and background models for memory ingestion (short-term
-            notes and thread summarization).
+            Configure tool confirmations, default models for Assistant Chat, and background models
+            for memory ingestion (short-term notes and thread summarization).
           </p>
         </div>
 
@@ -188,6 +242,29 @@ export default function AssistantSettingsPage() {
 
           <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+              Default models (Assistant Chat)
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              New chats and branches without a saved model pick use these defaults. You can still
+              change models per message from the chat header.
+            </p>
+            <AssistantDefaultModelsForm
+              catalog={catalog}
+              isLoading={false}
+              draft={dmDraft}
+              onDraftChange={(patch) => {
+                setDmDraft((d) => ({ ...d, ...patch }));
+                setSavedOk(false);
+              }}
+              disabled={saving}
+              isCustom={dmIsCustom}
+              onResetToImplicitDefaults={handleResetDefaultModels}
+              resetting={resettingDefaultModels}
+            />
+          </section>
+
+          <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
               Memory ingestion
             </h2>
             <AssistantMemoryIngestionForm
@@ -204,7 +281,7 @@ export default function AssistantSettingsPage() {
                 setSavedOk(false);
               }}
               onResetToServerDefaults={handleResetMemory}
-              resetting={resetting}
+              resetting={resettingMemory}
               disabled={saving}
             />
           </section>

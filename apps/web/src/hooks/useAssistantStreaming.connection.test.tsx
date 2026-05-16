@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
+import { resetAssistantWsManagerForTests } from '@/lib/websocket/assistant-ws-manager';
 
 const { mockApiGet, mockSetAuthToken, mockGetValidAccessToken } = vi.hoisted(() => ({
   mockApiGet: vi.fn().mockResolvedValue({ success: true, data: {} }),
@@ -65,8 +66,10 @@ describe('useAssistantStreaming WebSocket lifecycle', () => {
   });
 
   afterEach(() => {
+    resetAssistantWsManagerForTests();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+    vi.useRealTimers();
   });
 
   it('opens one WebSocket and reuses it when threadId changes', async () => {
@@ -185,5 +188,50 @@ describe('useAssistantStreaming WebSocket lifecycle', () => {
     expect(result.current.error?.code).toBe('WS_BACKEND_REJECTED');
     expect(result.current.error?.details?.closeCode).toBe(1006);
     expect(result.current.error?.details?.errorName).toBe('WsHandshakeClosedError');
+  });
+
+  it('StrictMode remount uses one manager-backed WebSocket instance', async () => {
+    vi.resetModules();
+    const { useAssistantStreaming } = await import('./useAssistantStreaming');
+
+    function strictWrapper({ children }: { children: ReactNode }) {
+      return (
+        <QueryClientProvider client={queryClient}>
+          <StrictMode>{children}</StrictMode>
+        </QueryClientProvider>
+      );
+    }
+
+    const { result } = renderHook(() => useAssistantStreaming('thread-strict'), {
+      wrapper: strictWrapper,
+    });
+
+    await waitFor(() => {
+      expect(MockWebSocket.instances.length).toBe(1);
+      expect(result.current.connectionState).toBe('connected');
+    });
+  });
+
+  it('surfaces RUN_START_TIMEOUT when runStarted never arrives', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.resetModules();
+    const { useAssistantStreaming } = await import('./useAssistantStreaming');
+    const { result } = renderHook(() => useAssistantStreaming('thread-timeout'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.connectionState).toBe('connected');
+    });
+
+    await act(async () => {
+      result.current.sendFollowUp('user-msg-1');
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(92_000);
+    });
+
+    await waitFor(() => {
+      expect(result.current.error?.code).toBe('RUN_START_TIMEOUT');
+    });
   });
 });

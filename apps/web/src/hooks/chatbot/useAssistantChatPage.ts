@@ -28,8 +28,12 @@ import { useChatbotSendHandlers } from '@/hooks/chatbot/useChatbotSendHandlers';
 import type { ChatThreadListProps } from '@/components/organisms/ChatThreadList';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { chatbotService } from '@/services/chatbot.service';
+import { apiClient } from '@/lib/api-client';
+import { defaultModelsDraftFromSettings } from '@/lib/assistant/run-config-picker-draft';
+import type { AssistantSettingsConfig } from '@/types/api-contracts';
 import type {
   AssistantCompactionMode,
+  AssistantModelCatalogData,
   AssistantNextSendModelsDisplay,
   AssistantOptimizeFor,
   AssistantRunConfig,
@@ -143,6 +147,8 @@ export function useAssistantChatPage({
   const pickerStorageKey = user?.id ? `assistant-model-picker:${user.id}` : null;
   /** Avoid re-applying localStorage / defaults when React Query refreshes `data` object identity. */
   const pickerHydratedForKeyRef = useRef<string | null>(null);
+  /** Re-run hydration when preferences refetch (invalidate after Assistant Settings save). */
+  const lastAssistantSettingsHydrateAt = useRef<number>(0);
   /** When true, the next picker→localStorage sync is skipped (leaf hydration is in-memory only). */
   const skipNextPickerPersistRef = useRef(false);
   /** Last (thread, leaf, run-config snapshot) we applied from transcript metadata — avoids reverting Save & apply when picker state changes. */
@@ -152,8 +158,142 @@ export function useAssistantChatPage({
     runConfigSig: string;
   }>({ threadId: null, leafId: null, runConfigSig: '' });
 
+  const assistantSettingsQuery = useQuery({
+    queryKey: [...queryKeys.chatbot.all, 'assistant-settings-preferences'] as const,
+    queryFn: async () => {
+      const res = await apiClient.getAssistantSettings();
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? 'Assistant settings unavailable');
+      }
+      return res.data;
+    },
+    staleTime: 60_000,
+    enabled: Boolean(user?.id),
+    retry: 1,
+  });
+
+  /** Model routing from `/preferences/assistant-settings` (+ local extras); initial hydrate + leaf restore. */
+  const hydrateFromStores = useCallback(
+    (
+      catalog: AssistantModelCatalogData | undefined,
+      storageKey: string | null,
+      settings: AssistantSettingsConfig | undefined,
+      trusted: boolean
+    ) => {
+      if (!catalog?.defaults || !storageKey) {
+        return;
+      }
+
+      const mergeExtrasFromDevice = () => {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          if (!raw) {
+            setWebSearchEnabled(false);
+            setThreadCompactionMode('auto');
+            return;
+          }
+          const parsed = JSON.parse(raw) as {
+            webSearchEnabled?: boolean;
+            compactionMode?: AssistantCompactionMode;
+          };
+          if (typeof parsed.webSearchEnabled === 'boolean') {
+            setWebSearchEnabled(parsed.webSearchEnabled);
+          } else {
+            setWebSearchEnabled(false);
+          }
+          if (parsed.compactionMode === 'manual' || parsed.compactionMode === 'auto') {
+            setThreadCompactionMode(parsed.compactionMode);
+          } else {
+            setThreadCompactionMode('auto');
+          }
+        } catch {
+          setWebSearchEnabled(false);
+          setThreadCompactionMode('auto');
+        }
+      };
+
+      const applyLegacyFullLocalStorage = (): boolean => {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          if (!raw) {
+            return false;
+          }
+          const parsed = JSON.parse(raw) as {
+            mode?: 'manual' | 'auto';
+            reasoningModelId?: string;
+            responseModelId?: string;
+            optimizeFor?: AssistantOptimizeFor;
+            webSearchEnabled?: boolean;
+            compactionMode?: AssistantCompactionMode;
+          };
+          if (parsed.mode === 'auto' || parsed.mode === 'manual') {
+            setModelPickerMode(parsed.mode);
+          }
+          if (parsed.reasoningModelId) {
+            setReasoningModelId(parsed.reasoningModelId);
+          }
+          if (parsed.responseModelId) {
+            setResponseModelId(parsed.responseModelId);
+          }
+          if (parsed.optimizeFor) {
+            setOptimizeFor(parsed.optimizeFor);
+          }
+          if (typeof parsed.webSearchEnabled === 'boolean') {
+            setWebSearchEnabled(parsed.webSearchEnabled);
+          } else {
+            setWebSearchEnabled(false);
+          }
+          if (parsed.compactionMode === 'manual' || parsed.compactionMode === 'auto') {
+            setThreadCompactionMode(parsed.compactionMode);
+          } else {
+            setThreadCompactionMode('auto');
+          }
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      const applyDefaultModelsOnly = (dm: AssistantSettingsConfig['defaultModels'] | undefined) => {
+        const draft = defaultModelsDraftFromSettings(dm, catalog ?? null);
+        setModelPickerMode(draft.mode);
+        setReasoningModelId(draft.reasoningModelId);
+        setResponseModelId(draft.responseModelId);
+        setOptimizeFor(draft.optimizeFor);
+      };
+
+      if (!trusted || !settings) {
+        if (!applyLegacyFullLocalStorage()) {
+          setModelPickerMode('auto');
+          setOptimizeFor('intelligence');
+          setReasoningModelId(catalog.defaults.defaultReasoningModelId);
+          setResponseModelId(catalog.defaults.defaultResponseModelId);
+          setWebSearchEnabled(false);
+          setThreadCompactionMode('auto');
+        }
+        return;
+      }
+
+      if (settings.defaultModelsIsCustom) {
+        applyDefaultModelsOnly(settings.defaultModels);
+        mergeExtrasFromDevice();
+        return;
+      }
+
+      if (applyLegacyFullLocalStorage()) {
+        return;
+      }
+
+      applyDefaultModelsOnly(settings.defaultModels);
+      setWebSearchEnabled(false);
+      setThreadCompactionMode('auto');
+    },
+    []
+  );
+
   useEffect(() => {
     pickerHydratedForKeyRef.current = null;
+    lastAssistantSettingsHydrateAt.current = 0;
   }, [pickerStorageKey]);
 
   useEffect(() => {
@@ -161,51 +301,29 @@ export function useAssistantChatPage({
     if (!data?.defaults || !pickerStorageKey) {
       return;
     }
-    if (pickerHydratedForKeyRef.current === pickerStorageKey) {
+    if (!assistantSettingsQuery.isFetched) {
+      return;
+    }
+    const settingsStamp = assistantSettingsQuery.dataUpdatedAt;
+    if (
+      pickerHydratedForKeyRef.current === pickerStorageKey &&
+      lastAssistantSettingsHydrateAt.current === settingsStamp
+    ) {
       return;
     }
     pickerHydratedForKeyRef.current = pickerStorageKey;
-    try {
-      const raw = localStorage.getItem(pickerStorageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as {
-          mode?: 'manual' | 'auto';
-          reasoningModelId?: string;
-          responseModelId?: string;
-          optimizeFor?: AssistantOptimizeFor;
-          webSearchEnabled?: boolean;
-          compactionMode?: AssistantCompactionMode;
-        };
-        if (parsed.mode === 'auto' || parsed.mode === 'manual') {
-          setModelPickerMode(parsed.mode);
-        }
-        if (parsed.reasoningModelId) {
-          setReasoningModelId(parsed.reasoningModelId);
-        }
-        if (parsed.responseModelId) {
-          setResponseModelId(parsed.responseModelId);
-        }
-        if (parsed.optimizeFor) {
-          setOptimizeFor(parsed.optimizeFor);
-        }
-        if (typeof parsed.webSearchEnabled === 'boolean') {
-          setWebSearchEnabled(parsed.webSearchEnabled);
-        }
-        if (parsed.compactionMode === 'manual' || parsed.compactionMode === 'auto') {
-          setThreadCompactionMode(parsed.compactionMode);
-        }
-        return;
-      }
-    } catch {
-      /* ignore corrupt localStorage; fall through to defaults */
-    }
-    setModelPickerMode('auto');
-    setOptimizeFor('intelligence');
-    setReasoningModelId(data.defaults.defaultReasoningModelId);
-    setResponseModelId(data.defaults.defaultResponseModelId);
-    setWebSearchEnabled(false);
-    setThreadCompactionMode('auto');
-  }, [modelCatalogQuery.data, pickerStorageKey]);
+    lastAssistantSettingsHydrateAt.current = settingsStamp;
+    const trusted = assistantSettingsQuery.isSuccess;
+    hydrateFromStores(data, pickerStorageKey, assistantSettingsQuery.data, trusted);
+  }, [
+    assistantSettingsQuery.data,
+    assistantSettingsQuery.dataUpdatedAt,
+    assistantSettingsQuery.isFetched,
+    assistantSettingsQuery.isSuccess,
+    hydrateFromStores,
+    modelCatalogQuery.data,
+    pickerStorageKey,
+  ]);
 
   useEffect(() => {
     if (!pickerStorageKey) {
@@ -242,51 +360,21 @@ export function useAssistantChatPage({
 
   /** Re-apply the saved global picker when a thread leaf has no stored per-message run config. */
   const restoreGlobalModelPicker = useCallback(() => {
-    const data = modelCatalogQuery.data;
-    if (!data?.defaults || !pickerStorageKey) {
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(pickerStorageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as {
-          mode?: 'manual' | 'auto';
-          reasoningModelId?: string;
-          responseModelId?: string;
-          optimizeFor?: AssistantOptimizeFor;
-          webSearchEnabled?: boolean;
-          compactionMode?: AssistantCompactionMode;
-        };
-        if (parsed.mode === 'auto' || parsed.mode === 'manual') {
-          setModelPickerMode(parsed.mode);
-        }
-        if (parsed.reasoningModelId) {
-          setReasoningModelId(parsed.reasoningModelId);
-        }
-        if (parsed.responseModelId) {
-          setResponseModelId(parsed.responseModelId);
-        }
-        if (parsed.optimizeFor) {
-          setOptimizeFor(parsed.optimizeFor);
-        }
-        if (typeof parsed.webSearchEnabled === 'boolean') {
-          setWebSearchEnabled(parsed.webSearchEnabled);
-        }
-        if (parsed.compactionMode === 'manual' || parsed.compactionMode === 'auto') {
-          setThreadCompactionMode(parsed.compactionMode);
-        }
-        return;
-      }
-    } catch {
-      /* ignore corrupt localStorage */
-    }
-    setModelPickerMode('auto');
-    setOptimizeFor('intelligence');
-    setReasoningModelId(data.defaults.defaultReasoningModelId);
-    setResponseModelId(data.defaults.defaultResponseModelId);
-    setWebSearchEnabled(false);
-    setThreadCompactionMode('auto');
-  }, [modelCatalogQuery.data, pickerStorageKey]);
+    const trusted = assistantSettingsQuery.isFetched && assistantSettingsQuery.isSuccess === true;
+    hydrateFromStores(
+      modelCatalogQuery.data,
+      pickerStorageKey,
+      assistantSettingsQuery.data,
+      trusted
+    );
+  }, [
+    assistantSettingsQuery.data,
+    assistantSettingsQuery.isFetched,
+    assistantSettingsQuery.isSuccess,
+    hydrateFromStores,
+    modelCatalogQuery.data,
+    pickerStorageKey,
+  ]);
 
   const getRunConfig = useCallback((): AssistantRunConfig | undefined => {
     const models = modelCatalogQuery.data?.models;
