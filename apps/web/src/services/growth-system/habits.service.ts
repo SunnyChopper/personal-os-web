@@ -1,10 +1,12 @@
 import { apiClient } from '@/lib/api-client';
 import type {
   Habit,
+  HabitCompletion,
   HabitLog,
   CreateHabitInput,
   UpdateHabitInput,
   CreateHabitLogInput,
+  UpdateHabitLogInput,
 } from '@/types/growth-system';
 import type { ApiResponse, ApiListResponse } from '@/types/api-contracts';
 
@@ -86,6 +88,16 @@ export const habitsService = {
     return response;
   },
 
+  async updateLog(
+    habitId: string,
+    completionDate: string,
+    input: UpdateHabitLogInput
+  ): Promise<ApiResponse<HabitCompletion>> {
+    return apiClient.patch<HabitCompletion>(`/habits/${habitId}/completions/${completionDate}`, {
+      note: input.note,
+    });
+  },
+
   async getLogsByHabit(
     habitId: string,
     filters?: { startDate?: string; endDate?: string }
@@ -108,8 +120,10 @@ export const habitsService = {
     throw new Error(response.error?.message || 'Failed to fetch habit logs');
   },
 
-  async deleteLog(habitId: string, date: string): Promise<ApiResponse<void>> {
-    const response = await apiClient.delete<void>(`/habits/${habitId}/logs/${date}`);
+  async deleteLog(habitId: string, completionDate: string): Promise<ApiResponse<void>> {
+    const response = await apiClient.delete<void>(
+      `/habits/${habitId}/completions/${completionDate}`
+    );
     return response;
   },
 

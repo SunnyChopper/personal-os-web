@@ -16,6 +16,24 @@ export interface CompletionRateData {
   actual: number;
   expected: number;
   rate: number;
+  /** Short human-readable description of how `expected` was derived (lifetime window). */
+  expectedExplanation?: string;
+}
+
+export interface ConsistencyScoreBreakdown {
+  /** Final score capped at 100 */
+  total: number;
+  baseScore: number;
+  recencyBonus: number;
+  streakBonus: number;
+  /** Completion-rate component as a percent (same as weighted base / 70 × 100) */
+  completionRatePercent: number;
+  /** Count of logs in last 30 days */
+  recentLogsCount: number;
+  /** clamped min(1, recentLogsCount / (30 × 0.5)) before × 20 */
+  recentWeight: number;
+  /** Current streak (days), from getAllStreaks */
+  currentStreak: number;
 }
 
 export interface TrendData {
@@ -111,11 +129,13 @@ export function getAllStreaks(logs: HabitLog[]): StreakData {
     } else {
       if (isInStreak && currentStreakStart) {
         // End the current streak
+        // When walking backward from today, currentStreakStart is the streak's newest day and
+        // currentStreakEnd is the oldest; emit chronological bounds for UI/API.
         allStreaks.push({
-          startDate: currentStreakStart,
-          endDate: currentStreakEnd,
+          startDate: currentStreakEnd!,
+          endDate: currentStreakStart,
           length: currentStreak,
-          isActive: currentStreakEnd === todayKey,
+          isActive: currentStreakStart === todayKey,
         });
         isInStreak = false;
         currentStreak = 0;
@@ -132,10 +152,10 @@ export function getAllStreaks(logs: HabitLog[]): StreakData {
   // Add current streak if still active
   if (isInStreak && currentStreakStart) {
     allStreaks.push({
-      startDate: currentStreakStart,
-      endDate: currentStreakEnd,
+      startDate: currentStreakEnd!,
+      endDate: currentStreakStart,
       length: currentStreak,
-      isActive: true,
+      isActive: currentStreakStart === todayKey,
     });
   }
 
@@ -178,20 +198,26 @@ export function calculateCompletionRate(
   const actual = filteredLogs.reduce((sum, log) => sum + (log.amount || 1), 0);
 
   let expected = 0;
+  let expectedExplanation = '';
+
   if (habit.dailyTarget) {
     const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     expected = daysDiff * habit.dailyTarget;
+    expectedExplanation = `Daily target: ${habit.dailyTarget} × ${daysDiff} day span (inclusive)`;
   } else if (habit.weeklyTarget) {
     const weeksDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 7));
     expected = weeksDiff * habit.weeklyTarget;
+    expectedExplanation = `Weekly target: ${habit.weeklyTarget} × ${weeksDiff} week span (rounded up)`;
   } else {
     // No target, use frequency
     if (habit.frequency === 'Daily') {
       const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       expected = daysDiff;
+      expectedExplanation = `No numeric target — frequency Daily → expect 1 per day × ${daysDiff} day span`;
     } else if (habit.frequency === 'Weekly') {
       const weeksDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 7));
       expected = weeksDiff;
+      expectedExplanation = `No numeric target — frequency Weekly → expect 1 per week × ${weeksDiff} week span`;
     }
   }
 
@@ -202,20 +228,33 @@ export function calculateCompletionRate(
     actual,
     expected,
     rate: Math.min(100, rate),
+    ...(expectedExplanation ? { expectedExplanation } : {}),
   };
 }
 
 /**
- * Calculate consistency score (0-100)
+ * Consistency score with intermediate values for UX copy.
  */
-export function calculateConsistencyScore(logs: HabitLog[], habit: Habit): number {
-  if (logs.length === 0) return 0;
+export function calculateConsistencyScoreBreakdown(
+  logs: HabitLog[],
+  habit: Habit
+): ConsistencyScoreBreakdown {
+  if (logs.length === 0) {
+    return {
+      total: 0,
+      baseScore: 0,
+      recencyBonus: 0,
+      streakBonus: 0,
+      completionRatePercent: 0,
+      recentLogsCount: 0,
+      recentWeight: 0,
+      currentStreak: 0,
+    };
+  }
 
-  // Base score: completion rate (70% weight)
   const completionRate = calculateCompletionRate(logs, habit);
   const baseScore = (completionRate.rate / 100) * 70;
 
-  // Recency bonus: more recent completions weighted higher (20% weight)
   const now = new Date();
   const sortedLogs = [...logs].sort(
     (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
@@ -229,11 +268,27 @@ export function calculateConsistencyScore(logs: HabitLog[], habit: Habit): numbe
   const recentWeight = Math.min(1, recentLogs.length / (recentDays * 0.5));
   const recencyBonus = recentWeight * 20;
 
-  // Streak bonus: active streaks add points (10% weight)
   const streaks = getAllStreaks(logs);
   const streakBonus = Math.min(10, (streaks.current / 30) * 10);
+  const total = Math.min(100, baseScore + recencyBonus + streakBonus);
 
-  return Math.min(100, baseScore + recencyBonus + streakBonus);
+  return {
+    total,
+    baseScore,
+    recencyBonus,
+    streakBonus,
+    completionRatePercent: completionRate.rate,
+    recentLogsCount: recentLogs.length,
+    recentWeight,
+    currentStreak: streaks.current,
+  };
+}
+
+/**
+ * Calculate consistency score (0-100)
+ */
+export function calculateConsistencyScore(logs: HabitLog[], habit: Habit): number {
+  return calculateConsistencyScoreBreakdown(logs, habit).total;
 }
 
 /**
@@ -340,17 +395,20 @@ export function getWeeklyData(
   const weekData: WeeklyMonthlyData[] = [];
 
   for (let i = 0; i < weeks; i++) {
-    const weekEnd = new Date(today);
-    weekEnd.setDate(today.getDate() - i * 7);
+    const anchorDay = new Date(today);
+    anchorDay.setDate(today.getDate() - i * 7);
 
-    const dayOfWeek = weekEnd.getDay();
-    const sunday = new Date(weekEnd);
-    sunday.setDate(weekEnd.getDate() - (dayOfWeek === 0 ? 0 : dayOfWeek));
-    sunday.setHours(23, 59, 59, 999);
+    // Calendar week containing `anchorDay` (Mon-Sun).
+    const dayOfWeek = anchorDay.getDay();
+    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
 
-    const monday = new Date(sunday);
-    monday.setDate(sunday.getDate() - 6);
+    const monday = new Date(anchorDay);
+    monday.setDate(anchorDay.getDate() - daysSinceMonday);
     monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
 
     const weekLogs = getLogsForDateRange(logs, monday, sunday);
     const completions = weekLogs.reduce((sum, log) => sum + (log.amount || 1), 0);

@@ -21,7 +21,7 @@ export function HabitCalendarHeatmap({
   const heatmapData = useMemo(() => generateHeatmapData(logs, months), [logs, months]);
 
   const getIntensityColor = (intensity: number, habitType: string) => {
-    if (intensity === 0) return 'bg-gray-100 dark:bg-gray-800';
+    if (intensity === 0) return 'bg-gray-100 dark:bg-gray-700';
 
     const colors = {
       Build: [
@@ -91,6 +91,39 @@ export function HabitCalendarHeatmap({
     });
   }
 
+  const dateToWeekIndex = new Map<string, number>();
+  weeks.forEach((week, weekIdx) => {
+    week.forEach((cell) => {
+      if (cell) dateToWeekIndex.set(cell.date, weekIdx);
+    });
+  });
+
+  const monthMarkers: { label: string; weekIndex: number; key: string }[] = [];
+  let lastMonthKey = '';
+  for (const day of heatmapData) {
+    const ymd = day.date.split('T')[0]?.split('-');
+    if (!ymd || ymd.length < 2) continue;
+    const [yStr, mStr] = ymd;
+    const monthKey = `${yStr}-${mStr}`;
+    if (monthKey === lastMonthKey) continue;
+    lastMonthKey = monthKey;
+    const weekIndex = dateToWeekIndex.get(day.date);
+    if (weekIndex === undefined) continue;
+    const labelDate = new Date(Number(yStr), Number(mStr) - 1, 1);
+    monthMarkers.push({
+      label: labelDate.toLocaleDateString('en-US', { month: 'short' }),
+      weekIndex,
+      key: monthKey,
+    });
+  }
+
+  const WEEK_CELL_PX = 12;
+  const WEEK_GAP_PX = 4;
+  const weekStripWidthPx =
+    weeks.length > 0
+      ? weeks.length * WEEK_CELL_PX + Math.max(0, weeks.length - 1) * WEEK_GAP_PX
+      : 0;
+
   const handleDayHover = (day: (typeof heatmapData)[0], event: React.MouseEvent) => {
     setHoveredDay(day.date);
     setTooltipPosition({ x: event.clientX, y: event.clientY });
@@ -121,19 +154,6 @@ export function HabitCalendarHeatmap({
   }
 
   const weekLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const monthLabels: string[] = [];
-  const firstDate = new Date(heatmapData[0].date);
-  const lastDate = new Date(heatmapData[heatmapData.length - 1].date);
-
-  // Generate month labels
-  const currentMonth = new Date(firstDate);
-  while (currentMonth <= lastDate) {
-    const monthLabel = currentMonth.toLocaleDateString('en-US', { month: 'short' });
-    if (!monthLabels.includes(monthLabel)) {
-      monthLabels.push(monthLabel);
-    }
-    currentMonth.setMonth(currentMonth.getMonth() + 1);
-  }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
@@ -168,52 +188,53 @@ export function HabitCalendarHeatmap({
             ))}
           </div>
 
-          {/* Weeks */}
-          <div className="flex gap-1">
-            {weeks.map((week, weekIndex) => (
-              <div key={weekIndex} className="flex flex-col gap-1">
-                {week.map((day, dayIndex) => {
-                  if (!day) {
-                    return <div key={`${weekIndex}-${dayIndex}`} className="w-3 h-3" />;
-                  }
-
-                  const dayDate = new Date(day.date);
-                  dayDate.setHours(0, 0, 0, 0);
-                  const dayKey = dayDate.toISOString().split('T')[0];
-                  const isToday = dayKey === todayKey;
-
-                  return (
-                    <div
-                      key={day.date}
-                      className={`w-3 h-3 rounded-sm cursor-pointer transition-all ${getIntensityColor(
-                        day.intensity,
-                        habit.habitType
-                      )} ${hoveredDay === day.date ? 'ring-2 ring-blue-500 dark:ring-blue-400 scale-110' : ''} ${
-                        isToday ? 'ring-1 ring-blue-600 dark:ring-blue-400' : ''
-                      }`}
-                      onMouseEnter={(e) => handleDayHover(day, e)}
-                      onMouseLeave={handleDayLeave}
-                      onClick={() => onDateClick && onDateClick(new Date(day.date))}
-                      title={`${new Date(day.date).toLocaleDateString()}: ${day.count} completion${day.count !== 1 ? 's' : ''}${isToday ? ' (Today)' : ''}`}
-                    />
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Month labels */}
-        <div className="flex gap-1 mt-2 ml-8">
-          {monthLabels.map((month) => (
-            <div
-              key={month}
-              className="text-xs text-gray-500 dark:text-gray-400"
-              style={{ width: `${(weeks.length / monthLabels.length) * 12}px` }}
-            >
-              {month}
+          {/* Month strip + weeks (aligned columns) */}
+          <div className="flex flex-col gap-1">
+            <div className="relative h-4 shrink-0" style={{ width: weekStripWidthPx }} aria-hidden>
+              {monthMarkers.map(({ label, weekIndex, key }) => (
+                <span
+                  key={key}
+                  className="absolute top-0 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap"
+                  style={{ left: weekIndex * (WEEK_CELL_PX + WEEK_GAP_PX) }}
+                >
+                  {label}
+                </span>
+              ))}
             </div>
-          ))}
+
+            <div className="flex gap-1">
+              {weeks.map((week, weekIndex) => (
+                <div key={weekIndex} className="flex flex-col gap-1">
+                  {week.map((day, dayIndex) => {
+                    if (!day) {
+                      return <div key={`${weekIndex}-${dayIndex}`} className="w-3 h-3" />;
+                    }
+
+                    const dayDate = new Date(day.date);
+                    dayDate.setHours(0, 0, 0, 0);
+                    const dayKey = dayDate.toISOString().split('T')[0];
+                    const isToday = dayKey === todayKey;
+
+                    return (
+                      <div
+                        key={day.date}
+                        className={`w-3 h-3 rounded-sm cursor-pointer transition-all ${getIntensityColor(
+                          day.intensity,
+                          habit.habitType
+                        )} ${hoveredDay === day.date ? 'ring-2 ring-blue-500 dark:ring-blue-400 scale-110' : ''} ${
+                          isToday ? 'ring-1 ring-blue-600 dark:ring-blue-400' : ''
+                        }`}
+                        onMouseEnter={(e) => handleDayHover(day, e)}
+                        onMouseLeave={handleDayLeave}
+                        onClick={() => onDateClick && onDateClick(new Date(day.date))}
+                        title={`${new Date(day.date).toLocaleDateString()}: ${day.count} completion${day.count !== 1 ? 's' : ''}${isToday ? ' (Today)' : ''}`}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
