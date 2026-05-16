@@ -5,6 +5,7 @@ import type {
   Area,
   SubCategory,
   TimeHorizon,
+  Priority,
   SuccessCriterion,
   Goal,
 } from '@/types/growth-system';
@@ -13,6 +14,7 @@ import Button from '@/components/atoms/Button';
 import {
   AREAS,
   AREA_LABELS,
+  PRIORITIES,
   SUBCATEGORIES_BY_AREA,
   SUBCATEGORY_LABELS,
 } from '@/constants/growth-system';
@@ -80,6 +82,7 @@ export function GoalCreateForm({
     description: '',
     area: parentGoal?.area || 'Health',
     timeHorizon: parentGoal ? getNextTimeHorizon(parentGoal.timeHorizon) : 'Yearly',
+    priority: 'P3',
     successCriteria: [] as string[],
     parentGoalId: parentGoal?.id,
   });
@@ -199,13 +202,13 @@ export function GoalCreateForm({
       area: formData.area,
       subCategory: formData.subCategory || undefined,
       timeHorizon: formData.timeHorizon,
+      priority: formData.priority,
       targetDate: formData.targetDate || undefined,
       successCriteria: formData.successCriteria || undefined,
       parentGoalId: formData.parentGoalId || undefined,
       notes: formData.notes?.trim() || undefined,
       progressConfig: formData.progressConfig || undefined,
-      // Explicitly exclude fields not in CreateGoalInput
-      // priority and status are not supported by backend
+      // status defaults on the server at create time; omit here.
       // dailyTarget and weeklyTarget are for habits, not goals
     };
 
@@ -525,40 +528,60 @@ export function GoalCreateForm({
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Time Horizon *
-          </label>
-          <select
-            value={formData.timeHorizon}
-            onChange={(e) => handleChange('timeHorizon', e.target.value as TimeHorizon)}
-            onBlur={() => handleBlur('timeHorizon')}
-            className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              fieldErrors.timeHorizon && touched.timeHorizon
-                ? 'border-red-500 dark:border-red-500'
-                : 'border-gray-300 dark:border-gray-600'
-            }`}
-            required
-            aria-invalid={!!(fieldErrors.timeHorizon && touched.timeHorizon)}
-            aria-describedby={
-              fieldErrors.timeHorizon && touched.timeHorizon ? 'timeHorizon-error' : undefined
-            }
-          >
-            {CREATABLE_TIME_HORIZONS.map((horizon) => (
-              <option key={horizon} value={horizon}>
-                {horizon}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.timeHorizon && touched.timeHorizon && (
-            <p
-              id="timeHorizon-error"
-              className="mt-1 text-sm text-red-600 dark:text-red-400"
-              role="alert"
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Time Horizon *
+            </label>
+            <select
+              value={formData.timeHorizon}
+              onChange={(e) => handleChange('timeHorizon', e.target.value as TimeHorizon)}
+              onBlur={() => handleBlur('timeHorizon')}
+              className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                fieldErrors.timeHorizon && touched.timeHorizon
+                  ? 'border-red-500 dark:border-red-500'
+                  : 'border-gray-300 dark:border-gray-600'
+              }`}
+              required
+              aria-invalid={!!(fieldErrors.timeHorizon && touched.timeHorizon)}
+              aria-describedby={
+                fieldErrors.timeHorizon && touched.timeHorizon ? 'timeHorizon-error' : undefined
+              }
             >
-              {fieldErrors.timeHorizon}
-            </p>
-          )}
+              {CREATABLE_TIME_HORIZONS.map((horizon) => (
+                <option key={horizon} value={horizon}>
+                  {horizon}
+                </option>
+              ))}
+            </select>
+            {fieldErrors.timeHorizon && touched.timeHorizon && (
+              <p
+                id="timeHorizon-error"
+                className="mt-1 text-sm text-red-600 dark:text-red-400"
+                role="alert"
+              >
+                {fieldErrors.timeHorizon}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Priority *
+            </label>
+            <select
+              value={formData.priority ?? 'P3'}
+              onChange={(e) => handleChange('priority', e.target.value as Priority)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div>
