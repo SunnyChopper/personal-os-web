@@ -9,6 +9,8 @@ import type {
   Task,
   TaskDependency,
   UpdateTaskInput,
+  Area,
+  Priority,
 } from '@/types/growth-system';
 import type {
   Reward,
@@ -18,6 +20,7 @@ import type {
   WalletTransaction,
 } from '@/types/rewards';
 import { queryKeys } from '@/lib/react-query/query-keys';
+import { pointCalculatorService } from '@/services/rewards/point-calculator.service';
 import { _canRedeemReward } from '@/services/rewards/rewards.service';
 
 type ListCache<T> = ApiListResponse<T> | { data?: T[] } | T[];
@@ -93,15 +96,75 @@ const updateDetailCache = <T extends { id: string }>(
 };
 
 export const upsertTaskCache = (queryClient: QueryClient, task: Task): void => {
-  updateListQueries<Task>(queryClient, queryKeys.growthSystem.tasks.lists(), (items) =>
-    upsertById(items, task)
-  );
-  updateDashboardQueries(queryClient, (data) => ({
-    ...data,
-    tasks: upsertById(data.tasks, task),
-  }));
+  if (!task.parentTaskId) {
+    updateListQueries<Task>(queryClient, queryKeys.growthSystem.tasks.lists(), (items) =>
+      upsertById(items, task)
+    );
+    updateDashboardQueries(queryClient, (data) => ({
+      ...data,
+      tasks: upsertById(data.tasks, task),
+    }));
+  }
   updateDetailCache(queryClient, queryKeys.growthSystem.tasks.detail, task);
 };
+
+/**
+ * Keeps optimistic task cache aligned with PATCH wallet rules (`TasksService.update_task`):
+ * drivers recompute `pointValue` unless locked, Done rows keep prior award basis, subtasks → 0.
+ */
+function applyOptimisticTaskWalletFields(prev: Task, input: UpdateTaskInput, merged: Task): void {
+  // Only persisted Done rows freeze reward basis — not the transition PATCH that completes the task.
+  if (prev.status === 'Done') {
+    merged.pointValue = prev.pointValue;
+    merged.pointValueOverridden = prev.pointValueOverridden ?? false;
+    return;
+  }
+
+  if (prev.parentTaskId) {
+    merged.pointValue = 0;
+    merged.pointValueOverridden = false;
+    return;
+  }
+
+  const driversTouched =
+    input.priority !== undefined || input.area !== undefined || input.size !== undefined;
+
+  const pointValueProvided = Object.prototype.hasOwnProperty.call(input, 'pointValue');
+  const pvIn = input.pointValue;
+  const resetAuto = input.pointValueOverridden === false || (pointValueProvided && pvIn === null);
+
+  const pvExplicit =
+    pointValueProvided && pvIn !== null && pvIn !== undefined && Number.isFinite(Number(pvIn));
+
+  const prio = ((merged.priority ?? prev.priority ?? 'P3') || 'P3') as Priority;
+  const area = ((merged.area ?? prev.area) || 'Operations') as Area;
+  const size = merged.size !== undefined ? merged.size : prev.size;
+
+  if (resetAuto) {
+    merged.pointValue = pointCalculatorService.calculateTaskPointsFromDrivers(
+      size ?? null,
+      prio,
+      area
+    );
+    merged.pointValueOverridden = false;
+    return;
+  }
+
+  if (pvExplicit && typeof pvIn === 'number') {
+    merged.pointValue = Math.floor(pvIn);
+    merged.pointValueOverridden = true;
+    return;
+  }
+
+  if (driversTouched && !prev.pointValueOverridden) {
+    merged.pointValue = pointCalculatorService.calculateTaskPointsFromDrivers(
+      size ?? null,
+      prio,
+      area
+    );
+    merged.pointValueOverridden = false;
+  }
+}
 
 /** Merge a task with partial update input for optimistic cache updates. */
 export function mergeTaskWithUpdate(task: Task, input: UpdateTaskInput): Task {
@@ -123,10 +186,20 @@ export function mergeTaskWithUpdate(task: Task, input: UpdateTaskInput): Task {
     ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
     ...(input.isRecurring !== undefined ? { isRecurring: input.isRecurring } : {}),
     ...(input.recurrenceRule !== undefined ? { recurrenceRule: input.recurrenceRule } : {}),
-    ...(input.pointValue !== undefined ? { pointValue: input.pointValue } : {}),
+    ...('pointValue' in input &&
+    input.pointValue !== null &&
+    input.pointValue !== undefined &&
+    Number.isFinite(Number(input.pointValue))
+      ? { pointValue: Math.floor(Number(input.pointValue)) }
+      : {}),
+    ...(input.pointValueOverridden !== undefined && input.pointValueOverridden !== null
+      ? { pointValueOverridden: input.pointValueOverridden }
+      : {}),
     ...(input.projectIds !== undefined ? { projectIds: input.projectIds } : {}),
     ...(input.goalIds !== undefined ? { goalIds: input.goalIds } : {}),
   };
+
+  applyOptimisticTaskWalletFields(task, input, merged);
 
   if (input.status !== undefined && task.status === 'Done' && input.status !== 'Done') {
     return {

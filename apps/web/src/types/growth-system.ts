@@ -32,6 +32,7 @@ export type SubCategory =
 export type Priority = 'P1' | 'P2' | 'P3' | 'P4';
 
 export type TaskStatus =
+  | 'Backlog'
   | 'Not Started'
   | 'In Progress'
   | 'Blocked'
@@ -39,6 +40,10 @@ export type TaskStatus =
   | 'Done'
   | 'Cancelled';
 export type ProjectStatus = 'Planning' | 'Active' | 'On Hold' | 'Completed' | 'Cancelled';
+
+export type ProjectTypeId = 'General' | 'SoftwareDevelopment';
+
+export type TaskKind = 'Generic' | 'Bug' | 'Feature' | 'Chore' | 'Spike';
 export type GoalStatus = 'Planning' | 'Active' | 'On Track' | 'At Risk' | 'Achieved' | 'Abandoned';
 export type MetricStatus = 'Active' | 'Paused' | 'Archived';
 
@@ -66,6 +71,17 @@ export type RecurrenceUnit = 'Daily' | 'Weekly' | 'Monthly' | 'Yearly';
 
 export type TaskRewardLedgerStatus = 'none' | 'awarded' | 'reversed';
 
+/** Server-produced explanation for task wallet `pointValue` (formula or manual). */
+export interface TaskPointBreakdown {
+  storyPoints: number;
+  basePoints: number;
+  priorityMultiplier: number;
+  areaMultiplier: number;
+  sizeBonus: number;
+  total: number;
+  reasoning: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -90,6 +106,10 @@ export interface Task {
   isRecurring: boolean;
   recurrenceRule: RecurrenceRule | null;
   pointValue: number | null;
+  /** When false, PATCH changes to drivers may recalculate `pointValue`; when true, `pointValue` is user-locked until reset. */
+  pointValueOverridden?: boolean | null;
+  /** How `pointValue` was derived (automatic formula vs manual override). */
+  pointBreakdown?: TaskPointBreakdown | null;
   pointsAwarded: boolean | null;
   rewardLedgerStatus?: TaskRewardLedgerStatus;
   rewardAwardTransactionId?: string | null;
@@ -110,6 +130,13 @@ export interface Task {
   userId: string;
   createdAt: string;
   updatedAt: string;
+  /** Set when this task is a child subtask. */
+  parentTaskId?: string | null;
+  /** Populated on list responses when the task has subtasks. */
+  subtaskCount?: number | null;
+  completedSubtaskCount?: number | null;
+  /** Classification for software-development project tasks. */
+  taskKind?: TaskKind;
 }
 
 export interface RecurrenceRule {
@@ -137,6 +164,17 @@ export interface TaskGoal {
   createdAt: string;
 }
 
+export interface SoftwareDeploymentRow {
+  name: string;
+  url: string;
+}
+
+export interface SoftwareMetadata {
+  repoUrls: string[];
+  techStack: string[];
+  deployments: SoftwareDeploymentRow[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -151,6 +189,9 @@ export interface Project {
   actualEndDate: string | null;
   notes: string | null;
   goalIds?: string[];
+  /** Defaults to General when omitted (legacy dashboard rows). */
+  projectType?: ProjectTypeId;
+  softwareMetadata?: SoftwareMetadata | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -451,6 +492,9 @@ export interface CreateTaskInput {
   scheduleStatus?: Task['scheduleStatus'];
   scheduleSource?: NonNullable<Task['scheduleSource']>;
   dependsOnTaskIds?: string[];
+  /** When set, creates a subtask under this parent (server-enforced depth 1, max 50). */
+  parentTaskId?: string;
+  taskKind?: TaskKind;
 }
 
 export interface UpdateTaskInput {
@@ -462,13 +506,18 @@ export interface UpdateTaskInput {
   priority?: Priority;
   status?: TaskStatus;
   size?: number;
-  dueDate?: string;
-  scheduledDate?: string;
+  /** Send `null` to clear on PATCH when the field was previously edited in the form. */
+  dueDate?: string | null;
+  /** Send `null` to clear on PATCH when the field was previously edited in the form. */
+  scheduledDate?: string | null;
   completedDate?: string;
   notes?: string;
   isRecurring?: boolean;
   recurrenceRule?: RecurrenceRule;
-  pointValue?: number;
+  /** Manual override; **`null`** matches backend PATCH semantics (clear override, recompute drivers). */
+  pointValue?: number | null;
+  /** Send `false` to clear manual override and recompute reward points from drivers. */
+  pointValueOverridden?: boolean | null;
   projectIds?: string[];
   goalIds?: string[];
   estimatedDurationMinutes?: number;
@@ -476,6 +525,7 @@ export interface UpdateTaskInput {
   scheduleSource?: NonNullable<Task['scheduleSource']>;
   scheduleUpdatedAt?: string;
   lastRescuedAt?: string;
+  taskKind?: TaskKind | null;
 }
 
 export interface CreateProjectInput {
@@ -489,6 +539,8 @@ export interface CreateProjectInput {
   startDate?: string;
   targetEndDate?: string;
   notes?: string;
+  projectType?: ProjectTypeId;
+  softwareMetadata?: SoftwareMetadata;
 }
 
 export interface UpdateProjectInput {
@@ -503,6 +555,8 @@ export interface UpdateProjectInput {
   targetEndDate?: string;
   actualEndDate?: string;
   notes?: string;
+  projectType?: ProjectTypeId;
+  softwareMetadata?: SoftwareMetadata;
 }
 
 export interface CreateGoalInput {
@@ -616,6 +670,21 @@ export interface CreateHabitLogInput {
   notes?: string;
 }
 
+/** Body for PATCH habit completion (camelCase `note` sent to API). */
+export interface UpdateHabitLogInput {
+  /** Set to `null` to clear the stored note. */
+  note: string | null;
+}
+
+/** Completion row returned by completion-specific endpoints (`note` not `notes`). */
+export interface HabitCompletion {
+  id: string;
+  habitId: string;
+  completedAt: string;
+  note?: string | null;
+  createdAt: string;
+}
+
 export interface CreateLogbookEntryInput {
   date: string;
   title?: string;
@@ -668,6 +737,13 @@ export interface FilterOptions {
   dueDateFrom?: string;
   /** Inclusive upper bound on task dueDate. */
   dueDateTo?: string;
+  /** List only subtasks of this parent task id. */
+  parentTaskId?: string;
+  /** Include subtasks in the main task list (default false). */
+  includeSubtasks?: boolean;
+
+  /** Projects page: filter by project type. */
+  projectType?: ProjectTypeId;
 }
 
 export interface PaginatedResponse<T> {
@@ -722,6 +798,8 @@ export interface EntitySummary {
   targetDate?: string | null;
   /** When set on a goal, overdue styling is suppressed. */
   completedDate?: string | null;
+  /** ISO timestamp; used by pickers for "recently updated" sort (primarily tasks). */
+  updatedAt?: string | null;
 }
 
 export interface DailyBriefing {

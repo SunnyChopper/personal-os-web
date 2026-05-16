@@ -8,6 +8,7 @@ import type {
   AssistantToolApprovalConfig,
   AssistantMemoryIngestionConfig,
   AssistantSettingsConfig,
+  AssistantDefaultModelsConfig,
   AssistantToolRegistryEntry,
   DashboardSummaryResponse,
   DashboardSummaryRequest,
@@ -749,12 +750,17 @@ class ApiClient {
   async setAssistantSettings(body: {
     toolApproval: AssistantToolApprovalConfig;
     memoryIngestion: AssistantMemoryIngestionConfig;
+    defaultModels: AssistantDefaultModelsConfig;
   }): Promise<ApiResponse<AssistantSettingsConfig>> {
     return this.put<AssistantSettingsConfig>('/preferences/assistant-settings', body);
   }
 
   async resetAssistantMemoryIngestion(): Promise<ApiResponse<AssistantSettingsConfig>> {
     return this.delete<AssistantSettingsConfig>('/preferences/assistant-settings/memory-ingestion');
+  }
+
+  async resetAssistantDefaultModels(): Promise<ApiResponse<AssistantSettingsConfig>> {
+    return this.delete<AssistantSettingsConfig>('/preferences/assistant-settings/default-models');
   }
 
   async getAssistantToolApprovalConfig(): Promise<ApiResponse<AssistantToolApprovalConfig>> {

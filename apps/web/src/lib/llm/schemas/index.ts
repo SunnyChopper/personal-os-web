@@ -4,5 +4,6 @@ export * from './project-schemas';
 export * from './goal-schemas';
 export * from './metric-schemas';
 export * from './habit-schemas';
+export * from './habit-established-ai-schemas';
 export * from './logbook-schemas';
 export * from './note-ai-schemas';
