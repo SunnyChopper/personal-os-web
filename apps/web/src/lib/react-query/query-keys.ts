@@ -20,6 +20,8 @@ export const queryKeys = {
           : queryKeys.growthSystem.tasks.lists(),
       details: () => [...queryKeys.growthSystem.tasks.all(), 'detail'] as const,
       detail: (id: string) => [...queryKeys.growthSystem.tasks.details(), id] as const,
+      subtasks: (parentId: string) =>
+        [...queryKeys.growthSystem.tasks.all(), 'subtasks', parentId] as const,
     },
     habits: {
       all: () => [...queryKeys.growthSystem.all, 'habits'] as const,

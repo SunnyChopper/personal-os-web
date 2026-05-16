@@ -98,6 +98,19 @@ function formatLabel(entry: StatusEntry): string {
   return STAGE_CONFIG[entry.stage].defaultLabel;
 }
 
+function toolListCountBadge(d: WsToolCallCompletePayload | null | undefined): string | null {
+  if (!d) return null;
+  const o = d.originalItemCount;
+  const r = d.returnedItemCount;
+  if (typeof o === 'number' && typeof r === 'number') {
+    return `Showing ${r} of ${o}`;
+  }
+  if (typeof d.total === 'number') {
+    return `Total: ${d.total}`;
+  }
+  return null;
+}
+
 type PlanningReasoningSlot = {
   text: string;
   isStreaming: boolean;
@@ -140,6 +153,7 @@ function TraceEntry({
   const canExpandTool = Boolean(toolDetails && toolName);
   const displayDurationMs =
     durationMs !== null && durationMs > 0 ? durationMs : (toolDetails?.durationMs ?? null);
+  const toolOutputCountBadge = toolListCountBadge(toolDetails ?? null);
 
   useEffect(() => {
     if (planningReasoning?.isStreaming && !userCollapsedReasoning.current) {
@@ -325,6 +339,18 @@ function TraceEntry({
             </div>
             <div>
               <div className="mb-1 font-medium text-gray-600 dark:text-gray-400">Output</div>
+              {toolOutputCountBadge ? (
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                  <span className="rounded bg-amber-100 px-2 py-0.5 font-medium text-amber-950 dark:bg-amber-900/40 dark:text-amber-100">
+                    {toolOutputCountBadge}
+                  </span>
+                  {toolDetails.truncatedForWs ? (
+                    <span className="rounded bg-slate-200 px-2 py-0.5 text-[10px] text-slate-800 dark:bg-slate-700 dark:text-slate-100">
+                      WS preview truncated
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               {toolDetails.error && (
                 <p className="text-red-600 dark:text-red-400">{toolDetails.error}</p>
               )}

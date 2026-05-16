@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -18,7 +18,10 @@ import {
   Code,
   Brain,
   Link as LinkIcon,
+  Loader2,
 } from 'lucide-react';
+import { useBrowserNotifications } from '@/hooks/useBrowserNotifications';
+import { useSoundEffects } from '@/hooks/useSoundEffects';
 import { useTasks } from '@/hooks/useGrowthSystem';
 import { ROUTES } from '@/routes';
 import type { Task } from '@/types/growth-system';
@@ -30,6 +33,11 @@ export default function FocusModePage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { completeTask } = useTasks();
+  const { play } = useSoundEffects();
+  const { permission, requestPermission, notify } = useBrowserNotifications();
+
+  const titleBlinkIntervalRef = useRef<number | null>(null);
+  const hasFiredTimerEndRef = useRef(false);
 
   const [sessionTasks, setSessionTasks] = useState<Task[]>([]);
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
@@ -38,6 +46,8 @@ export default function FocusModePage() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [completedTasks, setCompletedTasks] = useState<string[]>([]);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [isTitleBlinking, setIsTitleBlinking] = useState(false);
 
   useEffect(() => {
     const state = location.state as { sessionTasks?: Task[] };
@@ -52,13 +62,14 @@ export default function FocusModePage() {
   }, [location, navigate]);
 
   const currentTask = sessionTasks[currentTaskIndex];
-  const progress = ((currentTaskIndex + 1) / sessionTasks.length) * 100;
+  const progress =
+    sessionTasks.length > 0 ? ((currentTaskIndex + 1) / sessionTasks.length) * 100 : 0;
 
-  const formatTime = (seconds: number) => {
+  const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  }, []);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -79,34 +90,102 @@ export default function FocusModePage() {
   }, [isTimerRunning, timeRemaining]);
 
   useEffect(() => {
+    return () => {
+      if (titleBlinkIntervalRef.current != null) {
+        clearInterval(titleBlinkIntervalRef.current);
+        titleBlinkIntervalRef.current = null;
+      }
+      document.title = 'Sunny Singh Tech';
+    };
+  }, []);
+
+  useEffect(() => {
+    if (timeRemaining <= 0) return;
+    hasFiredTimerEndRef.current = false;
+    if (titleBlinkIntervalRef.current != null) {
+      clearInterval(titleBlinkIntervalRef.current);
+      titleBlinkIntervalRef.current = null;
+    }
+    setIsTitleBlinking(false);
+  }, [timeRemaining]);
+
+  useEffect(() => {
+    if (!isTimerRunning) return;
+    if (titleBlinkIntervalRef.current != null) {
+      clearInterval(titleBlinkIntervalRef.current);
+      titleBlinkIntervalRef.current = null;
+    }
+    setIsTitleBlinking(false);
+  }, [isTimerRunning]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (titleBlinkIntervalRef.current != null) {
+        clearInterval(titleBlinkIntervalRef.current);
+        titleBlinkIntervalRef.current = null;
+      }
+      setIsTitleBlinking(false);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  useEffect(() => {
+    if (timeRemaining !== 0 || !currentTask || hasFiredTimerEndRef.current) return;
+    hasFiredTimerEndRef.current = true;
+
+    play('success', { volume: 0.6 });
+    const n = notify('Focus session complete', {
+      body: `Time is up for: ${currentTask.title}`,
+      tag: 'focus-mode-timer',
+    });
+    if (n) {
+      n.onclick = () => {
+        window.focus();
+        n.close();
+      };
+    }
+
+    setIsTitleBlinking(true);
+    let toggle = false;
+    const tick = () => {
+      toggle = !toggle;
+      document.title = toggle ? '⏰ Time is up!' : 'Focus Mode';
+    };
+    tick();
+    titleBlinkIntervalRef.current = window.setInterval(tick, 1000);
+  }, [timeRemaining, currentTask, play, notify]);
+
+  useEffect(() => {
+    if (isTitleBlinking) return;
+    if (timeRemaining === 0 && currentTask) return;
     if (isTimerRunning && currentTask) {
       document.title = `${formatTime(timeRemaining)} - Focus Mode`;
     } else if (currentTask) {
       document.title = 'Focus Mode';
     }
-
-    return () => {
-      document.title = 'Sunny Singh Tech';
-    };
-  }, [isTimerRunning, timeRemaining, currentTask]);
+  }, [isTimerRunning, timeRemaining, currentTask, isTitleBlinking, formatTime]);
 
   const handleCompleteTaskClick = () => {
     setShowCompleteConfirm(true);
   };
 
   const handleConfirmComplete = async () => {
-    if (!currentTask) return;
+    if (!currentTask || isCompleting) return;
 
-    setShowCompleteConfirm(false);
-
-    await completeTask(currentTask.id);
-
-    setCompletedTasks((prev) => [...prev, currentTask.id]);
-
-    if (currentTaskIndex < sessionTasks.length - 1) {
-      setCurrentTaskIndex((prev) => prev + 1);
-      setTimeRemaining(POMODORO_DURATION);
-      setIsTimerRunning(false);
+    setIsCompleting(true);
+    try {
+      await completeTask(currentTask.id);
+      setCompletedTasks((prev) => [...prev, currentTask.id]);
+      setShowCompleteConfirm(false);
+      if (currentTaskIndex < sessionTasks.length - 1) {
+        setCurrentTaskIndex((prev) => prev + 1);
+        setTimeRemaining(POMODORO_DURATION);
+        setIsTimerRunning(false);
+      }
+    } finally {
+      setIsCompleting(false);
     }
   };
 
@@ -316,23 +395,36 @@ export default function FocusModePage() {
                 <div className="text-6xl font-bold text-white mb-2 font-mono">
                   {formatTime(timeRemaining)}
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={toggleTimer}
-                    className="p-3 bg-blue-600 hover:bg-blue-700 rounded-full transition-colors"
-                  >
-                    {isTimerRunning ? (
-                      <Pause className="w-5 h-5 text-white" />
-                    ) : (
-                      <Play className="w-5 h-5 text-white" />
-                    )}
-                  </button>
-                  <button
-                    onClick={resetTimer}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white text-sm font-medium transition-colors"
-                  >
-                    Reset
-                  </button>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={toggleTimer}
+                      className="p-3 bg-blue-600 hover:bg-blue-700 rounded-full transition-colors"
+                    >
+                      {isTimerRunning ? (
+                        <Pause className="w-5 h-5 text-white" />
+                      ) : (
+                        <Play className="w-5 h-5 text-white" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetTimer}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white text-sm font-medium transition-colors"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  {permission === 'default' && (
+                    <button
+                      type="button"
+                      onClick={() => void requestPermission()}
+                      className="text-xs text-cyan-300/90 hover:text-cyan-200 underline underline-offset-2"
+                    >
+                      Enable timer alerts
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -344,8 +436,10 @@ export default function FocusModePage() {
               className="flex items-center justify-center gap-4"
             >
               <button
+                type="button"
+                disabled={isCompleting}
                 onClick={handleCompleteTaskClick}
-                className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-bold text-xl flex items-center gap-3 transition-all hover:scale-105 active:scale-95 shadow-xl"
+                className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 text-white rounded-xl font-bold text-xl flex items-center gap-3 transition-all hover:scale-105 active:scale-95 shadow-xl"
               >
                 <CheckCircle2 className="w-6 h-6" />
                 Complete Task
@@ -517,7 +611,7 @@ export default function FocusModePage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={handleCancelComplete}
+            onClick={isCompleting ? undefined : handleCancelComplete}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -538,16 +632,27 @@ export default function FocusModePage() {
 
               <div className="flex gap-3">
                 <button
+                  type="button"
+                  disabled={isCompleting}
                   onClick={handleCancelComplete}
-                  className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-semibold transition-colors"
+                  className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleConfirmComplete}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-semibold transition-all hover:scale-105 active:scale-95"
+                  type="button"
+                  disabled={isCompleting}
+                  onClick={() => void handleConfirmComplete()}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-70 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
                 >
-                  Confirm & Next
+                  {isCompleting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+                      Completing…
+                    </>
+                  ) : (
+                    'Confirm & Next'
+                  )}
                 </button>
               </div>
             </motion.div>

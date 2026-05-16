@@ -13,6 +13,7 @@ import {
   type ProjectDisplayModel,
 } from '@/utils/project-summary';
 import { cn } from '@/lib/utils';
+import { getProjectTypeDescriptor } from '@/features/projectTypes';
 
 interface ProjectListItemProps {
   project: Project;
@@ -42,6 +43,8 @@ export function ProjectListItem({
   const handleClick = () => {
     onClick(project);
   };
+
+  const ProjectTypeBadgeSlot = getProjectTypeDescriptor(project.projectType).CardBadges;
 
   const progress =
     display?.progressPercent ??
@@ -95,6 +98,7 @@ export function ProjectListItem({
             <div className="flex items-center gap-2 flex-wrap">
               <StatusBadge status={effectiveStatus} size="sm" />
               <AreaBadge area={project.area} size="sm" />
+              {ProjectTypeBadgeSlot ? <ProjectTypeBadgeSlot project={project} /> : null}
             </div>
           </div>
         </div>

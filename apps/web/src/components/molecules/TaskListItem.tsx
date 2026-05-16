@@ -196,9 +196,19 @@ export function TaskListItem({
           </div>
           <div className="min-w-0 flex-1 space-y-1.5">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between lg:gap-2">
-              <h3 className="min-w-0 text-base font-semibold leading-snug text-gray-900 break-words dark:text-white lg:text-[1.05rem]">
-                {task.title}
-              </h3>
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <h3 className="min-w-0 text-base font-semibold leading-snug text-gray-900 break-words dark:text-white lg:text-[1.05rem]">
+                  {task.title}
+                </h3>
+                {(task.subtaskCount ?? 0) > 0 ? (
+                  <span
+                    className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                    title="Subtasks done / total"
+                  >
+                    {task.completedSubtaskCount ?? 0}/{task.subtaskCount}
+                  </span>
+                ) : null}
+              </div>
               {/* Desktop / large tablet: status + compact icon actions */}
               <div
                 className="hidden shrink-0 flex-wrap items-center justify-end gap-x-0.5 gap-y-1 lg:flex"

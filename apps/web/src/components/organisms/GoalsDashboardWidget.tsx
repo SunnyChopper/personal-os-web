@@ -1,7 +1,7 @@
 import { Target, ArrowRight, Calendar, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import type { Goal } from '@/types/growth-system';
+import type { Goal, TimeHorizon } from '@/types/growth-system';
 import { ProgressRing } from '@/components/atoms/ProgressRing';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
@@ -20,6 +20,17 @@ interface GoalsDashboardWidgetProps {
   /** Shows skeleton goal rows instead of empty state while dashboard data loads */
   isLoading?: boolean;
 }
+
+/** Most granular horizons have the highest rank (matches GoalHierarchicalTimeView order). */
+const TIME_HORIZON_RANK: Record<TimeHorizon, number> = {
+  Yearly: 0,
+  Quarterly: 1,
+  Monthly: 2,
+  Weekly: 3,
+  Daily: 4,
+};
+
+const ACTIVE_GOAL_STATUSES: ReadonlyArray<Goal['status']> = ['Active', 'On Track', 'At Risk'];
 
 export function GoalsDashboardWidget({
   goals,
@@ -77,21 +88,35 @@ export function GoalsDashboardWidget({
     );
   }
 
-  // Get top 3 priority goals
-  const activeGoals = goals
-    .filter((g) => g.status === 'Active' || g.status === 'On Track' || g.status === 'At Risk')
-    .sort((a, b) => {
-      // Sort by priority first
-      const priorityOrder = { P1: 0, P2: 1, P3: 2, P4: 3 };
+  const filtered = goals.filter((g) => ACTIVE_GOAL_STATUSES.includes(g.status));
+
+  // Single focus goal at the lowest (most granular) time horizon among active-like goals.
+  let activeGoals: Goal[] = [];
+  if (filtered.length > 0) {
+    const maxRank = Math.max(...filtered.map((g) => TIME_HORIZON_RANK[g.timeHorizon]));
+    const atLowestHorizon = filtered.filter((g) => TIME_HORIZON_RANK[g.timeHorizon] === maxRank);
+
+    const priorityOrder = { P1: 0, P2: 1, P3: 2, P4: 3 } satisfies Record<Goal['priority'], number>;
+
+    const sortedFocus = [...atLowestHorizon].sort((a, b) => {
       const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
       if (priorityDiff !== 0) return priorityDiff;
 
-      // Then by progress (lower progress first for focus)
-      const progressA = goalsProgress.get(a.id) || 0;
-      const progressB = goalsProgress.get(b.id) || 0;
-      return progressA - progressB;
-    })
-    .slice(0, 3);
+      const progressA = goalsProgress.get(a.id) ?? 0;
+      const progressB = goalsProgress.get(b.id) ?? 0;
+      const progressDiff = progressA - progressB;
+      if (progressDiff !== 0) return progressDiff;
+
+      // Earliest target first; undated goals after dated ones
+      const timeA = a.targetDate ? new Date(a.targetDate).getTime() : Number.POSITIVE_INFINITY;
+      const timeB = b.targetDate ? new Date(b.targetDate).getTime() : Number.POSITIVE_INFINITY;
+      if (timeA !== timeB) return timeA - timeB;
+
+      return a.title.localeCompare(b.title);
+    });
+
+    activeGoals = sortedFocus.slice(0, 1);
+  }
 
   const goalsWithData: GoalWithProgress[] = activeGoals.map((goal) => {
     const progress = goalsProgress.get(goal.id) || 0;

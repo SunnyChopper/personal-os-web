@@ -7,6 +7,34 @@ import { cn } from '@/lib/utils';
 import { extractDateOnly, formatDateString, parseDateInput } from '@/utils/date-formatters';
 import type { EntitySummary } from '@/types/growth-system';
 
+type FlatListSortKey = 'updatedAt' | 'title';
+
+function summaryUpdatedAtMs(summary: EntitySummary): number | null {
+  const raw = summary.updatedAt;
+  if (!raw) return null;
+  const ms = parseDateInput(raw).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
+function compareFlatEntitySummaries(
+  a: EntitySummary,
+  b: EntitySummary,
+  sortKey: FlatListSortKey
+): number {
+  if (sortKey === 'title') {
+    return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+  }
+  const ta = summaryUpdatedAtMs(a);
+  const tb = summaryUpdatedAtMs(b);
+  if (ta === null && tb === null) {
+    return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+  }
+  if (ta === null) return 1;
+  if (tb === null) return -1;
+  if (tb !== ta) return tb - ta;
+  return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+}
+
 interface RelationshipPickerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -270,6 +298,7 @@ export function RelationshipPicker({
   entityType,
 }: RelationshipPickerProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [flatSortKey, setFlatSortKey] = useState<FlatListSortKey>('updatedAt');
   const [expandedGoalIds, setExpandedGoalIds] = useState<Set<string>>(() => new Set());
 
   const goalTree = useMemo(() => {
@@ -292,12 +321,18 @@ export function RelationshipPicker({
 
   const resetPickerUi = () => {
     setSearchQuery('');
+    setFlatSortKey('updatedAt');
     setExpandedGoalIds(new Set());
   };
 
   const filteredEntities = entities.filter((entity) =>
     entity.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const sortedFlatEntities = useMemo(() => {
+    if (entityType === 'goal') return [];
+    return [...filteredEntities].sort((a, b) => compareFlatEntitySummaries(a, b, flatSortKey));
+  }, [entityType, filteredEntities, flatSortKey]);
 
   const toggleSelection = (id: string) => {
     if (selectedIds.includes(id)) {
@@ -337,7 +372,7 @@ export function RelationshipPicker({
 
   const showGoalAccordion = entityType === 'goal';
   const goalListEmpty = showGoalAccordion && visibleGoalTree.length === 0;
-  const flatListEmpty = !showGoalAccordion && filteredEntities.length === 0;
+  const flatListEmpty = !showGoalAccordion && sortedFlatEntities.length === 0;
 
   return (
     <Dialog isOpen={isOpen} onClose={handleClose} title={title} className="max-w-2xl">
@@ -366,6 +401,37 @@ export function RelationshipPicker({
             className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+
+        {!showGoalAccordion && (
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Sort task list">
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => setFlatSortKey('updatedAt')}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50',
+                flatSortKey === 'updatedAt'
+                  ? 'bg-blue-600 text-white dark:bg-blue-500'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+              )}
+            >
+              Recently updated
+            </button>
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => setFlatSortKey('title')}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50',
+                flatSortKey === 'title'
+                  ? 'bg-blue-600 text-white dark:bg-blue-500'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+              )}
+            >
+              Title A–Z
+            </button>
+          </div>
+        )}
 
         {selectedIds.length > 0 && (
           <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
@@ -421,8 +487,11 @@ export function RelationshipPicker({
             </div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredEntities.map((entity) => {
+              {sortedFlatEntities.map((entity) => {
                 const isSelected = selectedIds.includes(entity.id);
+                const updatedLabel =
+                  entity.updatedAt &&
+                  formatDateString(entity.updatedAt, { month: 'short', day: 'numeric' });
                 return (
                   <button
                     key={entity.id}
@@ -438,12 +507,18 @@ export function RelationshipPicker({
                         <div className="font-medium text-gray-900 dark:text-white truncate">
                           {entity.title}
                         </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-1">
+                        <div className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
                           <span className="capitalize">{entity.type}</span>
-                          <span>•</span>
+                          <span aria-hidden>•</span>
                           <span>{entity.area}</span>
-                          <span>•</span>
+                          <span aria-hidden>•</span>
                           <span className="capitalize">{entity.status}</span>
+                          {updatedLabel && (
+                            <>
+                              <span aria-hidden>•</span>
+                              <span>Updated {updatedLabel}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="ml-4">

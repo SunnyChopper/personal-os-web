@@ -1,12 +1,12 @@
 import { type ReactNode } from 'react';
-import { HelpCircle } from 'lucide-react';
-import { useState } from 'react';
+
+import { HoverMetricHelp } from './HoverMetricHelp';
 
 interface HabitStatCardProps {
   label: string;
   value: string | number;
   icon: ReactNode;
-  tooltip?: string;
+  tooltip?: ReactNode;
   trend?: {
     changePercent: number;
     isImproving: boolean;
@@ -33,8 +33,6 @@ export function HabitStatCard({
   progress,
   className = '',
 }: HabitStatCardProps) {
-  const [showTooltip, setShowTooltip] = useState(false);
-
   return (
     <div
       className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 ${className}`}
@@ -42,24 +40,7 @@ export function HabitStatCard({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600 dark:text-gray-400">{label}</span>
-          {tooltip && (
-            <div className="relative">
-              <button
-                onMouseEnter={() => setShowTooltip(true)}
-                onMouseLeave={() => setShowTooltip(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                aria-label="More information"
-              >
-                <HelpCircle className="w-3.5 h-3.5" />
-              </button>
-              {showTooltip && (
-                <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg shadow-lg">
-                  {tooltip}
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700" />
-                </div>
-              )}
-            </div>
-          )}
+          {tooltip && <HoverMetricHelp>{tooltip}</HoverMetricHelp>}
         </div>
         {icon}
       </div>

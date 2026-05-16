@@ -7,6 +7,7 @@
 export const WS_NO_TOKEN_ERROR_NAME = 'WsNoTokenError';
 export const WS_HANDSHAKE_REFUSED_ERROR_NAME = 'WsHandshakeRefusedError';
 export const WS_HANDSHAKE_CLOSED_ERROR_NAME = 'WsHandshakeClosedError';
+export const WS_HANDSHAKE_TIMEOUT_ERROR_NAME = 'WsHandshakeTimeoutError';
 
 export class WsNoTokenError extends Error {
   override readonly name = WS_NO_TOKEN_ERROR_NAME;
@@ -54,6 +55,22 @@ export function isWsHandshakeRefusedError(err: unknown): err is WsHandshakeRefus
 
 export function isWsHandshakeClosedError(err: unknown): err is WsHandshakeClosedError {
   return err instanceof Error && err.name === WS_HANDSHAKE_CLOSED_ERROR_NAME;
+}
+
+export class WsHandshakeTimeoutError extends Error {
+  override readonly name = WS_HANDSHAKE_TIMEOUT_ERROR_NAME;
+
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number, message = 'WebSocket handshake timed out') {
+    super(message);
+    Object.setPrototypeOf(this, new.target.prototype);
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+export function isWsHandshakeTimeoutError(err: unknown): err is WsHandshakeTimeoutError {
+  return err instanceof Error && err.name === WS_HANDSHAKE_TIMEOUT_ERROR_NAME;
 }
 
 const ASSISTANT_WS_PREFLIGHT_ERROR_NAME = 'AssistantWsPreflightError';

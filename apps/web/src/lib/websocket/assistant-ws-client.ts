@@ -17,8 +17,17 @@ import { wsLogger } from '@/lib/logger';
 import {
   WsHandshakeClosedError,
   WsHandshakeRefusedError,
+  WsHandshakeTimeoutError,
   WsNoTokenError,
 } from '@/lib/websocket/assistant-ws-errors';
+
+/** Close codes that should not trigger automatic reconnect (policy / auth at app layer). */
+const DEFAULT_TERMINAL_CLOSE_CODES = new Set([1008, 4401, 4403, 4030]);
+
+function reconnectDelayWithJitter(baseMs: number, attemptIndex: number, maxMs: number): number {
+  const exp = Math.min(baseMs * 2 ** attemptIndex, maxMs);
+  return Math.floor(exp * (1 + Math.random() * 0.2));
+}
 
 function jwtExpRemainingSeconds(token: string): number | null {
   try {
@@ -48,7 +57,7 @@ export type WsContextBudgetMetaPayload = {
   compactionMode?: string;
 };
 
-type WsEventHandlers = {
+export type WsEventHandlers = {
   onToolsEvent?: (payload: unknown) => void;
   onRunStarted?: (payload: WsRunStartedPayload) => void;
   onAssistantModelResolved?: (payload: WsAssistantModelResolvedPayload) => void;
@@ -68,7 +77,7 @@ type WsEventHandlers = {
   onError?: (event: Event) => void;
 };
 
-type AssistantWsClientOptions = WsEventHandlers & {
+export type AssistantWsClientOptions = WsEventHandlers & {
   wsBaseUrl: string;
   getAccessToken: () => Promise<string | null>;
   /** Runs once before the first socket open (e.g. HTTP preflight). Reset on disconnect/manualReconnect. */
@@ -77,6 +86,11 @@ type AssistantWsClientOptions = WsEventHandlers & {
   maxReconnectAttempts?: number;
   reconnectBaseDelayMs?: number;
   reconnectMaxDelayMs?: number;
+  /** Max ms waiting for open/error/close during handshake; 0 disables. */
+  connectTimeoutMs?: number;
+  /** If true (default), do not reconnect after a terminal close code (see terminalCloseCodes). */
+  honorTerminalCloseCodes?: boolean;
+  terminalCloseCodes?: ReadonlySet<number>;
   authTokenParam?: string;
   keepAliveIntervalMs?: number;
 };
@@ -118,11 +132,15 @@ export class AssistantWsClient {
   private readonly reconnectMaxDelayMs: number;
   private readonly authTokenParam: string;
   private readonly keepAliveIntervalMs: number;
+  private readonly connectTimeoutMs: number;
+  private readonly honorTerminalCloseCodes: boolean;
+  private readonly terminalCloseCodes: ReadonlySet<number>;
   private readonly beforeConnect?: () => Promise<void>;
   private beforeConnectCompleted = false;
   private connectionState: AssistantWsConnectionState = 'disconnected';
   private pendingCloseOnOpen = false;
   private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+  private handshakeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: AssistantWsClientOptions) {
     this.wsBaseUrl = options.wsBaseUrl;
@@ -151,6 +169,9 @@ export class AssistantWsClient {
     this.reconnectMaxDelayMs = options.reconnectMaxDelayMs ?? 8000;
     this.authTokenParam = options.authTokenParam ?? 'authToken';
     this.keepAliveIntervalMs = options.keepAliveIntervalMs ?? 0;
+    this.connectTimeoutMs = options.connectTimeoutMs ?? 30_000;
+    this.honorTerminalCloseCodes = options.honorTerminalCloseCodes ?? true;
+    this.terminalCloseCodes = options.terminalCloseCodes ?? DEFAULT_TERMINAL_CLOSE_CODES;
     this.beforeConnect = options.beforeConnect;
   }
 
@@ -188,6 +209,7 @@ export class AssistantWsClient {
     this.beforeConnectCompleted = false;
     this.connectionAttemptId += 1;
     this.connectPromise = null;
+    this.clearHandshakeTimer();
     this.clearReconnectTimer();
     this.clearKeepAliveTimer();
     this.setConnectionState('disconnected');
@@ -240,6 +262,7 @@ export class AssistantWsClient {
     this.connectionAttemptId += 1;
     this.connectPromise = null;
     this.reconnectAttempts = 0;
+    this.clearHandshakeTimer();
     this.clearReconnectTimer();
     this.clearKeepAliveTimer();
     this.pendingCloseOnOpen = false;
@@ -294,8 +317,23 @@ export class AssistantWsClient {
           return;
         }
         handshakeSettled = true;
+        this.clearHandshakeTimer();
         rejectHandshake(reason);
       };
+
+      if (this.connectTimeoutMs > 0) {
+        this.clearHandshakeTimer();
+        this.handshakeTimer = setTimeout(() => {
+          if (!handshakeSettled) {
+            try {
+              ws.close();
+            } catch {
+              /* ignore */
+            }
+            failHandshake(new WsHandshakeTimeoutError(this.connectTimeoutMs));
+          }
+        }, this.connectTimeoutMs);
+      }
 
       ws.onopen = () => {
         if (!this.shouldReconnect || attemptId !== this.connectionAttemptId) {
@@ -313,6 +351,7 @@ export class AssistantWsClient {
           return;
         }
         handshakeSettled = true;
+        this.clearHandshakeTimer();
         this.reconnectAttempts = 0;
         this.setConnectionState('connected');
         this.startKeepAlive();
@@ -335,6 +374,18 @@ export class AssistantWsClient {
               event.wasClean
             )
           );
+          return;
+        }
+        this.clearHandshakeTimer();
+        if (
+          this.honorTerminalCloseCodes &&
+          this.terminalCloseCodes.has(event.code) &&
+          this.shouldReconnect &&
+          this.reconnectEnabled
+        ) {
+          this.shouldReconnect = false;
+          this.setConnectionState('failed');
+          this.socket = null;
           return;
         }
         this.handlers.onClose?.(event);
@@ -441,8 +492,9 @@ export class AssistantWsClient {
       return;
     }
 
-    const delay = Math.min(
-      this.reconnectBaseDelayMs * 2 ** this.reconnectAttempts,
+    const delay = reconnectDelayWithJitter(
+      this.reconnectBaseDelayMs,
+      this.reconnectAttempts,
       this.reconnectMaxDelayMs
     );
     this.reconnectAttempts += 1;
@@ -509,6 +561,13 @@ export class AssistantWsClient {
     if (this.keepAliveTimer) {
       clearInterval(this.keepAliveTimer);
       this.keepAliveTimer = null;
+    }
+  }
+
+  private clearHandshakeTimer(): void {
+    if (this.handshakeTimer) {
+      clearTimeout(this.handshakeTimer);
+      this.handshakeTimer = null;
     }
   }
 }

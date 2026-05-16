@@ -17,6 +17,7 @@ import {
   X,
   Star,
   Link2Off,
+  Columns3,
 } from 'lucide-react';
 import type {
   Project,
@@ -30,6 +31,7 @@ import type {
   Area,
   Priority,
   Goal,
+  ProjectTypeId,
 } from '@/types/growth-system';
 import { useProjects, useGoals, useTasks } from '@/hooks/useGrowthSystem';
 import { useProjectHealthMap } from '@/hooks/useProjectHealthMap';
@@ -71,10 +73,12 @@ import { llmConfig } from '@/lib/llm';
 import { formatDateString } from '@/utils/date-formatters';
 import { cn } from '@/lib/utils';
 import { getGoalCriteriaProgressPercent, getProjectDisplayModel } from '@/utils/project-summary';
+import { getProjectTypeDescriptor } from '@/features/projectTypes';
 
 const STATUSES: ProjectStatus[] = [...PROJECT_STATUSES];
 const AREA_OPTIONS: Area[] = [...AREAS];
 const PRIORITY_OPTIONS: Priority[] = [...PRIORITIES];
+const PROJECT_TYPE_FILTERS: ProjectTypeId[] = ['General', 'SoftwareDevelopment'];
 
 type ViewMode = 'grid' | 'list' | 'timeline';
 
@@ -106,6 +110,11 @@ export default function ProjectsPage() {
   const [isTaskEditOpen, setIsTaskEditOpen] = useState(false);
   const [isTaskPickerOpen, setIsTaskPickerOpen] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [detailTasksView, setDetailTasksView] = useState<'list' | 'kanban'>('list');
+
+  useEffect(() => {
+    setDetailTasksView('list');
+  }, [selectedProject?.id]);
 
   // Use individual hooks to fetch data from their respective endpoints
   const {
@@ -177,6 +186,7 @@ export default function ProjectsPage() {
         type: 'task' as const,
         area: t.area,
         status: t.status,
+        updatedAt: t.updatedAt,
       })),
     [tasks]
   );
@@ -188,7 +198,8 @@ export default function ProjectsPage() {
         (!searchQuery || project.name.toLowerCase().includes(searchQuery.toLowerCase())) &&
         (!filters.status || project.status === filters.status) &&
         (!filters.area || project.area === filters.area) &&
-        (!filters.priority || project.priority === filters.priority)
+        (!filters.priority || project.priority === filters.priority) &&
+        (!filters.projectType || project.projectType === filters.projectType)
       );
     });
   }, [projects, searchQuery, filters]);
@@ -317,7 +328,8 @@ export default function ProjectsPage() {
   };
 
   const activeFilterCount = useMemo(() => {
-    return [filters.area, filters.status, filters.priority].filter(Boolean).length;
+    return [filters.area, filters.status, filters.priority, filters.projectType].filter(Boolean)
+      .length;
   }, [filters]);
 
   const updateProjectGoals = useCallback(
@@ -557,6 +569,10 @@ export default function ProjectsPage() {
     );
     const progress = detailDisplay.progressPercent;
     const linkedGoals = projectGoals.get(selectedProject.id) || [];
+    const projectTypeDescriptor = getProjectTypeDescriptor(selectedProject.projectType);
+    const ProjectDetailExtra = projectTypeDescriptor.DetailSections;
+    const kanbanViewMode = projectTypeDescriptor.extraViewModes?.find((m) => m.id === 'kanban');
+    const KanbanPanel = kanbanViewMode?.Component;
     const pendingTasks = projectTasks.filter((t) => t.status !== 'Done');
     const doneTasks = projectTasks.filter((t) => t.status === 'Done');
     const getLinkedProjectsForTask = (task: Task) =>
@@ -700,6 +716,15 @@ export default function ProjectsPage() {
               </div>
             )}
 
+            {ProjectDetailExtra && selectedProject.projectType === 'SoftwareDevelopment' ? (
+              <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Software project
+                </h3>
+                <ProjectDetailExtra project={selectedProject} />
+              </div>
+            ) : null}
+
             {isAIConfigured && (
               <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
                 <button
@@ -766,17 +791,48 @@ export default function ProjectsPage() {
                   <CheckSquare className="h-5 w-5 shrink-0" />
                   Tasks ({projectTasks.length})
                 </h2>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="w-full shrink-0 sm:w-auto"
-                  onClick={() => {
-                    setSelectedTaskIds(projectTasks.map((t) => t.id));
-                    setIsTaskPickerOpen(true);
-                  }}
-                >
-                  Link Tasks
-                </Button>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                  {kanbanViewMode && selectedProject.projectType === 'SoftwareDevelopment' ? (
+                    <div className="flex rounded-lg border border-gray-300 p-0.5 dark:border-gray-600">
+                      <button
+                        type="button"
+                        onClick={() => setDetailTasksView('list')}
+                        className={cn(
+                          'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                          detailTasksView === 'list'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+                        )}
+                      >
+                        List
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailTasksView('kanban')}
+                        className={cn(
+                          'flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                          detailTasksView === 'kanban'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+                        )}
+                      >
+                        <Columns3 className="h-4 w-4" />
+                        Kanban
+                      </button>
+                    </div>
+                  ) : null}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full shrink-0 sm:w-auto"
+                    onClick={() => {
+                      setSelectedTaskIds(projectTasks.map((t) => t.id));
+                      setIsTaskPickerOpen(true);
+                    }}
+                  >
+                    Link Tasks
+                  </Button>
+                </div>
               </div>
               {projectTasks.length === 0 ? (
                 <EmptyState
@@ -784,6 +840,12 @@ export default function ProjectsPage() {
                   description="Link tasks to this project to track progress"
                   actionLabel="Link Tasks"
                   onAction={() => setIsTaskPickerOpen(true)}
+                />
+              ) : detailTasksView === 'kanban' && KanbanPanel ? (
+                <KanbanPanel
+                  project={selectedProject}
+                  tasks={projectTasks}
+                  onTaskClick={handleEditTask}
                 />
               ) : (
                 <div className="min-w-0 space-y-4">
@@ -1051,6 +1113,18 @@ export default function ProjectsPage() {
               // Invalidate tasks query to refresh data
               queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
             }}
+            taskKindOptions={
+              selectedProject &&
+              selectedTask.projectIds.includes(selectedProject.id) &&
+              selectedProject.projectType === 'SoftwareDevelopment'
+                ? [
+                    { value: 'Generic', label: 'Generic' },
+                    ...(getProjectTypeDescriptor('SoftwareDevelopment').taskKinds ?? []).map(
+                      (o) => ({ value: o.value, label: o.label })
+                    ),
+                  ]
+                : undefined
+            }
           />
         )}
 
@@ -1202,7 +1276,7 @@ export default function ProjectsPage() {
                 </button>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Area
@@ -1266,6 +1340,28 @@ export default function ProjectsPage() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Project type
+                </label>
+                <select
+                  value={filters.projectType || ''}
+                  onChange={(e) =>
+                    setFilters({
+                      ...filters,
+                      projectType: (e.target.value as ProjectTypeId) || undefined,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All types</option>
+                  {PROJECT_TYPE_FILTERS.map((pt) => (
+                    <option key={pt} value={pt}>
+                      {getProjectTypeDescriptor(pt).label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         )}
@@ -1283,7 +1379,11 @@ export default function ProjectsPage() {
           <EmptyState
             title="No projects found"
             description={
-              searchQuery || filters.area || filters.status || filters.priority
+              searchQuery ||
+              filters.area ||
+              filters.status ||
+              filters.priority ||
+              filters.projectType
                 ? 'Try adjusting your filters or search query'
                 : 'Get started by creating your first project'
             }

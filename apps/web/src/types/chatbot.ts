@@ -252,6 +252,14 @@ export interface WsToolCallCompletePayload {
   durationMs?: number;
   error?: string;
   result?: unknown;
+  /** List-tool row counts carried on the envelope (accurate even when WS `result` JSON is truncated). */
+  originalItemCount?: number | null;
+  returnedItemCount?: number | null;
+  total?: number | null;
+  truncatedForWs?: boolean;
+  wsResultChars?: number;
+  wsLimit?: number;
+  argumentsTruncatedForWs?: boolean;
 }
 
 export interface WsToolApprovalRequiredPayload {

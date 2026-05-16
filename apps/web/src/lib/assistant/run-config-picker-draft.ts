@@ -1,3 +1,4 @@
+import type { AssistantDefaultModelsConfig } from '@/types/api-contracts';
 import type {
   AssistantCompactionMode,
   AssistantModelCatalogData,
@@ -13,6 +14,12 @@ export type ModelPickerDraft = {
   /** Thread context compaction for the next send (and proactive automations when saved). */
   compactionMode: AssistantCompactionMode;
 };
+
+/** Model routing only (used by Assistant Settings “default models”; no compaction). */
+export type DefaultModelsDraft = Pick<
+  ModelPickerDraft,
+  'mode' | 'reasoningModelId' | 'responseModelId' | 'optimizeFor'
+>;
 
 /** Build chat/API run config from draft + catalog (matches useAssistantChatPage.getRunConfig). */
 export function runConfigFromModelPickerDraft(
@@ -71,5 +78,52 @@ export function modelPickerDraftFromRunConfig(
     responseModelId: cfg.manual.responseModelId,
     optimizeFor: 'intelligence',
     compactionMode,
+  };
+}
+
+/** Hydrate Default models draft from saved Assistant settings (+ catalog fallbacks). */
+export function defaultModelsDraftFromSettings(
+  cfg: AssistantDefaultModelsConfig | null | undefined,
+  catalog: AssistantModelCatalogData | null
+): DefaultModelsDraft {
+  const dr = catalog?.defaults.defaultReasoningModelId ?? '';
+  const dresp = catalog?.defaults.defaultResponseModelId ?? '';
+  if (!cfg) {
+    return {
+      mode: 'auto',
+      reasoningModelId: dr,
+      responseModelId: dresp,
+      optimizeFor: 'intelligence',
+    };
+  }
+  if (cfg.mode === 'auto') {
+    return {
+      mode: 'auto',
+      reasoningModelId: dr,
+      responseModelId: dresp,
+      optimizeFor: cfg.auto.optimizeFor,
+    };
+  }
+  return {
+    mode: 'manual',
+    reasoningModelId: cfg.manual.reasoningModelId,
+    responseModelId: cfg.manual.responseModelId,
+    optimizeFor: 'intelligence',
+  };
+}
+
+/** Saved Assistant Chat default models (`PUT /preferences/assistant-settings`). */
+export function assistantDefaultModelsPayloadFromDraft(
+  draft: DefaultModelsDraft
+): AssistantDefaultModelsConfig {
+  if (draft.mode === 'auto') {
+    return { mode: 'auto', auto: { optimizeFor: draft.optimizeFor } };
+  }
+  return {
+    mode: 'manual',
+    manual: {
+      reasoningModelId: draft.reasoningModelId,
+      responseModelId: draft.responseModelId,
+    },
   };
 }
