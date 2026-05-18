@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { purgeLocalFile } from '@/hooks/useLocalFiles';
+import { removeRecentFile } from '@/hooks/useRecentFiles';
 import { useMarkdownFiles } from '@/hooks/useMarkdownFiles';
 import { useFileTree } from '@/hooks/useFileTree';
 import { invalidateAfterFileOperation } from '@/lib/markdown/query-invalidation';
@@ -31,6 +32,7 @@ export function useFileDeletion() {
 
     // Step 1: Purge from localStorage
     purgeLocalFile(filePath);
+    removeRecentFile(filePath);
 
     // Step 2: Delete from backend if ID exists
     if (fileId) {
@@ -43,7 +45,7 @@ export function useFileDeletion() {
     }
 
     // Step 3: Invalidate queries
-    invalidateAfterFileOperation(queryClient, filePath);
+    await invalidateAfterFileOperation(queryClient, filePath);
 
     // Step 4: Navigate if requested
     if (options?.navigateAfter) {

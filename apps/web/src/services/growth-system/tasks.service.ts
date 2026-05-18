@@ -1,3 +1,6 @@
+import { llmConfig } from '@/lib/llm';
+import { llmLogger } from '@/lib/logger';
+import { taskPointsAIService } from '@/services/ai/task-points.service';
 import { apiClient } from '@/lib/api-client';
 import type {
   Task,
@@ -35,8 +38,6 @@ export const tasksService = {
     if (filters?.pageSize) queryParams.append('pageSize', String(filters.pageSize));
     if (filters?.sortBy) queryParams.append('sortBy', filters.sortBy);
     if (filters?.sortOrder) queryParams.append('sortOrder', filters.sortOrder);
-    if (filters?.parentTaskId) queryParams.append('parentTaskId', filters.parentTaskId);
-    if (filters?.includeSubtasks) queryParams.append('includeSubtasks', 'true');
 
     const endpoint = `/tasks${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     const response = await apiClient.get<BackendPaginatedResponse<Task>>(endpoint);
@@ -55,48 +56,46 @@ export const tasksService = {
     throw new Error(response.error?.message || 'Failed to fetch tasks');
   },
 
-  async getSubtasks(parentTaskId: string): Promise<PaginatedResponse<Task>> {
-    const response = await apiClient.get<BackendPaginatedResponse<Task>>(
-      `/tasks/${parentTaskId}/subtasks`
-    );
-
-    if (response.success && response.data) {
-      const tasks = response.data.tasks || [];
-      const pageSize = response.data.pageSize || 1;
-      return {
-        data: tasks,
-        total: response.data.total,
-        page: response.data.page,
-        pageSize,
-        totalPages: Math.max(1, Math.ceil(response.data.total / pageSize)),
-      };
-    }
-
-    throw new Error(response.error?.message || 'Failed to fetch subtasks');
-  },
-
   async getById(id: string): Promise<ApiResponse<Task>> {
     const response = await apiClient.get<Task>(`/tasks/${id}`);
     return response;
   },
 
   async create(input: CreateTaskInput): Promise<ApiResponse<Task>> {
-    // Server persists `pointValue` from its formula (`TasksService._calculate_points`); do not POST client hints.
-    const { pointValue: _omitPointValue, ...requestBody } = input;
+    // Calculate point value if not provided and LLM is configured
+    let pointValue = input.pointValue || null;
+
+    if (pointValue === null && llmConfig.isConfigured()) {
+      try {
+        const calculation = await taskPointsAIService.calculateTaskPoints({
+          title: input.title,
+          description: input.description,
+          area: input.area,
+          priority: input.priority || 'P3',
+          size: input.size,
+        });
+        pointValue = calculation.pointValue;
+      } catch (error) {
+        llmLogger.warn('Failed to calculate task points with AI', error);
+      }
+    }
+
+    // Prepare request body matching backend schema
+    const requestBody = {
+      ...input,
+      pointValue: pointValue ?? undefined,
+    };
 
     const response = await apiClient.post<Task>('/tasks', requestBody);
     return response;
   },
 
   async update(id: string, input: UpdateTaskInput): Promise<ApiResponse<Task>> {
-    const body: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(input)) {
-      if (value !== undefined) {
-        body[key] = value;
-      }
-    }
+    const requestBody = {
+      ...input,
+    };
 
-    const response = await apiClient.patch<Task>(`/tasks/${id}`, body);
+    const response = await apiClient.patch<Task>(`/tasks/${id}`, requestBody);
     return response;
   },
 

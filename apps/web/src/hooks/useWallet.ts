@@ -1,27 +1,26 @@
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { walletService } from '@/services/rewards';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
-import { shouldLoadWalletAndRewards } from '@/lib/route-data-policy';
+import { shouldLoadWallet } from '@/lib/route-data-policy';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { extractApiError, isNetworkError } from '@/lib/react-query/error-utils';
 import { applyWalletUpdate } from '@/lib/react-query/growth-system-cache';
 import type { WalletTransaction } from '@/types/rewards';
 
-/**
- * Hook to fetch wallet balance
- */
-export function useWalletBalance() {
+/** Single `/wallet` fetch shared by balance + transactions observers. */
+function useWalletDetailQuery() {
   const { pathname } = useLocation();
-  const loadWallet = shouldLoadWalletAndRewards(pathname);
+  const loadWallet = shouldLoadWallet(pathname);
   const { recordError, recordSuccess } = useBackendStatus();
 
-  const { data, isLoading, isFetching, isPending, error, isError } = useQuery({
-    queryKey: queryKeys.wallet.balance(),
+  return useQuery({
+    queryKey: queryKeys.wallet.detail(),
     enabled: loadWallet,
     queryFn: async () => {
       try {
-        const result = await walletService.getBalance();
+        const result = await walletService.fetchWalletDetail();
         if (result.success && result.data) {
           recordSuccess();
         }
@@ -34,9 +33,16 @@ export function useWalletBalance() {
         throw err;
       }
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes - balance doesn't change that frequently
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
+}
+
+/**
+ * Hook to fetch wallet balance
+ */
+export function useWalletBalance() {
+  const { data, isLoading, isFetching, isPending, error, isError } = useWalletDetailQuery();
 
   const apiError = error ? extractApiError(error) : null;
 
@@ -44,7 +50,7 @@ export function useWalletBalance() {
   const isRefreshing = isFetching && !isPending && !isError;
 
   return {
-    balance: data?.data || null,
+    balance: data?.success && data.data ? data.data.balance : null,
     isLoading: isLoading && !isError,
     isRefreshing,
     isError,
@@ -56,38 +62,19 @@ export function useWalletBalance() {
  * Hook to fetch wallet transactions
  */
 export function useWalletTransactions(limit: number = 50) {
-  const { pathname } = useLocation();
-  const loadWallet = shouldLoadWalletAndRewards(pathname);
-  const { recordError, recordSuccess } = useBackendStatus();
+  const { data, isLoading, isFetching, isPending, error, isError } = useWalletDetailQuery();
 
-  const { data, isLoading, isFetching, isPending, error, isError } = useQuery({
-    queryKey: queryKeys.wallet.transactions(limit),
-    enabled: loadWallet,
-    queryFn: async () => {
-      try {
-        const result = await walletService.getTransactions(limit);
-        if (result.success && result.data) {
-          recordSuccess();
-        }
-        return result;
-      } catch (err: unknown) {
-        const apiError = extractApiError(err);
-        if (apiError && isNetworkError(apiError)) {
-          recordError(apiError);
-        }
-        throw err;
-      }
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes - transactions don't change that frequently
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-  });
+  const transactions = useMemo(() => {
+    if (!data?.success || !data.data) return [];
+    return data.data.transactions.slice(0, limit);
+  }, [data, limit]);
 
   const apiError = error ? extractApiError(error) : null;
 
   const isRefreshing = isFetching && !isPending && !isError;
 
   return {
-    transactions: data?.data || [],
+    transactions,
     isLoading: isLoading && !isError,
     isRefreshing,
     isError,

@@ -24,15 +24,17 @@ export default function EditFileMetadataModal({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch available tags and categories for suggestions
-  const { data: availableTags } = useQuery({
+  // Fetch available tags and categories for suggestions (only while modal is open)
+  const { data: availableTagsResponse, isFetching: tagsSuggestionsLoading } = useQuery({
     queryKey: ['markdown-tags'],
     queryFn: () => markdownFilesService.getTags(),
+    enabled: isOpen,
   });
 
-  const { data: availableCategories } = useQuery({
+  const { data: availableCategoriesResponse, isFetching: categoriesSuggestionsLoading } = useQuery({
     queryKey: ['markdown-categories'],
     queryFn: () => markdownFilesService.getCategories(),
+    enabled: isOpen,
   });
 
   useEffect(() => {
@@ -75,9 +77,16 @@ export default function EditFileMetadataModal({
   if (!isOpen || !file) return null;
 
   const tagSuggestions =
-    availableTags?.data?.filter(
-      (tag) => !tags.includes(tag) && tag.includes(tagInput.toLowerCase())
-    ) || [];
+    availableTagsResponse?.success && Array.isArray(availableTagsResponse.data)
+      ? availableTagsResponse.data.filter(
+          (tag) => !tags.includes(tag) && tag.includes(tagInput.toLowerCase())
+        )
+      : [];
+
+  const categoryOptions =
+    availableCategoriesResponse?.success && Array.isArray(availableCategoriesResponse.data)
+      ? availableCategoriesResponse.data
+      : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -103,6 +112,11 @@ export default function EditFileMetadataModal({
               <Tag size={14} className="inline mr-1" />
               Tags
             </label>
+            {tagsSuggestionsLoading && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Loading tag suggestions…
+              </p>
+            )}
             <div className="flex gap-2 mb-3">
               <div className="flex-1 relative">
                 <input
@@ -177,10 +191,15 @@ export default function EditFileMetadataModal({
             <CategoryCombobox
               value={category}
               onChange={setCategory}
-              options={availableCategories?.data ?? []}
+              options={categoryOptions}
               disabled={isSaving}
-              placeholder="Enter or select a category"
+              isLoadingOptions={categoriesSuggestionsLoading}
+              placeholder="Type a new category or pick from your library"
             />
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              Categories group files in the sidebar. Existing values appear in the dropdown;
+              anything you type is saved as a new category.
+            </p>
           </div>
 
           {error && (

@@ -676,7 +676,7 @@ export default function ProactiveAutomationsPage() {
   );
 
   const timeZonePrefQ = useQuery({
-    queryKey: ['preferences', 'time-zone'],
+    queryKey: queryKeys.preferences.timeZone(),
     queryFn: async () => {
       const res = await apiClient.getPreferencesTimeZone();
       if (!res.success || !res.data?.timeZone)
@@ -689,7 +689,7 @@ export default function ProactiveAutomationsPage() {
   const tz = draftTimeZone ?? savedTimeZone;
 
   const automationsQ = useQuery({
-    queryKey: ['proactive', 'automations'],
+    queryKey: queryKeys.proactive.automations(),
     queryFn: async () => {
       const res = await apiClient.getProactiveAutomations();
       if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Failed to load');
@@ -698,7 +698,7 @@ export default function ProactiveAutomationsPage() {
   });
 
   const suggestionsQ = useQuery({
-    queryKey: ['proactive', 'suggestions'],
+    queryKey: queryKeys.proactive.suggestions(),
     queryFn: async () => {
       const res = await apiClient.getProactiveSuggestions();
       if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Failed to load');
@@ -706,9 +706,12 @@ export default function ProactiveAutomationsPage() {
     },
   });
 
+  const needsAssistantModelCatalog = mainTab === 'suggestions' || formModalOpen;
+
   const brainstormModelCatalogQ = useQuery({
     queryKey: queryKeys.chatbot.modelCatalog(),
     queryFn: () => chatbotService.getAssistantModelCatalog(),
+    enabled: needsAssistantModelCatalog,
   });
 
   useEffect(() => {
@@ -740,7 +743,7 @@ export default function ProactiveAutomationsPage() {
       return;
     }
     setDraftTimeZone(null);
-    void qc.invalidateQueries({ queryKey: ['preferences', 'time-zone'] });
+    void qc.invalidateQueries({ queryKey: queryKeys.preferences.timeZone() });
   };
 
   const createMut = useMutation({
@@ -752,7 +755,7 @@ export default function ProactiveAutomationsPage() {
     onSuccess: () => {
       setFormError(null);
       setFormModalOpen(false);
-      void qc.invalidateQueries({ queryKey: ['proactive', 'automations'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.proactive.automations() });
     },
     onError: (e: Error) => setFormError(e.message),
   });
@@ -767,7 +770,7 @@ export default function ProactiveAutomationsPage() {
       setFormError(null);
       setFormModalOpen(false);
       setEditingAutomation(null);
-      void qc.invalidateQueries({ queryKey: ['proactive', 'automations'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.proactive.automations() });
     },
     onError: (e: Error) => setFormError(e.message),
   });
@@ -777,7 +780,7 @@ export default function ProactiveAutomationsPage() {
       const res = await apiClient.updateProactiveAutomation(id, { enabled });
       if (!res.success) throw new Error(res.error?.message ?? 'Update failed');
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['proactive', 'automations'] }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.proactive.automations() }),
   });
 
   const deleteMut = useMutation({
@@ -785,7 +788,7 @@ export default function ProactiveAutomationsPage() {
       const res = await apiClient.deleteProactiveAutomation(id);
       if (!res.success) throw new Error(res.error?.message ?? 'Delete failed');
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['proactive', 'automations'] }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.proactive.automations() }),
   });
 
   const resolveMut = useMutation({
@@ -803,8 +806,8 @@ export default function ProactiveAutomationsPage() {
       if (!res.success) throw new Error(res.error?.message ?? 'Resolve failed');
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['proactive', 'suggestions'] });
-      void qc.invalidateQueries({ queryKey: ['proactive', 'automations'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.proactive.suggestions() });
+      void qc.invalidateQueries({ queryKey: queryKeys.proactive.automations() });
     },
   });
 
@@ -829,8 +832,8 @@ export default function ProactiveAutomationsPage() {
       setSuggestionEditId(null);
       setSuggestionFormPayload(null);
       setFormMode('create');
-      void qc.invalidateQueries({ queryKey: ['proactive', 'automations'] });
-      void qc.invalidateQueries({ queryKey: ['proactive', 'suggestions'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.proactive.automations() });
+      void qc.invalidateQueries({ queryKey: queryKeys.proactive.suggestions() });
     },
     onError: (e: Error) => setFormError(e.message),
   });
@@ -845,7 +848,7 @@ export default function ProactiveAutomationsPage() {
       return res.data;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['proactive', 'suggestions'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.proactive.suggestions() });
     },
   });
 
@@ -866,7 +869,7 @@ export default function ProactiveAutomationsPage() {
           `Context: ${data.contextStats.taskCount} tasks, ${data.contextStats.goalCount} goals, ` +
           `${data.contextStats.memorySnippetCount} memory hits, ${data.contextStats.existingAutomationCount} existing automations.`
       );
-      void qc.invalidateQueries({ queryKey: ['proactive', 'suggestions'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.proactive.suggestions() });
     },
     onError: (e: Error) => {
       setBrainstormStatus(null);
@@ -914,9 +917,9 @@ export default function ProactiveAutomationsPage() {
         });
       }
       setFormError(null);
-      void qc.invalidateQueries({ queryKey: ['proactive', 'automations'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.proactive.automations() });
       if (automationId) {
-        void qc.invalidateQueries({ queryKey: ['proactive', 'automation-runs', automationId] });
+        void qc.invalidateQueries({ queryKey: queryKeys.proactive.automationRuns(automationId) });
       }
     },
     onError: (e: Error) => {

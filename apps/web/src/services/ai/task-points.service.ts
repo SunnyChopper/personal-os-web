@@ -28,17 +28,13 @@ export const taskPointsAIService = {
     priority: Priority;
     size?: number;
   }): Promise<PointCalculation> {
-    const response = await apiClient.post<PointCalculation>(
+    const response = await apiClient.post<{ data: { result: PointCalculation } }>(
       '/ai/tasks/calculate-points',
-      {
-        ...taskData,
-        useCache: true,
-      },
-      pointCalculationSchema
+      taskData
     );
 
     if (response.success && response.data) {
-      return response.data;
+      return response.data.data.result;
     }
 
     throw new Error(response.error?.message || 'Failed to calculate task points');

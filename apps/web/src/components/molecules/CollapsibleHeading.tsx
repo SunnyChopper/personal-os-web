@@ -11,6 +11,8 @@ interface CollapsibleHeadingProps {
   onToggle: () => void;
   children: React.ReactNode;
   className?: string;
+  /** From markdown position (split-editor scroll sync). */
+  sourceLine?: string | number;
 }
 
 // Heading level configuration
@@ -64,6 +66,7 @@ export default function CollapsibleHeading({
   onToggle,
   children,
   className,
+  sourceLine,
 }: CollapsibleHeadingProps) {
   // [Purpose] Access the MarkdownSectionContext to determine visibility
   //  and manage heading stack for collapsibility logic
@@ -126,6 +129,7 @@ export default function CollapsibleHeading({
             headingTag,
             {
               id: headingId,
+              ...(sourceLine !== undefined ? { 'data-source-line': String(sourceLine) } : {}),
               className: cn(
                 presentationConfig.textSize,
                 presentationConfig.fontWeight,

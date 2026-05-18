@@ -5,18 +5,33 @@ import { toLocalDateTimeString, fromLocalDateTimeString } from '@/utils/date-for
 
 interface HabitLogWidgetProps {
   habit: Habit;
+  /** When set (e.g. calendar day click), pre-fill date/time to this local instant */
+  defaultLogDate?: Date;
   onSubmit: (input: CreateHabitLogInput) => void;
   onCancel: () => void;
   isLoading?: boolean;
 }
 
-export function HabitLogWidget({ habit, onSubmit, onCancel, isLoading }: HabitLogWidgetProps) {
-  const [formData, setFormData] = useState<CreateHabitLogInput>({
+function buildInitialFormData(habit: Habit, defaultLogDate?: Date): CreateHabitLogInput {
+  const at = defaultLogDate ?? new Date();
+  return {
     habitId: habit.id,
-    completedAt: new Date().toISOString(),
+    completedAt: at.toISOString(),
     amount: habit.dailyTarget || 1,
     notes: '',
-  });
+  };
+}
+
+export function HabitLogWidget({
+  habit,
+  defaultLogDate,
+  onSubmit,
+  onCancel,
+  isLoading,
+}: HabitLogWidgetProps) {
+  const [formData, setFormData] = useState<CreateHabitLogInput>(() =>
+    buildInitialFormData(habit, defaultLogDate)
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

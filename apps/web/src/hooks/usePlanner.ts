@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { plannerService } from '@/services/growth-system/planner.service';
-import type { PlannerBlock, PlannerWeek } from '@/types/planner';
+import { mondayISOForDate } from '@/lib/planner/week';
+import type { PlannerBlock, PlannerWeek, CommitPlanDayPayload } from '@/types/planner';
 
 function requireData<T>(res: { success: boolean; data?: T; error?: { message?: string } }): T {
   if (!res.success || res.data === undefined) {
@@ -16,6 +17,39 @@ export function usePlannerWeek(weekStart: string | null) {
     queryKey: weekStart ? queryKeys.growthSystem.planner.week(weekStart) : ['planner', 'off'],
     enabled: !!weekStart,
     queryFn: async () => requireData(await plannerService.getWeek(weekStart!)),
+  });
+}
+
+export function usePlanDay(dateISO: string | null) {
+  return useQuery({
+    queryKey: dateISO
+      ? queryKeys.growthSystem.planner.day(dateISO)
+      : ['planner', 'plan-day', 'off'],
+    enabled: !!dateISO,
+    queryFn: async () => requireData(await plannerService.getPlanDay(dateISO!)),
+  });
+}
+
+export function useCommitPlanDay(dateISO: string) {
+  const qc = useQueryClient();
+  const weekStartForInvalidation = mondayISOForDate(dateISO);
+
+  return useMutation({
+    mutationFn: async (payload: Omit<CommitPlanDayPayload, 'date'>) =>
+      requireData(
+        await plannerService.commitPlanDay({
+          date: dateISO,
+          ...payload,
+        })
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.day(dateISO) });
+      void qc.invalidateQueries({
+        queryKey: queryKeys.growthSystem.planner.week(weekStartForInvalidation),
+      });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+    },
   });
 }
 

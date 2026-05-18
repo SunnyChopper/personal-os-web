@@ -129,7 +129,6 @@ export default function GoalsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [parentGoalForSubgoal, setParentGoalForSubgoal] = useState<Goal | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
-  const [mindmapFocusRootId, setMindmapFocusRootId] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [goalToDelete, setGoalToDelete] = useState<Goal | null>(null);
@@ -420,13 +419,6 @@ export default function GoalsPage() {
   };
 
   const handleGoalClick = (goal: Goal) => {
-    let current: Goal = goal;
-    while (current.parentGoalId) {
-      const parent = goals.find((g) => g.id === current.parentGoalId);
-      if (!parent) break;
-      current = parent;
-    }
-    setMindmapFocusRootId(current.id);
     setSelectedGoal(goal);
   };
 
@@ -1139,7 +1131,6 @@ export default function GoalsPage() {
           goalsProgress={goalsProgress}
           goalsHealth={goalsHealth}
           onGoalClick={handleGoalClick}
-          initialRootId={mindmapFocusRootId ?? undefined}
           onCreateSubgoal={(parentGoal) => {
             setParentGoalForSubgoal(parentGoal);
             setIsCreateDialogOpen(true);

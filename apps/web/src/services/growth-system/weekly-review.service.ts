@@ -5,6 +5,7 @@ import type {
   WeeklyReviewCurrentDashboard,
   WeeklyReviewListResult,
   WeeklyReviewPlanActions,
+  WeeklyReviewSendEmailResult,
   WeeklyReviewSuggestedTask,
 } from '@/types/growth-system';
 
@@ -57,6 +58,13 @@ export const weeklyReviewService = {
     return apiClient.post<{ suggestedTasks: WeeklyReviewSuggestedTask[] }>(
       '/growth-system/weekly-reviews/suggest-tasks',
       { ...(weekStart ? { weekStart } : {}) }
+    );
+  },
+
+  sendEmail: async (weekStart: string): Promise<ApiResponse<WeeklyReviewSendEmailResult>> => {
+    return apiClient.post<WeeklyReviewSendEmailResult>(
+      `/growth-system/weekly-reviews/${encodeURIComponent(weekStart)}/send-email`,
+      {}
     );
   },
 };

@@ -8,6 +8,8 @@ export interface CategoryComboboxProps {
   options: string[];
   disabled?: boolean;
   placeholder?: string;
+  /** While categories are loading from the API, show a subdued loading affordance */
+  isLoadingOptions?: boolean;
 }
 
 type Row = { kind: 'opt'; label: string } | { kind: 'create'; label: string; createValue: string };
@@ -21,6 +23,7 @@ export default function CategoryCombobox({
   options,
   disabled = false,
   placeholder = 'Enter or select a category',
+  isLoadingOptions = false,
 }: CategoryComboboxProps) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -113,6 +116,7 @@ export default function CategoryCombobox({
           placeholder={placeholder}
           disabled={disabled}
           autoComplete="off"
+          aria-busy={isLoadingOptions}
           aria-expanded={open}
           aria-controls={`category-list-${listId}`}
           aria-haspopup="listbox"
@@ -129,8 +133,11 @@ export default function CategoryCombobox({
           tabIndex={-1}
           disabled={disabled}
           onClick={() => !disabled && setOpen((o) => !o)}
-          className="absolute right-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-500"
-          aria-label="Toggle categories"
+          className={cn(
+            'absolute right-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-500',
+            isLoadingOptions && 'opacity-60 animate-pulse'
+          )}
+          aria-label={isLoadingOptions ? 'Loading categories' : 'Toggle categories'}
         >
           <ChevronDown size={18} className={cn('transition-transform', open && 'rotate-180')} />
         </button>

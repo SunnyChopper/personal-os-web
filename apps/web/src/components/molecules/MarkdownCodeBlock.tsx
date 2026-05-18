@@ -12,6 +12,8 @@ interface MarkdownCodeBlockProps {
   codeRefs: React.MutableRefObject<Map<string, HTMLPreElement>>;
   codeId: string;
   children: React.ReactNode;
+  /** Markdown source line (split-editor scroll sync). */
+  sourceLine?: string | number;
 }
 
 /**
@@ -29,6 +31,7 @@ export default function MarkdownCodeBlock({
   codeRefs,
   codeId,
   children,
+  sourceLine,
 }: MarkdownCodeBlockProps) {
   const codeText = code.replace(/\n$/, '');
   const codeLines = codeText.split('\n');
@@ -78,6 +81,7 @@ export default function MarkdownCodeBlock({
         isCollapsed && 'overflow-hidden'
       )}
       data-language={language}
+      {...(sourceLine !== undefined ? { 'data-source-line': String(sourceLine) } : {})}
     >
       <CodeBlockToolbar
         code={codeText}

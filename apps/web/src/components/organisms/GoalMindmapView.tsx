@@ -36,8 +36,6 @@ interface GoalMindmapViewProps {
   goalsHealth: Map<string, GoalsHealthEntry>;
   onGoalClick: (goal: Goal) => void;
   onCreateSubgoal?: (parentGoal: Goal) => void;
-  /** When the mindmap remounts (e.g. after closing goal detail), pre-select this root in "Focus goal". */
-  initialRootId?: string;
 }
 
 function compareGoalsByTargetDate(a: Goal, b: Goal): number {
@@ -80,11 +78,7 @@ function isGoalOverdue(goal: Goal): boolean {
   return today > target;
 }
 
-function layoutMindmap(
-  nodes: Node[],
-  edges: Edge[],
-  subtree: Goal[]
-): { nodes: Node[]; edges: Edge[] } {
+function layoutMindmap(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[] } {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
@@ -107,39 +101,13 @@ function layoutMindmap(
 
   dagre.layout(g);
 
-  // Dagre's sibling order is heuristic; reorder siblings top-to-bottom by targetDate (earliest up).
-  const idToGoal = new Map(subtree.map((goal) => [goal.id, goal]));
-  const groupsByParent = new Map<string, string[]>();
-  for (const node of nodes) {
-    const parentId = idToGoal.get(node.id)?.parentGoalId;
-    if (!parentId) continue;
-    if (!groupsByParent.has(parentId)) groupsByParent.set(parentId, []);
-    groupsByParent.get(parentId)!.push(node.id);
-  }
-
-  const yOverrides = new Map<string, number>();
-  for (const [, childIds] of groupsByParent) {
-    const slots = childIds.map((id) => g.node(id).y).sort((a, b) => a - b);
-    const sortedChildIds = childIds.slice().sort((a, b) => {
-      const ga = idToGoal.get(a);
-      const gb = idToGoal.get(b);
-      if (!ga || !gb) return 0;
-      return compareGoalsByTargetDate(ga, gb);
-    });
-    sortedChildIds.forEach((id, i) => {
-      const slot = slots[i];
-      if (slot !== undefined) yOverrides.set(id, slot);
-    });
-  }
-
   const layoutedNodes = nodes.map((node) => {
     const n = g.node(node.id);
-    const y = yOverrides.get(node.id) ?? n.y;
     return {
       ...node,
       position: {
         x: n.x - GOAL_MINDMAP_LAYOUT_TOTAL_WIDTH / 2,
-        y: y - GOAL_MINDMAP_NODE_HEIGHT / 2,
+        y: n.y - GOAL_MINDMAP_NODE_HEIGHT / 2,
       },
     };
   });
@@ -195,7 +163,6 @@ function MindmapFlowInner({
   goalsHealth,
   onGoalClick,
   onCreateSubgoal,
-  initialRootId,
 }: GoalMindmapViewProps) {
   const { fitView } = useReactFlow();
 
@@ -208,7 +175,7 @@ function MindmapFlowInner({
     [goals]
   );
 
-  const [selectedRootId, setSelectedRootId] = useState<string | null>(initialRootId ?? null);
+  const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
 
   const effectiveRootId = useMemo(() => {
     if (rootGoals.length === 0) return null;
@@ -230,7 +197,7 @@ function MindmapFlowInner({
       goalsHealth,
       onCreateSubgoal
     );
-    const laidOut = layoutMindmap(nodes, edges, subtree);
+    const laidOut = layoutMindmap(nodes, edges);
     return { initialNodes: laidOut.nodes as GoalMindmapRfNode[], initialEdges: laidOut.edges };
   }, [effectiveRootId, goals, goalsProgress, goalsHealth, onCreateSubgoal]);
 

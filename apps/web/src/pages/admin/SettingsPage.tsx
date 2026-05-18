@@ -197,8 +197,12 @@ export default function SettingsPage() {
       <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Growth System</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-          Weekly Review runs in the background on your chosen day (first hour after midnight in your{' '}
-          <span className="font-medium">time zone</span> from Proactive Assistant settings).
+          On your Weekly Review day (first hour after midnight in your{' '}
+          <span className="font-medium">time zone</span> from Proactive Assistant settings), the
+          hourly job generates your snapshot, emails you when your Cognito profile has{' '}
+          <span className="font-medium">email</span>, and — if needed — completes the{' '}
+          <span className="font-medium">previous week&apos;s draft</span> with no sprint or planning
+          changes so you aren&apos;t stuck on an old open review.
         </p>
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex items-center gap-3">
@@ -213,7 +217,7 @@ export default function SettingsPage() {
                 Weekly review day
               </label>
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                AI synthesis and email run on this day
+                AI synthesis and email align to this schedule; overdue drafts roll forward cleanly
               </p>
             </div>
           </div>

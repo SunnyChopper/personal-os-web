@@ -40,6 +40,8 @@
     "deploy:frontend:public-garden:prod": "node ../scripts/run-wsl.mjs -- bun ../scripts/deploy-frontend.mjs prod public-garden",
     "deploy:spa:dev": "node scripts/deploy-spa.mjs dev",
     "deploy:spa:prod": "node scripts/deploy-spa.mjs prod",
+    "check:ws-url:dev": "node scripts/check-websocket-url-drift.mjs dev",
+    "check:ws-url:prod": "node scripts/check-websocket-url-drift.mjs prod",
     "deploy:garden:dev": "node scripts/deploy-garden.mjs dev",
     "deploy:garden:prod": "node scripts/deploy-garden.mjs prod"
   },

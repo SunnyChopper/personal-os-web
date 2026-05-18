@@ -1,9 +1,11 @@
 import { apiClient } from '@/lib/api-client';
 import type { ApiResponse } from '@/types/api-contracts';
 import type {
+  CommitPlanDayPayload,
   CookedTaskResult,
   OneThingSelection,
   OneThingCandidate,
+  PlanDay,
   PlannerBlock,
   PlannerWeek,
 } from '@/types/planner';
@@ -13,6 +15,12 @@ export const plannerService = {
     apiClient.get<PlannerWeek>(
       `/growth-system/planner/week?weekStart=${encodeURIComponent(weekStart)}`
     ),
+
+  getPlanDay: (date: string): Promise<ApiResponse<PlanDay>> =>
+    apiClient.get<PlanDay>(`/growth-system/planner/plan-day?date=${encodeURIComponent(date)}`),
+
+  commitPlanDay: (body: CommitPlanDayPayload): Promise<ApiResponse<PlannerWeek>> =>
+    apiClient.post<PlannerWeek>('/growth-system/planner/plan-day', body),
 
   generateWeek: (weekStart: string, includeLlmSchedule = true): Promise<ApiResponse<PlannerWeek>> =>
     apiClient.post<PlannerWeek>('/growth-system/planner/generate', {

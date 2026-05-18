@@ -7,14 +7,12 @@ import type {
   Project,
   LogbookEntry,
   HabitLog,
-  HabitCompletion,
   TaskDependency,
   CreateTaskInput,
   UpdateTaskInput,
   CreateHabitInput,
   UpdateHabitInput,
   CreateHabitLogInput,
-  UpdateHabitLogInput,
   CreateMetricInput,
   UpdateMetricInput,
   CreateMetricLogInput,
@@ -131,12 +129,7 @@ export interface HabitsApiContract {
 
   logCompletion: (input: CreateHabitLogInput) => Promise<ApiResponse<HabitLog>>;
   getLogs: (habitId: string, filters?: FilterOptions) => Promise<PaginatedResponse<HabitLog>>;
-  updateLog: (
-    habitId: string,
-    completionDate: string,
-    input: UpdateHabitLogInput
-  ) => Promise<ApiResponse<HabitCompletion>>;
-  deleteLog: (habitId: string, completionDate: string) => Promise<ApiResponse<void>>;
+  deleteLog: (logId: string) => Promise<ApiResponse<void>>;
 
   linkToGoal: (habitId: string, goalId: string) => Promise<ApiResponse<void>>;
   unlinkFromGoal: (habitId: string, goalId: string) => Promise<ApiResponse<void>>;
@@ -300,25 +293,10 @@ export interface AssistantMemoryIngestionConfig {
   model: string;
 }
 
-/** Assistant Chat default routing (saved in `/preferences/assistant-settings`). */
-export type AssistantDefaultModelsConfig =
-  | {
-      mode: 'manual';
-      manual: { reasoningModelId: string; responseModelId: string };
-    }
-  | {
-      mode: 'auto';
-      auto: {
-        optimizeFor: 'speed' | 'intelligence' | 'cost' | 'balanced' | 'value';
-      };
-    };
-
 export interface AssistantSettingsConfig {
   toolApproval: AssistantToolApprovalConfig;
   memoryIngestion: AssistantMemoryIngestionConfig;
   memoryIngestionIsCustom: boolean;
-  defaultModels: AssistantDefaultModelsConfig;
-  defaultModelsIsCustom: boolean;
 }
 
 export interface AssistantToolRegistryEntry {

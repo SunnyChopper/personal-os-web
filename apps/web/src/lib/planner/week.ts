@@ -28,3 +28,9 @@ export function withCalendarDate(isoDateTime: string, newDateYYYYMMDD: string): 
   const timePart = isoDateTime.includes('T') ? isoDateTime.split('T')[1] : '09:00:00';
   return `${newDateYYYYMMDD}T${timePart}`;
 }
+
+/** Monday (YYYY-MM-DD) of week containing ISO calendar ``YYYY-MM-DD``. */
+export function mondayISOForDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return mondayISO(new Date(y, m - 1, d));
+}

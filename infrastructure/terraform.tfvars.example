@@ -11,4 +11,4 @@ cognito_client_id            = "xxxxxxxxxxxxxxxxxxxxxxxxxx"
 cognito_identity_pool_id     = "us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
 api_base_url = "https://api.sunnysingh.tech"
-ws_url       = "wss://wqrazrszmb.execute-api.us-east-1.amazonaws.com/dev"
+ws_url       = "wss://vw7fod81p6.execute-api.us-east-1.amazonaws.com/dev"

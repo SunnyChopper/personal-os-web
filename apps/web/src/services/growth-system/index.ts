@@ -1,6 +1,5 @@
 export { tasksService } from './tasks.service';
 export { habitsService } from './habits.service';
-export { habitAIService, suggestedPatchToUpdateInput } from './habit-ai.service';
 export { metricsService } from './metrics.service';
 export { goalsService } from './goals.service';
 export { projectsService } from './projects.service';

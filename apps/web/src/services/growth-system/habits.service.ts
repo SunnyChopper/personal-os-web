@@ -1,12 +1,11 @@
 import { apiClient } from '@/lib/api-client';
+import { toLocalDateKey } from '@/utils/date-formatters';
 import type {
   Habit,
-  HabitCompletion,
   HabitLog,
   CreateHabitInput,
   UpdateHabitInput,
   CreateHabitLogInput,
-  UpdateHabitLogInput,
 } from '@/types/growth-system';
 import type { ApiResponse, ApiListResponse } from '@/types/api-contracts';
 
@@ -35,6 +34,14 @@ interface HabitToday {
   name: string;
   completed: boolean;
   date: string;
+}
+
+interface HabitCompletionDto {
+  id: string;
+  habitId: string;
+  completedAt: string;
+  note?: string | null;
+  createdAt: string;
 }
 
 export const habitsService = {
@@ -78,24 +85,21 @@ export const habitsService = {
   },
 
   async logCompletion(input: CreateHabitLogInput): Promise<ApiResponse<HabitLog>> {
+    // Backend expects calendar day YYYY-MM-DD. Never derive that from UTC (toISOString().split)
+    // — evening local time on a "past" day often becomes the next UTC date (looks like "today").
+    const dateForApi = (() => {
+      const raw = input.completedAt;
+      if (!raw) return toLocalDateKey(new Date());
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+      return toLocalDateKey(new Date(raw));
+    })();
+
     const response = await apiClient.post<HabitLog>(`/habits/${input.habitId}/logs`, {
       completed: true,
-      date: input.completedAt
-        ? new Date(input.completedAt).toISOString().split('T')[0]
-        : new Date().toISOString().split('T')[0],
+      date: dateForApi,
       notes: input.notes,
     });
     return response;
-  },
-
-  async updateLog(
-    habitId: string,
-    completionDate: string,
-    input: UpdateHabitLogInput
-  ): Promise<ApiResponse<HabitCompletion>> {
-    return apiClient.patch<HabitCompletion>(`/habits/${habitId}/completions/${completionDate}`, {
-      note: input.note,
-    });
   },
 
   async getLogsByHabit(
@@ -120,9 +124,23 @@ export const habitsService = {
     throw new Error(response.error?.message || 'Failed to fetch habit logs');
   },
 
-  async deleteLog(habitId: string, completionDate: string): Promise<ApiResponse<void>> {
-    const response = await apiClient.delete<void>(
-      `/habits/${habitId}/completions/${completionDate}`
+  async deleteLog(habitId: string, date: string): Promise<ApiResponse<void>> {
+    const response = await apiClient.delete<void>(`/habits/${habitId}/logs/${date}`);
+    return response;
+  },
+
+  /**
+   * Update note text on an existing completion for a calendar day (`YYYY-MM-DD`).
+   * Canonical API: PATCH /habits/{habitId}/completions/{completionDate} with `{ note }`.
+   */
+  async updateLog(
+    habitId: string,
+    completionDate: string,
+    input: { note: string | null }
+  ): Promise<ApiResponse<HabitCompletionDto>> {
+    const response = await apiClient.patch<HabitCompletionDto>(
+      `/habits/${habitId}/completions/${completionDate}`,
+      input
     );
     return response;
   },

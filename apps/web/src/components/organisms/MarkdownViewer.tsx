@@ -45,7 +45,7 @@ interface MarkdownViewerProps {
 }
 
 export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
-  const { file, isLoading, isFetching, error, isUpdating, isLocalOnly } = useMarkdownFile(filePath);
+  const { file, isLoading, error, isUpdating, isLocalOnly } = useMarkdownFile(filePath);
   const { isOnline: isBackendOnline } = useMarkdownBackendStatus();
   const { isLoading: isFileTreeLoading } = useFileTree();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -53,7 +53,6 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
   const [editedContent, setEditedContent] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isReloadingAfterSave, setIsReloadingAfterSave] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [isReaderMode, setIsReaderMode] = useState(false);
   const filePathRef = useRef<string | undefined>(undefined);
@@ -92,23 +91,11 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
     }
   }, [file, filePath, isLocalOnly]);
 
-  // Handle reload completion after save (wait for refetch, not just initial load)
-  useEffect(() => {
-    if (isReloadingAfterSave && file && !isFetching) {
-      setIsReloadingAfterSave(false);
-      setIsSaving(false);
-    }
-  }, [isReloadingAfterSave, file, isFetching]);
-
   // Reset state when filePath changes (using key-like behavior)
   // This is a valid pattern for syncing state from props/external data
   // We need to sync editedContent when the file changes to reset the editor
   // Note: This pattern is necessary for syncing editor state with file content changes
   useEffect(() => {
-    if (isReloadingAfterSave) {
-      return;
-    }
-
     const filePathChanged = filePath !== filePathRef.current;
     const contentChanged = file?.content !== fileContentRef.current;
 
@@ -116,7 +103,6 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
       if (filePathChanged) {
         filePathRef.current = filePath;
         clearMessages(); // Clear any previous errors/success messages
-        setIsReloadingAfterSave(false); // Reset reload state on file change
       }
       fileContentRef.current = file?.content;
 
@@ -138,7 +124,7 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
         }
       }
     }
-  }, [filePath, file, file?.content, isLocalOnly, clearMessages, isReloadingAfterSave]);
+  }, [filePath, file, file?.content, isLocalOnly, clearMessages]);
 
   const handleSave = async () => {
     if (!filePath) return;
@@ -153,13 +139,11 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
 
     clearMessages();
     setIsSaving(true);
-    setIsReloadingAfterSave(true);
 
     try {
       const result = await saveFile(filePath, editedContent, isLocalOnly);
 
-      // Don't set isSaving to false yet - keep overlay showing until reload completes
-      // After successful save, switch to view mode (but keep overlay visible)
+      // After successful save, switch to view mode once reload/invalidation has settled
       setIsEditing(false);
       setHasChanges(false);
 
@@ -173,14 +157,12 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
       setTimeout(() => {
         setSaveSuccess(null);
       }, 5000);
-
-      // Note: isSaving will be set to false when reload completes (see useEffect below)
     } catch (err) {
-      setIsSaving(false);
-      setIsReloadingAfterSave(false);
       const errorMessage = extractErrorMessage(err, 'Failed to save file');
       showError(errorMessage);
       console.error('Failed to save file:', err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -199,7 +181,6 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
       // First save of untitled file keeping the same path: upload without delete/recreate
       if (newPath === filePath && isLocalOnly && isUntitledLocalPath(filePath)) {
         setIsSaving(true);
-        setIsReloadingAfterSave(true);
         try {
           const result = await saveFile(filePath, content, true);
           setIsEditing(false);
@@ -213,10 +194,8 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
             setSaveSuccess(null);
           }, 5000);
           closeModal();
-        } catch (saveErr) {
+        } finally {
           setIsSaving(false);
-          setIsReloadingAfterSave(false);
-          throw saveErr;
         }
         return;
       }
@@ -503,14 +482,17 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
       {/* Content */}
       {!isReaderMode && (
         <div className="flex-1 overflow-y-auto relative pt-16 lg:pt-0">
-          {/* Show spinner overlay when saving or reloading after save */}
-          {(isSaving || isReloadingAfterSave) && (
-            <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm z-20 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3">
-                <Loader className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {isSaving ? 'Saving...' : 'Reloading content...'}
-                </p>
+          {/* Blocking overlay: save + query refetch (see markdown-saving-state contract) */}
+          {isSaving && (
+            <div
+              className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+              role="status"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <div className="flex flex-col items-center gap-3 px-4">
+                <Loader className="h-8 w-8 animate-spin text-white" aria-hidden />
+                <p className="text-center text-sm text-white/95">Saving and refreshing…</p>
               </div>
             </div>
           )}
@@ -528,7 +510,7 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
             <div className="w-full max-w-none">
               <MarkdownViewerContent
                 content={file?.content}
-                isLoading={isLoading && !isReloadingAfterSave}
+                isLoading={isLoading}
                 error={error instanceof Error ? error : error ? new Error(error.message) : null}
                 fullWidth={true}
                 filePath={filePath}
@@ -571,7 +553,7 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
           file={file}
           onSave={async (tags, category) => {
             if (!filePath) return;
-            await updateMetadata(filePath, tags, category);
+            await updateMetadata(filePath, tags, category, file.id);
           }}
         />
       )}
