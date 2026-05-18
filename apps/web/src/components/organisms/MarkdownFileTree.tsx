@@ -8,6 +8,8 @@ import {
   List,
   Tag,
   FolderKanban,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useFileTree } from '@/hooks/useFileTree';
@@ -20,6 +22,15 @@ import RecentFilesList from '@/components/molecules/RecentFilesList';
 import { getAllLocalFiles } from '@/hooks/useLocalFiles';
 import { cn } from '@/lib/utils';
 import type { FileTreeNode } from '@/types/markdown-files';
+import { sortFileTreeNodes, type MarkdownFileTreeSortField } from '@/lib/markdown/file-tree-sort';
+import { useMarkdownFileTreeSort } from '@/hooks/useMarkdownFileTreeSort';
+
+const SORT_FIELD_OPTIONS: { value: MarkdownFileTreeSortField; label: string }[] = [
+  { value: 'updatedAt', label: 'Updated' },
+  { value: 'createdAt', label: 'Created' },
+  { value: 'name', label: 'Name' },
+  { value: 'size', label: 'Size' },
+];
 
 type ViewMode = 'tree' | 'tags' | 'categories';
 
@@ -87,7 +98,10 @@ export default function MarkdownFileTree({
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [localStorageVersion, setLocalStorageVersion] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
+  const { sortOptions, sortField, sortDir, setField, toggleDir } = useMarkdownFileTreeSort();
   const parentRef = useRef<HTMLDivElement>(null);
+  /** Root paths we've already default-expanded (avoids re-opening after user collapse when `mergedTree` is rebuilt every poll). */
+  const seenRootFolderPathsRef = useRef<Set<string>>(new Set());
 
   // Merge backend tree with local files from localStorage
   const mergedTree = useMemo(() => {
@@ -135,6 +149,11 @@ export default function MarkdownFileTree({
     return [...backendTree, ...localNodes];
   }, [tree, localStorageVersion]);
 
+  const displayTree = useMemo(
+    () => sortFileTreeNodes(mergedTree, sortOptions),
+    [mergedTree, sortOptions.field, sortOptions.dir]
+  );
+
   // Listen for localStorage changes to refresh local files
   useEffect(() => {
     const handleStorageChange = () => {
@@ -165,28 +184,32 @@ export default function MarkdownFileTree({
     };
   }, []);
 
-  // Initialize expanded paths with root level folders
+  // Default-expand root-level folders when they first appear — not when they're merely absent from `expandedPaths` because the user collapsed them.
   useEffect(() => {
-    if (mergedTree && mergedTree.length > 0) {
-      const rootFolders = mergedTree
-        .filter((node) => node.type === 'folder')
-        .map((node) => node.path);
-      setExpandedPaths((prev) => {
-        // Only update if there are new folders to add
-        const hasNewFolders = rootFolders.some((path) => !prev.has(path));
-        if (!hasNewFolders) return prev;
-        const newSet = new Set(prev);
-        rootFolders.forEach((path) => newSet.add(path));
-        return newSet;
-      });
-    }
+    if (!mergedTree?.length) return;
+
+    const rootFolderPaths = mergedTree
+      .filter((node) => node.type === 'folder')
+      .map((node) => node.path);
+
+    const prevSeen = seenRootFolderPathsRef.current;
+    const newlySeenRootPaths = rootFolderPaths.filter((path) => !prevSeen.has(path));
+    seenRootFolderPathsRef.current = new Set(rootFolderPaths);
+
+    if (newlySeenRootPaths.length === 0) return;
+
+    setExpandedPaths((prev) => {
+      const next = new Set(prev);
+      newlySeenRootPaths.forEach((path) => next.add(path));
+      return next;
+    });
   }, [mergedTree]);
 
   // Flatten tree for virtualization
   const flattenedNodes = useMemo(() => {
-    if (!mergedTree || mergedTree.length === 0) return [];
-    return flattenTree(mergedTree, expandedPaths);
-  }, [mergedTree, expandedPaths]);
+    if (!displayTree || displayTree.length === 0) return [];
+    return flattenTree(displayTree, expandedPaths);
+  }, [displayTree, expandedPaths]);
 
   // Virtualization setup
   // Note: React Compiler will show a warning here about @tanstack/react-virtual being incompatible
@@ -297,6 +320,56 @@ export default function MarkdownFileTree({
         </div>
       </div>
 
+      {viewMode === 'tree' && (
+        <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+          <label
+            htmlFor="markdown-tree-sort"
+            className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap"
+          >
+            Sort by
+          </label>
+          <select
+            id="markdown-tree-sort"
+            value={sortField}
+            onChange={(e) => setField(e.target.value as MarkdownFileTreeSortField)}
+            className={cn(
+              'flex-1 min-w-0 text-xs rounded-md border border-gray-200 dark:border-gray-600',
+              'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5',
+              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-gray-900'
+            )}
+            aria-label="Sort files by"
+          >
+            {SORT_FIELD_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={toggleDir}
+            className={cn(
+              'shrink-0 p-1.5 rounded-md border border-gray-200 dark:border-gray-600',
+              'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200',
+              'hover:bg-gray-100 dark:hover:bg-gray-700',
+              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1'
+            )}
+            title={
+              sortDir === 'desc'
+                ? 'Newest / largest first. Click for ascending.'
+                : 'Oldest / smallest first. Click for descending.'
+            }
+            aria-label={sortDir === 'desc' ? 'Sort descending' : 'Sort ascending'}
+          >
+            {sortDir === 'desc' ? (
+              <ArrowDownWideNarrow size={16} />
+            ) : (
+              <ArrowUpNarrowWide size={16} />
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Recent Files (only in tree view) */}
       {viewMode === 'tree' && <RecentFilesList onFileSelect={onFileSelect} maxItems={5} />}
 
@@ -327,6 +400,8 @@ export default function MarkdownFileTree({
                 return (
                   <div
                     key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    ref={virtualizer.measureElement}
                     className="absolute top-0 left-0 w-full"
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
@@ -367,6 +442,8 @@ export default function MarkdownFileTree({
                 return (
                   <div
                     key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    ref={virtualizer.measureElement}
                     className="absolute top-0 left-0 w-full"
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >

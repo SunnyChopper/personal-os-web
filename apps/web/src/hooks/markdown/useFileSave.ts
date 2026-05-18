@@ -83,7 +83,7 @@ export function useFileSave() {
         }
       }
 
-      invalidateAfterFileOperation(queryClient, filePath, true);
+      await invalidateAfterFileOperation(queryClient, filePath, true);
       return { success: true, local: false };
     } catch (error) {
       if (isBackendUnavailable(error)) {
@@ -143,7 +143,7 @@ export function useFileSave() {
         });
       }
 
-      invalidateAfterFileOperation(queryClient, filePath);
+      await invalidateAfterFileOperation(queryClient, filePath);
       return { success: true, local: false };
     }
 

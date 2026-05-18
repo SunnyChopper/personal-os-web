@@ -32,13 +32,11 @@ export const projectsService = {
     area?: string;
     status?: string;
     priority?: string;
-    projectType?: string;
   }): Promise<ApiListResponse<Project>> {
     const queryParams = new URLSearchParams();
     if (filters?.area) queryParams.append('area', filters.area);
     if (filters?.status) queryParams.append('status', filters.status);
     if (filters?.priority) queryParams.append('priority', filters.priority);
-    if (filters?.projectType) queryParams.append('projectType', filters.projectType);
 
     const endpoint = `/projects${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     const response = await apiClient.get<BackendPaginatedResponse<Project>>(endpoint);
@@ -60,8 +58,8 @@ export const projectsService = {
   },
 
   async create(input: CreateProjectInput): Promise<ApiResponse<Project>> {
-    const projectType = input.projectType ?? 'General';
-    const requestBody: Record<string, unknown> = {
+    // Prepare request body matching backend schema (camelCase)
+    const requestBody = {
       name: input.name,
       description: input.description || undefined,
       area: input.area,
@@ -72,18 +70,14 @@ export const projectsService = {
       startDate: input.startDate || undefined,
       targetEndDate: input.targetEndDate || undefined,
       notes: input.notes || undefined,
-      projectType,
     };
-    if (projectType === 'SoftwareDevelopment' && input.softwareMetadata !== undefined) {
-      requestBody.softwareMetadata = input.softwareMetadata;
-    }
 
     const response = await apiClient.post<Project>('/projects', requestBody);
     return response;
   },
 
   async update(id: string, input: UpdateProjectInput): Promise<ApiResponse<Project>> {
-    const requestBody: Record<string, unknown> = {
+    const requestBody = {
       name: input.name,
       description: input.description || undefined,
       area: input.area,
@@ -96,12 +90,6 @@ export const projectsService = {
       actualEndDate: input.actualEndDate || undefined,
       notes: input.notes || undefined,
     };
-    if (input.projectType !== undefined) {
-      requestBody.projectType = input.projectType;
-    }
-    if (input.softwareMetadata !== undefined) {
-      requestBody.softwareMetadata = input.softwareMetadata;
-    }
 
     const response = await apiClient.patch<Project>(`/projects/${id}`, requestBody);
     return response;

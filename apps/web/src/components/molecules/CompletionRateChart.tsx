@@ -166,7 +166,7 @@ export function CompletionRateChart({ habit, logs }: CompletionRateChartProps) {
             chartData.length <= 5 ? 'auto' : `${Math.min(5, chartData.length) * itemHeight}px`,
         }}
       >
-        {[...chartData].reverse().map((data, index) => {
+        {chartData.map((data, index) => {
           const actualPercent = (data.actual / maxValue) * 100;
           const expectedPercent = (data.expected / maxValue) * 100;
           const ratePercent = data.rate;

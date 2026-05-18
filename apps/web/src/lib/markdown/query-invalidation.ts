@@ -8,37 +8,44 @@ export interface InvalidateMarkdownQueriesOptions {
 }
 
 /**
- * Invalidate all markdown-related queries
+ * Invalidate all markdown-related queries. Resolves when refetches triggered by
+ * invalidation have settled (TanStack Query v5 invalidateQueries promise).
  */
-export function invalidateMarkdownQueries(
+export async function invalidateMarkdownQueries(
   queryClient: QueryClient,
   options?: InvalidateMarkdownQueriesOptions
-): void {
+): Promise<void> {
   const { filePath, includeTags = false, includeCategories = false } = options || {};
 
+  const tasks: Promise<unknown>[] = [];
+
   if (filePath) {
-    queryClient.invalidateQueries({ queryKey: ['markdown-file', filePath] });
+    tasks.push(
+      queryClient.invalidateQueries({ queryKey: queryKeys.markdownFiles.detail(filePath) })
+    );
   }
-  queryClient.invalidateQueries({ queryKey: ['markdown-files'] });
-  queryClient.invalidateQueries({ queryKey: queryKeys.markdownFiles.tree() });
+  tasks.push(queryClient.invalidateQueries({ queryKey: ['markdown-files'] }));
+  tasks.push(queryClient.invalidateQueries({ queryKey: queryKeys.markdownFiles.tree() }));
 
   if (includeTags) {
-    queryClient.invalidateQueries({ queryKey: ['markdown-tags'] });
+    tasks.push(queryClient.invalidateQueries({ queryKey: ['markdown-tags'] }));
   }
   if (includeCategories) {
-    queryClient.invalidateQueries({ queryKey: ['markdown-categories'] });
+    tasks.push(queryClient.invalidateQueries({ queryKey: ['markdown-categories'] }));
   }
+
+  await Promise.all(tasks);
 }
 
 /**
  * Invalidate queries after file operations
  */
-export function invalidateAfterFileOperation(
+export async function invalidateAfterFileOperation(
   queryClient: QueryClient,
   filePath?: string,
   includeMetadata = false
-): void {
-  invalidateMarkdownQueries(queryClient, {
+): Promise<void> {
+  await invalidateMarkdownQueries(queryClient, {
     filePath,
     includeTags: includeMetadata,
     includeCategories: includeMetadata,

@@ -244,15 +244,17 @@ export interface WsStatusUpdatePayload {
 }
 
 export interface WsToolCallCompletePayload {
-  runId: string;
-  threadId: string;
+  /** Present on live WebSocket ``toolComplete`` payloads; omitted on persisted ``toolCallDetails`` rows. */
+  runId?: string;
+  /** Present on live WebSocket payloads; omitted on persisted ``toolCallDetails`` rows. */
+  threadId?: string;
   toolName: string;
   arguments: Record<string, unknown>;
   status: string;
   durationMs?: number;
   error?: string;
   result?: unknown;
-  /** List-tool row counts carried on the envelope (accurate even when WS `result` JSON is truncated). */
+  /** List-tool fidelity counts (mirror server ``ToolCallDetailResponse``). */
   originalItemCount?: number | null;
   returnedItemCount?: number | null;
   total?: number | null;

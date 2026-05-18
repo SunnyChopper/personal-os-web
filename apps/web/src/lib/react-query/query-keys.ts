@@ -20,8 +20,6 @@ export const queryKeys = {
           : queryKeys.growthSystem.tasks.lists(),
       details: () => [...queryKeys.growthSystem.tasks.all(), 'detail'] as const,
       detail: (id: string) => [...queryKeys.growthSystem.tasks.details(), id] as const,
-      subtasks: (parentId: string) =>
-        [...queryKeys.growthSystem.tasks.all(), 'subtasks', parentId] as const,
     },
     habits: {
       all: () => [...queryKeys.growthSystem.all, 'habits'] as const,
@@ -87,6 +85,8 @@ export const queryKeys = {
       all: () => [...queryKeys.growthSystem.all, 'planner'] as const,
       week: (weekStart: string) =>
         [...queryKeys.growthSystem.planner.all(), 'week', weekStart] as const,
+      day: (calendarDate: string) =>
+        [...queryKeys.growthSystem.planner.all(), 'plan-day', calendarDate] as const,
       oneThing: (date: string) =>
         [...queryKeys.growthSystem.planner.all(), 'one-thing', date] as const,
       calendarConnections: () =>
@@ -238,6 +238,8 @@ export const queryKeys = {
   // Wallet
   wallet: {
     all: ['wallet'] as const,
+    /** Canonical shell fetch: one GET `/wallet` for balance + recent transactions */
+    detail: () => [...queryKeys.wallet.all, 'detail'] as const,
     balance: () => [...queryKeys.wallet.all, 'balance'] as const,
     transactions: (limit?: number) =>
       limit
@@ -315,6 +317,20 @@ export const queryKeys = {
       [...queryKeys.careerResume.applicationsPrefix(), 'list', filters ?? {}] as const,
     applicationDetail: (id: string) =>
       [...queryKeys.careerResume.applicationsPrefix(), 'detail', id] as const,
+  },
+
+  // Proactive Assistant (`/proactive/*`) + related preferences keys
+  proactive: {
+    all: ['proactive'] as const,
+    automations: () => [...queryKeys.proactive.all, 'automations'] as const,
+    suggestions: () => [...queryKeys.proactive.all, 'suggestions'] as const,
+    automationRuns: (automationId: string) =>
+      [...queryKeys.proactive.all, 'automation-runs', automationId] as const,
+  },
+
+  preferences: {
+    all: ['preferences'] as const,
+    timeZone: () => [...queryKeys.preferences.all, 'time-zone'] as const,
   },
 
   // Rewards

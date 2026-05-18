@@ -499,12 +499,11 @@ export function calculateStreaks(logs: MetricLog[]): StreakData {
       longestStreak = Math.max(longestStreak, currentStreak);
     } else {
       if (isActive && currentStreakStart) {
-        // Cursor walks backward from today: currentStreakStart = newest day, currentStreakEnd = oldest.
         allStreaks.push({
-          startDate: currentStreakEnd!,
-          endDate: currentStreakStart,
+          startDate: currentStreakStart,
+          endDate: currentStreakEnd,
           length: currentStreak,
-          isActive: currentStreakStart === todayKey,
+          isActive: currentStreakEnd === todayKey,
         });
         isActive = false;
         currentStreak = 0;
@@ -518,10 +517,10 @@ export function calculateStreaks(logs: MetricLog[]): StreakData {
 
   if (isActive && currentStreakStart) {
     allStreaks.push({
-      startDate: currentStreakEnd!,
-      endDate: currentStreakStart,
+      startDate: currentStreakStart,
+      endDate: currentStreakEnd,
       length: currentStreak,
-      isActive: currentStreakStart === todayKey,
+      isActive: true,
     });
   }
 

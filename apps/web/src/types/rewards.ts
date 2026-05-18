@@ -54,6 +54,12 @@ export interface WalletBalance {
   updatedAt: string;
 }
 
+/** Single GET `/wallet` payload for React Query shell cache */
+export interface WalletDetailPayload {
+  balance: WalletBalance;
+  transactions: WalletTransaction[];
+}
+
 export interface TaskPointValuation {
   taskId: string;
   basePoints: number;

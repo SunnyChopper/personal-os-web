@@ -295,12 +295,7 @@ function validateFileNaming(): ValidationResult {
     if (!existsSync(dirPath)) return;
 
     const files = readdirSync(dirPath, { recursive: true }).filter(
-      (f) =>
-        (f.endsWith('.tsx') || f.endsWith('.ts')) &&
-        !f.endsWith('.test.ts') &&
-        !f.endsWith('.test.tsx') &&
-        !f.endsWith('.spec.ts') &&
-        !f.endsWith('.spec.tsx')
+      (f) => f.endsWith('.tsx') || f.endsWith('.ts')
     );
 
     for (const file of files) {

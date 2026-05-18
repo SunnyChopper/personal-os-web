@@ -38,8 +38,10 @@ export function useFileRename() {
     }
 
     // Invalidate queries for both old and new paths
-    invalidateAfterFileOperation(queryClient, filePath);
-    invalidateAfterFileOperation(queryClient, newPath);
+    await Promise.all([
+      invalidateAfterFileOperation(queryClient, filePath),
+      invalidateAfterFileOperation(queryClient, newPath),
+    ]);
 
     // Navigate to new file
     navigateToMarkdownFile(navigate, newPath);

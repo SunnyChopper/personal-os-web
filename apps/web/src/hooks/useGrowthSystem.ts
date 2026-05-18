@@ -306,6 +306,19 @@ export const useHabits = () => {
     onSuccess: () => {},
   });
 
+  const updateCompletionNoteMutation = useMutation({
+    mutationFn: ({
+      habitId,
+      completionDate,
+      note,
+    }: {
+      habitId: string;
+      completionDate: string;
+      note: string | null;
+    }) => habitsService.updateLog(habitId, completionDate, { note }),
+    onSuccess: () => {},
+  });
+
   const apiError = error ? extractApiError(error) : null;
   const isNetworkErr = apiError ? isNetworkError(apiError) : false;
 
@@ -320,6 +333,7 @@ export const useHabits = () => {
     updateHabit: updateMutation.mutateAsync,
     deleteHabit: deleteMutation.mutateAsync,
     logCompletion: logCompletionMutation.mutateAsync,
+    updateCompletionNote: updateCompletionNoteMutation.mutateAsync,
   };
 };
 

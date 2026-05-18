@@ -15,6 +15,13 @@ import MarkdownContentWrapper from '@/components/molecules/MarkdownContentWrappe
 import CollapsibleHeading from '@/components/molecules/CollapsibleHeading';
 import MarkdownCodeBlock from '@/components/molecules/MarkdownCodeBlock';
 import { createDefaultMarkdownComponents } from '@/lib/markdown/markdown-components';
+import rehypeAddSourceLine from '@/components/molecules/rehype-add-source-line';
+
+function pickDataSourceLine(props: Record<string, unknown>): string | number | undefined {
+  const raw = props['data-source-line'] ?? props['dataSourceLine'];
+  if (typeof raw === 'number' || typeof raw === 'string') return raw;
+  return undefined;
+}
 
 export type MarkdownRendererVariant = 'default' | 'chat';
 
@@ -27,6 +34,8 @@ interface MarkdownRendererProps {
   variant?: MarkdownRendererVariant;
   /** When set, MarkdownSectionProvider keys on this instead of content (avoids remount per streamed token). */
   contentKey?: string;
+  /** Inject `data-source-line` on block elements for split-editor scroll sync (default false). */
+  annotateSourceLines?: boolean;
 }
 
 export default function MarkdownRenderer({
@@ -36,6 +45,7 @@ export default function MarkdownRenderer({
   filePath,
   variant = 'default',
   contentKey,
+  annotateSourceLines = false,
 }: MarkdownRendererProps) {
   const codeRefs = useRef<Map<string, HTMLPreElement>>(new Map());
   const { mathLoaded, prismLoaded, Prism } = useMarkdownPlugins(content);
@@ -106,8 +116,11 @@ export default function MarkdownRenderer({
     if (mathLoaded && rehypeKatex) {
       plugins.push(rehypeKatex);
     }
+    if (annotateSourceLines) {
+      plugins.push(rehypeAddSourceLine);
+    }
     return plugins;
-  }, [mathLoaded]);
+  }, [annotateSourceLines, mathLoaded]);
 
   // Get collapsed headings set for efficient lookups
   const collapsedHeadingsSet = collapseState.collapsedHeadings;
@@ -124,7 +137,8 @@ export default function MarkdownRenderer({
   // Note: Refs are accessed during component render (not creation), which is safe for ID generation
   const createHeadingComponent = useMemo(
     () => (level: 1 | 2 | 3 | 4) => {
-      const HeadingComponent = ({ className, children }: React.ComponentProps<'h1'>) => {
+      const HeadingComponent = ({ className, children, ...props }: React.ComponentProps<'h1'>) => {
+        const sourceLine = pickDataSourceLine(props as Record<string, unknown>);
         const textContent = extractTextFromNode(children ?? '');
         // Reading refs during render is safe here - we're not mutating them, only reading for stable IDs
         const headingId = generateHeadingId(
@@ -143,6 +157,7 @@ export default function MarkdownRenderer({
             isCollapsed={isCollapsed}
             onToggle={() => collapseState.toggleHeading(headingId)}
             className={className}
+            sourceLine={sourceLine}
           >
             {children}
           </CollapsibleHeading>
@@ -217,6 +232,7 @@ export default function MarkdownRenderer({
   // Create code component
   const codeComponent = useMemo<Components['code']>(() => {
     const CodeComponent: Components['code'] = ({ className, children, ...props }) => {
+      const sourceLine = pickDataSourceLine(props as Record<string, unknown>);
       const match = /language-(\w+)/.exec(className || '');
       const language = match ? match[1] : '';
       const isInline = !className || !className.includes('language-');
@@ -254,6 +270,7 @@ export default function MarkdownRenderer({
           Prism={Prism}
           codeRefs={codeRefs}
           codeId={codeId}
+          sourceLine={sourceLine}
         >
           {children}
         </MarkdownCodeBlock>

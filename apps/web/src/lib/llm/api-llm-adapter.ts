@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import type { Task } from '@/types/growth-system';
 import type {
   ILLMAdapter,
   LLMResponse,
@@ -23,6 +24,50 @@ import type {
   ProjectRiskInput,
   ProjectRiskOutput,
 } from '@/types/llm';
+
+function buildTaskStats(tasks: Task[]): {
+  total: number;
+  completed: number;
+  inProgress: number;
+  blocked: number;
+  notStarted: number;
+} {
+  const stats = {
+    total: tasks.length,
+    completed: 0,
+    inProgress: 0,
+    blocked: 0,
+    notStarted: 0,
+  };
+  for (const t of tasks) {
+    switch (t.status) {
+      case 'Done':
+        stats.completed += 1;
+        break;
+      case 'In Progress':
+        stats.inProgress += 1;
+        break;
+      case 'Blocked':
+        stats.blocked += 1;
+        break;
+      default:
+        stats.notStarted += 1;
+        break;
+    }
+  }
+  return stats;
+}
+
+function buildTaskDetails(tasks: Task[]) {
+  return tasks.slice(0, 20).map((t) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    ...(t.priority !== undefined && { priority: t.priority }),
+    ...(t.size !== undefined && { size: t.size }),
+    ...(t.dueDate != null && t.dueDate !== '' && { dueDate: t.dueDate }),
+  }));
+}
 
 interface AIResponse<T> {
   result: T;
@@ -61,6 +106,23 @@ export class APILLMAdapter implements ILLMAdapter {
         data: null,
         error: response.error?.message || 'AI request failed',
         success: false,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return { data: null, error: message, success: false };
+    }
+  }
+
+  private async postStandardEnvelope<T>(endpoint: string, body: unknown): Promise<LLMResponse<T>> {
+    try {
+      const response = await apiClient.post<T>(endpoint, body);
+      if (response.success && response.data !== undefined && response.data !== null) {
+        return { success: true, data: response.data, error: null };
+      }
+      return {
+        success: false,
+        data: null,
+        error: response.error?.message ?? 'AI request failed',
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -162,25 +224,50 @@ export class APILLMAdapter implements ILLMAdapter {
   }
 
   async analyzeProjectHealth(input: ProjectHealthInput): Promise<LLMResponse<ProjectHealthOutput>> {
-    // Backend may not have this exact endpoint - may need to use a different approach
-    return this.callAIEndpoint<{ projectId: string }, ProjectHealthOutput>('/ai/tasks/breakdown', {
-      projectId: input.project.id,
+    const { project, tasks } = input;
+    return this.postStandardEnvelope<ProjectHealthOutput>('/ai/projects/health', {
+      projectId: project.id,
+      name: project.name,
+      description: project.description ?? undefined,
+      status: project.status,
+      startDate: project.startDate ?? undefined,
+      targetDate: project.targetEndDate ?? undefined,
+      taskStats: buildTaskStats(tasks),
+      taskDetails: buildTaskDetails(tasks),
+      recentActivity: [],
     });
   }
 
   async generateProjectTasks(
     input: ProjectTaskGenInput
   ): Promise<LLMResponse<ProjectTaskGenOutput>> {
-    // Backend may not have this exact endpoint
-    return this.callAIEndpoint<{ projectId: string }, ProjectTaskGenOutput>('/ai/tasks/breakdown', {
-      projectId: input.project.id,
+    const { project, existingTasks } = input;
+    return this.postStandardEnvelope<ProjectTaskGenOutput>('/ai/projects/generate-tasks', {
+      projectId: project.id,
+      name: project.name,
+      description: project.description ?? undefined,
+      goals: [],
+      targetDate: project.targetEndDate ?? undefined,
+      existingTasks: buildTaskDetails(existingTasks),
     });
   }
 
   async identifyProjectRisks(input: ProjectRiskInput): Promise<LLMResponse<ProjectRiskOutput>> {
-    // Backend may not have this exact endpoint
-    return this.callAIEndpoint<{ projectId: string }, ProjectRiskOutput>('/ai/tasks/breakdown', {
-      projectId: input.project.id,
+    const { project, tasks } = input;
+    return this.postStandardEnvelope<ProjectRiskOutput>('/ai/projects/risks', {
+      projectId: project.id,
+      name: project.name,
+      description: project.description ?? undefined,
+      status: project.status,
+      startDate: project.startDate ?? undefined,
+      targetDate: project.targetEndDate ?? undefined,
+      taskDetails: buildTaskDetails(tasks),
+      dependencies: [],
+      resources: {
+        teamSize: null,
+        budget: null,
+        timeline: project.targetEndDate ?? null,
+      },
     });
   }
 }

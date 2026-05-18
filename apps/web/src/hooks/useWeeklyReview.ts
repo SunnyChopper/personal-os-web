@@ -3,7 +3,11 @@ import type { Query } from '@tanstack/react-query';
 import { formatApiFailure } from '@/utils/api-error-formatter';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { weeklyReviewService } from '@/services/growth-system';
-import type { WeeklyReview, WeeklyReviewPlanActions } from '@/types/growth-system';
+import type {
+  WeeklyReview,
+  WeeklyReviewPlanActions,
+  WeeklyReviewSendEmailResult,
+} from '@/types/growth-system';
 
 export function useWeeklyReviewCurrent(options?: { refetchInterval?: number | false }) {
   return useQuery({
@@ -128,4 +132,16 @@ export function useWeeklyReviewMutations(weekStart: string | null) {
   });
 
   return { generate, savePlan, complete, suggestTasks, discard };
+}
+
+export function useSendWeeklyReviewEmail() {
+  return useMutation({
+    mutationFn: async (weekStart: string): Promise<WeeklyReviewSendEmailResult> => {
+      const res = await weeklyReviewService.sendEmail(weekStart);
+      if (!res.success || !res.data) {
+        throw new Error(formatApiFailure(res.error, 'Send weekly review email failed'));
+      }
+      return res.data;
+    },
+  });
 }

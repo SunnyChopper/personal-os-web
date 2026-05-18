@@ -149,6 +149,7 @@ const workNavigation: NavItem[] = [
       { name: 'Logbook', href: ROUTES.admin.logbook, icon: BookOpen },
       { name: 'Weekly Review', href: ROUTES.admin.weeklyReview, icon: Calendar },
       { name: 'Planner', href: ROUTES.admin.planner, icon: LayoutGrid },
+      { name: 'Planner · Week board', href: ROUTES.admin.plannerWeek, icon: Layers },
     ],
   },
   {

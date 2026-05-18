@@ -1,12 +1,4 @@
-import type {
-  Task,
-  CreateTaskInput,
-  Project,
-  Area,
-  SubCategory,
-  Priority,
-  AIInsight,
-} from './growth-system';
+import type { Task, CreateTaskInput, Project, Area, SubCategory, Priority } from './growth-system';
 
 /** Prefer Zod schemas under `@/lib/llm/schemas` with `z.infer<>` for new LLM I/O to avoid duplicating shapes here. */
 
@@ -104,11 +96,24 @@ export interface ProjectHealthInput {
   tasks: Task[];
 }
 
+/** Matches backend ProjectHealthAnalysis (camelCase wire). */
+export type ProjectOverallHealth = 'excellent' | 'good' | 'atRisk' | 'critical';
+
+export interface ProjectHealthFactor {
+  factorName: string;
+  status: 'good' | 'warning' | 'critical';
+  description: string;
+  impact: 'high' | 'medium' | 'low';
+}
+
 export interface ProjectHealthOutput {
+  overallHealth: ProjectOverallHealth;
   healthScore: number;
-  issues: AIInsight[];
-  recommendations: string[];
-  summary: string;
+  healthFactors: ProjectHealthFactor[];
+  positiveIndicators: string[];
+  concerns: string[];
+  priorityActions: string[];
+  trajectory: 'improving' | 'stable' | 'declining';
 }
 
 export interface ProjectTaskGenInput {
@@ -116,9 +121,23 @@ export interface ProjectTaskGenInput {
   existingTasks: Task[];
 }
 
+/** Matches backend GeneratedTask (camelCase wire). */
+export interface GeneratedProjectTask {
+  title: string;
+  description: string;
+  priority: 'P1' | 'P2' | 'P3' | 'P4';
+  estimatedHours: number;
+  dependencies: number[];
+  category: string;
+}
+
+/** Matches backend ProjectTaskGeneration (camelCase wire). */
 export interface ProjectTaskGenOutput {
-  suggestedTasks: CreateTaskInput[];
-  reasoning: string;
+  tasks: GeneratedProjectTask[];
+  executionPhases: string[];
+  criticalPath: number[];
+  estimatedTotalHours: number;
+  recommendedStart: string;
 }
 
 export interface ProjectRiskInput {
@@ -126,15 +145,24 @@ export interface ProjectRiskInput {
   tasks: Task[];
 }
 
+/** Matches backend ProjectRisk (camelCase wire). */
+export interface ProjectRiskItem {
+  riskTitle: string;
+  description: string;
+  category: 'timeline' | 'resources' | 'technical' | 'scope' | 'dependencies' | 'external';
+  probability: 'low' | 'medium' | 'high';
+  impact: 'low' | 'medium' | 'high';
+  riskScore: number;
+  mitigationStrategies: string[];
+  contingencyPlan: string;
+}
+
+/** Matches backend ProjectRiskAssessment (camelCase wire). */
 export interface ProjectRiskOutput {
-  risks: Array<{
-    severity: 'low' | 'medium' | 'high';
-    description: string;
-    mitigation: string;
-    affectedTasks?: string[];
-  }>;
-  overallRiskLevel: 'low' | 'medium' | 'high';
-  summary: string;
+  overallRiskLevel: 'low' | 'moderate' | 'high' | 'critical';
+  risks: ProjectRiskItem[];
+  topPriorityRisk: string;
+  riskMitigationRoadmap: string[];
 }
 
 export interface StoredSuggestion {

@@ -51,6 +51,45 @@ export interface PlannerWeek {
   velocity: PlannerVelocity;
 }
 
+export type PlannerPlanConfidence = 'low' | 'medium' | 'high';
+
+export interface DayOfWeekStat {
+  dayOfWeek: number;
+  averagePoints: number;
+  medianPoints: number;
+  samples: number;
+}
+
+export interface PlanDayPrediction {
+  date: string;
+  dayOfWeek: number;
+  predictedCapacityPoints: number;
+  confidence: PlannerPlanConfidence;
+  todayActualPoints: number;
+  trailingDailyAverage: number;
+  dayOfWeekHistory: DayOfWeekStat[];
+}
+
+export interface PlanDaySuggestion {
+  taskId: string;
+  title: string;
+  storyPoints: number;
+  priority: string;
+  score: number;
+  reason: string;
+}
+
+export interface PlanDay {
+  prediction: PlanDayPrediction;
+  suggestions: PlanDaySuggestion[];
+  existingBlocks: PlannerBlock[];
+}
+
+export interface CommitPlanDayPayload {
+  date: string;
+  taskIds: string[];
+  useLlm: boolean;
+}
 export interface OneThingCandidate {
   taskId: string;
   title: string;

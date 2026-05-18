@@ -26,12 +26,11 @@ export function useGrowthSystemDashboard(options?: DashboardSummaryRequest) {
           // Populate individual query caches so existing hooks can read from cache
           const summaryData = result.data;
 
-          // useTasks queries `tasks.list(filters)` keys (e.g. sortBy/sortOrder). Hydrate every cache
-          // entry under `tasks/list` via partial-key match — setQueryData on lists() alone misses those.
-          queryClient.setQueriesData({ queryKey: queryKeys.growthSystem.tasks.lists() }, () => ({
+          // Populate tasks cache
+          queryClient.setQueryData(queryKeys.growthSystem.tasks.lists(), {
             success: true,
             data: summaryData.tasks,
-          }));
+          });
 
           // Populate goals cache
           queryClient.setQueryData(queryKeys.growthSystem.goals.lists(), {
@@ -70,15 +69,12 @@ export function useGrowthSystemDashboard(options?: DashboardSummaryRequest) {
           });
 
           // Populate wallet balance cache
-          queryClient.setQueryData(queryKeys.wallet.balance(), {
+          queryClient.setQueryData(queryKeys.wallet.detail(), {
             success: true,
-            data: summaryData.wallet.balance,
-          });
-
-          // Populate wallet transactions cache
-          queryClient.setQueryData(queryKeys.wallet.transactions(options?.transactionLimit || 10), {
-            success: true,
-            data: summaryData.wallet.recentTransactions,
+            data: {
+              balance: summaryData.wallet.balance,
+              transactions: summaryData.wallet.recentTransactions,
+            },
           });
 
           // Populate rewards cache

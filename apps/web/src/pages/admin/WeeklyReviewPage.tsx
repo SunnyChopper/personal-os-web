@@ -12,6 +12,7 @@ import {
   ListChecks,
   Loader2,
   Lock,
+  Mail,
   PenLine,
   Radio,
   RefreshCw,
@@ -33,6 +34,7 @@ import {
   useWeeklyReviewList,
   useWeeklyReviewMutations,
   useWeeklyReviewSnapshot,
+  useSendWeeklyReviewEmail,
 } from '@/hooks/useWeeklyReview';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -110,6 +112,8 @@ export default function WeeklyReviewPage() {
 
   const { generate, savePlan, complete, suggestTasks, discard } =
     useWeeklyReviewMutations(effectiveWeekStart);
+
+  const sendReviewEmail = useSendWeeklyReviewEmail();
 
   const derivedStep = useMemo((): Step => {
     if (!snapshot) return 'review';
@@ -217,6 +221,42 @@ export default function WeeklyReviewPage() {
     }
   };
 
+  const handleSendReviewEmail = async () => {
+    if (!snapshot) return;
+    try {
+      const data = await sendReviewEmail.mutateAsync(snapshot.weekStart);
+      if (data.sent) {
+        showToast({
+          type: 'success',
+          title: 'Weekly review email sent',
+          message: data.toEmailMasked
+            ? `Check your inbox (${data.toEmailMasked}).`
+            : 'Check your inbox.',
+          duration: 8000,
+        });
+      } else {
+        showToast({
+          type: 'warning',
+          title: 'Email not sent',
+          message:
+            'No verified email on your Cognito account. Add an email in Settings or AWS Cognito.',
+          duration: 10_000,
+        });
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message.trim()
+          ? err.message
+          : 'Could not send the weekly review email.';
+      showToast({
+        type: 'error',
+        title: 'Send email failed',
+        message,
+        duration: 8000,
+      });
+    }
+  };
+
   const showMidWeek =
     current && !weekFromUrl && !current.hasGeneratedReview && current.isMidWeek && !snapshot;
 
@@ -243,7 +283,8 @@ export default function WeeklyReviewPage() {
             <option value="">Current / auto</option>
             {listData.reviews.map((r) => (
               <option key={r.weekStart} value={r.weekStart}>
-                Week of {r.weekStart} ({r.status})
+                Week of {r.weekStart} ({r.status}
+                {r.autoCompleted ? ' · auto-completed' : ''})
               </option>
             ))}
           </select>
@@ -269,7 +310,14 @@ export default function WeeklyReviewPage() {
                 Weekly Review & Planning
               </h1>
               {snapshot && (
-                <WeekContextBadge isHistorical={isHistorical} weekStart={snapshot.weekStart} />
+                <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+                  <WeekContextBadge isHistorical={isHistorical} weekStart={snapshot.weekStart} />
+                  {snapshot.autoCompleted ? (
+                    <span className="inline-flex items-center rounded-full bg-violet-600/15 px-2.5 py-0.5 text-xs font-semibold text-violet-800 ring-1 ring-violet-500/30 dark:text-violet-200 dark:ring-violet-400/35">
+                      Auto-completed
+                    </span>
+                  ) : null}
+                </div>
               )}
               {!snapshot && current && (showMidWeek || showEmpty) && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-500/30 dark:text-emerald-300">
@@ -285,8 +333,27 @@ export default function WeeklyReviewPage() {
               Reflect on the past week and plan for success ahead
             </p>
           </div>
-          {pastReviewsSelect && (
-            <div className="flex shrink-0 justify-center md:justify-end">{pastReviewsSelect}</div>
+          {(snapshot || pastReviewsSelect) && (
+            <div className="flex shrink-0 flex-col items-center gap-3 sm:flex-row md:justify-end">
+              {snapshot && (
+                <Button
+                  variant="secondary"
+                  type="button"
+                  className="inline-flex items-center gap-2"
+                  onClick={() => void handleSendReviewEmail()}
+                  disabled={sendReviewEmail.isPending}
+                  aria-busy={sendReviewEmail.isPending}
+                >
+                  {sendReviewEmail.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Mail className="h-4 w-4" aria-hidden />
+                  )}
+                  Send email now
+                </Button>
+              )}
+              {pastReviewsSelect}
+            </div>
           )}
         </header>
 

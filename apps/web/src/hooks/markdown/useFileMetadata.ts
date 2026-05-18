@@ -34,11 +34,12 @@ export function useFileMetadata() {
   const updateMetadata = async (
     filePath: string,
     tags: string[],
-    category: string
+    category: string,
+    preferredBackendFileId?: string | null
   ): Promise<void> => {
     if (isLocalOnlyFile(filePath)) {
       updateLocalFileMetadata(filePath, tags, category);
-      invalidateAfterFileOperation(queryClient, filePath);
+      await invalidateAfterFileOperation(queryClient, filePath);
       return;
     }
 
@@ -47,15 +48,21 @@ export function useFileMetadata() {
         queryKeys.markdownFiles.tree()
       );
 
-    let treeData = readTree();
-    let node = findNodeByPath(filePath, treeData?.data);
-    let fileId = node?.metadata?.id;
+    let fileId: string | undefined = isUsableBackendFileId(preferredBackendFileId ?? undefined)
+      ? (preferredBackendFileId ?? undefined)
+      : undefined;
 
-    if (!isUsableBackendFileId(fileId)) {
-      await queryClient.refetchQueries({ queryKey: queryKeys.markdownFiles.tree() });
-      treeData = readTree();
-      node = findNodeByPath(filePath, treeData?.data);
+    if (!fileId) {
+      let treeData = readTree();
+      let node = findNodeByPath(filePath, treeData?.data);
       fileId = node?.metadata?.id;
+
+      if (!isUsableBackendFileId(fileId)) {
+        await queryClient.refetchQueries({ queryKey: queryKeys.markdownFiles.tree() });
+        treeData = readTree();
+        node = findNodeByPath(filePath, treeData?.data);
+        fileId = node?.metadata?.id;
+      }
     }
 
     if (!isUsableBackendFileId(fileId)) {
@@ -73,18 +80,18 @@ export function useFileMetadata() {
 
     const detailKey = queryKeys.markdownFiles.detail(filePath);
     const prev = queryClient.getQueryData<{ success: boolean; data?: MarkdownFile }>(detailKey);
-    if (prev?.success && prev.data) {
+    if (prev?.success && prev.data && result.data) {
       queryClient.setQueryData(detailKey, {
         success: true,
         data: {
           ...prev.data,
-          tags,
-          category: category.trim() || undefined,
+          ...result.data,
+          content: prev.data.content,
         },
       });
     }
 
-    invalidateAfterFileOperation(queryClient, filePath, true);
+    await invalidateAfterFileOperation(queryClient, filePath, true);
   };
 
   return { updateMetadata };

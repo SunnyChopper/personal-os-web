@@ -338,7 +338,7 @@ export default function MarkdownViewerPage() {
           file={contextFile}
           onSave={async (tags, category) => {
             if (!contextMenuFile) return;
-            await updateMetadata(contextMenuFile, tags, category);
+            await updateMetadata(contextMenuFile, tags, category, contextFile.id);
             setShowMetadataModal(false);
             setContextMenuFile(null);
           }}

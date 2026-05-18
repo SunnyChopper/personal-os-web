@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { rewardsService } from '@/services/rewards';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
-import { shouldLoadWalletAndRewards } from '@/lib/route-data-policy';
+import { shouldLoadRewards } from '@/lib/route-data-policy';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { extractApiError, isNetworkError } from '@/lib/react-query/error-utils';
 import {
@@ -19,7 +19,7 @@ import type { CreateRewardInput, UpdateRewardInput, RewardCategory } from '@/typ
  */
 export function useRewards() {
   const { pathname } = useLocation();
-  const loadRewards = shouldLoadWalletAndRewards(pathname);
+  const loadRewards = shouldLoadRewards(pathname);
   const { recordError, recordSuccess } = useBackendStatus();
 
   const { data, isLoading, error, isError } = useQuery({

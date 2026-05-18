@@ -21,12 +21,7 @@ import { HabitCreateForm } from '@/components/organisms/HabitCreateForm';
 import { HabitEditForm } from '@/components/organisms/HabitEditForm';
 import Dialog from '@/components/molecules/Dialog';
 import { EmptyState } from '@/components/molecules/EmptyState';
-import type { EstablishedHabitActionType } from '@/lib/llm/schemas/habit-established-ai-schemas';
 import { AIHabitAssistPanel } from '@/components/molecules/AIHabitAssistPanel';
-import {
-  AI_HABIT_ASSIST_MODE_ORDER,
-  aiHabitAssistModeLabel,
-} from '@/components/molecules/ai-habit-assist-modes';
 import { llmConfig } from '@/lib/llm';
 import { HabitStatsDashboard } from '@/components/molecules/HabitStatsDashboard';
 import { HabitCalendarHeatmap } from '@/components/molecules/HabitCalendarHeatmap';
@@ -42,18 +37,6 @@ import { formatCompletionDate } from '@/utils/date-formatters';
 import { getLogsForDateRange } from '@/utils/habit-analytics';
 
 type ViewMode = 'today' | 'all';
-
-function computeLocalHabitAiReadiness(
-  createdAt: string,
-  logCount: number
-): 'starter' | 'established' | 'strongSignal' {
-  const created = new Date(createdAt);
-  const ageDays = Math.max(0, Math.floor((Date.now() - created.getTime()) / 86_400_000));
-  if (logCount < 5 || ageDays < 7) return 'starter';
-  if (logCount >= 14 || ageDays >= 30) return 'strongSignal';
-  if (logCount >= 5 || (ageDays >= 14 && logCount >= 1)) return 'established';
-  return 'starter';
-}
 
 const HABIT_TYPES: HabitType[] = ['Build', 'Maintain', 'Reduce', 'Quit'];
 
@@ -91,7 +74,15 @@ const itemVariants = {
 
 export default function HabitsPage() {
   // Use React Query hook to prevent duplicate fetches
-  const { habits, isLoading, createHabit, updateHabit, deleteHabit, logCompletion } = useHabits();
+  const {
+    habits,
+    isLoading,
+    createHabit,
+    updateHabit,
+    deleteHabit,
+    logCompletion,
+    updateCompletionNote,
+  } = useHabits();
   const [habitLogs, setHabitLogs] = useState<Map<string, HabitLog[]>>(new Map());
   const [linkedGoals, setLinkedGoals] = useState<Map<string, Goal[]>>(new Map());
   const [searchQuery, setSearchQuery] = useState('');
@@ -105,11 +96,16 @@ export default function HabitsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
   const [habitToLog, setHabitToLog] = useState<Habit | null>(null);
+  /** Bump when opening the log dialog so the widget remounts with fresh defaults */
+  const [logDialogKey, setLogDialogKey] = useState(0);
+  const [logDialogDefaultDate, setLogDialogDefaultDate] = useState<Date | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [habitToDelete, setHabitToDelete] = useState<Habit | null>(null);
 
   const [showAIAssist, setShowAIAssist] = useState(false);
-  const [aiMode, setAIMode] = useState<EstablishedHabitActionType>('patternInsight');
+  const [aiMode, setAIMode] = useState<
+    'design' | 'stack' | 'recovery' | 'patterns' | 'triggers' | 'alignment'
+  >('design');
   const isAIConfigured = llmConfig.isConfigured();
   const [activeTab, setActiveTab] = useState<HabitDetailTab>('overview');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -235,8 +231,7 @@ export default function HabitsPage() {
       const response = await logCompletion(input);
       if (response.success && response.data) {
         loadHabitLogs(input.habitId);
-        setIsLogDialogOpen(false);
-        setHabitToLog(null);
+        closeLogDialog();
       }
     } catch (error) {
       console.error('Failed to log habit:', error);
@@ -261,12 +256,15 @@ export default function HabitsPage() {
 
   const handleQuickLog = (habit: Habit, date?: Date) => {
     setHabitToLog(habit);
-    if (date) {
-      // Pre-fill the date in the log widget if provided
-      setIsLogDialogOpen(true);
-    } else {
-      setIsLogDialogOpen(true);
-    }
+    setLogDialogDefaultDate(date);
+    setLogDialogKey((k) => k + 1);
+    setIsLogDialogOpen(true);
+  };
+
+  const closeLogDialog = () => {
+    setIsLogDialogOpen(false);
+    setHabitToLog(null);
+    setLogDialogDefaultDate(undefined);
   };
 
   const handleDateClick = (date: Date) => {
@@ -278,47 +276,6 @@ export default function HabitsPage() {
     if (selectedHabit) {
       handleQuickLog(selectedHabit, date);
       setIsDateModalOpen(false);
-    }
-  };
-
-  const completionCalendarDate = (completedAt: string): string =>
-    completedAt.includes('T') ? (completedAt.split('T')[0] ?? '') : completedAt.slice(0, 10);
-
-  const handleEditCompletionNote = async (
-    _logId: string,
-    completedAtIso: string,
-    trimmedNote: string
-  ) => {
-    if (!selectedHabit) return;
-    setIsSubmitting(true);
-    try {
-      const completionDate = completionCalendarDate(completedAtIso);
-      const res = await habitsService.updateLog(selectedHabit.id, completionDate, {
-        note: trimmedNote === '' ? null : trimmedNote,
-      });
-      if (res.success) {
-        await loadHabitLogs(selectedHabit.id);
-      }
-    } catch (error) {
-      console.error('Failed to update completion note:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteCompletionLog = async (log: HabitLog) => {
-    if (!selectedHabit) return;
-    setIsSubmitting(true);
-    try {
-      const completionDate = completionCalendarDate(log.completedAt);
-      const res = await habitsService.deleteLog(selectedHabit.id, completionDate);
-      if (res.success) {
-        await loadHabitLogs(selectedHabit.id);
-      }
-    } catch (error) {
-      console.error('Failed to delete completion:', error);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -461,42 +418,10 @@ export default function HabitsPage() {
       );
     }
 
+    // Note: viewMode ('today' vs 'all') doesn't change which habits are shown,
+    // but could be used for sorting or highlighting in the future
     return result;
   }, [habits, selectedHabitType, searchQuery]);
-
-  const todayGroups = useMemo(() => {
-    if (viewMode !== 'today') return null;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const isCompletedTodayForHabit = (habitId: string): boolean => {
-      const logs = habitLogs.get(habitId) || [];
-      if (logs.length === 0) return false;
-      return logs.some((log) => {
-        const logDate = new Date(log.completedAt);
-        logDate.setHours(0, 0, 0, 0);
-        return logDate.getTime() === today.getTime();
-      });
-    };
-    const pending = filteredHabits.filter((h) => !isCompletedTodayForHabit(h.id));
-    const completed = filteredHabits.filter((h) => isCompletedTodayForHabit(h.id));
-    return { pending, completed };
-  }, [filteredHabits, habitLogs, viewMode]);
-
-  const habitsGridColsClass = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4';
-
-  const todayProgressStats =
-    viewMode === 'today' && todayGroups
-      ? {
-          pending: todayGroups.pending,
-          completed: todayGroups.completed,
-          total: filteredHabits.length,
-          doneCount: todayGroups.completed.length,
-          pct:
-            filteredHabits.length > 0
-              ? Math.round((todayGroups.completed.length / filteredHabits.length) * 100)
-              : 0,
-        }
-      : null;
 
   const groupedByType = HABIT_TYPES.reduce(
     (acc, type) => {
@@ -555,30 +480,49 @@ export default function HabitsPage() {
                   {showAIAssist && (
                     <div className="mt-4 space-y-3">
                       <div className="flex flex-wrap gap-2">
-                        {AI_HABIT_ASSIST_MODE_ORDER.map((mode) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setAIMode(mode)}
-                            className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === mode ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                          >
-                            {aiHabitAssistModeLabel(mode)}
-                          </button>
-                        ))}
+                        <button
+                          onClick={() => setAIMode('design')}
+                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'design' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                        >
+                          Habit Design
+                        </button>
+                        <button
+                          onClick={() => setAIMode('stack')}
+                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'stack' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                        >
+                          Habit Stacking
+                        </button>
+                        <button
+                          onClick={() => setAIMode('recovery')}
+                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'recovery' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                        >
+                          Streak Recovery
+                        </button>
+                        <button
+                          onClick={() => setAIMode('patterns')}
+                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'patterns' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                        >
+                          Pattern Analysis
+                        </button>
+                        <button
+                          onClick={() => setAIMode('triggers')}
+                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'triggers' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                        >
+                          Trigger Optimization
+                        </button>
+                        <button
+                          onClick={() => setAIMode('alignment')}
+                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'alignment' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                        >
+                          Goal Alignment
+                        </button>
                       </div>
 
                       <AIHabitAssistPanel
                         mode={aiMode}
-                        habitId={selectedHabit.id}
-                        habitName={selectedHabit.name}
-                        readinessHint={computeLocalHabitAiReadiness(
-                          selectedHabit.createdAt,
-                          selectedLogs.length
-                        )}
+                        habit={selectedHabit}
+                        logs={selectedLogs}
                         onClose={() => setShowAIAssist(false)}
-                        onApplySuggestedPatch={async (patch) => {
-                          await handleUpdateHabit(selectedHabit.id, patch);
-                        }}
                       />
                     </div>
                   )}
@@ -671,41 +615,34 @@ export default function HabitsPage() {
                         />
                       ) : (
                         <div className="space-y-2">
-                          {[...selectedLogs]
-                            .sort(
-                              (a, b) =>
-                                new Date(b.completedAt).getTime() -
-                                new Date(a.completedAt).getTime()
-                            )
-                            .slice(0, 50)
-                            .map((log) => (
-                              <button
-                                key={log.id}
-                                onClick={() => {
-                                  const logDate = new Date(log.completedAt);
-                                  handleDateClick(logDate);
-                                }}
-                                className="w-full text-left flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors min-h-[44px] touch-manipulation"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-base font-semibold text-gray-900 dark:text-white">
-                                      {formatCompletionDate(log.completedAt)}
+                          {selectedLogs.slice(0, 50).map((log) => (
+                            <button
+                              key={log.id}
+                              onClick={() => {
+                                const logDate = new Date(log.completedAt);
+                                handleDateClick(logDate);
+                              }}
+                              className="w-full text-left flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors min-h-[44px] touch-manipulation"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-base font-semibold text-gray-900 dark:text-white">
+                                    {formatCompletionDate(log.completedAt)}
+                                  </span>
+                                  {log.amount && log.amount > 1 && (
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                      × {log.amount}
                                     </span>
-                                    {log.amount && log.amount > 1 && (
-                                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                                        × {log.amount}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {log.notes && (
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 break-words">
-                                      {log.notes}
-                                    </p>
                                   )}
                                 </div>
-                              </button>
-                            ))}
+                                {log.notes && (
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 break-words">
+                                    {log.notes}
+                                  </p>
+                                )}
+                              </div>
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -730,8 +667,21 @@ export default function HabitsPage() {
                   date={selectedDate}
                   logs={selectedDateLogs}
                   onLog={handleDateModalLog}
-                  onDeleteLog={handleDeleteCompletionLog}
-                  onEditLog={handleEditCompletionNote}
+                  onUpdateCompletionNote={async (completionDate, note) => {
+                    if (!selectedHabit) return;
+                    const response = await updateCompletionNote({
+                      habitId: selectedHabit.id,
+                      completionDate,
+                      note,
+                    });
+                    if (response.success) {
+                      await loadHabitLogs(selectedHabit.id);
+                    } else {
+                      throw new Error(
+                        response.error?.message ?? 'Failed to update completion note'
+                      );
+                    }
+                  }}
                 />
               )}
             </>
@@ -898,7 +848,7 @@ export default function HabitsPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className={habitsGridColsClass}
+                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"
                   >
                     <HabitCardSkeleton count={8} />
                   </motion.div>
@@ -922,120 +872,13 @@ export default function HabitsPage() {
                       onAction={() => setIsCreateDialogOpen(true)}
                     />
                   </motion.div>
-                ) : todayProgressStats ? (
-                  <motion.div
-                    key="habits-grouped-today"
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="show"
-                    className="space-y-8"
-                  >
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
-                      <div className="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300">
-                        <span className="font-medium text-gray-900 dark:text-white">
-                          {todayProgressStats.doneCount} / {todayProgressStats.total} completed
-                          today
-                        </span>
-                        <span className="text-gray-600 dark:text-gray-400 tabular-nums">
-                          {todayProgressStats.pct}%
-                        </span>
-                      </div>
-                      <div
-                        className="mt-2 h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden"
-                        role="progressbar"
-                        aria-valuenow={todayProgressStats.pct}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-label="Today habits completion progress"
-                      >
-                        <div
-                          className="h-full rounded-full bg-green-500 dark:bg-green-600 transition-[width] duration-300 ease-out"
-                          style={{ width: `${todayProgressStats.pct}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                        Still to do
-                      </h2>
-                      {todayProgressStats.pending.length === 0 ? (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-0">
-                          You&apos;re all caught up for today.
-                        </p>
-                      ) : (
-                        <div className={habitsGridColsClass}>
-                          <AnimatePresence mode="popLayout">
-                            {todayProgressStats.pending.map((habit) => (
-                              <motion.div
-                                key={habit.id}
-                                variants={itemVariants}
-                                initial="hidden"
-                                animate="show"
-                                exit="exit"
-                              >
-                                <HabitCard
-                                  habit={habit}
-                                  streak={getStreak(habit.id)}
-                                  todayCompleted={isTodayCompleted(habit.id)}
-                                  todayProgress={getTodayProgress(habit.id)}
-                                  weeklyProgress={getWeeklyProgress(habit.id)}
-                                  totalCompletions={getTotalCompletions(habit.id)}
-                                  lastCompletedDate={getLastCompletedDate(habit.id)}
-                                  onClick={handleHabitClick}
-                                  onQuickLog={handleQuickLog}
-                                />
-                              </motion.div>
-                            ))}
-                          </AnimatePresence>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="opacity-90">
-                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                        Done today
-                      </h2>
-                      {todayProgressStats.completed.length === 0 ? (
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Nothing logged yet today — pick a habit above to log.
-                        </p>
-                      ) : (
-                        <div className={habitsGridColsClass}>
-                          <AnimatePresence mode="popLayout">
-                            {todayProgressStats.completed.map((habit) => (
-                              <motion.div
-                                key={habit.id}
-                                variants={itemVariants}
-                                initial="hidden"
-                                animate="show"
-                                exit="exit"
-                              >
-                                <HabitCard
-                                  habit={habit}
-                                  streak={getStreak(habit.id)}
-                                  todayCompleted={isTodayCompleted(habit.id)}
-                                  todayProgress={getTodayProgress(habit.id)}
-                                  weeklyProgress={getWeeklyProgress(habit.id)}
-                                  totalCompletions={getTotalCompletions(habit.id)}
-                                  lastCompletedDate={getLastCompletedDate(habit.id)}
-                                  onClick={handleHabitClick}
-                                  onQuickLog={handleQuickLog}
-                                />
-                              </motion.div>
-                            ))}
-                          </AnimatePresence>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
                 ) : (
                   <motion.div
                     key="habits-grid"
                     variants={containerVariants}
                     initial="hidden"
                     animate="show"
-                    className={habitsGridColsClass}
+                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"
                   >
                     <AnimatePresence mode="popLayout">
                       {filteredHabits.map((habit) => (
@@ -1083,21 +926,17 @@ export default function HabitsPage() {
 
       <Dialog
         isOpen={isLogDialogOpen}
-        onClose={() => {
-          setIsLogDialogOpen(false);
-          setHabitToLog(null);
-        }}
+        onClose={closeLogDialog}
         title="Log Completion"
         className="max-w-lg"
       >
         {habitToLog && (
           <HabitLogWidget
+            key={logDialogKey}
             habit={habitToLog}
+            defaultLogDate={logDialogDefaultDate}
             onSubmit={handleLogCompletion}
-            onCancel={() => {
-              setIsLogDialogOpen(false);
-              setHabitToLog(null);
-            }}
+            onCancel={closeLogDialog}
             isLoading={isSubmitting}
           />
         )}

@@ -1,9 +1,14 @@
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Pencil } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import type { Habit, HabitLog } from '@/types/growth-system';
 import Dialog from '@/components/molecules/Dialog';
 import Button from '@/components/atoms/Button';
-import { formatCompletionDate } from '@/utils/date-formatters';
+import { formatCompletionDate, parseDateInput, toLocalDateKey } from '@/utils/date-formatters';
+
+function completionCalendarDay(completedAt: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(completedAt)) return completedAt;
+  return toLocalDateKey(parseDateInput(completedAt));
+}
 
 interface DateDetailModalProps {
   isOpen: boolean;
@@ -12,67 +17,75 @@ interface DateDetailModalProps {
   date: Date;
   logs: HabitLog[];
   onLog: (date: Date) => void;
-  onDeleteLog?: (log: HabitLog) => void;
-  /** Pass `trimmedNote === ''` to clear notes (parent should send `{ note: null }`). */
-  onEditLog?: (logId: string, completedAtIso: string, trimmedNote: string) => void | Promise<void>;
+  onDeleteLog?: (logId: string) => void;
+  onUpdateCompletionNote?: (completionDate: string, note: string | null) => Promise<void>;
 }
 
 export function DateDetailModal({
   isOpen,
   onClose,
-  habit: _habit,
+  habit,
   date,
   logs,
   onLog,
   onDeleteLog,
-  onEditLog,
+  onUpdateCompletionNote,
 }: DateDetailModalProps) {
-  const [editingLogId, setEditingLogId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState('');
-  const [savePending, setSavePending] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setEditingLogId(null);
-      setEditDraft('');
-      setSavePending(false);
-    }
-  }, [isOpen]);
-
   const dateStr = date.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
+  const title = `${habit.name} · ${dateStr}`;
 
   const totalAmount = logs.reduce((sum, log) => sum + (log.amount || 1), 0);
 
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [draftNote, setDraftNote] = useState('');
+  const [savingLogId, setSavingLogId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setEditingLogId(null);
+      setDraftNote('');
+      setSavingLogId(null);
+      setSaveError(null);
+    }
+  }, [isOpen]);
+
   const handleStartEdit = (log: HabitLog) => {
     setEditingLogId(log.id);
-    setEditDraft(log.notes ?? '');
+    setDraftNote(log.notes ?? '');
+    setSaveError(null);
   };
 
   const handleCancelEdit = () => {
     setEditingLogId(null);
-    setEditDraft('');
-    setSavePending(false);
+    setDraftNote('');
+    setSaveError(null);
   };
 
-  const handleSaveEdit = async (log: HabitLog) => {
-    if (!onEditLog) return;
-    setSavePending(true);
+  const handleSaveNote = async (log: HabitLog) => {
+    if (!onUpdateCompletionNote) return;
+    const trimmed = draftNote.trim();
+    const payload = trimmed === '' ? null : trimmed;
+    setSavingLogId(log.id);
+    setSaveError(null);
     try {
-      await onEditLog(log.id, log.completedAt, editDraft.trim());
+      await onUpdateCompletionNote(completionCalendarDay(log.completedAt), payload);
       setEditingLogId(null);
-      setEditDraft('');
+      setDraftNote('');
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save note');
     } finally {
-      setSavePending(false);
+      setSavingLogId(null);
     }
   };
 
   return (
-    <Dialog isOpen={isOpen} onClose={onClose} title={dateStr} className="max-w-lg">
+    <Dialog isOpen={isOpen} onClose={onClose} title={title} className="max-w-lg">
       <div className="space-y-4">
         {logs.length === 0 ? (
           <div className="text-center py-8">
@@ -115,78 +128,79 @@ export function DateDetailModal({
                           </span>
                         )}
                       </div>
-
                       {editingLogId === log.id ? (
                         <div className="mt-2 space-y-2">
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                            Completion note
+                          </label>
                           <textarea
-                            value={editDraft}
-                            onChange={(e) => setEditDraft(e.target.value)}
-                            rows={4}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white"
-                            aria-label="Edit completion notes"
+                            value={draftNote}
+                            onChange={(e) => setDraftNote(e.target.value)}
+                            rows={3}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Optional note..."
+                            disabled={savingLogId === log.id}
                           />
-                          <div className="flex gap-2 flex-wrap justify-end">
+                          {saveError && (
+                            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                              {saveError}
+                            </p>
+                          )}
+                          <div className="flex justify-end gap-2">
                             <Button
                               type="button"
                               variant="secondary"
-                              disabled={savePending}
                               onClick={handleCancelEdit}
+                              disabled={savingLogId === log.id}
                             >
                               Cancel
                             </Button>
                             <Button
                               type="button"
                               variant="primary"
-                              disabled={savePending || !onEditLog}
-                              onClick={() => {
-                                void handleSaveEdit(log);
-                              }}
+                              onClick={() => handleSaveNote(log)}
+                              disabled={savingLogId === log.id}
                             >
-                              {savePending ? 'Saving…' : 'Save'}
+                              {savingLogId === log.id ? 'Saving…' : 'Save'}
                             </Button>
                           </div>
                         </div>
                       ) : (
                         <>
                           {log.notes ? (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 break-words">
                               {log.notes}
                             </p>
                           ) : (
-                            <p className="text-xs text-gray-500 dark:text-gray-500 italic mt-1">
+                            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1 italic">
                               No note
                             </p>
+                          )}
+                          {onUpdateCompletionNote && (
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(log)}
+                              className="mt-2 inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              Edit note
+                            </button>
                           )}
                         </>
                       )}
                     </div>
-                    {editingLogId !== log.id && (
-                      <div className="flex items-start gap-1 shrink-0">
-                        {onEditLog && (
-                          <button
-                            type="button"
-                            onClick={() => handleStartEdit(log)}
-                            className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                            aria-label="Edit completion note"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                        )}
-                        {onDeleteLog && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this log entry?')) {
-                                onDeleteLog(log);
-                              }
-                            }}
-                            className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            aria-label="Delete log entry"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
+                    {onDeleteLog && editingLogId !== log.id && (
+                      <button
+                        onClick={() => {
+                          if (confirm('Are you sure you want to delete this log entry?')) {
+                            onDeleteLog(log.id);
+                          }
+                        }}
+                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors shrink-0"
+                        aria-label="Delete log entry"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     )}
                   </div>
                 </div>
