@@ -37,6 +37,42 @@ function normalizeWsUrl(u) {
     .replace(/\/$/, '');
 }
 
+/** Normalize WSS connect URLs for comparison (hostname case, trailing slash). */
+function normalizeWsConnectUrl(u) {
+  const s = normalizeWsUrl(u);
+  try {
+    const url = new URL(s);
+    url.hostname = url.hostname.toLowerCase();
+    let path = url.pathname.replace(/\/$/, '');
+    if (path === '/') path = '';
+    const host = url.host.toLowerCase(); // includes port if present
+    return `${url.protocol}//${host}${path}`;
+  } catch {
+    return s.toLowerCase();
+  }
+}
+
+function getDeployedWsStageName(apiId, region, preferredStage) {
+  const stages = awsJson([
+    'apigatewayv2',
+    'get-stages',
+    '--region',
+    region,
+    '--api-id',
+    apiId,
+    '--output',
+    'json',
+  ]);
+  const items = stages.Items || [];
+  const match = items.find((x) => x.StageName === preferredStage);
+  if (match) return match.StageName;
+  if (items.length === 1) return items[0].StageName;
+  console.error(
+    `WebSocket API ${apiId}: no stage named "${preferredStage}". Available: ${items.map((x) => x.StageName).join(', ')}`,
+  );
+  process.exit(1);
+}
+
 function stripQuotes(s) {
   return s.replace(/^['"]|['"]$/g, '').trim();
 }
@@ -110,10 +146,32 @@ function liveWsUrlForStage(stage, region) {
     console.error(`No WebSocket API named ${apiName} in ${region}`);
     process.exit(1);
   }
+  const stageName = getDeployedWsStageName(item.ApiId, region, stage);
   const endpoint = item.ApiEndpoint || '';
   const wssBase = endpoint.replace(/^https:\/\//i, 'wss://');
-  const expected = `${normalizeWsUrl(wssBase)}/${stage}`;
-  return { expected, apiId: item.ApiId, apiName };
+  const expected = `${normalizeWsUrl(wssBase)}/${stageName}`;
+  return { expected, apiId: item.ApiId, apiName, stageName };
+}
+
+/**
+ * True if CHECK_WS_URL / VITE_WS_URL matches the live execute-api WSS URL.
+ * Allows hostname case differences and a candidate that omits the stage path
+ * (we append the deployed stage name once).
+ */
+function prodCandidateMatchesLive(candidate, expected, stageName) {
+  const expN = normalizeWsConnectUrl(expected);
+  if (normalizeWsConnectUrl(candidate) === expN) return true;
+  try {
+    const base = normalizeWsUrl(candidate);
+    const u = new URL(base);
+    const p = (u.pathname || '').replace(/\/$/, '');
+    if (!p || p === '') {
+      return normalizeWsConnectUrl(`${base}/${stageName}`) === expN;
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
 }
 
 function main() {
@@ -127,7 +185,7 @@ function main() {
   }
 
   const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
-  const { expected, apiId, apiName } = liveWsUrlForStage(stage, region);
+  const { expected, apiId, apiName, stageName } = liveWsUrlForStage(stage, region);
 
   if (stage === 'dev') {
     const webRoot = resolveWebRoot();
@@ -149,7 +207,7 @@ function main() {
         ok = false;
         continue;
       }
-      if (normalizeWsUrl(val) !== normalizeWsUrl(expected)) {
+      if (normalizeWsConnectUrl(val) !== normalizeWsConnectUrl(expected)) {
         console.error(
           `DRIFT ${label}:\n  repo:  ${val}\n  aws:   ${expected}\n  (${apiName} ApiId=${apiId})`,
         );
@@ -171,9 +229,13 @@ function main() {
     process.exit(1);
   }
 
-  if (normalizeWsUrl(candidate) !== normalizeWsUrl(expected)) {
+  if (!prodCandidateMatchesLive(candidate, expected, stageName)) {
     console.error(
-      `DRIFT prod WebSocket URL:\n  candidate: ${candidate}\n  aws:       ${expected}\n  (${apiName} ApiId=${apiId})`,
+      `DRIFT prod WebSocket URL:\n  candidate (GitHub VITE_WS_URL / CHECK_WS_URL_EXPECTED): ${candidate}\n` +
+        `  aws (live ${apiName}, stage "${stageName}"): ${expected}\n` +
+        `  ApiId=${apiId}\n` +
+        `\nFix: In GitHub Environment **prod**, set secret **VITE_WS_URL** exactly to the aws line above.\n` +
+        `Common mistake: using the **dev** WebSocket URL (…/dev) or an old API id — must match this prod API and stage.`,
     );
     process.exit(1);
   }
@@ -183,7 +245,7 @@ function main() {
   const envProd = join(webRootFromScript, 'apps/web/.env.production');
   if (existsSync(envProd)) {
     const committed = parseEnvFile(envProd, 'VITE_WS_URL');
-    if (committed && normalizeWsUrl(committed) !== normalizeWsUrl(expected)) {
+    if (committed && !prodCandidateMatchesLive(committed, expected, stageName)) {
       console.error(
         `DRIFT apps/web/.env.production VITE_WS_URL:\n  repo:  ${committed}\n  aws:   ${expected}\n  (${apiName} ApiId=${apiId})`,
       );
