@@ -5,7 +5,7 @@ import {
   getCompletionRateData,
   getWeeklyData,
   getAllStreaks,
-} from './habit-analytics';
+} from '@/utils/habit-analytics';
 
 const baseHabit: Habit = {
   id: 'h1',
