@@ -11,7 +11,6 @@ import {
   useChatThreads,
   useChatThread,
   useChatThreadMutations,
-  useChatMessageMutations,
   useMessageTree,
   useBranchSelection,
   useEditMessage,
@@ -99,7 +98,6 @@ export function useAssistantChatPage({
 
   const { createThread, updateThread, deleteThread, isUpdating, isDeleting } =
     useChatThreadMutations();
-  const { createMessage } = useChatMessageMutations();
   const { editMessage } = useEditMessage();
 
   const {
@@ -110,7 +108,9 @@ export function useAssistantChatPage({
     isAwaitingRunStart,
     error: streamingError,
     connectionState,
+    sendUserMessage: streamSendUserMessage,
     sendFollowUp: streamSendFollowUp,
+    registerOptimisticUserId,
     cancelRun,
     reconnect,
     retryRun,
@@ -603,8 +603,9 @@ export function useAssistantChatPage({
     selectedLeafId,
     setSelectedLeafId,
     createThread,
-    createMessage,
+    sendUserMessage: streamSendUserMessage,
     sendFollowUp,
+    registerOptimisticUserId,
     getRunConfig,
     connectionState,
     streamingThreadId,

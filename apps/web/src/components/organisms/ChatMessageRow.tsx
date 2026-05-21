@@ -30,6 +30,9 @@ export type ChatMessageStreamingRun = AssistantStreamingRunState & {
   statusStage?: StreamingRunStatusStage;
   statusMessage?: string;
   statusHistory?: StatusEntry[];
+  thinkingPhase?: import('@/types/chatbot').AssistantReasoningPhase | null;
+  reasoningStreamEnabled?: boolean;
+  reasoningStreamDisabledReason?: string;
   toolCallDetails?: WsToolCallCompletePayload[];
   pendingToolApprovals?: Record<string, WsToolApprovalRequiredPayload>;
 };
@@ -156,7 +159,16 @@ export const ChatMessageRow = memo(function ChatMessageRow({
   /** Fold thinkingDelta into the latest planning row instead of a separate “Thinking” accordion. */
   const foldThinkingIntoTrace = showExecutionTrace && traceHasPlanning;
   const assistantThinkingForTrace = run?.thinkingBuffer?.trim() || message.thinking?.trim() || '';
-  const assistantThinkingStreaming = Boolean(run?.thinkingBuffer?.trim());
+  const assistantThinkingStreaming = Boolean(
+    run &&
+      (Boolean(run.thinkingBuffer?.trim()) ||
+        (run.thinkingPhase != null && run.reasoningStreamEnabled !== false))
+  );
+  const reasoningDisabledMessage =
+    run?.reasoningStreamDisabledReason ??
+    (run?.reasoningStreamEnabled === false
+      ? 'Reasoning stream is disabled for this run.'
+      : undefined);
 
   /** Thinking stream duplicates the execution trace during HITL; hide standalone panel until the reply has body text. */
   const hitlSuppressesThinking =
@@ -220,6 +232,7 @@ export const ChatMessageRow = memo(function ChatMessageRow({
               toolCallDetails={executionTraceToolDetails}
               assistantThinkingText={assistantThinkingForTrace}
               assistantThinkingStreaming={assistantThinkingStreaming}
+              reasoningStreamDisabledReason={reasoningDisabledMessage}
               expanded={executionTracePanelExpanded}
               onToggle={() => onToggleExecutionTrace(message.id)}
               pendingToolApprovals={run?.pendingToolApprovals}

@@ -236,11 +236,16 @@ export interface WsThinkingDeltaPayload {
   delta: string;
 }
 
+export type AssistantReasoningPhase = 'planning' | 'runningTools' | 'replanning' | 'responding';
+
 export interface WsStatusUpdatePayload {
   runId: string;
   threadId: string;
   stage: 'planning' | 'runningTools' | 'responding' | 'persisting';
   message?: string;
+  reasoningPhase?: AssistantReasoningPhase;
+  reasoningStreamEnabled?: boolean;
+  reasoningStreamDisabledReason?: string;
 }
 
 export interface WsToolCallCompletePayload {

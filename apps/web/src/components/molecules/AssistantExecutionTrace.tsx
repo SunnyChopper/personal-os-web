@@ -13,6 +13,7 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
+import { AssistantTraceJsonViewer } from '@/components/molecules/AssistantTraceJsonViewer';
 import { ToolApprovalCard } from '@/components/molecules/ToolApprovalCard';
 import { getVisibleExecutionTraceEntries } from '@/lib/chat/assistant-execution-trace-entries';
 import type {
@@ -29,6 +30,7 @@ interface AssistantExecutionTraceProps {
   /** Model reasoning stream (thinkingDelta / persisted thinking); shown under the latest planning step. */
   assistantThinkingText?: string;
   assistantThinkingStreaming?: boolean;
+  reasoningStreamDisabledReason?: string;
   /** Strip outer card when nested (e.g. inside a collapsible panel). */
   bare?: boolean;
   /** Live HITL payloads keyed by approvalId */
@@ -101,6 +103,7 @@ function formatLabel(entry: StatusEntry): string {
 type PlanningReasoningSlot = {
   text: string;
   isStreaming: boolean;
+  disabledReason?: string;
 };
 
 interface TraceEntryProps {
@@ -232,7 +235,8 @@ function TraceEntry({
                     ? planningReasoning.text
                     : planningReasoning.isStreaming
                       ? 'Receiving reasoning from the model…'
-                      : 'No reasoning stream was captured for this run (the thinking model may be disabled).'}
+                      : planningReasoning.disabledReason ??
+                        'No reasoning stream was captured for this run (the thinking model may be disabled).'}
                 </pre>
               </div>
             )}
@@ -319,9 +323,9 @@ function TraceEntry({
           <div className="mt-2 space-y-2 rounded border border-gray-200 bg-gray-50 p-2 text-xs dark:border-gray-700 dark:bg-gray-800/50">
             <div>
               <div className="mb-1 font-medium text-gray-600 dark:text-gray-400">Input</div>
-              <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-[10px] dark:bg-gray-900">
-                {JSON.stringify(toolDetails.arguments, null, 2)}
-              </pre>
+              <div className="rounded bg-white p-2 dark:bg-gray-900">
+                <AssistantTraceJsonViewer data={toolDetails.arguments ?? {}} topLevelExpanded />
+              </div>
             </div>
             <div>
               <div className="mb-1 font-medium text-gray-600 dark:text-gray-400">Output</div>
@@ -329,11 +333,32 @@ function TraceEntry({
                 <p className="text-red-600 dark:text-red-400">{toolDetails.error}</p>
               )}
               {toolDetails.result !== undefined && (
-                <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-[10px] dark:bg-gray-900">
-                  {typeof toolDetails.result === 'object'
-                    ? JSON.stringify(toolDetails.result, null, 2)
-                    : String(toolDetails.result)}
-                </pre>
+                <div className="space-y-1">
+                  {(toolDetails.truncatedForWs ||
+                    toolDetails.originalItemCount != null ||
+                    toolDetails.returnedItemCount != null) && (
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                      {toolDetails.truncatedForWs ? 'Truncated for WebSocket. ' : ''}
+                      {toolDetails.originalItemCount != null &&
+                      toolDetails.returnedItemCount != null
+                        ? `Showing ${toolDetails.returnedItemCount} of ${toolDetails.originalItemCount} items. `
+                        : ''}
+                      {toolDetails.wsResultChars != null
+                        ? `~${toolDetails.wsResultChars} chars in payload.`
+                        : ''}
+                    </p>
+                  )}
+                  <div className="rounded bg-white p-2 dark:bg-gray-900">
+                    <AssistantTraceJsonViewer
+                      data={
+                        typeof toolDetails.result === 'object'
+                          ? toolDetails.result
+                          : { value: toolDetails.result }
+                      }
+                      topLevelExpanded
+                    />
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -349,6 +374,7 @@ export function AssistantExecutionTrace({
   toolCallDetails,
   assistantThinkingText,
   assistantThinkingStreaming,
+  reasoningStreamDisabledReason,
   bare = false,
   pendingToolApprovals,
   runId,
@@ -453,6 +479,7 @@ export function AssistantExecutionTrace({
               ? {
                   text: assistantThinkingText ?? '',
                   isStreaming: Boolean(assistantThinkingStreaming),
+                  disabledReason: reasoningStreamDisabledReason,
                 }
               : null;
           return (

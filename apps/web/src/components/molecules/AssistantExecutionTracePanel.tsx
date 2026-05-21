@@ -16,6 +16,7 @@ interface AssistantExecutionTracePanelProps {
   /** Streamed or persisted model reasoning; shown under the latest planning step. */
   assistantThinkingText?: string;
   assistantThinkingStreaming?: boolean;
+  reasoningStreamDisabledReason?: string;
   expanded: boolean;
   onToggle: () => void;
   pendingToolApprovals?: Record<string, WsToolApprovalRequiredPayload>;
@@ -34,6 +35,7 @@ export function AssistantExecutionTracePanel({
   toolCallDetails,
   assistantThinkingText,
   assistantThinkingStreaming,
+  reasoningStreamDisabledReason,
   expanded,
   onToggle,
   pendingToolApprovals,
@@ -87,6 +89,7 @@ export function AssistantExecutionTracePanel({
                 toolCallDetails={toolCallDetails}
                 assistantThinkingText={assistantThinkingText}
                 assistantThinkingStreaming={assistantThinkingStreaming}
+                reasoningStreamDisabledReason={reasoningStreamDisabledReason}
                 bare
                 pendingToolApprovals={pendingToolApprovals}
                 runId={runId}
