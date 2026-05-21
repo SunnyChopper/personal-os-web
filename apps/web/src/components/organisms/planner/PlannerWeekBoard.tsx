@@ -1,17 +1,25 @@
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 
-import { withCalendarDate } from '@/lib/planner/week';
+import { withCalendarDate, todayISOLocal } from '@/lib/planner/week';
 import type { PlannerWeek } from '@/types/planner';
 
 import { PlannerDayColumn } from './PlannerDayColumn';
 
 export interface PlannerWeekBoardProps {
   week: PlannerWeek;
+  focusDate?: string;
+  onSelectDay?: (date: string) => void;
   onMoveBlock: (args: { blockId: string; date: string; startAt: string; endAt: string }) => void;
 }
 
-export function PlannerWeekBoard({ week, onMoveBlock }: PlannerWeekBoardProps) {
+export function PlannerWeekBoard({
+  week,
+  focusDate,
+  onSelectDay,
+  onMoveBlock,
+}: PlannerWeekBoardProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const today = todayISOLocal();
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -31,7 +39,13 @@ export function PlannerWeekBoard({ week, onMoveBlock }: PlannerWeekBoardProps) {
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex gap-2 overflow-x-auto pb-2">
         {week.days.map((day) => (
-          <PlannerDayColumn key={day.date} day={day} />
+          <PlannerDayColumn
+            key={day.date}
+            day={day}
+            isFocused={focusDate === day.date}
+            isToday={today === day.date}
+            onSelect={onSelectDay}
+          />
         ))}
       </div>
     </DndContext>
