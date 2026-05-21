@@ -38,9 +38,7 @@ import {
   useWeeklyReviewSnapshot,
   useSendWeeklyReviewEmail,
 } from '@/hooks/useWeeklyReview';
-import {
-  useWeeklyDashboardConfig,
-} from '@/hooks/useWeeklyDashboardConfig';
+import { useWeeklyDashboardConfig } from '@/hooks/useWeeklyDashboardConfig';
 import { maxComparisonWeeks, velocityRollingWindow } from '@/types/weekly-dashboard';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';

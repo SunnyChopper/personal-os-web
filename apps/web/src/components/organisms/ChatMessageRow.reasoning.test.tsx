@@ -83,8 +83,7 @@ describe('ChatMessageRow reasoning stream state', () => {
           thinkingBuffer: '',
           thinkingPhase: 'planning',
           reasoningStreamEnabled: false,
-          reasoningStreamDisabledReason:
-            'Reasoning stream is disabled in server configuration.',
+          reasoningStreamDisabledReason: 'Reasoning stream is disabled in server configuration.',
           statusHistory: [{ stage: 'planning', message: 'Planning', startedAt: 1 }],
         }}
       />

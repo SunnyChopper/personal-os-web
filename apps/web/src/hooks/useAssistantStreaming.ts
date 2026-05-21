@@ -568,7 +568,8 @@ export function useAssistantStreaming(threadId: string | undefined) {
                 statusMessage: mergedMessage ?? payload.message,
                 statusHistory: nextHistory,
                 thinkingPhase: reasoningPhase,
-                reasoningStreamEnabled: payload.reasoningStreamEnabled ?? run.reasoningStreamEnabled,
+                reasoningStreamEnabled:
+                  payload.reasoningStreamEnabled ?? run.reasoningStreamEnabled,
                 reasoningStreamDisabledReason:
                   payload.reasoningStreamDisabledReason ?? run.reasoningStreamDisabledReason,
                 ...(replanAfterTools ? { thinkingBuffer: '' } : {}),

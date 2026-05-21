@@ -235,8 +235,8 @@ function TraceEntry({
                     ? planningReasoning.text
                     : planningReasoning.isStreaming
                       ? 'Receiving reasoning from the model…'
-                      : planningReasoning.disabledReason ??
-                        'No reasoning stream was captured for this run (the thinking model may be disabled).'}
+                      : (planningReasoning.disabledReason ??
+                        'No reasoning stream was captured for this run (the thinking model may be disabled).')}
                 </pre>
               </div>
             )}

@@ -360,9 +360,7 @@ export const reconcileOptimisticUserMessageId = (
   const nodes = tree.nodes.map((n) => (n.id === clientMessageId ? nextNode : n));
   const childrenByParentId: Record<string, string[]> = {};
   for (const [key, children] of Object.entries(tree.childrenByParentId)) {
-    childrenByParentId[key] = children.map((id) =>
-      id === clientMessageId ? serverMessageId : id
-    );
+    childrenByParentId[key] = children.map((id) => (id === clientMessageId ? serverMessageId : id));
   }
   const leafIds = tree.leafIds.map((id) => (id === clientMessageId ? serverMessageId : id));
   queryClient.setQueryData(queryKeys.chatbot.messages.tree(threadId), {
@@ -372,8 +370,6 @@ export const reconcileOptimisticUserMessageId = (
     leafIds,
   });
   updateListQueries<ChatMessage>(queryClient, queryKeys.chatbot.messages.list(threadId), (items) =>
-    sortMessages(
-      items.map((m) => (m.id === clientMessageId ? { ...m, id: serverMessageId } : m))
-    )
+    sortMessages(items.map((m) => (m.id === clientMessageId ? { ...m, id: serverMessageId } : m)))
   );
 };

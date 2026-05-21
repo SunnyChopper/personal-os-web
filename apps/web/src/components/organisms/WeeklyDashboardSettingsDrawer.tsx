@@ -12,10 +12,7 @@ import type {
   WeeklyDashboardWidget,
   WeeklyDashboardWidgetType,
 } from '@/types/weekly-dashboard';
-import {
-  DEFAULT_WEEKLY_DASHBOARD_CONFIG,
-  STAT_TILE_LABELS,
-} from '@/types/weekly-dashboard';
+import { DEFAULT_WEEKLY_DASHBOARD_CONFIG, STAT_TILE_LABELS } from '@/types/weekly-dashboard';
 import { cn } from '@/lib/utils';
 
 interface WeeklyDashboardSettingsDrawerProps {
@@ -55,7 +52,10 @@ function defaultWidget(type: WeeklyDashboardWidgetType): WeeklyDashboardWidget {
   }
 }
 
-export function WeeklyDashboardSettingsDrawer({ open, onClose }: WeeklyDashboardSettingsDrawerProps) {
+export function WeeklyDashboardSettingsDrawer({
+  open,
+  onClose,
+}: WeeklyDashboardSettingsDrawerProps) {
   const { data: saved } = useWeeklyDashboardConfig();
   const save = useWeeklyDashboardConfigMutation();
   const { metrics, habits } = useGrowthSystemDashboard();
@@ -107,10 +107,16 @@ export function WeeklyDashboardSettingsDrawer({ open, onClose }: WeeklyDashboard
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/40"
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="flex h-full w-full max-w-lg flex-col bg-white shadow-xl dark:bg-gray-900">
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Customize dashboard</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Customize dashboard
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -123,7 +129,9 @@ export function WeeklyDashboardSettingsDrawer({ open, onClose }: WeeklyDashboard
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           <label className="block text-sm">
-            <span className="font-medium text-gray-700 dark:text-gray-300">Default comparison weeks</span>
+            <span className="font-medium text-gray-700 dark:text-gray-300">
+              Default comparison weeks
+            </span>
             <input
               type="number"
               min={1}
@@ -230,9 +238,7 @@ export function WeeklyDashboardSettingsDrawer({ open, onClose }: WeeklyDashboard
                           key={key}
                           type="button"
                           onClick={() => {
-                            const next = active
-                              ? tiles.filter((t) => t !== key)
-                              : [...tiles, key];
+                            const next = active ? tiles.filter((t) => t !== key) : [...tiles, key];
                             if (next.length === 0) return;
                             updateWidget(widget.id, { config: { tiles: next } });
                           }}

@@ -1,12 +1,5 @@
 import type { ComponentType } from 'react';
-import {
-  Activity,
-  BarChart2,
-  BookOpen,
-  CheckCircle,
-  Target,
-  TrendingUp,
-} from 'lucide-react';
+import { Activity, BarChart2, BookOpen, CheckCircle, Target, TrendingUp } from 'lucide-react';
 import type { WeeklyReviewCurrentDashboard } from '@/types/growth-system';
 import type { StatTileKey, WeeklyDashboardWidget } from '@/types/weekly-dashboard';
 import { STAT_TILE_LABELS } from '@/types/weekly-dashboard';

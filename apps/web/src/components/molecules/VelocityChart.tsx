@@ -53,9 +53,7 @@ export function VelocityChart({
 
   const polylinePoints = useMemo(() => {
     if (ordered.length === 0) return '';
-    return rollingSeries
-      .map((avg, i) => `${xCenter(i)},${yAt(avg)}`)
-      .join(' ');
+    return rollingSeries.map((avg, i) => `${xCenter(i)},${yAt(avg)}`).join(' ');
   }, [ordered.length, rollingSeries, maxY]);
 
   const latestRolling = rollingSeries.length > 0 ? rollingSeries[rollingSeries.length - 1] : 0;

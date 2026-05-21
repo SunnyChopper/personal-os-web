@@ -18,10 +18,7 @@ type ShowToast = (options: { type: 'error'; title: string; message: string }) =>
 type CreateThreadFn = (input: { title: string }) => Promise<ChatThread>;
 
 type SendUserMessageFn = (
-  payload: Omit<
-    import('@/types/chatbot').WsUserMessagePayload,
-    'threadId'
-  >
+  payload: Omit<import('@/types/chatbot').WsUserMessagePayload, 'threadId'>
 ) => void;
 
 export function useChatbotSendHandlers({
@@ -53,10 +50,7 @@ export function useChatbotSendHandlers({
   setSelectedLeafId: (leafId: string | null) => void;
   createThread: CreateThreadFn;
   sendUserMessage: SendUserMessageFn;
-  sendFollowUp: (
-    userMessageId: string,
-    options?: { runConfig?: AssistantRunConfig }
-  ) => void;
+  sendFollowUp: (userMessageId: string, options?: { runConfig?: AssistantRunConfig }) => void;
   registerOptimisticUserId: (threadId: string, clientUserId: string) => void;
   getRunConfig: () => AssistantRunConfig | undefined;
   connectionState: AssistantWsConnectionState;
@@ -233,9 +227,7 @@ export function useChatbotSendHandlers({
     const isDraft = isLocalAssistantThreadId(threadForSend.id);
     const optimisticUserId = clientMessageId || `client-user-${crypto.randomUUID()}`;
     const runConfigSnapshot = getRunConfigFn();
-    const metadata = runConfigSnapshot
-      ? { assistantModelConfig: runConfigSnapshot }
-      : undefined;
+    const metadata = runConfigSnapshot ? { assistantModelConfig: runConfigSnapshot } : undefined;
 
     setIsLoading(true);
     setEditingMessageId(null);

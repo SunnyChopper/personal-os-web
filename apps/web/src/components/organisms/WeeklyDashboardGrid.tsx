@@ -120,7 +120,12 @@ export function WeeklyDashboardGrid({
   );
 
   return (
-    <div className={cn('space-y-4', editable && 'rounded-xl border border-dashed border-blue-300/60 p-4')}>
+    <div
+      className={cn(
+        'space-y-4',
+        editable && 'rounded-xl border border-dashed border-blue-300/60 p-4'
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Week {data.weekStart} → {data.weekEnd}

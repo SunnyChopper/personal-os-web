@@ -48,7 +48,8 @@ export function HabitCompletionWidget({ widget }: HabitCompletionWidgetProps) {
       ) : (
         <div className="space-y-2">
           {weekData.map((row) => {
-            const pct = row.expected > 0 ? Math.min(100, (row.completions / row.expected) * 100) : 0;
+            const pct =
+              row.expected > 0 ? Math.min(100, (row.completions / row.expected) * 100) : 0;
             return (
               <div key={row.startDate} className="flex items-center gap-2 text-xs">
                 <span className="w-20 shrink-0 truncate text-gray-500">

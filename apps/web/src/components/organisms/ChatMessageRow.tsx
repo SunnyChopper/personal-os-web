@@ -161,8 +161,8 @@ export const ChatMessageRow = memo(function ChatMessageRow({
   const assistantThinkingForTrace = run?.thinkingBuffer?.trim() || message.thinking?.trim() || '';
   const assistantThinkingStreaming = Boolean(
     run &&
-      (Boolean(run.thinkingBuffer?.trim()) ||
-        (run.thinkingPhase != null && run.reasoningStreamEnabled !== false))
+    (Boolean(run.thinkingBuffer?.trim()) ||
+      (run.thinkingPhase != null && run.reasoningStreamEnabled !== false))
   );
   const reasoningDisabledMessage =
     run?.reasoningStreamDisabledReason ??

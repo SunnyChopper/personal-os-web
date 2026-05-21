@@ -92,12 +92,7 @@ export function AssistantTraceJsonViewer({
   };
 
   const root = useMemo(() => {
-    if (
-      topLevelExpanded &&
-      data !== null &&
-      typeof data === 'object' &&
-      !Array.isArray(data)
-    ) {
+    if (topLevelExpanded && data !== null && typeof data === 'object' && !Array.isArray(data)) {
       const entries = Object.entries(data as Record<string, unknown>);
       return entries.map(([childKey, childValue]) => (
         <div key={childKey}>{renderNode(childValue, `root.${childKey}`, childKey, 0)}</div>
