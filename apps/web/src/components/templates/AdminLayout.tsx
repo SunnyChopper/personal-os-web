@@ -56,6 +56,7 @@ import { BackendStatusBanner } from '@/components/molecules/BackendStatusBanner'
 import { ROUTES } from '@/routes';
 import { cn } from '@/lib/utils';
 import { taskLinksService } from '@/services/knowledge-vault/task-links.service';
+import { useWeeklyReviewCurrent } from '@/hooks/useWeeklyReview';
 
 const DebugInspector = lazy(() =>
   import('@/components/organisms/DebugInspector').then((m) => ({ default: m.DebugInspector }))
@@ -300,6 +301,12 @@ function AdminLayoutContent() {
   });
   const vaultLinkBadge = vaultTaskLinkBadgeQuery.data ?? 0;
 
+  const { data: weeklyReviewCurrent } = useWeeklyReviewCurrent({
+    weeks: 5,
+    refetchInterval: 120_000,
+  });
+  const weeklyReviewPending = weeklyReviewCurrent?.pendingReview ?? false;
+
   const clearRouteCollapseForExpandKey = useCallback((expandKey: string) => {
     setRouteCollapsedAt((prev) => {
       if (!(expandKey in prev)) return prev;
@@ -520,6 +527,11 @@ function AdminLayoutContent() {
           {child.href === ROUTES.admin.knowledgeVaultTaskLinks && vaultLinkBadge > 0 && (
             <span className="shrink-0 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
               {vaultLinkBadge > 99 ? '99+' : vaultLinkBadge}
+            </span>
+          )}
+          {child.href === ROUTES.admin.weeklyReview && weeklyReviewPending && (
+            <span className="shrink-0 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+              !
             </span>
           )}
         </Link>

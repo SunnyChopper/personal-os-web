@@ -15,8 +15,17 @@ export const weeklyReviewService = {
     return apiClient.get<WeeklyReviewListResult>(`/growth-system/weekly-reviews?${q}`);
   },
 
-  getCurrent: async (): Promise<ApiResponse<WeeklyReviewCurrentDashboard>> => {
-    return apiClient.get<WeeklyReviewCurrentDashboard>('/growth-system/weekly-reviews/current');
+  getCurrent: async (
+    weeks = 5,
+    rollingWindow = 4
+  ): Promise<ApiResponse<WeeklyReviewCurrentDashboard>> => {
+    const q = new URLSearchParams({
+      weeks: String(weeks),
+      rollingWindow: String(rollingWindow),
+    });
+    return apiClient.get<WeeklyReviewCurrentDashboard>(
+      `/growth-system/weekly-reviews/current?${q}`
+    );
   },
 
   get: async (weekStart: string): Promise<ApiResponse<WeeklyReview>> => {

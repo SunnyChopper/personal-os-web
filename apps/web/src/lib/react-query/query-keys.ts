@@ -75,7 +75,15 @@ export const queryKeys = {
     },
     weeklyReviews: {
       all: () => [...queryKeys.growthSystem.all, 'weekly-reviews'] as const,
-      current: () => [...queryKeys.growthSystem.weeklyReviews.all(), 'current'] as const,
+      current: (weeks?: number, rollingWindow?: number) =>
+        weeks != null
+          ? ([
+              ...queryKeys.growthSystem.weeklyReviews.all(),
+              'current',
+              weeks,
+              rollingWindow ?? 4,
+            ] as const)
+          : ([...queryKeys.growthSystem.weeklyReviews.all(), 'current'] as const),
       list: (page: number, pageSize: number) =>
         [...queryKeys.growthSystem.weeklyReviews.all(), 'list', page, pageSize] as const,
       detail: (weekStart: string) =>
@@ -331,6 +339,7 @@ export const queryKeys = {
   preferences: {
     all: ['preferences'] as const,
     timeZone: () => [...queryKeys.preferences.all, 'time-zone'] as const,
+    weeklyDashboard: () => [...queryKeys.preferences.all, 'weekly-dashboard'] as const,
   },
 
   // Rewards

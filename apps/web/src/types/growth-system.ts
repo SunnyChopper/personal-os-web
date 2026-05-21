@@ -879,10 +879,12 @@ export interface WeeklyReviewCurrentDashboard {
   weekEnd: string;
   isMidWeek: boolean;
   hasGeneratedReview: boolean;
+  pendingReview: boolean;
   statsPartial: WeeklyReviewStats;
   velocityData: WeeklyReviewVelocityWeek[];
   trailingAverageStoryPoints: number;
   currentWeekStoryPoints: number;
+  rollingAverageStoryPoints: number[];
 }
 
 /** Result of POST /growth-system/weekly-reviews/{weekStart}/send-email */

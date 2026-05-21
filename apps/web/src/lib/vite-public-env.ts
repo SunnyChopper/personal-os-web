@@ -14,6 +14,12 @@ export const HOSTED_DEV_API_BASE_URL = 'https://dev-api.sunnysingh.tech';
 /** When `VITE_API_BASE_URL` is unset in a production bundle (e.g. misconfigured CI). */
 const CANONICAL_PROD_API_BASE_URL = 'https://api.sunnysingh.tech';
 
+/**
+ * When `VITE_WS_URL` is unset or a stale GitHub secret points at a deleted API Gateway id.
+ * Must match live `personal-os-api-prod-ws` (verify: `npm run check:ws-url:prod`).
+ */
+export const CANONICAL_PROD_WS_URL = 'wss://m81sus1hxc.execute-api.us-east-1.amazonaws.com/prod';
+
 /** Dev WebSocket stage URL; override with `VITE_WS_URL` if your deploy uses a different API id. */
 export const HOSTED_DEV_WS_URL = 'wss://vw7fod81p6.execute-api.us-east-1.amazonaws.com/dev';
 
@@ -26,6 +32,9 @@ export function getResolvedApiBaseUrl(): string {
 }
 
 export function getResolvedWsUrl(): string | undefined {
+  if (import.meta.env.PROD) {
+    return CANONICAL_PROD_WS_URL;
+  }
   const explicit = import.meta.env.VITE_WS_URL;
   if (explicit) return explicit;
   if (import.meta.env.DEV) return HOSTED_DEV_WS_URL;

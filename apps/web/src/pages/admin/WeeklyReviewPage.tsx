@@ -24,6 +24,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '@/components/atoms/Button';
 import { CelebrationEffect } from '@/components/atoms/CelebrationEffect';
+import { WeeklyDashboardGrid } from '@/components/organisms/WeeklyDashboardGrid';
+import { WeeklyDashboardSettingsDrawer } from '@/components/organisms/WeeklyDashboardSettingsDrawer';
 import { VelocityChart } from '@/components/molecules/VelocityChart';
 import { AISuggestedTasks } from '@/components/organisms/AISuggestedTasks';
 import { BlockerResolution } from '@/components/organisms/BlockerResolution';
@@ -36,6 +38,8 @@ import {
   useWeeklyReviewSnapshot,
   useSendWeeklyReviewEmail,
 } from '@/hooks/useWeeklyReview';
+import { useWeeklyDashboardConfig } from '@/hooks/useWeeklyDashboardConfig';
+import { maxComparisonWeeks, velocityRollingWindow } from '@/types/weekly-dashboard';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ROUTES } from '@/routes';
@@ -66,6 +70,11 @@ export default function WeeklyReviewPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const weekFromUrl = searchParams.get('week');
   const { showToast, ToastContainer } = useToast();
+  const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);
+
+  const { data: dashboardConfig } = useWeeklyDashboardConfig();
+  const comparisonWeeks = dashboardConfig ? maxComparisonWeeks(dashboardConfig) : 5;
+  const rollingWindow = dashboardConfig ? velocityRollingWindow(dashboardConfig) : 4;
 
   const {
     data: current,
@@ -73,7 +82,7 @@ export default function WeeklyReviewPage() {
     isError: currentIsError,
     error: currentErr,
     refetch: refetchCurrent,
-  } = useWeeklyReviewCurrent();
+  } = useWeeklyReviewCurrent({ weeks: comparisonWeeks, rollingWindow });
   const { data: listData } = useWeeklyReviewList(1, 30);
 
   const effectiveWeekStart = useMemo(() => {
@@ -439,7 +448,25 @@ export default function WeeklyReviewPage() {
           </div>
         )}
 
-        {showMidWeek && current && !loading && (
+        {current?.pendingReview && !weekFromUrl && !loading && (
+          <div
+            className="mb-6 flex flex-col gap-3 rounded-xl border border-amber-300/80 bg-amber-50/90 p-4 text-sm text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-100 md:flex-row md:items-center md:justify-between"
+            role="status"
+          >
+            <div>
+              <p className="font-semibold">Weekly review pending</p>
+              <p className="mt-1 text-amber-900/90 dark:text-amber-200/90">
+                Your review day has passed for week {current.weekStart}. Complete your weekly review
+                or run it now to lock in the week.
+              </p>
+            </div>
+            <Button variant="primary" onClick={handleGenerate} disabled={generate.isPending}>
+              {generate.isPending ? 'Generating…' : 'Start weekly review'}
+            </Button>
+          </div>
+        )}
+
+        {showMidWeek && current && dashboardConfig && !loading && (
           <div className="space-y-6">
             <div className={`p-6 ${cardClass}`}>
               <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-white">
@@ -449,44 +476,11 @@ export default function WeeklyReviewPage() {
                 Week {current.weekStart} → {current.weekEnd}. Your automated review will run on your
                 scheduled day; you can also generate it now.
               </p>
-              <VelocityChart weeks={current.velocityData} currentWeekStart={current.weekStart} />
-              <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
-                <MetricWidget
-                  label="Tasks done"
-                  value={current.statsPartial.tasksCompleted}
-                  accent="text-gray-900 dark:text-white"
-                  icon={CheckCircle}
-                  muted={false}
-                />
-                <MetricWidget
-                  label="Habit logs"
-                  value={current.statsPartial.habitCompletions}
-                  accent="text-emerald-500 dark:text-emerald-400"
-                  icon={Activity}
-                  muted={false}
-                />
-                <MetricWidget
-                  label="Goals active"
-                  value={current.statsPartial.goalsActive}
-                  accent="text-violet-500 dark:text-violet-400"
-                  icon={Target}
-                  muted={false}
-                />
-                <MetricWidget
-                  label="Metrics"
-                  value={current.statsPartial.metricsLogged}
-                  accent="text-amber-500 dark:text-amber-400"
-                  icon={BarChart2}
-                  muted={false}
-                />
-                <MetricWidget
-                  label="Journal"
-                  value={current.statsPartial.journalEntries}
-                  accent="text-cyan-500 dark:text-cyan-400"
-                  icon={BookOpen}
-                  muted={false}
-                />
-              </div>
+              <WeeklyDashboardGrid
+                config={dashboardConfig}
+                data={current}
+                onEdit={() => setDashboardDrawerOpen(true)}
+              />
               <div className="mt-6 flex justify-end">
                 <Button variant="primary" onClick={handleGenerate} disabled={generate.isPending}>
                   {generate.isPending ? 'Generating…' : 'Run weekly review now'}
@@ -495,6 +489,11 @@ export default function WeeklyReviewPage() {
             </div>
           </div>
         )}
+
+        <WeeklyDashboardSettingsDrawer
+          open={dashboardDrawerOpen}
+          onClose={() => setDashboardDrawerOpen(false)}
+        />
 
         {snapshot && !loading && (
           <div className={cn('flex flex-col gap-8 lg:flex-row', isHistorical && 'opacity-[0.97]')}>

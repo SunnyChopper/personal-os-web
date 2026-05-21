@@ -16,14 +16,10 @@ import type { AssistantRunConfig, ChatThread, MessageTreeResponse } from '@/type
 type ShowToast = (options: { type: 'error'; title: string; message: string }) => void;
 
 type CreateThreadFn = (input: { title: string }) => Promise<ChatThread>;
-type CreateMessageFn = (input: {
-  threadId: string;
-  role: 'user';
-  content: string;
-  parentId?: string;
-  clientMessageId?: string;
-  metadata?: import('@/types/chatbot').ChatMessage['metadata'];
-}) => Promise<{ id: string }>;
+
+type SendUserMessageFn = (
+  payload: Omit<import('@/types/chatbot').WsUserMessagePayload, 'threadId'>
+) => void;
 
 export function useChatbotSendHandlers({
   queryClient,
@@ -33,8 +29,9 @@ export function useChatbotSendHandlers({
   selectedLeafId,
   setSelectedLeafId,
   createThread,
-  createMessage,
+  sendUserMessage,
   sendFollowUp,
+  registerOptimisticUserId,
   getRunConfig,
   connectionState,
   streamingThreadId,
@@ -52,32 +49,28 @@ export function useChatbotSendHandlers({
   selectedLeafId: string | null;
   setSelectedLeafId: (leafId: string | null) => void;
   createThread: CreateThreadFn;
-  createMessage: CreateMessageFn;
-  sendFollowUp: (
-    userMessageId: string,
-    options?: { runConfig?: import('@/types/chatbot').AssistantRunConfig }
-  ) => void;
+  sendUserMessage: SendUserMessageFn;
+  sendFollowUp: (userMessageId: string, options?: { runConfig?: AssistantRunConfig }) => void;
+  registerOptimisticUserId: (threadId: string, clientUserId: string) => void;
   getRunConfig: () => AssistantRunConfig | undefined;
   connectionState: AssistantWsConnectionState;
   streamingThreadId: string | undefined;
   setStreamingThreadOverrideId: (id: string | null) => void;
   isAwaitingRunStart: boolean;
   isLocalDraft: boolean;
-  /** Called with the original message content when a send fails so the composer can restore it. */
   onRestoreInput: (content: string) => void;
-  /** Called after a user message is successfully queued for the assistant (HTTP + WS handoff). */
   onMessageSent?: () => void;
-  /** When set (e.g. manual compaction required), block sends and toast instead of hitting the API/WS. */
   manualSendBlockedMessage?: string | null;
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [awaitingWsFollowUp, setAwaitingWsFollowUp] = useState(false);
-  /** State (not a ref) so the follow-up effect re-runs after the first message on a new thread. */
   const [pendingWsFollowUp, setPendingWsFollowUp] = useState<{
     threadId: string;
-    userMessageId: string;
+    content: string;
+    parentId?: string;
     runConfig?: AssistantRunConfig;
+    metadata?: import('@/types/chatbot').ChatMessage['metadata'];
   } | null>(null);
 
   useEffect(() => {
@@ -93,7 +86,10 @@ export function useChatbotSendHandlers({
     if (streamingThreadId !== pendingWsFollowUp.threadId) {
       return;
     }
-    sendFollowUp(pendingWsFollowUp.userMessageId, {
+    sendUserMessage({
+      content: pendingWsFollowUp.content,
+      parentId: pendingWsFollowUp.parentId,
+      metadata: pendingWsFollowUp.metadata,
       runConfig: pendingWsFollowUp.runConfig,
     });
     setPendingWsFollowUp(null);
@@ -104,21 +100,20 @@ export function useChatbotSendHandlers({
   }, [
     awaitingWsFollowUp,
     connectionState,
-    sendFollowUp,
+    sendUserMessage,
     streamingThreadId,
     setStreamingThreadOverrideId,
     pendingWsFollowUp,
   ]);
 
-  // Keep a ref to all volatile values so the stable useCallback below always sees current state
-  // without being recreated on every render.
   const stateRef = useRef({
     activeThread,
     selectedLeafId,
     setSelectedLeafId,
     createThread,
-    createMessage,
+    sendUserMessage,
     sendFollowUp,
+    registerOptimisticUserId,
     getRunConfig,
     connectionState,
     streamingThreadId,
@@ -141,8 +136,9 @@ export function useChatbotSendHandlers({
       selectedLeafId,
       setSelectedLeafId,
       createThread,
-      createMessage,
+      sendUserMessage,
       sendFollowUp,
+      registerOptimisticUserId,
       getRunConfig,
       connectionState,
       streamingThreadId,
@@ -163,8 +159,9 @@ export function useChatbotSendHandlers({
     selectedLeafId,
     setSelectedLeafId,
     createThread,
-    createMessage,
+    sendUserMessage,
     sendFollowUp,
+    registerOptimisticUserId,
     getRunConfig,
     connectionState,
     streamingThreadId,
@@ -187,11 +184,10 @@ export function useChatbotSendHandlers({
       selectedLeafId,
       setSelectedLeafId,
       createThread,
-      createMessage,
-      sendFollowUp,
+      sendUserMessage: sendWsUserMessage,
+      registerOptimisticUserId: registerOptimistic,
       getRunConfig: getRunConfigFn,
       connectionState,
-      streamingThreadId: _streamingThreadId,
       setStreamingThreadOverrideId,
       isAwaitingRunStart,
       isLocalDraft,
@@ -229,65 +225,79 @@ export function useChatbotSendHandlers({
     }
 
     const isDraft = isLocalAssistantThreadId(threadForSend.id);
-    let draftPendingMessageId: string | null = null;
+    const optimisticUserId = clientMessageId || `client-user-${crypto.randomUUID()}`;
+    const runConfigSnapshot = getRunConfigFn();
+    const metadata = runConfigSnapshot ? { assistantModelConfig: runConfigSnapshot } : undefined;
 
     setIsLoading(true);
     setEditingMessageId(null);
+
     if (isDraft) {
-      draftPendingMessageId = clientMessageId || `client-${crypto.randomUUID()}`;
       upsertMessageTreeNodeCache(queryClient, threadForSend.id, {
-        id: draftPendingMessageId,
+        id: optimisticUserId,
         threadId: threadForSend.id,
         role: 'user',
         content: userMessage,
         createdAt: new Date().toISOString(),
         parentId: selectedLeafId || undefined,
         clientStatus: 'sending',
-        clientMessageId: draftPendingMessageId,
+        clientMessageId: optimisticUserId,
       });
-      setSelectedLeafId(draftPendingMessageId);
+      setSelectedLeafId(optimisticUserId);
     }
 
     try {
       let threadId = threadForSend.id;
       let parentId = selectedLeafId || undefined;
+
       if (isDraft) {
         setAwaitingWsFollowUp(true);
         const newThread = await createThread({ title: 'New Chat' });
         threadId = newThread.id;
         setStreamingThreadOverrideId(threadId);
         parentId = undefined;
-      }
-
-      const runConfigSnapshot = getRunConfigFn();
-      const userMsg = await createMessage({
-        threadId,
-        role: 'user',
-        content: userMessage,
-        parentId,
-        clientMessageId,
-        ...(runConfigSnapshot ? { metadata: { assistantModelConfig: runConfigSnapshot } } : {}),
-      });
-      if (isDraft) {
-        if (draftPendingMessageId) {
-          const existingDraftTree = queryClient.getQueryData<MessageTreeResponse>(
-            queryKeys.chatbot.messages.tree(threadForSend.id)
-          );
-          if (existingDraftTree) {
-            const nextDraftTree = removeNodeFromTree(existingDraftTree, draftPendingMessageId);
-            replaceMessageTreeCache(queryClient, threadForSend.id, nextDraftTree);
-          }
-        }
+        registerOptimistic(threadId, optimisticUserId);
+        upsertMessageTreeNodeCache(queryClient, threadId, {
+          id: optimisticUserId,
+          threadId,
+          role: 'user',
+          content: userMessage,
+          createdAt: new Date().toISOString(),
+          parentId,
+          clientStatus: 'sending',
+          clientMessageId: optimisticUserId,
+          metadata,
+        });
         setPendingWsFollowUp({
           threadId,
-          userMessageId: userMsg.id,
+          content: userMessage,
+          parentId,
           runConfig: runConfigSnapshot,
+          metadata,
         });
         navigate(`/admin/assistant/${threadId}`, { replace: true });
       } else {
-        setSelectedLeafId(userMsg.id);
-        sendFollowUp(userMsg.id, { runConfig: runConfigSnapshot });
+        registerOptimistic(threadId, optimisticUserId);
+        upsertMessageTreeNodeCache(queryClient, threadId, {
+          id: optimisticUserId,
+          threadId,
+          role: 'user',
+          content: userMessage,
+          createdAt: new Date().toISOString(),
+          parentId,
+          clientStatus: 'sending',
+          clientMessageId: optimisticUserId,
+          metadata,
+        });
+        setSelectedLeafId(optimisticUserId);
+        sendWsUserMessage({
+          content: userMessage,
+          parentId,
+          metadata,
+          runConfig: runConfigSnapshot,
+        });
       }
+
       onMessageSentCb?.();
       setIsLoading(false);
     } catch (error) {
@@ -295,14 +305,12 @@ export function useChatbotSendHandlers({
       const apiError = extractApiError(error);
       const message = apiError?.message || extractErrorMessage(error, 'Message failed to send');
       if (isDraft) {
-        if (draftPendingMessageId) {
-          const existingDraftTree = queryClient.getQueryData<MessageTreeResponse>(
-            queryKeys.chatbot.messages.tree(threadForSend.id)
-          );
-          if (existingDraftTree) {
-            const nextDraftTree = removeNodeFromTree(existingDraftTree, draftPendingMessageId);
-            replaceMessageTreeCache(queryClient, threadForSend.id, nextDraftTree);
-          }
+        const existingDraftTree = queryClient.getQueryData<MessageTreeResponse>(
+          queryKeys.chatbot.messages.tree(threadForSend.id)
+        );
+        if (existingDraftTree) {
+          const nextDraftTree = removeNodeFromTree(existingDraftTree, optimisticUserId);
+          replaceMessageTreeCache(queryClient, threadForSend.id, nextDraftTree);
         }
         setSelectedLeafId(null);
         onRestoreInput(userMessage);

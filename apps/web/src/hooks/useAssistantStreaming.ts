@@ -2,6 +2,7 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useQueryClient } from '@tanstack/react-query';
 import type {
   AssistantLastResolvedModels,
+  AssistantReasoningPhase,
   AssistantRunUsageTokens,
   ChatMessage,
   MessageTreeResponse,
@@ -22,6 +23,7 @@ import { authService } from '@/lib/auth/auth.service';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import {
   preferRicherTraceArray,
+  reconcileOptimisticUserMessageId,
   removeChatMessageCache,
   removeNodeFromTree,
   upsertMessageTreeNodeCache,
@@ -59,6 +61,10 @@ type RunState = AssistantStreamingRunState & {
   statusMessage?: string;
   statusHistory: StatusEntry[];
   runStartedAt: number;
+  /** Active reasoning stream phase (may be set before first thinkingDelta). */
+  thinkingPhase?: AssistantReasoningPhase | null;
+  reasoningStreamEnabled?: boolean;
+  reasoningStreamDisabledReason?: string;
   /** Tool call input/output per completion event (order matches Running tool status entries) */
   toolCallDetails?: WsToolCallCompletePayload[];
   /** Outstanding HITL prompts keyed by approvalId */
@@ -66,6 +72,8 @@ type RunState = AssistantStreamingRunState & {
   resolvedReasoningModelId?: string;
   resolvedResponseModelId?: string;
   modelMode?: string;
+  /** True for client-bootstrapped runs replaced on runStarted. */
+  isClientBootstrap?: boolean;
 };
 
 type StreamingState = {
@@ -248,8 +256,14 @@ export function useAssistantStreaming(threadId: string | undefined) {
   const threadIdRef = useRef(threadId);
   /** Updated synchronously on each assistant WS delta; avoids empty run.buffer on runError in the same tick as RAF-batched flushes. */
   const streamedAssistantByRunIdRef = useRef<Record<string, string>>({});
+  const pendingOptimisticUserByThreadRef = useRef<Record<string, string>>({});
+  const clientBootstrapRunByThreadRef = useRef<Record<string, string>>({});
 
   const isAwaitingRunStart = pendingRunStartCount > 0;
+
+  const registerOptimisticUserId = useCallback((targetThreadId: string, clientUserId: string) => {
+    pendingOptimisticUserByThreadRef.current[targetThreadId] = clientUserId;
+  }, []);
 
   const runsForActiveThread = useMemo(() => {
     if (!threadId) {
@@ -373,6 +387,20 @@ export function useAssistantStreaming(threadId: string | undefined) {
         });
         setError(null);
         setPendingRunStartCount((current) => Math.max(0, current - 1));
+        const clientUserId = pendingOptimisticUserByThreadRef.current[payload.threadId];
+        if (clientUserId) {
+          reconcileOptimisticUserMessageId(
+            queryClient,
+            payload.threadId,
+            clientUserId,
+            payload.userMessageId
+          );
+          delete pendingOptimisticUserByThreadRef.current[payload.threadId];
+        }
+        const clientRunId = clientBootstrapRunByThreadRef.current[payload.threadId];
+        if (clientRunId) {
+          delete clientBootstrapRunByThreadRef.current[payload.threadId];
+        }
         thinkingSoundPlayedRef.current[payload.runId] = false;
         streamedAssistantByRunIdRef.current[payload.runId] = '';
         const runStartedAt = Date.now();
@@ -382,22 +410,29 @@ export function useAssistantStreaming(threadId: string | undefined) {
           message: bootstrapPlanningMessage,
           startedAt: runStartedAt,
         };
-        setRuns((current) => ({
-          ...current,
-          [payload.runId]: {
-            runId: payload.runId,
-            threadId: payload.threadId,
-            assistantMessageId: payload.assistantMessageId,
-            userMessageId: payload.userMessageId,
-            buffer: '',
-            thinkingBuffer: '',
-            statusStage: 'planning',
-            statusMessage: bootstrapPlanningMessage,
-            statusHistory: [bootstrapPlanningEntry],
-            runStartedAt,
-            pendingToolApprovals: {},
-          },
-        }));
+        setRuns((current) => {
+          const rest =
+            clientRunId != null
+              ? (({ [clientRunId]: _removed, ...remaining }) => remaining)(current)
+              : current;
+          return {
+            ...rest,
+            [payload.runId]: {
+              runId: payload.runId,
+              threadId: payload.threadId,
+              assistantMessageId: payload.assistantMessageId,
+              userMessageId: payload.userMessageId,
+              buffer: '',
+              thinkingBuffer: '',
+              statusStage: 'planning',
+              statusMessage: bootstrapPlanningMessage,
+              statusHistory: [bootstrapPlanningEntry],
+              runStartedAt,
+              thinkingPhase: 'planning',
+              pendingToolApprovals: {},
+            },
+          };
+        });
         const placeholder = buildPlaceholderMessage(
           payload.threadId,
           payload.assistantMessageId,
@@ -501,6 +536,17 @@ export function useAssistantStreaming(threadId: string | undefined) {
               payload.stage === 'planning' &&
               !soleBootstrapPlanning &&
               prevLast?.stage === 'runningTools';
+            const reasoningPhase =
+              payload.reasoningPhase ??
+              (payload.stage === 'planning' && replanAfterTools
+                ? 'replanning'
+                : payload.stage === 'planning'
+                  ? 'planning'
+                  : payload.stage === 'runningTools'
+                    ? 'runningTools'
+                    : payload.stage === 'responding'
+                      ? 'responding'
+                      : run.thinkingPhase);
             if (replanAfterTools) {
               upsertMessageTreeNodeCache(
                 queryClient,
@@ -521,6 +567,11 @@ export function useAssistantStreaming(threadId: string | undefined) {
                 statusStage: payload.stage,
                 statusMessage: mergedMessage ?? payload.message,
                 statusHistory: nextHistory,
+                thinkingPhase: reasoningPhase,
+                reasoningStreamEnabled:
+                  payload.reasoningStreamEnabled ?? run.reasoningStreamEnabled,
+                reasoningStreamDisabledReason:
+                  payload.reasoningStreamDisabledReason ?? run.reasoningStreamDisabledReason,
                 ...(replanAfterTools ? { thinkingBuffer: '' } : {}),
               },
             };
@@ -764,6 +815,49 @@ export function useAssistantStreaming(threadId: string | undefined) {
         });
         return;
       }
+
+      const hasNewContent = Boolean(payload.content?.trim()) && !payload.messageId;
+      if (hasNewContent) {
+        const clientRunId = `client-run-${crypto.randomUUID()}`;
+        const clientAssistantId = `client-asst-${crypto.randomUUID()}`;
+        const optimisticUserId =
+          pendingOptimisticUserByThreadRef.current[threadId] ??
+          `client-user-${crypto.randomUUID()}`;
+        pendingOptimisticUserByThreadRef.current[threadId] = optimisticUserId;
+        clientBootstrapRunByThreadRef.current[threadId] = clientRunId;
+        const runStartedAt = Date.now();
+        const bootstrapPlanningMessage = 'Planning your answer';
+        setRuns((current) => ({
+          ...current,
+          [clientRunId]: {
+            runId: clientRunId,
+            threadId,
+            assistantMessageId: clientAssistantId,
+            userMessageId: optimisticUserId,
+            buffer: '',
+            thinkingBuffer: '',
+            statusStage: 'planning',
+            statusMessage: bootstrapPlanningMessage,
+            statusHistory: [
+              {
+                stage: 'planning',
+                message: bootstrapPlanningMessage,
+                startedAt: runStartedAt,
+              },
+            ],
+            runStartedAt,
+            thinkingPhase: 'planning',
+            pendingToolApprovals: {},
+            isClientBootstrap: true,
+          },
+        }));
+        upsertMessageTreeNodeCache(
+          queryClient,
+          threadId,
+          buildPlaceholderMessage(threadId, clientAssistantId, optimisticUserId, '')
+        );
+      }
+
       const runSend = async () => {
         try {
           await client.sendUserMessage({
@@ -772,6 +866,14 @@ export function useAssistantStreaming(threadId: string | undefined) {
           });
         } catch (sendErr: unknown) {
           setPendingRunStartCount((current) => Math.max(0, current - 1));
+          const bootstrapId = clientBootstrapRunByThreadRef.current[threadId];
+          if (bootstrapId) {
+            setRuns((current) => {
+              const { [bootstrapId]: _removed, ...rest } = current;
+              return rest;
+            });
+            delete clientBootstrapRunByThreadRef.current[threadId];
+          }
           setError(mapAssistantConnectionFailure(sendErr, threadId));
         }
       };
@@ -780,7 +882,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
       setPendingRunStartCount((current) => current + 1);
       void runSend();
     },
-    [ensureClient, threadId]
+    [ensureClient, queryClient, threadId]
   );
 
   const sendFollowUp = useCallback(
@@ -961,6 +1063,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
     streamingMeterSnapshot,
     sendUserMessage,
     sendFollowUp,
+    registerOptimisticUserId,
     cancelRun,
     respondToToolApproval,
     reconnect,

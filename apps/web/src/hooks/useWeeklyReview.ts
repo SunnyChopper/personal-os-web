@@ -9,11 +9,17 @@ import type {
   WeeklyReviewSendEmailResult,
 } from '@/types/growth-system';
 
-export function useWeeklyReviewCurrent(options?: { refetchInterval?: number | false }) {
+export function useWeeklyReviewCurrent(options?: {
+  weeks?: number;
+  rollingWindow?: number;
+  refetchInterval?: number | false;
+}) {
+  const weeks = options?.weeks ?? 5;
+  const rollingWindow = options?.rollingWindow ?? 4;
   return useQuery({
-    queryKey: queryKeys.growthSystem.weeklyReviews.current(),
+    queryKey: queryKeys.growthSystem.weeklyReviews.current(weeks, rollingWindow),
     queryFn: async () => {
-      const res = await weeklyReviewService.getCurrent();
+      const res = await weeklyReviewService.getCurrent(weeks, rollingWindow);
       if (!res.success || !res.data) {
         throw new Error(formatApiFailure(res.error, 'Failed to load current weekly review'));
       }
