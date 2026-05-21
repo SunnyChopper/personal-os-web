@@ -65,9 +65,8 @@ export function AssistantMemoryIngestionForm({
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-600 dark:text-gray-400">
-        Used after each assistant reply for short-term memory notes and for condensing long threads
-        when context limits require it. Choose a small, fast model unless you need higher quality
-        extractions.
+        Used after each assistant reply for short-term memory notes (standout facts only — not
+        assistant briefings) and for condensing long threads when context limits require it.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
