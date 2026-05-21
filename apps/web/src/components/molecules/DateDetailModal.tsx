@@ -3,12 +3,7 @@ import { Plus, Trash2, Pencil } from 'lucide-react';
 import type { Habit, HabitLog } from '@/types/growth-system';
 import Dialog from '@/components/molecules/Dialog';
 import Button from '@/components/atoms/Button';
-import { formatCompletionDate, parseDateInput, toLocalDateKey } from '@/utils/date-formatters';
-
-function completionCalendarDay(completedAt: string): string {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(completedAt)) return completedAt;
-  return toLocalDateKey(parseDateInput(completedAt));
-}
+import { formatCompletionDate, getHabitLogCalendarDay } from '@/utils/date-formatters';
 
 interface DateDetailModalProps {
   isOpen: boolean;
@@ -74,7 +69,7 @@ export function DateDetailModal({
     setSavingLogId(log.id);
     setSaveError(null);
     try {
-      await onUpdateCompletionNote(completionCalendarDay(log.completedAt), payload);
+      await onUpdateCompletionNote(getHabitLogCalendarDay(log.completedAt), payload);
       setEditingLogId(null);
       setDraftNote('');
     } catch (err) {

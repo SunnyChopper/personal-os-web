@@ -232,11 +232,26 @@ export function getLastCompletedDateFromLogs(logs: HabitLog[]): Date | null {
   return new Date(sortedLogs[0].completedAt);
 }
 
+export function parseHabitCompletionConflictDate(message: string): string | null {
+  const match = message.match(/Completion already logged for (\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? null;
+}
+
+/**
+ * Calendar day (YYYY-MM-DD) for a habit log's `completedAt`, regardless of whether
+ * the API returned a date-only string or an ISO timestamp (including legacy rows
+ * that incorrectly used `createdAt` as `completedAt`).
+ */
+export function getHabitLogCalendarDay(completedAt: string): string {
+  if (DATE_ONLY_PATTERN.test(completedAt)) return completedAt;
+  return toLocalDateKey(parseDateInput(completedAt));
+}
+
 /**
  * Format completion date for display in lists
  */
 export function formatCompletionDate(date: Date | string): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const dateObj = typeof date === 'string' ? parseDateInput(date) : date;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 

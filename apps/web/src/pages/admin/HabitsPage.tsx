@@ -34,7 +34,12 @@ import { HabitDetailTabs, type HabitDetailTab } from '@/components/molecules/Hab
 import { FloatingLogButton } from '@/components/molecules/FloatingLogButton';
 import { DateDetailModal } from '@/components/molecules/DateDetailModal';
 import { LinkedGoalsDisplay } from '@/components/molecules/LinkedGoalsDisplay';
-import { formatCompletionDate } from '@/utils/date-formatters';
+import {
+  formatCompletionDate,
+  getHabitLogCalendarDay,
+  parseHabitCompletionConflictDate,
+  toLocalDateKey,
+} from '@/utils/date-formatters';
 import { getLogsForDateRange } from '@/utils/habit-analytics';
 
 type ViewMode = 'today' | 'all';
@@ -102,6 +107,11 @@ export default function HabitsPage() {
   const [logDialogDefaultDate, setLogDialogDefaultDate] = useState<Date | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [habitToDelete, setHabitToDelete] = useState<Habit | null>(null);
+  const [logConflict, setLogConflict] = useState<{
+    input: CreateHabitLogInput;
+    completionDate: string;
+    existingNote: string | null;
+  } | null>(null);
 
   const [showAIAssist, setShowAIAssist] = useState(false);
   const [todaySummary, setTodaySummary] = useState<{
@@ -235,12 +245,90 @@ export default function HabitsPage() {
     setIsSubmitting(true);
     try {
       const response = await logCompletion(input);
-      if (response.success && response.data) {
-        loadHabitLogs(input.habitId);
+      if (response.success) {
+        await loadHabitLogs(input.habitId);
         closeLogDialog();
+        return;
       }
+
+      if (response.error?.code === 'CONFLICT') {
+        const completionDate =
+          parseHabitCompletionConflictDate(response.error.message ?? '') ??
+          (input.completedAt
+            ? getHabitLogCalendarDay(input.completedAt)
+            : toLocalDateKey(new Date()));
+        const existing = (habitLogs.get(input.habitId) ?? []).find(
+          (log) => getHabitLogCalendarDay(log.completedAt) === completionDate
+        );
+        setLogConflict({
+          input,
+          completionDate,
+          existingNote: existing?.notes ?? null,
+        });
+        closeLogDialog();
+        return;
+      }
+
+      console.error('Failed to log habit:', response.error?.message);
     } catch (error) {
       console.error('Failed to log habit:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConflictReplace = async () => {
+    if (!logConflict) return;
+    setIsSubmitting(true);
+    try {
+      const note = logConflict.input.notes?.trim() || null;
+      const response = await updateCompletionNote({
+        habitId: logConflict.input.habitId,
+        completionDate: logConflict.completionDate,
+        note,
+      });
+      if (response.success) {
+        await loadHabitLogs(logConflict.input.habitId);
+        setLogConflict(null);
+      }
+    } catch (error) {
+      console.error('Failed to replace habit completion note:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConflictAppend = async () => {
+    if (!logConflict) return;
+    const newText = logConflict.input.notes?.trim();
+    if (!newText) {
+      setLogConflict(null);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      let existingNote = logConflict.existingNote;
+      if (existingNote === null) {
+        const logsResponse = await habitsService.getLogsByHabit(logConflict.input.habitId, {
+          startDate: logConflict.completionDate,
+          endDate: logConflict.completionDate,
+        });
+        existingNote = logsResponse.data?.[0]?.notes ?? null;
+      }
+
+      const merged = existingNote ? `${existingNote}\n\n${newText}` : newText;
+      const response = await updateCompletionNote({
+        habitId: logConflict.input.habitId,
+        completionDate: logConflict.completionDate,
+        note: merged,
+      });
+      if (response.success) {
+        await loadHabitLogs(logConflict.input.habitId);
+        setLogConflict(null);
+      }
+    } catch (error) {
+      console.error('Failed to append habit completion note:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -290,8 +378,8 @@ export default function HabitsPage() {
     const logs = habitLogs.get(habitId) || [];
     if (logs.length === 0) return 0;
 
-    const sortedLogs = [...logs].sort(
-      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    const sortedLogs = [...logs].sort((a, b) =>
+      getHabitLogCalendarDay(b.completedAt).localeCompare(getHabitLogCalendarDay(a.completedAt))
     );
 
     let streak = 0;
@@ -299,14 +387,13 @@ export default function HabitsPage() {
     today.setHours(0, 0, 0, 0);
 
     for (let i = 0; i < sortedLogs.length; i++) {
-      const logDate = new Date(sortedLogs[i].completedAt);
-      logDate.setHours(0, 0, 0, 0);
+      const logKey = getHabitLogCalendarDay(sortedLogs[i].completedAt);
 
       const expectedDate = new Date(today);
       expectedDate.setDate(today.getDate() - i);
-      expectedDate.setHours(0, 0, 0, 0);
+      const expectedKey = toLocalDateKey(expectedDate);
 
-      if (logDate.getTime() === expectedDate.getTime()) {
+      if (logKey === expectedKey) {
         streak++;
       } else {
         break;
@@ -323,11 +410,9 @@ export default function HabitsPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return logs.some((log) => {
-      const logDate = new Date(log.completedAt);
-      logDate.setHours(0, 0, 0, 0);
-      return logDate.getTime() === today.getTime();
-    });
+    const todayKey = toLocalDateKey(today);
+
+    return logs.some((log) => getHabitLogCalendarDay(log.completedAt) === todayKey);
   };
 
   const getTodayProgress = (habitId: string): number => {
@@ -337,12 +422,10 @@ export default function HabitsPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const todayKey = toLocalDateKey(today);
+
     return logs
-      .filter((log) => {
-        const logDate = new Date(log.completedAt);
-        logDate.setHours(0, 0, 0, 0);
-        return logDate.getTime() === today.getTime();
-      })
+      .filter((log) => getHabitLogCalendarDay(log.completedAt) === todayKey)
       .reduce((sum, log) => sum + (log.amount || 1), 0);
   };
 
@@ -366,8 +449,10 @@ export default function HabitsPage() {
 
     return logs
       .filter((log) => {
-        const logDate = new Date(log.completedAt);
-        return logDate >= monday && logDate <= sunday;
+        const logKey = getHabitLogCalendarDay(log.completedAt);
+        const mondayKey = toLocalDateKey(monday);
+        const sundayKey = toLocalDateKey(sunday);
+        return logKey >= mondayKey && logKey <= sundayKey;
       })
       .reduce((sum, log) => sum + (log.amount || 1), 0);
   };
@@ -383,8 +468,8 @@ export default function HabitsPage() {
     // Only calculate if logs are loaded for this habit
     const logs = habitLogs.get(habitId) || [];
     if (logs.length === 0) return null;
-    const sortedLogs = [...logs].sort(
-      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    const sortedLogs = [...logs].sort((a, b) =>
+      getHabitLogCalendarDay(b.completedAt).localeCompare(getHabitLogCalendarDay(a.completedAt))
     );
     return sortedLogs[0].completedAt;
   };
@@ -468,8 +553,8 @@ export default function HabitsPage() {
   const selectedLogs = selectedHabit ? habitLogs.get(selectedHabit.id) || [] : [];
   const sortedSelectedLogs = useMemo(
     () =>
-      [...selectedLogs].sort(
-        (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+      [...selectedLogs].sort((a, b) =>
+        getHabitLogCalendarDay(b.completedAt).localeCompare(getHabitLogCalendarDay(a.completedAt))
       ),
     [selectedLogs]
   );
@@ -623,8 +708,9 @@ export default function HabitsPage() {
                             <button
                               key={log.id}
                               onClick={() => {
-                                const logDate = new Date(log.completedAt);
-                                handleDateClick(logDate);
+                                const dayKey = getHabitLogCalendarDay(log.completedAt);
+                                const [year, month, day] = dayKey.split('-').map(Number);
+                                handleDateClick(new Date(year, month - 1, day));
                               }}
                               className="w-full text-left flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors min-h-[44px] touch-manipulation"
                             >
@@ -965,6 +1051,71 @@ export default function HabitsPage() {
             onCancel={closeLogDialog}
             isLoading={isSubmitting}
           />
+        )}
+      </Dialog>
+
+      <Dialog
+        isOpen={!!logConflict}
+        onClose={() => !isSubmitting && setLogConflict(null)}
+        title="Completion already exists"
+        className="max-w-lg"
+      >
+        {logConflict && (
+          <div className="space-y-4">
+            <p className="text-gray-700 dark:text-gray-300">
+              You already logged a completion for{' '}
+              <span className="font-medium">
+                {formatCompletionDate(logConflict.completionDate)}
+              </span>
+              . Replace the existing note or append your new note to it?
+            </p>
+            {logConflict.existingNote && (
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Current note
+                </p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                  {logConflict.existingNote}
+                </p>
+              </div>
+            )}
+            {logConflict.input.notes?.trim() && (
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3">
+                <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">
+                  New note
+                </p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                  {logConflict.input.notes.trim()}
+                </p>
+              </div>
+            )}
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setLogConflict(null)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleConflictAppend}
+                disabled={isSubmitting || !logConflict.input.notes?.trim()}
+              >
+                {isSubmitting ? 'Saving…' : 'Append to note'}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={handleConflictReplace}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Saving…' : 'Replace note'}
+              </Button>
+            </div>
+          </div>
         )}
       </Dialog>
 

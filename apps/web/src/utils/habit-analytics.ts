@@ -1,4 +1,5 @@
 import type { Habit, HabitLog } from '@/types/growth-system';
+import { getHabitLogCalendarDay, toLocalDateKey } from '@/utils/date-formatters';
 
 export interface StreakData {
   current: number;
@@ -392,9 +393,11 @@ export function generateHeatmapData(logs: HabitLog[], months: number = 6): Heatm
  * Get logs for a specific date range
  */
 export function getLogsForDateRange(logs: HabitLog[], startDate: Date, endDate: Date): HabitLog[] {
+  const startKey = toLocalDateKey(startDate);
+  const endKey = toLocalDateKey(endDate);
   return logs.filter((log) => {
-    const logDate = new Date(log.completedAt);
-    return logDate >= startDate && logDate <= endDate;
+    const logKey = getHabitLogCalendarDay(log.completedAt);
+    return logKey >= startKey && logKey <= endKey;
   });
 }
 
