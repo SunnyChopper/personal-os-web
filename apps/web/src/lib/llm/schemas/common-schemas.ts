@@ -42,6 +42,7 @@ export const SubCategorySchema = z.enum([
 export const PrioritySchema = z.enum(['P1', 'P2', 'P3', 'P4']);
 
 export const TaskStatusSchema = z.enum([
+  'Backlog',
   'Not Started',
   'In Progress',
   'Blocked',

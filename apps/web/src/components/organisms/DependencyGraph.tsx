@@ -143,6 +143,8 @@ export default function DependencyGraph({
         return 'fill-red-500 dark:fill-red-600';
       case 'On Hold':
         return 'fill-yellow-500 dark:fill-yellow-600';
+      case 'Backlog':
+        return 'fill-zinc-400 dark:fill-zinc-500';
       default:
         return 'fill-gray-400 dark:fill-gray-600';
     }
@@ -158,6 +160,8 @@ export default function DependencyGraph({
         return 'stroke-red-600 dark:stroke-red-700';
       case 'On Hold':
         return 'stroke-yellow-600 dark:stroke-yellow-700';
+      case 'Backlog':
+        return 'stroke-zinc-500 dark:stroke-zinc-600';
       default:
         return 'stroke-gray-500 dark:stroke-gray-700';
     }

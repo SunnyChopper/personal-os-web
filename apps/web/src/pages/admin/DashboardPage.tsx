@@ -90,7 +90,9 @@ export default function DashboardPage() {
     dashboardError ||
     (!backendStatus.isOnline && backendStatus.lastError && !backendStatus.isChecking);
 
-  const activeTasks = tasks.filter((t) => t.status !== 'Done' && t.status !== 'Cancelled');
+  const activeTasks = tasks.filter(
+    (t) => t.status !== 'Done' && t.status !== 'Cancelled' && t.status !== 'Backlog'
+  );
   const activeHabits = habits.filter((h) => h.frequency === 'Daily');
   const activeGoals = goals.filter((g) => g.status === 'Active');
   const activeProjects = projects.filter((p) => p.status === 'Active');

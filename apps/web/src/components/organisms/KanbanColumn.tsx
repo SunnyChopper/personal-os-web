@@ -2,9 +2,23 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Task, TaskStatus, UpdateTaskInput } from '@/types/growth-system';
 import { KanbanCard } from '@/components/molecules/KanbanCard';
-import { Plus, MoreVertical, ArrowRight, ArrowUpDown } from 'lucide-react';
+import { KanbanBacklogRow } from '@/components/molecules/KanbanBacklogRow';
+import { Plus, MoreVertical, ArrowRight, ArrowUpDown, LayoutList, LayoutGrid } from 'lucide-react';
 import { TASK_STATUS_LABELS } from '@/constants/growth-system';
-import { KANBAN_STATUSES } from '@/components/organisms/kanban/kanban-constants';
+import {
+  KANBAN_STATUSES,
+  KANBAN_BACKLOG_DENSITY_STORAGE_KEY,
+  type KanbanBacklogDensity,
+} from '@/components/organisms/kanban/kanban-constants';
+
+function readBacklogDensity(): KanbanBacklogDensity {
+  try {
+    const stored = localStorage.getItem(KANBAN_BACKLOG_DENSITY_STORAGE_KEY);
+    return stored === 'cards' ? 'cards' : 'compact';
+  } catch {
+    return 'compact';
+  }
+}
 
 const COLUMN_DROP_SPRING = {
   type: 'spring' as const,
@@ -73,8 +87,22 @@ export function KanbanColumn({
   onDragStart,
   onDragEnd,
 }: KanbanColumnProps) {
+  const isBacklogColumn = status === 'Backlog';
   const [menuOpen, setMenuOpen] = useState(false);
+  const [backlogDensity, setBacklogDensity] = useState<KanbanBacklogDensity>(() =>
+    isBacklogColumn ? readBacklogDensity() : 'cards'
+  );
   const menuRef = useRef<HTMLDivElement>(null);
+  const useCompactBacklogRows = isBacklogColumn && backlogDensity === 'compact';
+
+  const setBacklogDensityMode = (mode: KanbanBacklogDensity) => {
+    setBacklogDensity(mode);
+    try {
+      localStorage.setItem(KANBAN_BACKLOG_DENSITY_STORAGE_KEY, mode);
+    } catch {
+      /* ignore quota / private mode */
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -131,6 +159,27 @@ export function KanbanColumn({
               </h3>
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
+              {isBacklogColumn ? (
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.92 }}
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() =>
+                    setBacklogDensityMode(backlogDensity === 'compact' ? 'cards' : 'compact')
+                  }
+                  className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-black/5 dark:text-gray-300 dark:hover:bg-white/10"
+                  title={backlogDensity === 'compact' ? 'Show full cards' : 'Show dense rows'}
+                  aria-label={
+                    backlogDensity === 'compact' ? 'Switch to full cards' : 'Switch to dense rows'
+                  }
+                >
+                  {backlogDensity === 'compact' ? (
+                    <LayoutGrid className="h-4 w-4" />
+                  ) : (
+                    <LayoutList className="h-4 w-4" />
+                  )}
+                </motion.button>
+              ) : null}
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.92 }}
@@ -220,17 +269,44 @@ export function KanbanColumn({
               : ''
           }`}
         >
-          <div className="space-y-2.5 pt-0.5">
+          <div className={useCompactBacklogRows ? 'space-y-1 pt-0.5' : 'space-y-2.5 pt-0.5'}>
             {isLoading ? (
-              <div className="space-y-2.5" aria-busy="true" aria-label="Loading tasks">
-                <KanbanCardSkeleton index={0} />
-                <KanbanCardSkeleton index={1} />
+              <div
+                className={useCompactBacklogRows ? 'space-y-1' : 'space-y-2.5'}
+                aria-busy="true"
+                aria-label="Loading tasks"
+              >
+                {useCompactBacklogRows ? (
+                  <>
+                    <div className="h-9 animate-pulse rounded-md bg-gray-200/80 dark:bg-gray-700/80" />
+                    <div className="h-9 animate-pulse rounded-md bg-gray-200/80 dark:bg-gray-700/80" />
+                  </>
+                ) : (
+                  <>
+                    <KanbanCardSkeleton index={0} />
+                    <KanbanCardSkeleton index={1} />
+                  </>
+                )}
               </div>
             ) : statusTasks.length === 0 ? (
               <div className="flex h-full min-h-[8rem] items-center justify-center px-2">
                 <div className="text-center text-sm text-gray-500 dark:text-gray-400">
                   {isDragOver ? (
                     <span className="font-medium text-blue-600 dark:text-blue-400">Drop here</span>
+                  ) : isBacklogColumn ? (
+                    <>
+                      <p>
+                        Capture anything. Promote to <strong>Not Started</strong> when it&apos;s on
+                        deck.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => onTaskCreate(status)}
+                        className="mt-2 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        + Add a card
+                      </button>
+                    </>
                   ) : (
                     <>
                       <p>No tasks yet</p>
@@ -247,18 +323,31 @@ export function KanbanColumn({
               </div>
             ) : (
               <AnimatePresence mode="popLayout">
-                {statusTasks.map((task, taskIndex) => (
-                  <KanbanCard
-                    key={task.id}
-                    task={task}
-                    taskIndex={taskIndex}
-                    isBeingDragged={draggedTask?.id === task.id}
-                    onDragStart={onDragStart}
-                    onDragEnd={onDragEnd}
-                    onEdit={onTaskEdit}
-                    onOpen={onTaskClick}
-                  />
-                ))}
+                {statusTasks.map((task, taskIndex) =>
+                  useCompactBacklogRows ? (
+                    <KanbanBacklogRow
+                      key={task.id}
+                      task={task}
+                      taskIndex={taskIndex}
+                      isBeingDragged={draggedTask?.id === task.id}
+                      onDragStart={onDragStart}
+                      onDragEnd={onDragEnd}
+                      onEdit={onTaskEdit}
+                      onPromote={(t) => onTaskUpdate(t.id, { status: 'Not Started' })}
+                    />
+                  ) : (
+                    <KanbanCard
+                      key={task.id}
+                      task={task}
+                      taskIndex={taskIndex}
+                      isBeingDragged={draggedTask?.id === task.id}
+                      onDragStart={onDragStart}
+                      onDragEnd={onDragEnd}
+                      onEdit={onTaskEdit}
+                      onOpen={onTaskClick}
+                    />
+                  )
+                )}
               </AnimatePresence>
             )}
           </div>

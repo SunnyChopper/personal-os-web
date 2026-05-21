@@ -32,6 +32,7 @@ export type SubCategory =
 export type Priority = 'P1' | 'P2' | 'P3' | 'P4';
 
 export type TaskStatus =
+  | 'Backlog'
   | 'Not Started'
   | 'In Progress'
   | 'Blocked'

@@ -35,6 +35,7 @@ export const SUBCATEGORIES_BY_AREA: Record<Area, readonly SubCategory[]> = {
 export const PRIORITIES: readonly Priority[] = ['P1', 'P2', 'P3', 'P4'];
 
 export const TASK_STATUSES: readonly TaskStatus[] = [
+  'Backlog',
   'Not Started',
   'In Progress',
   'Blocked',
@@ -44,6 +45,7 @@ export const TASK_STATUSES: readonly TaskStatus[] = [
 ];
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  Backlog: 'Backlog',
   'Not Started': 'Not Started',
   'In Progress': 'In Progress',
   Blocked: 'Blocked',

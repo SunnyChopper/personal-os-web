@@ -138,6 +138,7 @@ export function AIInsightsWidget() {
       });
     }
 
+    // P1 actionable tasks — Backlog is capture-only and excluded from this insight.
     const highPriorityTasks = tasks.filter(
       (t) => t.priority === 'P1' && (t.status === 'Not Started' || t.status === 'In Progress')
     );

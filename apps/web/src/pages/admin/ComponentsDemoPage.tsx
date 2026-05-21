@@ -103,6 +103,7 @@ export default function ComponentsDemoPage() {
               Status Badges
             </h3>
             <div className="flex flex-wrap gap-2">
+              <StatusBadge status="Backlog" />
               <StatusBadge status="Not Started" />
               <StatusBadge status="In Progress" />
               <StatusBadge status="Blocked" />
@@ -193,7 +194,7 @@ export default function ComponentsDemoPage() {
               availableFilters={{
                 areas: ['Health', 'Wealth', 'Love', 'Happiness', 'Operations', 'Day Job'],
                 priorities: ['P1', 'P2', 'P3', 'P4'],
-                statuses: ['Not Started', 'In Progress', 'Done'],
+                statuses: ['Backlog', 'Not Started', 'In Progress', 'Done'],
               }}
             />
           </div>
