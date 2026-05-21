@@ -50,8 +50,7 @@ import StudySessionPage from './pages/admin/StudySessionPage';
 import StudyStatisticsPage from './pages/admin/StudyStatisticsPage';
 import TasksPage from './pages/admin/TasksPage';
 import WeeklyReviewPage from './pages/admin/WeeklyReviewPage';
-import PlanTomorrowPage from './pages/admin/PlanTomorrowPage';
-import PlannerWeekPage from './pages/admin/PlannerWeekPage';
+import PlannerPage from './pages/admin/PlannerPage';
 import HealthFitnessOverviewPage from './pages/admin/HealthFitnessOverviewPage';
 import HealthFitnessNutritionPage from './pages/admin/HealthFitnessNutritionPage';
 import HealthFitnessWorkoutsPage from './pages/admin/HealthFitnessWorkoutsPage';
@@ -186,8 +185,8 @@ function AppContent() {
           <Route path={ADMIN_CHILD_ROUTES.projects} element={<ProjectsPage />} />
           <Route path={ADMIN_CHILD_ROUTES.logbook} element={<LogbookPage />} />
           <Route path={ADMIN_CHILD_ROUTES.weeklyReview} element={<WeeklyReviewPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.plannerWeek} element={<PlannerWeekPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.planner} element={<PlanTomorrowPage />} />
+          <Route path={ADMIN_CHILD_ROUTES.plannerWeek} element={<PlannerPage />} />
+          <Route path={ADMIN_CHILD_ROUTES.planner} element={<PlannerPage />} />
           <Route
             path={ADMIN_CHILD_ROUTES.plannerNightly}
             element={<Navigate to={ROUTES.admin.planner} replace />}

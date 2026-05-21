@@ -61,19 +61,16 @@ export function PlannerOneThingPanel({ onSaved }: PlannerOneThingPanelProps) {
 
   return (
     <section
-      className="rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 p-4 space-y-3"
+      className="space-y-3 rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/40 to-gray-950/60 p-4 shadow-lg backdrop-blur-sm"
       aria-labelledby="planner-one-thing-heading"
     >
       <div className="flex items-start gap-2">
         <Moon className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
         <div>
-          <h2
-            id="planner-one-thing-heading"
-            className="text-base font-semibold text-gray-900 dark:text-white"
-          >
+          <h2 id="planner-one-thing-heading" className="text-base font-semibold text-white">
             One thing for tomorrow
           </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-400">
             Pick a single focus task for <strong>{tomorrow}</strong>. It pins on that day in the
             week below.
           </p>
