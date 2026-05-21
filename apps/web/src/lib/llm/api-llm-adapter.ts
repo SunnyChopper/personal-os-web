@@ -50,6 +50,11 @@ function buildTaskStats(tasks: Task[]): {
       case 'Blocked':
         stats.blocked += 1;
         break;
+      case 'Not Started':
+        stats.notStarted += 1;
+        break;
+      case 'Backlog':
+        break;
       default:
         stats.notStarted += 1;
         break;

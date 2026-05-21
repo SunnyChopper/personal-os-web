@@ -60,6 +60,7 @@ export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantPro
 
   const generateDailyPlan = useCallback(async () => {
     // Calculate data signatures to detect actual changes
+    // Actionable on-deck work only — exclude Backlog (capture bucket, not scheduled work).
     const activeTasks = tasks
       .filter((t: Task) => t.status === 'Not Started' || t.status === 'In Progress')
       .filter((t: Task) => t.status !== 'Blocked');

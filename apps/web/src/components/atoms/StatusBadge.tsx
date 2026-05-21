@@ -12,6 +12,10 @@ interface StatusBadgeProps {
 }
 
 const statusColors: Record<string, { bg: string; text: string }> = {
+  Backlog: {
+    bg: 'bg-zinc-100 dark:bg-zinc-800/80',
+    text: 'text-zinc-600 dark:text-zinc-400',
+  },
   'Not Started': { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
   'In Progress': {
     bg: 'bg-blue-100 dark:bg-blue-900/30',

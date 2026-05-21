@@ -252,10 +252,15 @@ export default function TasksPage() {
 
   // Primary filters + sort applied server-side; search stays client-side (no backend full-text contract).
   const filteredTasks = useMemo(() => {
+    let result = tasks;
+    // List/calendar/graph: hide capture-only Backlog unless user filters by status (contract §5).
+    if (!selectedStatus && viewMode !== 'kanban') {
+      result = result.filter((task) => task.status !== 'Backlog');
+    }
     const sq = searchQuery.trim().toLowerCase();
-    if (!sq) return tasks;
-    return tasks.filter((task) => task.title.toLowerCase().includes(sq));
-  }, [tasks, searchQuery]);
+    if (!sq) return result;
+    return result.filter((task) => task.title.toLowerCase().includes(sq));
+  }, [tasks, searchQuery, selectedStatus, viewMode]);
 
   // Graph dependencies for currently visible tasks
   const taskIds = useMemo(() => filteredTasks.map((t) => t.id), [filteredTasks]);

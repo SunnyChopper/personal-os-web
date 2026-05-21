@@ -43,7 +43,7 @@ export function TaskCreateForm({
     area: 'Operations',
     subCategory: undefined,
     priority: 'P3',
-    status: 'Not Started',
+    status: 'Backlog',
     size: undefined,
     dueDate: '',
     scheduledDate: '',

@@ -497,6 +497,60 @@ export function generateSeedData() {
   taskProjects.push({ taskId: task4.id, projectId: project2.id, createdAt: formatDate(now) });
   taskGoals.push({ taskId: task4.id, goalId: goal2.id, createdAt: formatDate(now) });
 
+  const backlogCaptures = [
+    {
+      title: 'Research competitor pricing pages',
+      description: 'Capture ideas for positioning',
+      area: 'Wealth' as const,
+      subCategory: 'Projects' as const,
+      priority: 'P3' as const,
+      size: 2,
+    },
+    {
+      title: 'Try new meal prep routine',
+      description: null,
+      area: 'Health' as const,
+      subCategory: 'Nutrition' as const,
+      priority: 'P4' as const,
+      size: 1,
+    },
+    {
+      title: 'Outline Q3 personal OKRs',
+      description: 'Brain dump before committing on deck',
+      area: 'Operations' as const,
+      subCategory: 'Productivity' as const,
+      priority: 'P2' as const,
+      size: 3,
+    },
+  ];
+  for (const capture of backlogCaptures) {
+    const backlogTask: Task = {
+      id: generateId(),
+      title: capture.title,
+      description: capture.description,
+      extendedDescription: null,
+      area: capture.area,
+      subCategory: capture.subCategory,
+      priority: capture.priority,
+      status: 'Backlog',
+      size: capture.size,
+      dueDate: null,
+      scheduledDate: null,
+      completedDate: null,
+      notes: null,
+      projectIds: [],
+      goalIds: [],
+      isRecurring: false,
+      recurrenceRule: null,
+      pointValue: null,
+      pointsAwarded: null,
+      userId: USER_ID,
+      createdAt: formatDate(addDays(now, -7)),
+      updatedAt: formatDate(now),
+    };
+    tasks.push(backlogTask);
+  }
+
   const metric1: Metric = {
     id: generateId(),
     name: 'Weekly Running Miles',
