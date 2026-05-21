@@ -4,9 +4,10 @@ import type { Habit, HabitLog } from '@/types/growth-system';
 import {
   getAllStreaks,
   calculateCompletionRate,
-  calculateConsistencyScore,
+  getConsistencyScoreBreakdown,
   calculateTrend,
   getLogsForDateRange,
+  getWeekRange,
 } from '@/utils/habit-analytics';
 import { HabitStatCard } from './HabitStatCard';
 
@@ -19,58 +20,67 @@ export function HabitStatsDashboard({ habit, logs }: HabitStatsDashboardProps) {
   const stats = useMemo(() => {
     const streaks = getAllStreaks(logs);
     const completionRate = calculateCompletionRate(logs, habit);
-    const consistencyScore = calculateConsistencyScore(logs, habit);
+    const consistency = getConsistencyScoreBreakdown(logs, habit);
     const totalCompletions = logs.reduce((sum, log) => sum + (log.amount || 1), 0);
 
-    // Calculate trend for completion rate
     const now = new Date();
-    const currentWeekStart = new Date(now);
-    currentWeekStart.setDate(now.getDate() - now.getDay() + 1);
-    currentWeekStart.setHours(0, 0, 0, 0);
-    const currentWeekEnd = new Date(currentWeekStart);
-    currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
-    currentWeekEnd.setHours(23, 59, 59, 999);
-
-    const previousWeekStart = new Date(currentWeekStart);
-    previousWeekStart.setDate(currentWeekStart.getDate() - 7);
-    const previousWeekEnd = new Date(previousWeekStart);
-    previousWeekEnd.setDate(previousWeekStart.getDate() + 6);
-    previousWeekEnd.setHours(23, 59, 59, 999);
+    const { monday: currentWeekStart, sunday: currentWeekEnd } = getWeekRange(now, 0);
+    const { monday: previousWeekStart, sunday: previousWeekEnd } = getWeekRange(now, 1);
 
     const currentWeekLogs = getLogsForDateRange(logs, currentWeekStart, currentWeekEnd);
     const previousWeekLogs = getLogsForDateRange(logs, previousWeekStart, previousWeekEnd);
-    const trend = calculateTrend(currentWeekLogs, previousWeekLogs, habit);
+    const trend = calculateTrend(
+      currentWeekLogs,
+      previousWeekLogs,
+      habit,
+      currentWeekStart,
+      currentWeekEnd,
+      previousWeekStart,
+      previousWeekEnd
+    );
 
     return {
       streaks,
       completionRate,
-      consistencyScore,
+      consistency,
       totalCompletions,
       trend,
     };
   }, [habit, logs]);
 
-  // Calculate weekly progress for progress indicator
   const now = new Date();
-  const currentWeekStart = new Date(now);
-  currentWeekStart.setDate(now.getDate() - now.getDay() + 1);
-  currentWeekStart.setHours(0, 0, 0, 0);
-  const currentWeekEnd = new Date(currentWeekStart);
-  currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
-  currentWeekEnd.setHours(23, 59, 59, 999);
+  const { monday: currentWeekStart, sunday: currentWeekEnd } = getWeekRange(now, 0);
   const currentWeekLogs = getLogsForDateRange(logs, currentWeekStart, currentWeekEnd);
   const weeklyCompletions = currentWeekLogs.reduce((sum, log) => sum + (log.amount || 1), 0);
   const weeklyTarget = habit.weeklyTarget || (habit.dailyTarget ? habit.dailyTarget * 7 : 7);
 
+  const completionRateTooltip = [
+    `Window: ${stats.completionRate.period}`,
+    `Actual: ${stats.completionRate.actual} completions`,
+    `Expected: ${stats.completionRate.expected}`,
+    `Rate: ${stats.completionRate.rate.toFixed(1)}% (actual ÷ expected, capped at 100%)`,
+    stats.trend.changePercent !== 0
+      ? `vs last week: ${stats.trend.isImproving ? '+' : ''}${stats.trend.changePercent.toFixed(0)}% completion count`
+      : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const consistencyTooltip = [
+    `Score: ${stats.consistency.score.toFixed(0)}/100`,
+    `• Completion rate (70%): ${stats.consistency.completionRateComponent.toFixed(1)} pts from ${stats.consistency.completionRate.rate.toFixed(0)}% lifetime rate`,
+    `• Recent activity (20%): ${stats.consistency.recencyComponent.toFixed(1)} pts from completions in the last 30 days`,
+    `• Current streak (10%): ${stats.consistency.streakComponent.toFixed(1)} pts from ${stats.streaks.current}-day streak`,
+  ].join('\n');
+
   return (
     <div className="space-y-6">
-      {/* Quick Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <HabitStatCard
           label="Current Streak"
           value={`${stats.streaks.current} days`}
           icon={<Flame className="w-5 h-5 text-orange-500" />}
-          tooltip="Number of consecutive days you've completed this habit. Keep it going!"
+          tooltip="Consecutive calendar days with at least one completion, counting back from today."
           progress={
             habit.dailyTarget
               ? undefined
@@ -86,7 +96,7 @@ export function HabitStatsDashboard({ habit, logs }: HabitStatsDashboardProps) {
           label="Completion Rate"
           value={`${stats.completionRate.rate.toFixed(0)}%`}
           icon={<Target className="w-5 h-5 text-blue-500" />}
-          tooltip={`You've completed ${stats.completionRate.actual} out of ${stats.completionRate.expected} expected completions (${stats.completionRate.rate.toFixed(1)}%)`}
+          tooltip={completionRateTooltip}
           trend={
             stats.trend.changePercent !== 0
               ? {
@@ -99,11 +109,11 @@ export function HabitStatsDashboard({ habit, logs }: HabitStatsDashboardProps) {
 
         <HabitStatCard
           label="Consistency Score"
-          value={`${stats.consistencyScore.toFixed(0)}/100`}
+          value={`${stats.consistency.score.toFixed(0)}/100`}
           icon={<Award className="w-5 h-5 text-purple-500" />}
-          tooltip="A score based on completion rate, recency, and streak length. Higher is better!"
+          tooltip={consistencyTooltip}
           progress={{
-            current: stats.consistencyScore,
+            current: stats.consistency.score,
             target: 100,
             label: 'Score',
           }}
@@ -113,11 +123,10 @@ export function HabitStatsDashboard({ habit, logs }: HabitStatsDashboardProps) {
           label="Total Completions"
           value={stats.totalCompletions}
           icon={<TrendingUp className="w-5 h-5 text-indigo-500" />}
-          tooltip="Total number of times you've completed this habit"
+          tooltip="Sum of completion amounts across all logged entries."
         />
       </div>
 
-      {/* Weekly Progress Indicator */}
       {(habit.dailyTarget || habit.weeklyTarget) && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center justify-between mb-2">
@@ -135,7 +144,6 @@ export function HabitStatsDashboard({ habit, logs }: HabitStatsDashboardProps) {
         </div>
       )}
 
-      {/* Streak Visualization */}
       {stats.streaks.allStreaks.length > 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -150,8 +158,8 @@ export function HabitStatsDashboard({ habit, logs }: HabitStatsDashboardProps) {
 
           <div className="space-y-3">
             {stats.streaks.allStreaks.slice(0, 5).map((streak, index) => {
-              const startDate = new Date(streak.startDate);
-              const endDate = streak.endDate ? new Date(streak.endDate) : new Date();
+              const rangeStart = new Date(streak.startDate);
+              const rangeEnd = streak.endDate ? new Date(streak.endDate) : new Date();
 
               return (
                 <div key={index} className="flex items-center gap-4">
@@ -177,23 +185,19 @@ export function HabitStatsDashboard({ habit, logs }: HabitStatsDashboardProps) {
                       />
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {startDate.toLocaleDateString('en-US', {
+                      {rangeStart.toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
                       })}
-                      {streak.endDate && !streak.isActive && (
-                        <>
-                          {' '}
-                          -{' '}
-                          {endDate.toLocaleDateString('en-US', {
+                      {' - '}
+                      {streak.isActive
+                        ? 'Present'
+                        : rangeEnd.toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
                           })}
-                        </>
-                      )}
-                      {streak.isActive && ' - Present'}
                     </div>
                   </div>
                 </div>

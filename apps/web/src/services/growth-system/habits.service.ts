@@ -29,11 +29,14 @@ interface HabitHeatmap {
   [date: string]: number; // date -> completion count
 }
 
-interface HabitToday {
-  habitId: string;
-  name: string;
-  completed: boolean;
+interface HabitTodaySummary {
   date: string;
+  totalHabits: number;
+  completedCount: number;
+  pendingCount: number;
+  completionPercentage: number;
+  completedToday: Array<{ id: string; name: string; currentStreak: number }>;
+  pendingToday: Array<{ id: string; name: string; currentStreak: number }>;
 }
 
 interface HabitCompletionDto {
@@ -104,11 +107,18 @@ export const habitsService = {
 
   async getLogsByHabit(
     habitId: string,
-    filters?: { startDate?: string; endDate?: string }
+    filters?: {
+      startDate?: string;
+      endDate?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    }
   ): Promise<ApiListResponse<HabitLog>> {
     const queryParams = new URLSearchParams();
     if (filters?.startDate) queryParams.append('startDate', filters.startDate);
     if (filters?.endDate) queryParams.append('endDate', filters.endDate);
+    if (filters?.sortBy) queryParams.append('sortBy', filters.sortBy);
+    if (filters?.sortOrder) queryParams.append('sortOrder', filters.sortOrder);
 
     const endpoint = `/habits/${habitId}/logs${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     const response = await apiClient.get<BackendPaginatedResponse<HabitLog>>(endpoint);
@@ -155,15 +165,8 @@ export const habitsService = {
     return response;
   },
 
-  async getToday(): Promise<ApiListResponse<HabitToday>> {
-    const response = await apiClient.get<BackendPaginatedResponse<HabitToday>>('/habits/today');
-    if (response.success && response.data) {
-      return {
-        data: response.data.data,
-        total: response.data.total,
-        success: true,
-      };
-    }
-    throw new Error(response.error?.message || 'Failed to fetch habits for today');
+  async getTodaySummary(): Promise<ApiResponse<HabitTodaySummary>> {
+    const response = await apiClient.get<HabitTodaySummary>('/habits/today/summary');
+    return response;
   },
 };

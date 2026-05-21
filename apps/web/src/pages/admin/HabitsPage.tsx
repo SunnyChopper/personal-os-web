@@ -10,6 +10,7 @@ import type {
   HabitType,
   Goal,
 } from '@/types/growth-system';
+import type { EstablishedHabitSuggestedPatch } from '@/types/habit-ai';
 import { habitsService } from '@/services/growth-system/habits.service';
 import { goalsService } from '@/services/growth-system/goals.service';
 import { useHabits } from '@/hooks/useGrowthSystem';
@@ -103,9 +104,11 @@ export default function HabitsPage() {
   const [habitToDelete, setHabitToDelete] = useState<Habit | null>(null);
 
   const [showAIAssist, setShowAIAssist] = useState(false);
-  const [aiMode, setAIMode] = useState<
-    'design' | 'stack' | 'recovery' | 'patterns' | 'triggers' | 'alignment'
-  >('design');
+  const [todaySummary, setTodaySummary] = useState<{
+    completedCount: number;
+    pendingCount: number;
+    totalHabits: number;
+  } | null>(null);
   const isAIConfigured = llmConfig.isConfigured();
   const [activeTab, setActiveTab] = useState<HabitDetailTab>('overview');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -163,7 +166,10 @@ export default function HabitsPage() {
 
   const loadHabitLogs = async (habitId: string) => {
     try {
-      const response = await habitsService.getLogsByHabit(habitId);
+      const response = await habitsService.getLogsByHabit(habitId, {
+        sortBy: 'completedAt',
+        sortOrder: 'desc',
+      });
       if (response.success && response.data && isMountedRef.current) {
         setHabitLogs((prev) => new Map(prev).set(habitId, response.data!));
       }
@@ -395,20 +401,38 @@ export default function HabitsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [habits]);
 
+  useEffect(() => {
+    if (viewMode !== 'today') return;
+    let cancelled = false;
+    habitsService
+      .getTodaySummary()
+      .then((response) => {
+        if (!cancelled && response.success && response.data) {
+          setTodaySummary({
+            completedCount: response.data.completedCount,
+            pendingCount: response.data.pendingCount,
+            totalHabits: response.data.totalHabits,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTodaySummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, habits.length]);
+
   const filteredHabits = useMemo(() => {
-    // Start with all habits (filter by isActive if the property exists)
     let result = habits.filter((habit) => {
-      // TypeScript doesn't know about isActive, but it exists in the API response
       const isActive = (habit as Habit & { isActive?: boolean }).isActive ?? true;
       return isActive;
     });
 
-    // Apply type filter
     if (selectedHabitType) {
       result = result.filter((habit) => habit.habitType === selectedHabitType);
     }
 
-    // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
@@ -418,10 +442,20 @@ export default function HabitsPage() {
       );
     }
 
-    // Note: viewMode ('today' vs 'all') doesn't change which habits are shown,
-    // but could be used for sorting or highlighting in the future
+    if (viewMode === 'today') {
+      result = result.filter(
+        (habit) => habit.frequency === 'Daily' || habit.frequency === 'Weekly' || !habit.frequency
+      );
+      result = [...result].sort((a, b) => {
+        const aDone = isTodayCompleted(a.id) ? 1 : 0;
+        const bDone = isTodayCompleted(b.id) ? 1 : 0;
+        if (aDone !== bDone) return aDone - bDone;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
     return result;
-  }, [habits, selectedHabitType, searchQuery]);
+  }, [habits, selectedHabitType, searchQuery, viewMode, habitLogs]);
 
   const groupedByType = HABIT_TYPES.reduce(
     (acc, type) => {
@@ -432,6 +466,13 @@ export default function HabitsPage() {
   );
 
   const selectedLogs = selectedHabit ? habitLogs.get(selectedHabit.id) || [] : [];
+  const sortedSelectedLogs = useMemo(
+    () =>
+      [...selectedLogs].sort(
+        (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+      ),
+    [selectedLogs]
+  );
   const selectedStreak = selectedHabit ? getStreak(selectedHabit.id) : 0;
   const selectedDateLogs =
     selectedHabit && selectedDate
@@ -478,51 +519,14 @@ export default function HabitsPage() {
                   </button>
 
                   {showAIAssist && (
-                    <div className="mt-4 space-y-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => setAIMode('design')}
-                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'design' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                        >
-                          Habit Design
-                        </button>
-                        <button
-                          onClick={() => setAIMode('stack')}
-                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'stack' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                        >
-                          Habit Stacking
-                        </button>
-                        <button
-                          onClick={() => setAIMode('recovery')}
-                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'recovery' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                        >
-                          Streak Recovery
-                        </button>
-                        <button
-                          onClick={() => setAIMode('patterns')}
-                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'patterns' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                        >
-                          Pattern Analysis
-                        </button>
-                        <button
-                          onClick={() => setAIMode('triggers')}
-                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'triggers' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                        >
-                          Trigger Optimization
-                        </button>
-                        <button
-                          onClick={() => setAIMode('alignment')}
-                          className={`px-3 py-1.5 text-sm rounded-full transition ${aiMode === 'alignment' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                        >
-                          Goal Alignment
-                        </button>
-                      </div>
-
+                    <div className="mt-4">
                       <AIHabitAssistPanel
-                        mode={aiMode}
                         habit={selectedHabit}
                         logs={selectedLogs}
-                        onClose={() => setShowAIAssist(false)}
+                        onApplyPatch={async (patch: EstablishedHabitSuggestedPatch) => {
+                          const input: UpdateHabitInput = { ...patch };
+                          await handleUpdateHabit(selectedHabit.id, input);
+                        }}
                       />
                     </div>
                   )}
@@ -615,7 +619,7 @@ export default function HabitsPage() {
                         />
                       ) : (
                         <div className="space-y-2">
-                          {selectedLogs.slice(0, 50).map((log) => (
+                          {sortedSelectedLogs.slice(0, 50).map((log) => (
                             <button
                               key={log.id}
                               onClick={() => {
@@ -760,6 +764,26 @@ export default function HabitsPage() {
                 </div>
               </motion.div>
 
+              {viewMode === 'today' && todaySummary && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 text-sm text-blue-900 dark:text-blue-100"
+                >
+                  Today: {todaySummary.completedCount} of {todaySummary.totalHabits} habits logged
+                  {todaySummary.pendingCount > 0
+                    ? ` · ${todaySummary.pendingCount} still pending`
+                    : ' · all done'}
+                </motion.div>
+              )}
+
+              {viewMode === 'today' && (
+                <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+                  Showing habits to focus on today—pending completions appear first. Switch to All
+                  Habits for the full list.
+                </p>
+              )}
+
               {/* Filter Pills */}
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -862,11 +886,13 @@ export default function HabitsPage() {
                     <EmptyState
                       title="No habits found"
                       description={
-                        selectedHabitType
-                          ? `No ${selectedHabitType.toLowerCase()} habits found${searchQuery ? ' matching your search' : ''}`
-                          : searchQuery
-                            ? 'Try adjusting your search query'
-                            : 'Get started by creating your first habit'
+                        viewMode === 'today'
+                          ? 'No daily or weekly habits match your filters for today.'
+                          : selectedHabitType
+                            ? `No ${selectedHabitType.toLowerCase()} habits found${searchQuery ? ' matching your search' : ''}`
+                            : searchQuery
+                              ? 'Try adjusting your search query'
+                              : 'Get started by creating your first habit'
                       }
                       actionLabel="Create Habit"
                       onAction={() => setIsCreateDialogOpen(true)}

@@ -105,7 +105,7 @@ export function HabitCalendarView({
                   ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-md ring-2 ring-blue-200 dark:ring-blue-800'
                   : hasCompletions
                     ? `${colors.border} bg-white dark:bg-gray-800 hover:shadow-md hover:scale-105`
-                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+                    : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-600/50 ring-1 ring-inset ring-gray-200/80 dark:ring-gray-500/50 hover:bg-gray-200 dark:hover:bg-gray-600/70'
               } ${!calendarDay.isCurrentMonth ? 'opacity-40' : ''} ${
                 isCurrentWeek && !isToday ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''
               }`}

@@ -24,8 +24,8 @@ export function WeeklyMonthlyComparison({ habit, logs }: WeeklyMonthlyComparison
       const weeklyData = getWeeklyData(logs, habit, 8);
       if (weeklyData.length < 2) return null;
 
-      const current = weeklyData[weeklyData.length - 1];
-      const previous = weeklyData[weeklyData.length - 2];
+      const current = weeklyData[0];
+      const previous = weeklyData[1];
 
       const currentLogs = getLogsForDateRange(
         logs,
@@ -37,15 +37,23 @@ export function WeeklyMonthlyComparison({ habit, logs }: WeeklyMonthlyComparison
         new Date(previous.startDate),
         new Date(previous.endDate)
       );
-      const trend = calculateTrend(currentLogs, previousLogs, habit);
+      const trend = calculateTrend(
+        currentLogs,
+        previousLogs,
+        habit,
+        new Date(current.startDate),
+        new Date(current.endDate),
+        new Date(previous.startDate),
+        new Date(previous.endDate)
+      );
 
       return { current, previous, trend, type: 'week' as const };
     } else {
       const monthlyData = getMonthlyData(logs, habit, 6);
       if (monthlyData.length < 2) return null;
 
-      const current = monthlyData[monthlyData.length - 1];
-      const previous = monthlyData[monthlyData.length - 2];
+      const current = monthlyData[0];
+      const previous = monthlyData[1];
 
       const currentLogs = getLogsForDateRange(
         logs,
@@ -57,7 +65,15 @@ export function WeeklyMonthlyComparison({ habit, logs }: WeeklyMonthlyComparison
         new Date(previous.startDate),
         new Date(previous.endDate)
       );
-      const trend = calculateTrend(currentLogs, previousLogs, habit);
+      const trend = calculateTrend(
+        currentLogs,
+        previousLogs,
+        habit,
+        new Date(current.startDate),
+        new Date(current.endDate),
+        new Date(previous.startDate),
+        new Date(previous.endDate)
+      );
 
       return { current, previous, trend, type: 'month' as const };
     }
