@@ -127,7 +127,8 @@ export function AssistantMemoryPanel() {
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Assistant Memory</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Review today&apos;s thread memory and the consolidated long-term knowledge notes.
+            Review today&apos;s standout notes (new facts, progress, decisions, blockers, overrides)
+            and consolidated long-term knowledge.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -191,7 +192,8 @@ export function AssistantMemoryPanel() {
                   {selectedFile ? dateLabel(selectedFile) : 'Daily memory'}
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Edit the markdown memory directly or consolidate it into long-term notes.
+                  Standout day-level facts only — not assistant briefings or chat logs. Edit
+                  markdown directly or consolidate into long-term memory.
                 </p>
               </div>
               <div className="flex items-center gap-2">
