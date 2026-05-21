@@ -58,6 +58,29 @@ When this repo is opened inside the monorepo workspace (sibling `personal-os-bac
 - **Quality (workspace)**: `bun run lint`, `bun run type-check`, `bun run format:check`
 - **Tests**: `bun run --filter web test` (Vitest), `bun run --filter web test:e2e` (Playwright)
 - **Meta**: `bun run --filter web validate` (runs repo validation scripts)
+- **Architecture (CI)**: `bun run --filter web validate-architecture` — must pass before merge; enforced in `.github/workflows/ci.yml`
+
+## Component layout and architecture validation
+
+`apps/web/scripts/validate-architecture.ts` enforces layout under `apps/web/src/components/`:
+
+- **Atomic levels**: `atoms/`, `molecules/`, `organisms/`, `templates/`, `pages/`
+- **Feature groups** (allowed siblings, not atomic levels): `auth/`, `routing/`, `settings/`, `shared/`, `assistant/`, `proactive/`, `tools/`, `chatbot/`, `widgets/` (e.g. `widgets/weekly/*` for dashboard tiles)
+- **Do not** add new top-level folders under `components/` without updating `utilityDirs` in `validate-architecture.ts` and this section.
+
+**File naming under `components/`** (also checked by `validate-architecture`):
+
+- Components: `PascalCase.tsx` (e.g. `ChatMessageRow.tsx`)
+- Co-located component tests: **`PascalCase.test.tsx` only** — not `Component.feature.test.tsx` (use `ChatMessageRowReasoning.test.tsx`, not `ChatMessageRow.reasoning.test.tsx`)
+- Optional `__tests__/` subfolders under a feature dir (e.g. `organisms/planner/__tests__/`) still use PascalCase `*.test.tsx` basenames
+
+Before finishing frontend work that adds or moves components, run:
+
+```powershell
+Set-Location personal-os-web
+bun run --filter web validate-architecture
+bun run format:check
+```
 
 ## Local logging
 
@@ -148,7 +171,7 @@ Optional legacy: `personal-os-web/infrastructure/github-secrets.tf` (Terraform G
 
 - Cross-repo anti-patterns (filter by `[frontend]`): `../docs/agent-learnings/anti-patterns.md`
 - After modifying API types, verify alignment with `../docs/backend/API_ENDPOINTS.md`.
-- After adding or modifying components, verify applicable `.mdc` rules in `.cursor/rules/` were followed.
+- After adding or modifying components, verify applicable `.mdc` rules in `.cursor/rules/` were followed and run `bun run --filter web validate-architecture` (allowed `components/` dirs + `PascalCase.test.tsx` naming).
 - Before declaring done, complete and report the **8-item self-assessment** from root `../CLAUDE.md` (End criteria) and `../.cursor/rules/self-reinforcement.mdc`; use `npm run self-assessment:template` at the monorepo root for the paste-ready block.
 - Treat final completion as blocked until the self-assessment is explicitly included in the final response.
 

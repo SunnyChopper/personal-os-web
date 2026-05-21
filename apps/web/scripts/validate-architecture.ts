@@ -49,6 +49,7 @@ function validateAtomicDesign(): ValidationResult {
     'proactive',
     'tools',
     'chatbot',
+    'widgets', // weekly dashboard tile modules (e.g. widgets/weekly/*)
   ];
   const allowedDirs = [...atomicDirs, ...utilityDirs];
 
