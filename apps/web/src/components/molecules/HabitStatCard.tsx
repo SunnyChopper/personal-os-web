@@ -1,6 +1,5 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 import { HelpCircle } from 'lucide-react';
-import { useState } from 'react';
 
 interface HabitStatCardProps {
   label: string;
@@ -34,6 +33,9 @@ export function HabitStatCard({
   className = '',
 }: HabitStatCardProps) {
   const [showTooltip, setShowTooltip] = useState(false);
+  const tooltipId = useId();
+
+  const toggleTooltip = () => setShowTooltip((prev) => !prev);
 
   return (
     <div
@@ -45,17 +47,27 @@ export function HabitStatCard({
           {tooltip && (
             <div className="relative">
               <button
+                type="button"
                 onMouseEnter={() => setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                aria-label="More information"
+                onFocus={() => setShowTooltip(true)}
+                onBlur={() => setShowTooltip(false)}
+                onClick={toggleTooltip}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors touch-manipulation"
+                aria-label={`How ${label} is calculated`}
+                aria-expanded={showTooltip}
+                aria-describedby={showTooltip ? tooltipId : undefined}
               >
                 <HelpCircle className="w-3.5 h-3.5" />
               </button>
               {showTooltip && (
-                <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg shadow-lg">
+                <div
+                  id={tooltipId}
+                  role="tooltip"
+                  className="absolute z-20 bottom-full left-0 mb-2 w-56 max-w-[min(16rem,90vw)] p-2 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg shadow-lg whitespace-pre-line"
+                >
                   {tooltip}
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700" />
+                  <div className="absolute top-full left-4 -mt-1 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700" />
                 </div>
               )}
             </div>
