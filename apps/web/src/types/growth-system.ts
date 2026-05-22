@@ -67,6 +67,12 @@ export type RecurrenceUnit = 'Daily' | 'Weekly' | 'Monthly' | 'Yearly';
 
 export type TaskRewardLedgerStatus = 'none' | 'awarded' | 'reversed';
 
+/** Planner context: cognitive load / focus style (tasks only; not logbook energy). */
+export type TaskEnergyLevel = 'Deep Work' | 'Low Kinetic' | 'Admin';
+
+/** Planner context: preferred time-of-day window. */
+export type TaskExecutionWindow = 'Morning Peak' | 'Afternoon Slump' | 'Anytime';
+
 export interface Task {
   id: string;
   title: string;
@@ -83,10 +89,17 @@ export interface Task {
   completedDate: string | null;
   /** Estimated focused time to complete (minutes); distinct from story `size`. */
   estimatedDurationMinutes?: number | null;
+  energyLevel?: TaskEnergyLevel | null;
+  executionWindow?: TaskExecutionWindow | null;
   scheduleStatus?: 'unscheduled' | 'suggested' | 'scheduled' | 'done';
-  scheduleSource?: 'manual' | 'auto' | 'rescued' | null;
+  scheduleSource?: 'manual' | 'auto' | 'rescued' | 'rollover' | null;
   scheduleUpdatedAt?: string | null;
   lastRescuedAt?: string | null;
+  /** Server-owned schedule-slip count; Velocity Drag when >= 3. */
+  rolloverCount?: number;
+  parentTaskId?: string | null;
+  subtaskCount?: number | null;
+  completedSubtaskCount?: number | null;
   notes: string | null;
   isRecurring: boolean;
   recurrenceRule: RecurrenceRule | null;
@@ -452,6 +465,16 @@ export interface CreateTaskInput {
   scheduleStatus?: Task['scheduleStatus'];
   scheduleSource?: NonNullable<Task['scheduleSource']>;
   dependsOnTaskIds?: string[];
+  parentTaskId?: string;
+  energyLevel?: TaskEnergyLevel;
+  executionWindow?: TaskExecutionWindow;
+}
+
+/** Flag threshold aligned with backend VELOCITY_DRAG_ROLLOVER_THRESHOLD. */
+export const VELOCITY_DRAG_ROLLOVER_THRESHOLD = 3;
+
+export function isVelocityDragDetected(rolloverCount: number | null | undefined): boolean {
+  return (rolloverCount ?? 0) >= VELOCITY_DRAG_ROLLOVER_THRESHOLD;
 }
 
 export interface UpdateTaskInput {
@@ -478,6 +501,9 @@ export interface UpdateTaskInput {
   scheduleSource?: NonNullable<Task['scheduleSource']>;
   scheduleUpdatedAt?: string;
   lastRescuedAt?: string;
+  /** Include JSON `null` in PATCH to clear; omit to leave unchanged. */
+  energyLevel?: TaskEnergyLevel | null;
+  executionWindow?: TaskExecutionWindow | null;
 }
 
 export interface CreateProjectInput {
@@ -745,6 +771,22 @@ export interface WeeklyReviewVelocityWeek {
   tasksCompleted: number;
 }
 
+/** Bucket-comparison insight: high habit consistency weeks vs story-point velocity. */
+export interface HabitVelocityCorrelation {
+  habitId: string;
+  habitName: string;
+  habitArea: string;
+  habitSubCategory?: string | null;
+  consistencyThresholdPct: number;
+  trailingWeeks: number;
+  sampleWeeks: number;
+  highBucketWeeks: number;
+  lowBucketWeeks: number;
+  highBucketAvgStoryPoints: number;
+  lowBucketAvgStoryPoints: number;
+  upliftPct: number;
+}
+
 export interface WeeklyReviewStats {
   tasksCompleted: number;
   tasksPlanned: number;
@@ -787,6 +829,15 @@ export interface WeeklyReviewQuarantineCandidate {
   reason: string;
 }
 
+export interface WeeklyReviewTechDebtCandidate {
+  taskId: string;
+  title: string;
+  status: string;
+  scheduledDate?: string | null;
+  rolloverCount: number;
+  dueDate?: string | null;
+}
+
 export interface WeeklyReviewSuggestedTask {
   title: string;
   rationale: string;
@@ -810,8 +861,14 @@ export interface WeeklyReviewAiAnalysis {
   logbookSummary: string;
   reflectionPrompt?: string | null;
   quarantineCandidates: WeeklyReviewQuarantineCandidate[];
+  techDebtCandidates?: WeeklyReviewTechDebtCandidate[];
   suggestedTasks: WeeklyReviewSuggestedTask[];
   hypeSummary: string;
+}
+
+export interface WeeklyReviewTechDebtDecision {
+  taskId: string;
+  action: 'purge' | 'refactor';
 }
 
 export interface WeeklyReviewQuarantineDecision {
@@ -839,12 +896,41 @@ export interface WeeklyReviewAcceptedTask {
 export interface WeeklyReviewPlanActions {
   quarantineDecisions: WeeklyReviewQuarantineDecision[];
   blockerResolutions: WeeklyReviewBlockerResolution[];
+  techDebtDecisions?: WeeklyReviewTechDebtDecision[];
   suggestedTasksAccepted: WeeklyReviewAcceptedTask[];
 }
 
 export interface WeeklyReviewCompletionSummary {
   hypeMessage: string;
   sprintTaskIds: string[];
+  applyErrors?: Record<string, string[]>;
+}
+
+export interface OooStandbySuggestion {
+  protectedStartDate: string;
+  protectedEndDate: string;
+  protectedDates: string[];
+}
+
+export interface OooStandbyBlock {
+  id: string;
+  weekStart: string;
+  closeoutDate: string;
+  startDate: string;
+  endDate: string;
+  coveredDates: string[];
+  sourceReviewWeekStart: string;
+  status: 'active' | 'deactivated';
+  label: string;
+  activatedAt: string;
+  deactivatedAt?: string | null;
+}
+
+export interface WeeklyReviewGeneratePayload {
+  weekStart?: string;
+  closeoutDate?: string;
+  activateOooStandby?: boolean;
+  oooStandbyLabel?: string;
 }
 
 export interface WeeklyReview {
@@ -854,6 +940,7 @@ export interface WeeklyReview {
   status: WeeklyReviewStatus;
   stats: WeeklyReviewStats;
   velocityData: WeeklyReviewVelocityWeek[];
+  habitVelocityCorrelations?: HabitVelocityCorrelation[];
   aiAnalysis: WeeklyReviewAiAnalysis;
   planActions?: WeeklyReviewPlanActions | null;
   completionSummary?: WeeklyReviewCompletionSummary | null;
@@ -863,6 +950,11 @@ export interface WeeklyReview {
   /** True when closed by automated weekly-review job without applied plan actions. */
   autoCompleted?: boolean | null;
   autoCompletedAt?: string | null;
+  closedEarly?: boolean | null;
+  closeoutDate?: string | null;
+  statsPeriodStart?: string | null;
+  statsPeriodEnd?: string | null;
+  oooStandby?: OooStandbyBlock | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -886,10 +978,68 @@ export interface WeeklyReviewCurrentDashboard {
   trailingAverageStoryPoints: number;
   currentWeekStoryPoints: number;
   rollingAverageStoryPoints: number[];
+  habitVelocityCorrelations?: HabitVelocityCorrelation[];
+  localDate?: string | null;
+  earlyCloseoutEligible?: boolean;
+  oooStandbySuggestion?: OooStandbySuggestion | null;
+  activeOooStandby?: OooStandbyBlock | null;
 }
 
 /** Result of POST /growth-system/weekly-reviews/{weekStart}/send-email */
 export interface WeeklyReviewSendEmailResult {
   sent: boolean;
   toEmailMasked: string | null;
+}
+
+export type LeverageRoiQuadrantKey =
+  | 'coreWins'
+  | 'strategicInvestments'
+  | 'necessaryFriction'
+  | 'bikesheddingTrap';
+
+export interface LeverageRoiTask {
+  taskId: string;
+  title: string;
+  completedDate: string;
+  area?: string | null;
+  priority?: string | null;
+  size?: number | null;
+  energyLevel?: TaskEnergyLevel | null;
+  energyWeight: number;
+  energyWeightSource: 'tagged' | 'default';
+  plannerScore: number;
+  roi: number;
+  quadrant: LeverageRoiQuadrantKey;
+  reason?: string | null;
+}
+
+export interface LeverageRoiQuadrantBlock {
+  key: LeverageRoiQuadrantKey;
+  label: string;
+  tasks: LeverageRoiTask[];
+}
+
+export interface LeverageRoiDataQuality {
+  untaggedEnergyCount: number;
+  totalCompleted: number;
+}
+
+export interface LeverageRoiSummary {
+  headline: string;
+  bikesheddingCount: number;
+  coreWinsCount: number;
+  strategicInvestmentsCount: number;
+  necessaryFrictionCount: number;
+}
+
+export interface WeeklyReviewLeverageRoiResponse {
+  days: number;
+  anchorDate: string;
+  periodStart: string;
+  periodEnd: string;
+  timeZone: string;
+  leverageThreshold: number;
+  quadrants: LeverageRoiQuadrantBlock[];
+  summary: LeverageRoiSummary;
+  dataQuality: LeverageRoiDataQuality;
 }

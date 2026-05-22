@@ -3,6 +3,8 @@ import type {
   SubCategory,
   Priority,
   TaskStatus,
+  TaskEnergyLevel,
+  TaskExecutionWindow,
   GoalStatus,
   ProjectStatus,
   TimeHorizon,
@@ -150,6 +152,26 @@ export const HABIT_FREQUENCIES: readonly HabitFrequency[] = [
 
 /** Fibonacci story points for task `size` (planning poker set). */
 export const TASK_STORY_POINTS_FIBONACCI: readonly number[] = [1, 2, 3, 5, 8, 13, 21];
+
+export const TASK_ENERGY_LEVELS: readonly TaskEnergyLevel[] = ['Deep Work', 'Low Kinetic', 'Admin'];
+
+export const TASK_EXECUTION_WINDOWS: readonly TaskExecutionWindow[] = [
+  'Morning Peak',
+  'Afternoon Slump',
+  'Anytime',
+];
+
+export const TASK_ENERGY_LEVEL_LABELS: Record<TaskEnergyLevel, string> = {
+  'Deep Work': 'Deep Work',
+  'Low Kinetic': 'Low Kinetic',
+  Admin: 'Admin',
+};
+
+export const TASK_EXECUTION_WINDOW_LABELS: Record<TaskExecutionWindow, string> = {
+  'Morning Peak': 'Morning Peak',
+  'Afternoon Slump': 'Afternoon Slump',
+  Anytime: 'Anytime',
+};
 
 export function isTaskStoryPointsValue(n: number): boolean {
   return TASK_STORY_POINTS_FIBONACCI.includes(n);
