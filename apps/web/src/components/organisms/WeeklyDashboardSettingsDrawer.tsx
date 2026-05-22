@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Plus, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Plus, Trash2, X } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { useGrowthSystemDashboard } from '@/hooks/useGrowthSystemDashboard';
 import {
@@ -21,11 +21,15 @@ interface WeeklyDashboardSettingsDrawerProps {
 }
 
 const WIDGET_TYPE_LABELS: Record<WeeklyDashboardWidgetType, string> = {
-  velocity: 'Story point velocity',
-  statTiles: 'Stat tiles',
-  metricSeries: 'Metric trend',
-  habitCompletion: 'Habit completion',
+  velocity: 'Story Point Velocity',
+  statTiles: 'Stat Tiles',
+  metricSeries: 'Metric Trend',
+  habitCompletion: 'Habit Completion',
 };
+
+const FIELD_LABEL_CLASS = 'mb-1.5 inline-block font-medium text-gray-700 dark:text-gray-300';
+const FIELD_INPUT_CLASS =
+  'w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800';
 
 function newWidgetId(type: WeeklyDashboardWidgetType): string {
   return `${type}-${Date.now().toString(36)}`;
@@ -129,9 +133,7 @@ export function WeeklyDashboardSettingsDrawer({
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           <label className="block text-sm">
-            <span className="font-medium text-gray-700 dark:text-gray-300">
-              Default comparison weeks
-            </span>
+            <span className={FIELD_LABEL_CLASS}>Default Comparison Window (Weeks)</span>
             <input
               type="number"
               min={1}
@@ -143,7 +145,7 @@ export function WeeklyDashboardSettingsDrawer({
                   comparisonWeeks: Math.max(1, Math.min(26, Number(e.target.value) || 5)),
                 }))
               }
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+              className={FIELD_INPUT_CLASS}
             />
           </label>
 
@@ -151,7 +153,7 @@ export function WeeklyDashboardSettingsDrawer({
             {draft.widgets.map((widget, index) => (
               <div
                 key={widget.id}
-                className="rounded-xl border border-gray-200 p-3 dark:border-gray-700"
+                className="rounded-xl border border-gray-200 p-4 dark:border-gray-700"
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -188,9 +190,9 @@ export function WeeklyDashboardSettingsDrawer({
                 </div>
 
                 {widget.type === 'velocity' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="text-xs">
-                      Weeks
+                  <div className="grid grid-cols-2 gap-4">
+                    <label className="block text-sm">
+                      <span className={FIELD_LABEL_CLASS}>Comparison Window (Weeks)</span>
                       <input
                         type="number"
                         min={1}
@@ -204,11 +206,11 @@ export function WeeklyDashboardSettingsDrawer({
                             },
                           })
                         }
-                        className="mt-0.5 w-full rounded border px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
+                        className={FIELD_INPUT_CLASS}
                       />
                     </label>
-                    <label className="text-xs">
-                      Rolling window
+                    <label className="block text-sm">
+                      <span className={FIELD_LABEL_CLASS}>Rolling Window</span>
                       <input
                         type="number"
                         min={1}
@@ -222,14 +224,14 @@ export function WeeklyDashboardSettingsDrawer({
                             },
                           })
                         }
-                        className="mt-0.5 w-full rounded border px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
+                        className={FIELD_INPUT_CLASS}
                       />
                     </label>
                   </div>
                 )}
 
                 {widget.type === 'statTiles' && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-3 pt-1">
                     {(Object.keys(STAT_TILE_LABELS) as StatTileKey[]).map((key) => {
                       const tiles = (widget.config as { tiles: StatTileKey[] }).tiles ?? [];
                       const active = tiles.includes(key);
@@ -237,18 +239,20 @@ export function WeeklyDashboardSettingsDrawer({
                         <button
                           key={key}
                           type="button"
+                          aria-pressed={active}
                           onClick={() => {
                             const next = active ? tiles.filter((t) => t !== key) : [...tiles, key];
                             if (next.length === 0) return;
                             updateWidget(widget.id, { config: { tiles: next } });
                           }}
                           className={cn(
-                            'rounded-full px-2 py-1 text-xs border',
+                            'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors',
                             active
-                              ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-                              : 'border-gray-300 text-gray-600 dark:border-gray-600'
+                              ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500/30 dark:bg-blue-950/40 dark:text-blue-300'
+                              : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:bg-gray-800/60'
                           )}
                         >
+                          {active ? <Check className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
                           {STAT_TILE_LABELS[key]}
                         </button>
                       );
@@ -257,25 +261,28 @@ export function WeeklyDashboardSettingsDrawer({
                 )}
 
                 {widget.type === 'metricSeries' && (
-                  <div className="space-y-2">
-                    <select
-                      value={(widget.config as { metricId: string }).metricId}
-                      onChange={(e) =>
-                        updateWidget(widget.id, {
-                          config: { ...widget.config, metricId: e.target.value },
-                        })
-                      }
-                      className="w-full rounded border px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800"
-                    >
-                      <option value="">Select metric…</option>
-                      {metrics.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="text-xs block">
-                      Comparison weeks
+                  <div className="space-y-4">
+                    <label className="block text-sm">
+                      <span className={FIELD_LABEL_CLASS}>Metric</span>
+                      <select
+                        value={(widget.config as { metricId: string }).metricId}
+                        onChange={(e) =>
+                          updateWidget(widget.id, {
+                            config: { ...widget.config, metricId: e.target.value },
+                          })
+                        }
+                        className={cn(FIELD_INPUT_CLASS, 'text-sm')}
+                      >
+                        <option value="">Select metric…</option>
+                        {metrics.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-sm">
+                      <span className={FIELD_LABEL_CLASS}>Comparison Window (Weeks)</span>
                       <input
                         type="number"
                         min={1}
@@ -289,32 +296,35 @@ export function WeeklyDashboardSettingsDrawer({
                             },
                           })
                         }
-                        className="mt-0.5 w-full rounded border px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
+                        className={FIELD_INPUT_CLASS}
                       />
                     </label>
                   </div>
                 )}
 
                 {widget.type === 'habitCompletion' && (
-                  <div className="space-y-2">
-                    <select
-                      value={(widget.config as { habitId: string }).habitId}
-                      onChange={(e) =>
-                        updateWidget(widget.id, {
-                          config: { ...widget.config, habitId: e.target.value },
-                        })
-                      }
-                      className="w-full rounded border px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800"
-                    >
-                      <option value="">Select habit…</option>
-                      {habits.map((h) => (
-                        <option key={h.id} value={h.id}>
-                          {h.name}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="text-xs block">
-                      Comparison weeks
+                  <div className="space-y-4">
+                    <label className="block text-sm">
+                      <span className={FIELD_LABEL_CLASS}>Habit</span>
+                      <select
+                        value={(widget.config as { habitId: string }).habitId}
+                        onChange={(e) =>
+                          updateWidget(widget.id, {
+                            config: { ...widget.config, habitId: e.target.value },
+                          })
+                        }
+                        className={cn(FIELD_INPUT_CLASS, 'text-sm')}
+                      >
+                        <option value="">Select habit…</option>
+                        {habits.map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-sm">
+                      <span className={FIELD_LABEL_CLASS}>Comparison Window (Weeks)</span>
                       <input
                         type="number"
                         min={1}
@@ -328,7 +338,7 @@ export function WeeklyDashboardSettingsDrawer({
                             },
                           })
                         }
-                        className="mt-0.5 w-full rounded border px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
+                        className={FIELD_INPUT_CLASS}
                       />
                     </label>
                   </div>
