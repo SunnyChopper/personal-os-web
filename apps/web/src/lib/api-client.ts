@@ -926,6 +926,18 @@ class ApiClient {
   }): Promise<ApiResponse<{ weeklyReviewDay: number }>> {
     return this.put<{ weeklyReviewDay: number }>('/preferences/weekly-review-day', body);
   }
+
+  async getPreferencesMarginOfSafetyBuffer(): Promise<
+    ApiResponse<{ marginOfSafetyBuffer: number }>
+  > {
+    return this.get<{ marginOfSafetyBuffer: number }>('/preferences/margin-of-safety-buffer');
+  }
+
+  async setPreferencesMarginOfSafetyBuffer(body: {
+    marginOfSafetyBuffer: number;
+  }): Promise<ApiResponse<{ marginOfSafetyBuffer: number }>> {
+    return this.put<{ marginOfSafetyBuffer: number }>('/preferences/margin-of-safety-buffer', body);
+  }
 }
 
 export const apiClient = new ApiClient();

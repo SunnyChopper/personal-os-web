@@ -5,6 +5,8 @@ import { queryKeys } from '@/lib/react-query/query-keys';
 import { weeklyReviewService } from '@/services/growth-system';
 import type {
   WeeklyReview,
+  WeeklyReviewGeneratePayload,
+  WeeklyReviewLeverageRoiResponse,
   WeeklyReviewPlanActions,
   WeeklyReviewSendEmailResult,
 } from '@/types/growth-system';
@@ -80,11 +82,14 @@ export function useWeeklyReviewMutations(weekStart: string | null) {
     await qc.invalidateQueries({ queryKey: queryKeys.growthSystem.weeklyReviews.all() });
     await qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
     await qc.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
+    await qc.invalidateQueries({ queryKey: ['growth-system', 'planner'] });
+    await qc.invalidateQueries({ queryKey: queryKeys.growthSystem.habits.all() });
+    await qc.invalidateQueries({ queryKey: ['metrics'] });
   };
 
   const generate = useMutation({
-    mutationFn: async (ws?: string) => {
-      const res = await weeklyReviewService.generate(ws);
+    mutationFn: async (payload?: WeeklyReviewGeneratePayload) => {
+      const res = await weeklyReviewService.generate(payload);
       if (!res.success || !res.data) {
         throw new Error(formatApiFailure(res.error, 'Generate weekly review failed'));
       }
@@ -149,5 +154,32 @@ export function useSendWeeklyReviewEmail() {
       }
       return res.data;
     },
+  });
+}
+
+export function useWeeklyReviewLeverageRoi(options?: {
+  days?: number;
+  anchorDate?: string | null;
+  enabled?: boolean;
+}) {
+  const days = options?.days ?? 7;
+  const anchorDate = options?.anchorDate ?? null;
+  const enabled = options?.enabled ?? true;
+
+  return useQuery({
+    queryKey: queryKeys.growthSystem.weeklyReviews.leverageRoi(days, anchorDate),
+    queryFn: async (): Promise<WeeklyReviewLeverageRoiResponse> => {
+      const res = await weeklyReviewService.getLeverageRoi({
+        days,
+        ...(anchorDate ? { anchorDate } : {}),
+      });
+      if (!res.success || !res.data) {
+        throw new Error(formatApiFailure(res.error, 'Failed to load leverage ROI retrospective'));
+      }
+      return res.data;
+    },
+    enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
   });
 }

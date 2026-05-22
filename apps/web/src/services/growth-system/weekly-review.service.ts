@@ -3,6 +3,8 @@ import type { ApiResponse } from '@/types/api-contracts';
 import type {
   WeeklyReview,
   WeeklyReviewCurrentDashboard,
+  WeeklyReviewGeneratePayload,
+  WeeklyReviewLeverageRoiResponse,
   WeeklyReviewListResult,
   WeeklyReviewPlanActions,
   WeeklyReviewSendEmailResult,
@@ -34,9 +36,13 @@ export const weeklyReviewService = {
     );
   },
 
-  generate: async (weekStart?: string): Promise<ApiResponse<WeeklyReview>> => {
+  generate: async (payload?: WeeklyReviewGeneratePayload): Promise<ApiResponse<WeeklyReview>> => {
+    const body = payload ?? {};
     return apiClient.post<WeeklyReview>('/growth-system/weekly-reviews/generate', {
-      ...(weekStart ? { weekStart } : {}),
+      ...(body.weekStart ? { weekStart: body.weekStart } : {}),
+      ...(body.closeoutDate ? { closeoutDate: body.closeoutDate } : {}),
+      ...(body.activateOooStandby ? { activateOooStandby: true } : {}),
+      ...(body.oooStandbyLabel ? { oooStandbyLabel: body.oooStandbyLabel } : {}),
     });
   },
 
@@ -74,6 +80,19 @@ export const weeklyReviewService = {
     return apiClient.post<WeeklyReviewSendEmailResult>(
       `/growth-system/weekly-reviews/${encodeURIComponent(weekStart)}/send-email`,
       {}
+    );
+  },
+
+  getLeverageRoi: async (options?: {
+    days?: number;
+    anchorDate?: string;
+  }): Promise<ApiResponse<WeeklyReviewLeverageRoiResponse>> => {
+    const q = new URLSearchParams();
+    if (options?.days != null) q.append('days', String(options.days));
+    if (options?.anchorDate) q.append('anchorDate', options.anchorDate);
+    const suffix = q.toString() ? `?${q}` : '';
+    return apiClient.get<WeeklyReviewLeverageRoiResponse>(
+      `/growth-system/weekly-reviews/leverage-roi${suffix}`
     );
   },
 };
