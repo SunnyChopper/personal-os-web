@@ -4,12 +4,14 @@ const CAPACITY_LABEL: Record<PlannerCapacityState, string> = {
   healthy: 'Healthy load',
   warning: 'Near capacity',
   overloaded: 'Over capacity',
+  blocked: 'Unavailable',
 };
 
 const CAPACITY_CLASS: Record<PlannerCapacityState, string> = {
   healthy: 'bg-emerald-500',
   warning: 'bg-amber-500',
   overloaded: 'bg-red-500',
+  blocked: 'bg-slate-500',
 };
 
 export interface PlannerCapacityMeterProps {
@@ -27,13 +29,16 @@ export function PlannerCapacityMeter({
   capacityPoints,
   className = '',
 }: PlannerCapacityMeterProps) {
-  const pct = Math.min(100, Math.round(loadRatio * 100));
+  const isBlocked = capacityState === 'blocked' || capacityPoints <= 0;
+  const pct = isBlocked ? 0 : Math.min(100, Math.round(loadRatio * 100));
   return (
     <div className={`space-y-1 ${className}`}>
       <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-        <span>{CAPACITY_LABEL[capacityState]}</span>
+        <span>{CAPACITY_LABEL[capacityState] ?? CAPACITY_LABEL.blocked}</span>
         <span>
-          {scheduledPoints.toFixed(1)} / {capacityPoints.toFixed(1)} pts
+          {isBlocked
+            ? '0 pts capacity'
+            : `${scheduledPoints.toFixed(1)} / ${capacityPoints.toFixed(1)} pts`}
         </span>
       </div>
       <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">

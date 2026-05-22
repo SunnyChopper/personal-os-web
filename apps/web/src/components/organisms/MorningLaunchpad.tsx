@@ -139,6 +139,9 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
       id: task.id,
       input: {
         scheduledDate: tomorrow.toISOString(),
+        scheduleStatus: 'scheduled',
+        scheduleSource: 'manual',
+        scheduleUpdatedAt: new Date().toISOString(),
       },
     });
   };

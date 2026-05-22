@@ -149,9 +149,11 @@ export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantPro
     }
     const topTasks = plannerTop.length > 0 ? plannerTop : fallbackTop;
 
-    const capHint = plannerWeek?.velocity
-      ? ` Capacity ~${plannerWeek.velocity.dailyCapacityStoryPoints} pts/day.`
-      : '';
+    const capHint = todayDay?.isBlocked
+      ? ' Today is marked Out of Office / Trip — scheduling capacity is 0.'
+      : plannerWeek?.velocity
+        ? ` Capacity ~${plannerWeek.velocity.dailyCapacityStoryPoints} pts/day.`
+        : '';
     let briefing = '';
     if (energyLevel === 'morning') {
       briefing = `Good morning! You have ${topTasks.length} priority tasks, ${dailyHabits.length} habits to build, and ${activeMetrics.length} metrics to track.${capHint} Start your day strong!`;

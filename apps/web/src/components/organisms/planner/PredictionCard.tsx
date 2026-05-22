@@ -7,6 +7,7 @@ export interface PredictionCardProps {
 }
 
 export function PredictionCard({ prediction }: PredictionCardProps) {
+  const blocked = Boolean(prediction.isBlocked || prediction.predictedCapacityPoints <= 0);
   const dow = WEEKDAY_SHORT[prediction.dayOfWeek] ?? '—';
   const histSelf = prediction.dayOfWeekHistory.find((h) => h.dayOfWeek === prediction.dayOfWeek);
   const samples = histSelf?.samples ?? 0;
@@ -18,6 +19,21 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
       : prediction.confidence === 'medium'
         ? 'Partial history'
         : 'Estimated default';
+
+  if (blocked) {
+    const label = prediction.blockingContexts?.[0]?.label ?? 'Out of Office / Trip';
+    return (
+      <section className="rounded-xl border border-slate-500/40 bg-slate-900/60 p-4 shadow-sm">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          Day unavailable
+        </p>
+        <p className="mt-1 text-2xl font-bold text-slate-200">0 pts capacity</p>
+        <p className="mt-2 text-sm text-slate-400">
+          {label}. Auto-schedule and plan-day commits are disabled for this date.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">

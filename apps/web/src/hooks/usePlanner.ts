@@ -3,7 +3,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { plannerService } from '@/services/growth-system/planner.service';
 import { mondayISOForDate } from '@/lib/planner/week';
-import type { PlannerBlock, PlannerWeek, CommitPlanDayPayload } from '@/types/planner';
+import type {
+  PlannerBlock,
+  PlannerWeek,
+  CommitPlanDayPayload,
+  PlannerAutoScheduleCommitPayload,
+  PlannerKillSwitchResult,
+  PlannerRolloverAction,
+  PlannerSchedulingExceptionCreatePayload,
+} from '@/types/planner';
 
 function requireData<T>(res: { success: boolean; data?: T; error?: { message?: string } }): T {
   if (!res.success || res.data === undefined) {
@@ -69,6 +77,55 @@ export function usePlannerAutoSchedule(weekStart: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => requireData(await plannerService.autoSchedule(weekStart)),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.week(weekStart) });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+    },
+  });
+}
+
+export function useCreateSchedulingException(weekStart: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: PlannerSchedulingExceptionCreatePayload) =>
+      requireData(await plannerService.createSchedulingException(payload)),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.week(weekStart) });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+    },
+  });
+}
+
+export function useDeleteSchedulingException(weekStart: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (exceptionId: string) =>
+      requireData(await plannerService.deleteSchedulingException(exceptionId)),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.week(weekStart) });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+    },
+  });
+}
+
+export function usePlannerAutoSchedulePreview(weekStart: string) {
+  return useMutation({
+    mutationFn: async () => requireData(await plannerService.autoSchedulePreview(weekStart)),
+  });
+}
+
+export function usePlannerAutoScheduleCommit(weekStart: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Omit<PlannerAutoScheduleCommitPayload, 'weekStart'>) =>
+      requireData(
+        await plannerService.autoScheduleCommit({
+          weekStart,
+          ...payload,
+        })
+      ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.week(weekStart) });
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
@@ -183,6 +240,37 @@ export function useSetOneThing() {
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
       void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.all() });
+    },
+  });
+}
+
+export function usePlannerKillSwitch(weekStart: string, focusDateISO: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      requireData(await plannerService.applyKillSwitch({ date: focusDateISO })),
+    onSuccess: (data: PlannerKillSwitchResult) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.week(weekStart) });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.day(focusDateISO) });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+      void qc.setQueryData(queryKeys.growthSystem.planner.week(weekStart), data.week);
+    },
+  });
+}
+
+export function usePlannerRolloverDecision(weekStart: string, focusDateISO: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { rolloverId: string; action: PlannerRolloverAction }) =>
+      requireData(await plannerService.applyRolloverDecision(vars.rolloverId, vars.action)),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.week(weekStart) });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.day(focusDateISO) });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
+      void qc.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
     },
   });
 }

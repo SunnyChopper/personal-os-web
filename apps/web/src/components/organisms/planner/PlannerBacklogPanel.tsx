@@ -15,22 +15,22 @@ export function PlannerBacklogPanel({ tasks, scheduledTaskIds }: PlannerBacklogP
   );
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 h-full min-h-[200px]">
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Backlog</h3>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-        Unscheduled active tasks. Use <strong>Auto-schedule</strong> to place blocks from the model.
+    <div className="min-h-0">
+      <p className="mb-3 text-xs text-gray-400">
+        Unscheduled active tasks. Use <strong className="text-gray-300">Auto-schedule</strong> to
+        place blocks from the model. Drag-and-drop onto days coming soon.
       </p>
-      <ul className="space-y-1 max-h-[320px] overflow-y-auto text-xs">
-        {backlog.slice(0, 40).map((t) => (
+      <ul className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+        {backlog.slice(0, 60).map((t) => (
           <li
             key={t.id}
-            className="truncate px-2 py-1 rounded bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200"
+            className="truncate rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-gray-200"
           >
-            <span className="font-medium">{t.priority}</span> · {t.title}
+            <span className="font-medium text-gray-400">{t.priority}</span> · {t.title}
           </li>
         ))}
         {backlog.length === 0 && (
-          <li className="text-gray-500 dark:text-gray-400 italic">Nothing in backlog.</li>
+          <li className="text-sm italic text-gray-500">Nothing in backlog.</li>
         )}
       </ul>
     </div>
