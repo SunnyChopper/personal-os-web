@@ -6,7 +6,15 @@ import type {
   OneThingSelection,
   OneThingCandidate,
   PlanDay,
+  PlannerRolloverAction,
+  PlannerRolloverDecision,
+  PlannerAutoScheduleCommitPayload,
+  PlannerAutoSchedulePreview,
   PlannerBlock,
+  PlannerBlockingContext,
+  PlannerSchedulingExceptionCreatePayload,
+  PlannerKillSwitchPayload,
+  PlannerKillSwitchResult,
   PlannerWeek,
 } from '@/types/planner';
 
@@ -22,6 +30,11 @@ export const plannerService = {
   commitPlanDay: (body: CommitPlanDayPayload): Promise<ApiResponse<PlannerWeek>> =>
     apiClient.post<PlannerWeek>('/growth-system/planner/plan-day', body),
 
+  applyKillSwitch: (
+    body: PlannerKillSwitchPayload
+  ): Promise<ApiResponse<PlannerKillSwitchResult>> =>
+    apiClient.post<PlannerKillSwitchResult>('/growth-system/planner/kill-switch', body),
+
   generateWeek: (weekStart: string, includeLlmSchedule = true): Promise<ApiResponse<PlannerWeek>> =>
     apiClient.post<PlannerWeek>('/growth-system/planner/generate', {
       weekStart,
@@ -30,6 +43,43 @@ export const plannerService = {
 
   autoSchedule: (weekStart: string): Promise<ApiResponse<PlannerWeek>> =>
     apiClient.post<PlannerWeek>('/growth-system/planner/auto-schedule', { weekStart }),
+
+  autoSchedulePreview: (weekStart: string): Promise<ApiResponse<PlannerAutoSchedulePreview>> =>
+    apiClient.post<PlannerAutoSchedulePreview>('/growth-system/planner/auto-schedule/preview', {
+      weekStart,
+    }),
+
+  listSchedulingExceptions: (
+    startDate: string,
+    endDate: string
+  ): Promise<ApiResponse<{ items: PlannerBlockingContext[] }>> =>
+    apiClient.get<{ items: PlannerBlockingContext[] }>(
+      `/growth-system/planner/scheduling-exceptions?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+    ),
+
+  createSchedulingException: (
+    body: PlannerSchedulingExceptionCreatePayload
+  ): Promise<ApiResponse<PlannerBlockingContext>> =>
+    apiClient.post<PlannerBlockingContext>('/growth-system/planner/scheduling-exceptions', body),
+
+  deleteSchedulingException: (exceptionId: string): Promise<ApiResponse<{ deleted: boolean }>> =>
+    apiClient.delete(
+      `/growth-system/planner/scheduling-exceptions/${encodeURIComponent(exceptionId)}`
+    ),
+
+  autoScheduleCommit: (
+    payload: PlannerAutoScheduleCommitPayload
+  ): Promise<ApiResponse<PlannerWeek>> =>
+    apiClient.post<PlannerWeek>('/growth-system/planner/auto-schedule/commit', payload),
+
+  applyRolloverDecision: (
+    rolloverId: string,
+    action: PlannerRolloverAction
+  ): Promise<ApiResponse<PlannerRolloverDecision>> =>
+    apiClient.patch<PlannerRolloverDecision>(
+      `/growth-system/planner/rollovers/${encodeURIComponent(rolloverId)}`,
+      { action }
+    ),
 
   moveBlock: (
     blockId: string,

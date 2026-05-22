@@ -127,6 +127,7 @@ export default function TasksPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [taskToView, setTaskToView] = useState<Task | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [splitDragError, setSplitDragError] = useState<string | null>(null);
 
   const apiTaskFilters = useMemo<FilterOptions>(() => {
     const f: FilterOptions = {
@@ -172,6 +173,8 @@ export default function TasksPage() {
     updateTask,
     completeTask,
     deleteTask,
+    splitDraggedTask,
+    isSplittingDraggedTask,
   } = useTasks(apiTaskFilters);
   const { projects } = useProjects();
   const { goals } = useGoals();
@@ -322,6 +325,54 @@ export default function TasksPage() {
         type: 'error',
         title: 'Failed to create task',
         message: errorMessage,
+      });
+      throw error;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSplitDraggedTask = async (task: Task) => {
+    setSplitDragError(null);
+    try {
+      const result = await splitDraggedTask(task);
+      showToast({
+        type: 'success',
+        title: 'Task split',
+        message: `Created ${result.created.length} subtasks (1 pt each). ${result.reasoning}`,
+      });
+      setIsDetailDialogOpen(false);
+      setTaskToView(null);
+    } catch (error) {
+      const message = extractErrorMessage(error, 'Failed to split task. Try again.');
+      setSplitDragError(message);
+      showToast({ type: 'error', title: 'Split failed', message });
+    }
+  };
+
+  const handleCreateSubtasks = async (subtasks: CreateTaskInput[]) => {
+    if (!selectedTask) return;
+    setIsSubmitting(true);
+    try {
+      for (const st of subtasks) {
+        await createTask({
+          ...st,
+          parentTaskId: selectedTask.id,
+          size: 1,
+          area: selectedTask.area,
+          priority: selectedTask.priority,
+        });
+      }
+      showToast({
+        type: 'success',
+        title: 'Subtasks created',
+        message: `Added ${subtasks.length} one-point subtasks.`,
+      });
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Failed to create subtasks',
+        message: extractErrorMessage(error, 'Could not create subtasks.'),
       });
       throw error;
     } finally {
@@ -946,6 +997,7 @@ export default function TasksPage() {
           onProjectUnlink={handleProjectUnlink}
           onGoalLink={handleGoalLink}
           onGoalUnlink={handleGoalUnlink}
+          onCreateSubtasks={handleCreateSubtasks}
         />
       )}
 
@@ -1028,8 +1080,12 @@ export default function TasksPage() {
         onClose={() => {
           setIsDetailDialogOpen(false);
           setTaskToView(null);
+          setSplitDragError(null);
         }}
         onEdit={handleEditTask}
+        onSplitDraggedTask={handleSplitDraggedTask}
+        isSplittingDraggedTask={isSplittingDraggedTask}
+        splitDragError={splitDragError}
       />
     </div>
   );

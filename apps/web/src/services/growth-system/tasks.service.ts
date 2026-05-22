@@ -2,6 +2,7 @@ import { llmConfig } from '@/lib/llm';
 import { llmLogger } from '@/lib/logger';
 import { taskPointsAIService } from '@/services/ai/task-points.service';
 import { apiClient } from '@/lib/api-client';
+import { llmService } from '@/services/llm.service';
 import type {
   Task,
   CreateTaskInput,
@@ -59,6 +60,53 @@ export const tasksService = {
   async getById(id: string): Promise<ApiResponse<Task>> {
     const response = await apiClient.get<Task>(`/tasks/${id}`);
     return response;
+  },
+
+  async getSubtasks(parentId: string): Promise<PaginatedResponse<Task>> {
+    const response = await apiClient.get<BackendPaginatedResponse<Task>>(
+      `/tasks/${encodeURIComponent(parentId)}/subtasks`
+    );
+    if (response.success && response.data) {
+      const tasks = response.data.tasks || [];
+      return {
+        data: tasks,
+        total: response.data.total,
+        page: response.data.page,
+        pageSize: response.data.pageSize,
+        totalPages: Math.ceil(response.data.total / response.data.pageSize) || 1,
+      };
+    }
+    throw new Error(response.error?.message || 'Failed to fetch subtasks');
+  },
+
+  /** AI breakdown then create depth-1 subtasks with size 1 each. */
+  async createVelocityDragSplit(parent: Task): Promise<{ created: Task[]; reasoning: string }> {
+    const breakdown = await llmService.breakdownTask(parent);
+    if (!breakdown.success || !breakdown.data?.subtasks?.length) {
+      throw new Error(breakdown.error || 'AI breakdown produced no subtasks');
+    }
+
+    const created: Task[] = [];
+    for (const st of breakdown.data.subtasks) {
+      const input: CreateTaskInput = {
+        title: st.title,
+        description: st.description,
+        area: parent.area,
+        priority: parent.priority,
+        size: 1,
+        parentTaskId: parent.id,
+        projectIds: parent.projectIds?.length ? [...parent.projectIds] : undefined,
+        goalIds: parent.goalIds?.length ? [...parent.goalIds] : undefined,
+        status: 'Not Started',
+      };
+      const res = await this.create(input);
+      if (res.success && res.data) {
+        created.push(res.data);
+      } else {
+        throw new Error(res.error?.message || 'Failed to create subtask');
+      }
+    }
+    return { created, reasoning: breakdown.data.reasoning };
   },
 
   async create(input: CreateTaskInput): Promise<ApiResponse<Task>> {

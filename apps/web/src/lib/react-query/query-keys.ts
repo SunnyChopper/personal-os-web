@@ -88,6 +88,15 @@ export const queryKeys = {
         [...queryKeys.growthSystem.weeklyReviews.all(), 'list', page, pageSize] as const,
       detail: (weekStart: string) =>
         [...queryKeys.growthSystem.weeklyReviews.all(), weekStart] as const,
+      leverageRoi: (days: number, anchorDate?: string | null) =>
+        anchorDate != null && anchorDate !== ''
+          ? ([
+              ...queryKeys.growthSystem.weeklyReviews.all(),
+              'leverage-roi',
+              days,
+              anchorDate,
+            ] as const)
+          : ([...queryKeys.growthSystem.weeklyReviews.all(), 'leverage-roi', days] as const),
     },
     planner: {
       all: () => [...queryKeys.growthSystem.all, 'planner'] as const,
@@ -340,6 +349,7 @@ export const queryKeys = {
     all: ['preferences'] as const,
     timeZone: () => [...queryKeys.preferences.all, 'time-zone'] as const,
     weeklyDashboard: () => [...queryKeys.preferences.all, 'weekly-dashboard'] as const,
+    marginOfSafetyBuffer: () => [...queryKeys.preferences.all, 'margin-of-safety-buffer'] as const,
   },
 
   // Rewards

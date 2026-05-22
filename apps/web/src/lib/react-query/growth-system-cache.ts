@@ -127,6 +127,8 @@ export function mergeTaskWithUpdate(task: Task, input: UpdateTaskInput): Task {
     ...(input.pointValue !== undefined ? { pointValue: input.pointValue } : {}),
     ...(input.projectIds !== undefined ? { projectIds: input.projectIds } : {}),
     ...(input.goalIds !== undefined ? { goalIds: input.goalIds } : {}),
+    ...(input.energyLevel !== undefined ? { energyLevel: input.energyLevel } : {}),
+    ...(input.executionWindow !== undefined ? { executionWindow: input.executionWindow } : {}),
   };
 
   if (input.status !== undefined && task.status === 'Done' && input.status !== 'Done') {

@@ -44,6 +44,13 @@ describe('SuggestionsList', () => {
     const suggestion = sampleSuggestion({});
     render(<ToggleHarness suggestion={suggestion} />);
     await userEvent.click(screen.getByRole('checkbox'));
-    expect(screen.getByText(/0\.0 \/ ~5\.0 pts selected/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.0 \/ ~5\.0 pts/)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /Daily capacity/i })).toBeInTheDocument();
+  });
+
+  it('shows Fits today chip when contextMatch is true', () => {
+    const suggestion = sampleSuggestion({ contextMatch: true, fitReason: 'Fits a lighter day' });
+    render(<ToggleHarness suggestion={suggestion} />);
+    expect(screen.getByText('Fits today')).toBeInTheDocument();
   });
 });

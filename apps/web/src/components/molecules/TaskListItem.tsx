@@ -2,6 +2,7 @@ import { Pencil, Trash2, Calendar, Clock, GitBranch, Coins } from 'lucide-react'
 import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import type { Task } from '@/types/growth-system';
+import { VelocityDragBadge } from '@/components/molecules/VelocityDragInterventionCard';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
@@ -76,6 +77,7 @@ export function TaskListItem({
 
   const metadata = (
     <>
+      <VelocityDragBadge rolloverCount={task.rolloverCount} />
       <AreaBadge area={task.area} size="sm" />
 
       {(projectCount > 0 || goalCount > 0) && (

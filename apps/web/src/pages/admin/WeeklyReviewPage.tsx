@@ -23,21 +23,26 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '@/components/atoms/Button';
+import Dialog from '@/components/molecules/Dialog';
 import { CelebrationEffect } from '@/components/atoms/CelebrationEffect';
 import { WeeklyDashboardGrid } from '@/components/organisms/WeeklyDashboardGrid';
 import { WeeklyDashboardSettingsDrawer } from '@/components/organisms/WeeklyDashboardSettingsDrawer';
+import { HabitVelocityInsightCallout } from '@/components/molecules/HabitVelocityInsightCallout';
 import { VelocityChart } from '@/components/molecules/VelocityChart';
 import { AISuggestedTasks } from '@/components/organisms/AISuggestedTasks';
 import { BlockerResolution } from '@/components/organisms/BlockerResolution';
+import { AccumulatedTechDebt } from '@/components/organisms/AccumulatedTechDebt';
 import { QuarantineZone } from '@/components/organisms/QuarantineZone';
 import { useGrowthSystemDashboard } from '@/hooks/useGrowthSystemDashboard';
 import {
   useWeeklyReviewCurrent,
+  useWeeklyReviewLeverageRoi,
   useWeeklyReviewList,
   useWeeklyReviewMutations,
   useWeeklyReviewSnapshot,
   useSendWeeklyReviewEmail,
 } from '@/hooks/useWeeklyReview';
+import { LeverageRoiRetrospectiveWidget } from '@/components/widgets/weekly/LeverageRoiRetrospectiveWidget';
 import { useWeeklyDashboardConfig } from '@/hooks/useWeeklyDashboardConfig';
 import { maxComparisonWeeks, velocityRollingWindow } from '@/types/weekly-dashboard';
 import { useToast } from '@/hooks/use-toast';
@@ -46,6 +51,7 @@ import { ROUTES } from '@/routes';
 import type {
   WeeklyReviewBlockerResolution,
   WeeklyReviewQuarantineDecision,
+  WeeklyReviewTechDebtDecision,
   WeeklyReviewAcceptedTask,
   WeeklyReviewSuggestedTask,
   WeeklyReviewCurrentDashboard,
@@ -71,6 +77,7 @@ export default function WeeklyReviewPage() {
   const weekFromUrl = searchParams.get('week');
   const { showToast, ToastContainer } = useToast();
   const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);
+  const [earlyCloseoutModalOpen, setEarlyCloseoutModalOpen] = useState(false);
 
   const { data: dashboardConfig } = useWeeklyDashboardConfig();
   const comparisonWeeks = dashboardConfig ? maxComparisonWeeks(dashboardConfig) : 5;
@@ -116,6 +123,11 @@ export default function WeeklyReviewPage() {
     [snapshot, liveWeekKey]
   );
 
+  const isDraftReview = useMemo(
+    () => Boolean(liveWeekKey && snapshot && snapshot.status !== 'completed'),
+    [liveWeekKey, snapshot]
+  );
+
   const { tasks } = useGrowthSystemDashboard({ includeCompleted: true });
   const blockedTasks = useMemo(() => tasks.filter((t) => t.status === 'Blocked'), [tasks]);
 
@@ -137,6 +149,7 @@ export default function WeeklyReviewPage() {
   const [quarantineDecisions, setQuarantineDecisions] = useState<WeeklyReviewQuarantineDecision[]>(
     []
   );
+  const [techDebtDecisions, setTechDebtDecisions] = useState<WeeklyReviewTechDebtDecision[]>([]);
   const [blockerResolutions, setBlockerResolutions] = useState<WeeklyReviewBlockerResolution[]>([]);
   const [suggestedAccepted, setSuggestedAccepted] = useState<WeeklyReviewAcceptedTask[]>([]);
   const [aiSuggestions, setAiSuggestions] = useState<WeeklyReviewSuggestedTask[]>([]);
@@ -154,10 +167,12 @@ export default function WeeklyReviewPage() {
     setAiSuggestions(snapshot.aiAnalysis.suggestedTasks ?? []);
     if (snapshot.planActions) {
       setQuarantineDecisions(snapshot.planActions.quarantineDecisions ?? []);
+      setTechDebtDecisions(snapshot.planActions.techDebtDecisions ?? []);
       setBlockerResolutions(snapshot.planActions.blockerResolutions ?? []);
       setSuggestedAccepted(snapshot.planActions.suggestedTasksAccepted ?? []);
     } else {
       setQuarantineDecisions([]);
+      setTechDebtDecisions([]);
       setBlockerResolutions([]);
       setSuggestedAccepted([]);
     }
@@ -175,16 +190,60 @@ export default function WeeklyReviewPage() {
     [searchParams, setSearchParams]
   );
 
-  const handleGenerate = async () => {
-    const res = await generate.mutateAsync(undefined);
+  const runGenerate = async (payload?: {
+    weekStart?: string;
+    closeoutDate?: string;
+    activateOooStandby?: boolean;
+  }) => {
+    const res = await generate.mutateAsync(
+      payload?.weekStart || payload?.closeoutDate || payload?.activateOooStandby
+        ? {
+            ...(payload.weekStart ? { weekStart: payload.weekStart } : {}),
+            ...(payload.closeoutDate ? { closeoutDate: payload.closeoutDate } : {}),
+            ...(payload.activateOooStandby ? { activateOooStandby: true } : {}),
+          }
+        : undefined
+    );
     selectWeek(res.weekStart);
     await refetchSnapshot();
+    setEarlyCloseoutModalOpen(false);
+  };
+
+  const handleGenerate = async () => {
+    if (
+      current?.earlyCloseoutEligible &&
+      !current.activeOooStandby &&
+      !current.hasGeneratedReview
+    ) {
+      setEarlyCloseoutModalOpen(true);
+      return;
+    }
+    await runGenerate(current?.weekStart ? { weekStart: current.weekStart } : undefined);
+  };
+
+  const handleActivateStandbyAndGenerate = () => {
+    if (!current?.localDate || !current.weekStart) return;
+    void runGenerate({
+      weekStart: current.weekStart,
+      closeoutDate: current.localDate,
+      activateOooStandby: true,
+    });
+  };
+
+  const handleGenerateWithoutStandby = () => {
+    if (!current?.localDate || !current.weekStart) return;
+    void runGenerate({
+      weekStart: current.weekStart,
+      closeoutDate: current.localDate,
+      activateOooStandby: false,
+    });
   };
 
   const handleSavePlan = async () => {
     if (!effectiveWeekStart || isHistorical) return;
     await savePlan.mutateAsync({
       quarantineDecisions,
+      techDebtDecisions,
       blockerResolutions,
       suggestedTasksAccepted: suggestedAccepted,
     });
@@ -208,7 +267,7 @@ export default function WeeklyReviewPage() {
     if (!effectiveWeekStart) return;
     if (
       !confirm(
-        'Remove this weekly review draft? Your tasks and habits stay as they are. You can run a fresh review later.'
+        'Discard this weekly review draft and re-open the week? Your tasks, habits, and metrics stay unchanged. You can generate a new draft anytime.'
       )
     ) {
       return;
@@ -216,14 +275,15 @@ export default function WeeklyReviewPage() {
     try {
       await discard.mutateAsync(effectiveWeekStart);
       selectWeek(null);
+      await refetchCurrent();
     } catch (err) {
       const message =
         err instanceof Error && err.message.trim()
           ? err.message
-          : 'Could not remove the draft. Check your connection or try again.';
+          : 'Could not discard the draft. Check your connection or try again.';
       showToast({
         type: 'error',
-        title: 'Could not remove draft review',
+        title: 'Could not discard draft',
         message,
         duration: 8000,
       });
@@ -271,6 +331,30 @@ export default function WeeklyReviewPage() {
 
   const loading = currentLoading || (Boolean(effectiveWeekStart) && snapshotLoading);
 
+  const leverageAnchorDate = useMemo(() => {
+    if (snapshot?.weekEnd) return snapshot.weekEnd;
+    if (current?.weekEnd && !weekFromUrl) return current.weekEnd;
+    return null;
+  }, [snapshot?.weekEnd, current?.weekEnd, weekFromUrl]);
+
+  const showLeverageRoi =
+    Boolean(snapshot && step === 'review') ||
+    Boolean(showMidWeek && current && dashboardConfig && !loading);
+
+  const {
+    data: leverageRoi,
+    isLoading: leverageRoiLoading,
+    isError: leverageRoiIsError,
+    error: leverageRoiErr,
+  } = useWeeklyReviewLeverageRoi({
+    days: 7,
+    anchorDate: leverageAnchorDate,
+    enabled: showLeverageRoi,
+  });
+
+  const leverageRoiErrorMessage =
+    leverageRoiErr instanceof Error ? leverageRoiErr.message : undefined;
+
   const showEmpty =
     Boolean(current) &&
     !loading &&
@@ -308,9 +392,46 @@ export default function WeeklyReviewPage() {
       <CelebrationEffect
         show={celebrateComplete}
         type="criteria_completed"
-        message="Week committed!"
+        message="Week finalized and locked!"
         onComplete={() => setCelebrateComplete(false)}
       />
+      <Dialog
+        isOpen={earlyCloseoutModalOpen}
+        onClose={() => !generate.isPending && setEarlyCloseoutModalOpen(false)}
+        title="Going off-grid early? Let's protect your streaks."
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            You&apos;re closing out before the end of the week. OOO Standby marks remaining days as
+            neutral so unlogged time won&apos;t hurt habit streaks or velocity averages.
+          </p>
+          {current?.oooStandbySuggestion && (
+            <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-950 dark:bg-blue-950/50 dark:text-blue-100">
+              Protected: {current.oooStandbySuggestion.protectedStartDate} through{' '}
+              {current.oooStandbySuggestion.protectedEndDate} (
+              {current.oooStandbySuggestion.protectedDates.length} day
+              {current.oooStandbySuggestion.protectedDates.length === 1 ? '' : 's'})
+            </p>
+          )}
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="secondary"
+              onClick={handleGenerateWithoutStandby}
+              disabled={generate.isPending}
+            >
+              Start review without standby
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleActivateStandbyAndGenerate}
+              disabled={generate.isPending}
+            >
+              {generate.isPending ? 'Starting…' : 'Activate OOO Standby & start review'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
       <div className="w-full max-w-6xl text-gray-900 dark:text-gray-100">
         <header className="mb-6 flex flex-col gap-4 border-b border-gray-200/80 pb-6 dark:border-gray-800 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 text-center md:text-left">
@@ -456,8 +577,9 @@ export default function WeeklyReviewPage() {
             <div>
               <p className="font-semibold">Weekly review pending</p>
               <p className="mt-1 text-amber-900/90 dark:text-amber-200/90">
-                Your review day has passed for week {current.weekStart}. Complete your weekly review
-                or run it now to lock in the week.
+                Your review day has passed for week {current.weekStart}. Generate a draft review to
+                reflect and plan, then finalize when you are ready—or discard the draft to keep
+                tracking as usual.
               </p>
             </div>
             <Button variant="primary" onClick={handleGenerate} disabled={generate.isPending}>
@@ -474,12 +596,20 @@ export default function WeeklyReviewPage() {
               </h2>
               <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
                 Week {current.weekStart} → {current.weekEnd}. Your automated review will run on your
-                scheduled day; you can also generate it now.
+                scheduled day; you can also open a draft review now—nothing is locked until you
+                finalize.
               </p>
               <WeeklyDashboardGrid
                 config={dashboardConfig}
                 data={current}
                 onEdit={() => setDashboardDrawerOpen(true)}
+              />
+              <LeverageRoiRetrospectiveWidget
+                className="mt-6"
+                data={leverageRoi}
+                isLoading={leverageRoiLoading}
+                isError={leverageRoiIsError}
+                errorMessage={leverageRoiErrorMessage}
               />
               <div className="mt-6 flex justify-end">
                 <Button variant="primary" onClick={handleGenerate} disabled={generate.isPending}>
@@ -547,19 +677,36 @@ export default function WeeklyReviewPage() {
                 </div>
               )}
 
-              {liveWeekKey && snapshot.status !== 'completed' && (
+              {(snapshot?.oooStandby ?? current?.activeOooStandby) && (
                 <div
-                  className="flex flex-col gap-4 rounded-xl border border-blue-200 bg-blue-50/90 p-4 text-sm dark:border-blue-900/50 dark:bg-blue-950/35 md:flex-row md:items-center md:justify-between"
+                  className="rounded-xl border border-emerald-300/80 bg-emerald-50/90 p-4 text-sm text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-100"
                   role="status"
+                  aria-label="OOO Standby active"
+                >
+                  <p className="font-semibold">OOO Standby active</p>
+                  <p className="mt-1 text-emerald-900/90 dark:text-emerald-200/90">
+                    Protected days {(snapshot?.oooStandby ?? current?.activeOooStandby)?.startDate}{' '}
+                    – {(snapshot?.oooStandby ?? current?.activeOooStandby)?.endDate} are omitted
+                    from habit and velocity penalties.
+                  </p>
+                </div>
+              )}
+
+              {isDraftReview && (
+                <div
+                  className="flex flex-col gap-4 rounded-xl border border-blue-300 bg-blue-50/95 p-4 text-sm dark:border-blue-800/60 dark:bg-blue-950/45 md:flex-row md:items-start md:justify-between"
+                  role="status"
+                  aria-label="Weekly review draft"
                 >
                   <div className="space-y-2 md:max-w-2xl">
-                    <span className="inline-flex w-fit items-center rounded-full bg-blue-600 px-2.5 py-0.5 text-xs font-semibold text-white">
-                      Week in progress
-                    </span>
+                    <p className="font-semibold text-blue-950 dark:text-blue-50">
+                      Weekly Review Draft — Unsaved changes will not affect your historical metrics.
+                    </p>
                     <p className="text-gray-700 dark:text-gray-300">
-                      The summary tiles and story-point velocity update as you complete tasks
-                      (through today). AI insights are still from when you first generated this
-                      review—run a new one later if you want them refreshed.
+                      This week stays open for normal tracking until you choose{' '}
+                      <span className="font-medium">Finalize &amp; Lock Week</span>. Summary tiles
+                      and velocity update as you complete tasks through today; AI insights are from
+                      when you generated this draft.
                     </p>
                   </div>
                   <Button
@@ -573,7 +720,7 @@ export default function WeeklyReviewPage() {
                     ) : (
                       <RotateCcw className="h-4 w-4" />
                     )}
-                    Remove draft review
+                    Discard Draft / Re-open Week
                   </Button>
                 </div>
               )}
@@ -636,7 +783,18 @@ export default function WeeklyReviewPage() {
                           currentWeekStart={snapshot.weekStart}
                           className="mt-4 border-gray-200 dark:border-gray-700"
                         />
+                        <HabitVelocityInsightCallout
+                          correlations={snapshot.habitVelocityCorrelations}
+                        />
                       </div>
+
+                      <LeverageRoiRetrospectiveWidget
+                        data={leverageRoi}
+                        isLoading={leverageRoiLoading}
+                        isError={leverageRoiIsError}
+                        errorMessage={leverageRoiErrorMessage}
+                        muted={isHistorical}
+                      />
 
                       <div className={`p-6 ${shellClass(isHistorical)}`}>
                         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
@@ -721,6 +879,17 @@ export default function WeeklyReviewPage() {
                         />
                       </section>
                       <section className={`p-6 ${shellClass(isHistorical)}`}>
+                        <h3 className="text-md mb-3 font-semibold text-rose-800 dark:text-rose-200">
+                          Accumulated Technical Debt
+                        </h3>
+                        <AccumulatedTechDebt
+                          candidates={snapshot.aiAnalysis.techDebtCandidates ?? []}
+                          decisions={techDebtDecisions}
+                          onChange={setTechDebtDecisions}
+                          readOnly={isHistorical}
+                        />
+                      </section>
+                      <section className={`p-6 ${shellClass(isHistorical)}`}>
                         <h3 className="text-md mb-3 font-semibold text-gray-900 dark:text-white">
                           Blocker resolution
                         </h3>
@@ -750,7 +919,7 @@ export default function WeeklyReviewPage() {
                           onClick={() => void handleSavePlan()}
                           disabled={savePlan.isPending || isHistorical}
                         >
-                          {savePlan.isPending ? 'Saving…' : 'Save & finalize'}
+                          {savePlan.isPending ? 'Saving…' : 'Save plan & continue'}
                         </Button>
                       </div>
                     </div>
@@ -768,7 +937,7 @@ export default function WeeklyReviewPage() {
                           <CheckSquare className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
                         </div>
                         <h2 className="mb-3 font-serif text-2xl font-semibold text-gray-900 dark:text-white">
-                          {snapshot.status === 'completed' ? 'Locked in!' : 'Ready to commit'}
+                          {snapshot.status === 'completed' ? 'Week locked' : 'Ready to finalize'}
                         </h2>
                         <p className="mx-auto mb-4 max-w-lg text-gray-600 dark:text-gray-300">
                           {snapshot.completionSummary?.hypeMessage ||
@@ -789,7 +958,7 @@ export default function WeeklyReviewPage() {
                               onClick={() => void handleComplete()}
                               disabled={complete.isPending}
                             >
-                              {complete.isPending ? 'Committing…' : 'Confirm & update sprint'}
+                              {complete.isPending ? 'Finalizing…' : 'Finalize & Lock Week'}
                             </Button>
                           )}
                           <Button

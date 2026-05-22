@@ -9,7 +9,9 @@ import {
   projectsService,
   logbookService,
 } from '@/services/growth-system';
+import type { ApiResponse, DashboardSummaryResponse } from '@/types/api-contracts';
 import type {
+  Task,
   CreateTaskInput,
   UpdateTaskInput,
   CreateHabitInput,
@@ -71,6 +73,11 @@ export const useTasks = (filters?: FilterOptions) => {
   // Block list fetches while the dashboard query is pending/successful
   const dashboardQueryState = queryClient.getQueryState(queryKeys.growthSystem.data());
   const dashboardControlsLoading = !!dashboardQueryState && dashboardQueryState.status !== 'error';
+  const dashboardSummary = queryClient.getQueryData<ApiResponse<DashboardSummaryResponse>>(
+    queryKeys.growthSystem.data()
+  );
+  const dashboardTasks =
+    dashboardQueryState?.status === 'success' ? (dashboardSummary?.data?.tasks ?? []) : undefined;
 
   // TODO: Temporarily allowing queries without user authentication
   const { data, isLoading, error, isError } = useQuery({
@@ -229,10 +236,23 @@ export const useTasks = (filters?: FilterOptions) => {
   const apiError = error ? extractApiError(error) : null;
   const isNetworkErr = apiError ? isNetworkError(apiError) : false;
 
-  const isWaitingForDashboard = dashboardControlsLoading && !data?.data;
+  const isWaitingForDashboard =
+    dashboardControlsLoading && !data?.data && dashboardTasks === undefined;
+
+  const splitDraggedTaskMutation = useMutation({
+    mutationFn: (parent: Task) => tasksService.createVelocityDragSplit(parent),
+    onSuccess: (_result, parent) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.growthSystem.tasks.detail(parent.id),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.all() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+    },
+  });
 
   return {
-    tasks: isError && isNetworkErr ? [] : data?.data || [],
+    tasks: isError && isNetworkErr ? [] : (data?.data ?? dashboardTasks ?? []),
     isLoading: (isWaitingForDashboard || isLoading) && !isError,
     isError,
     error: apiError || error,
@@ -240,6 +260,8 @@ export const useTasks = (filters?: FilterOptions) => {
     updateTask: updateMutation.mutateAsync,
     completeTask: completeMutation.mutateAsync,
     deleteTask: deleteMutation.mutateAsync,
+    splitDraggedTask: splitDraggedTaskMutation.mutateAsync,
+    isSplittingDraggedTask: splitDraggedTaskMutation.isPending,
   };
 };
 

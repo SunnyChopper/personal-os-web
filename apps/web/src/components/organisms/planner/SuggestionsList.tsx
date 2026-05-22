@@ -20,6 +20,42 @@ export interface SuggestionsListProps {
   onReorder: (nextOrderedIds: string[]) => void;
 }
 
+function getCapacityBatteryPresentation(selectedPoints: number, capacityPoints: number) {
+  const ratio = capacityPoints > 0 ? selectedPoints / capacityPoints : 0;
+  const c = capacityPoints;
+
+  if (selectedPoints <= 0.8 * c) {
+    return {
+      ratio,
+      batteryColor: 'bg-teal-400 dark:bg-teal-500',
+      statusText: 'Under-allocated',
+      isOverloaded: false,
+    };
+  }
+  if (selectedPoints <= c) {
+    return {
+      ratio,
+      batteryColor: 'bg-emerald-500 dark:bg-emerald-400',
+      statusText: 'Optimal Capacity',
+      isOverloaded: false,
+    };
+  }
+  if (selectedPoints <= 1.3 * c) {
+    return {
+      ratio,
+      batteryColor: 'bg-amber-500',
+      statusText: 'Over-allocated',
+      isOverloaded: false,
+    };
+  }
+  return {
+    ratio,
+    batteryColor: 'bg-red-500 dark:bg-red-600 animate-pulse',
+    statusText: 'Schedule Cooked ⚠️',
+    isOverloaded: true,
+  };
+}
+
 function SortableRow({
   item,
   selected,
@@ -65,6 +101,11 @@ function SortableRow({
           <span className="ml-2 rounded bg-gray-100 px-1.5 text-xs dark:bg-gray-800">
             {item.priority}
           </span>
+          {item.contextMatch ? (
+            <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200">
+              Fits today
+            </span>
+          ) : null}
           <p className="text-xs text-gray-500 dark:text-gray-400">{item.reason}</p>
         </span>
         <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-blue-800 dark:bg-blue-950/60 dark:text-blue-200">
@@ -95,6 +136,12 @@ export function SuggestionsList({
     0
   );
 
+  const { ratio, batteryColor, statusText, isOverloaded } = getCapacityBatteryPresentation(
+    selectedPoints,
+    capacityPoints
+  );
+  const fillPct = Math.min(ratio * 100, 100);
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -116,11 +163,34 @@ export function SuggestionsList({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap justify-between gap-2 text-sm text-gray-600 dark:text-gray-300">
-        <span>Select work for this session</span>
-        <span className="tabular-nums font-semibold text-gray-900 dark:text-white">
-          {selectedPoints.toFixed(1)} / ~{capacityPoints.toFixed(1)} pts selected
-        </span>
+      <div className="mb-2 space-y-2">
+        <div className="flex items-end justify-between text-sm">
+          <span
+            className={
+              isOverloaded
+                ? 'font-bold text-red-600 dark:text-red-400'
+                : 'font-medium text-gray-600 dark:text-gray-300'
+            }
+          >
+            {statusText}
+          </span>
+          <span className="tabular-nums font-semibold text-gray-900 dark:text-white">
+            {selectedPoints.toFixed(1)} / ~{capacityPoints.toFixed(1)} pts
+          </span>
+        </div>
+        <div
+          className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"
+          role="progressbar"
+          aria-valuenow={Math.round(fillPct)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`Daily capacity: ${statusText}`}
+        >
+          <div
+            className={`h-full transition-all duration-500 ease-out ${batteryColor}`}
+            style={{ width: `${fillPct}%` }}
+          />
+        </div>
       </div>
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={orderedIds} strategy={verticalListSortingStrategy}>

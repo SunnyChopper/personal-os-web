@@ -17,6 +17,19 @@ describe('PlannerCapacityMeter', () => {
     expect(screen.getByText(/6\.0 \/ 5\.0 pts/)).toBeInTheDocument();
   });
 
+  it('shows blocked state with zero capacity', () => {
+    render(
+      <PlannerCapacityMeter
+        loadRatio={0}
+        capacityState="blocked"
+        scheduledPoints={0}
+        capacityPoints={0}
+      />
+    );
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    expect(screen.getByText('0 pts capacity')).toBeInTheDocument();
+  });
+
   it('shows healthy state', () => {
     render(
       <PlannerCapacityMeter

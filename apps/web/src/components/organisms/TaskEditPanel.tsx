@@ -25,6 +25,7 @@ import { EntityLinkChip } from '@/components/atoms/EntityLinkChip';
 import { DependencyBadge } from '@/components/atoms/DependencyBadge';
 import { RelationshipPicker } from '@/components/organisms/RelationshipPicker';
 import { AITaskAssistPanel } from '@/components/molecules/AITaskAssistPanel';
+import { TaskContextVibePills } from '@/components/molecules/TaskContextVibePills';
 import { llmConfig } from '@/lib/llm';
 import {
   AREAS,
@@ -92,6 +93,8 @@ export function TaskEditPanel({
     scheduledDate: task.scheduledDate || '',
     notes: task.notes || '',
     pointValue: task.pointValue || undefined,
+    energyLevel: task.energyLevel ?? undefined,
+    executionWindow: task.executionWindow ?? undefined,
   });
 
   const [isDependencyPickerOpen, setIsDependencyPickerOpen] = useState(false);
@@ -124,6 +127,8 @@ export function TaskEditPanel({
       scheduledDate: task.scheduledDate || '',
       notes: task.notes || '',
       pointValue: task.pointValue || undefined,
+      energyLevel: task.energyLevel ?? undefined,
+      executionWindow: task.executionWindow ?? undefined,
     });
     setSelectedDependencies(dependencies.map((d) => d.id));
     setSelectedProjects(linkedProjects.map((p) => p.id));
@@ -145,6 +150,10 @@ export function TaskEditPanel({
         dueDate: formData.dueDate || null,
         scheduledDate: formData.scheduledDate || null,
         size: formData.size || undefined,
+        ...(formData.energyLevel !== undefined ? { energyLevel: formData.energyLevel } : {}),
+        ...(formData.executionWindow !== undefined
+          ? { executionWindow: formData.executionWindow }
+          : {}),
       };
       await onSave(task.id, input);
 
@@ -227,8 +236,16 @@ export function TaskEditPanel({
   const handleApplyBreakdown = (subtasks: CreateTaskInput[]) => {
     const normalized = subtasks.map((st) => {
       const ext = st as CreateTaskInput & { storyPoints?: number };
-      const size = ext.size ?? ext.storyPoints;
-      return { ...ext, size } as CreateTaskInput;
+      return {
+        ...ext,
+        size: 1,
+        area: task.area,
+        priority: task.priority,
+        parentTaskId: task.id,
+        projectIds: task.projectIds?.length ? [...task.projectIds] : undefined,
+        goalIds: task.goalIds?.length ? [...task.goalIds] : undefined,
+        status: 'Not Started' as const,
+      } as CreateTaskInput;
     });
     onCreateSubtasks?.(normalized);
   };
@@ -468,6 +485,23 @@ export function TaskEditPanel({
                   </select>
                 </div>
               </div>
+
+              <TaskContextVibePills
+                energyLevel={formData.energyLevel}
+                executionWindow={formData.executionWindow}
+                onEnergyChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    energyLevel: value === null ? null : value,
+                  })
+                }
+                onExecutionWindowChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    executionWindow: value === null ? null : value,
+                  })
+                }
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>

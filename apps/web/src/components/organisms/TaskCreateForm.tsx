@@ -11,6 +11,7 @@ import type {
 import Button from '@/components/atoms/Button';
 import { RelationshipPicker } from '@/components/organisms/RelationshipPicker';
 import { AITaskAssistPanel } from '@/components/molecules/AITaskAssistPanel';
+import { TaskContextVibePills } from '@/components/molecules/TaskContextVibePills';
 import { llmConfig } from '@/lib/llm';
 import {
   AREAS,
@@ -99,6 +100,8 @@ export function TaskCreateForm({
         size: formData.size || undefined,
         pointValue: formData.pointValue || undefined,
         ...(dependsOnTaskIds.length ? { dependsOnTaskIds } : {}),
+        ...(formData.energyLevel ? { energyLevel: formData.energyLevel } : {}),
+        ...(formData.executionWindow ? { executionWindow: formData.executionWindow } : {}),
       };
       await onSubmit(input);
     } catch (err) {
@@ -322,6 +325,23 @@ export function TaskCreateForm({
             </select>
           </div>
         </div>
+
+        <TaskContextVibePills
+          energyLevel={formData.energyLevel}
+          executionWindow={formData.executionWindow}
+          onEnergyChange={(value) =>
+            setFormData({
+              ...formData,
+              energyLevel: value === null ? undefined : value,
+            })
+          }
+          onExecutionWindowChange={(value) =>
+            setFormData({
+              ...formData,
+              executionWindow: value === null ? undefined : value,
+            })
+          }
+        />
 
         <div className="grid grid-cols-2 gap-4">
           <div>

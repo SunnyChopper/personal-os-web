@@ -4,10 +4,12 @@ import Dialog from '@/components/molecules/Dialog';
 import Button from '@/components/atoms/Button';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
+import { TaskContextVibePills } from '@/components/molecules/TaskContextVibePills';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { SUBCATEGORIES_BY_AREA } from '@/constants/growth-system';
 import { parseDateInput, formatDateString } from '@/utils/date-formatters';
 import { JitKnowledgePanel } from '@/components/organisms/JitKnowledgePanel';
+import { VelocityDragInterventionCard } from '@/components/molecules/VelocityDragInterventionCard';
 import { CookedTaskButton } from '@/components/organisms/planner/CookedTaskButton';
 
 interface TaskDetailDialogProps {
@@ -15,9 +17,20 @@ interface TaskDetailDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onEdit: (task: Task) => void;
+  onSplitDraggedTask?: (task: Task) => void | Promise<void>;
+  isSplittingDraggedTask?: boolean;
+  splitDragError?: string | null;
 }
 
-export function TaskDetailDialog({ task, isOpen, onClose, onEdit }: TaskDetailDialogProps) {
+export function TaskDetailDialog({
+  task,
+  isOpen,
+  onClose,
+  onEdit,
+  onSplitDraggedTask,
+  isSplittingDraggedTask,
+  splitDragError,
+}: TaskDetailDialogProps) {
   if (!task) return null;
 
   const formatDate = (dateString: string | null) =>
@@ -92,6 +105,14 @@ export function TaskDetailDialog({ task, isOpen, onClose, onEdit }: TaskDetailDi
               )}
             </div>
           </div>
+        )}
+
+        {(task.energyLevel || task.executionWindow) && (
+          <TaskContextVibePills
+            readOnly
+            energyLevel={task.energyLevel}
+            executionWindow={task.executionWindow}
+          />
         )}
 
         {/* Details Grid */}
@@ -211,6 +232,13 @@ export function TaskDetailDialog({ task, isOpen, onClose, onEdit }: TaskDetailDi
             .filter(Boolean)
             .join('\n')}
           contextId={task.id}
+        />
+
+        <VelocityDragInterventionCard
+          task={task}
+          onSplit={onSplitDraggedTask ? () => onSplitDraggedTask(task) : undefined}
+          isSplitting={isSplittingDraggedTask}
+          splitError={splitDragError}
         />
 
         {/* Action Buttons */}
