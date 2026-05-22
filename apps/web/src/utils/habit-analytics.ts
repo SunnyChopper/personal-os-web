@@ -67,6 +67,46 @@ export interface ConsistencyScoreBreakdown {
 
 export type EstablishedHabitReadiness = 'starter' | 'established' | 'strongSignal';
 
+/** True when every calendar day after streakNewest through today is OOO standby (protected). */
+function isStreakActiveThroughToday(
+  streakNewest: string,
+  todayKey: string,
+  protectedDates?: Set<string>
+): boolean {
+  if (streakNewest === todayKey) return true;
+  if (!protectedDates?.size) return false;
+
+  const newest = new Date(`${streakNewest}T12:00:00`);
+  const today = new Date(`${todayKey}T12:00:00`);
+  if (newest > today) return false;
+
+  const cursor = new Date(today);
+  cursor.setHours(0, 0, 0, 0);
+  newest.setHours(0, 0, 0, 0);
+  while (cursor > newest) {
+    const key = cursor.toISOString().split('T')[0];
+    if (!protectedDates.has(key)) return false;
+    cursor.setDate(cursor.getDate() - 1);
+    cursor.setHours(0, 0, 0, 0);
+  }
+  return true;
+}
+
+function countProtectedDaysInRange(start: Date, end: Date, protectedDates?: Set<string>): number {
+  if (!protectedDates?.size) return 0;
+  let count = 0;
+  const cur = new Date(start);
+  cur.setHours(0, 0, 0, 0);
+  const endCopy = new Date(end);
+  endCopy.setHours(0, 0, 0, 0);
+  while (cur <= endCopy) {
+    const key = toLocalDateKey(cur);
+    if (protectedDates.has(key)) count += 1;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
 /**
  * Monday 00:00:00 through Sunday 23:59:59 for the week containing referenceDate,
  * shifted back by `weekOffset` full weeks (0 = current week).
@@ -109,7 +149,7 @@ export function computeHabitReadiness(habit: Habit, logs: HabitLog[]): Establish
 /**
  * Get all streaks for a habit. startDate = older day, endDate = newer day in range.
  */
-export function getAllStreaks(logs: HabitLog[]): StreakData {
+export function getAllStreaks(logs: HabitLog[], protectedDates?: Set<string>): StreakData {
   if (logs.length === 0) {
     return { current: 0, longest: 0, allStreaks: [] };
   }
@@ -159,12 +199,14 @@ export function getAllStreaks(logs: HabitLog[]): StreakData {
       currentStreak++;
       streakOldest = dateKey;
       longestStreak = Math.max(longestStreak, currentStreak);
+    } else if (protectedDates?.has(dateKey)) {
+      // OOO Standby: neutral day — do not break an active streak
     } else if (isInStreak && streakNewest && streakOldest) {
       allStreaks.push({
         startDate: streakOldest,
         endDate: streakNewest,
         length: currentStreak,
-        isActive: streakNewest === todayKey,
+        isActive: isStreakActiveThroughToday(streakNewest, todayKey, protectedDates),
       });
       isInStreak = false;
       currentStreak = 0;
@@ -181,7 +223,7 @@ export function getAllStreaks(logs: HabitLog[]): StreakData {
       startDate: streakOldest,
       endDate: streakNewest,
       length: currentStreak,
-      isActive: true,
+      isActive: isStreakActiveThroughToday(streakNewest, todayKey, protectedDates),
     });
   }
 
@@ -208,7 +250,8 @@ export function calculateCompletionRate(
   logs: HabitLog[],
   habit: Habit,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  protectedDates?: Set<string>
 ): CompletionRateData {
   const start = startDate ? new Date(startDate) : new Date(habit.createdAt);
   const end = endDate ? new Date(endDate) : new Date();
@@ -222,19 +265,30 @@ export function calculateCompletionRate(
 
   const actual = filteredLogs.reduce((sum, log) => sum + (log.amount || 1), 0);
 
+  const protectedCount = countProtectedDaysInRange(start, end, protectedDates);
   let expected = 0;
   if (habit.dailyTarget) {
-    const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    expected = daysDiff * habit.dailyTarget;
+    const daysDiff =
+      Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1 - protectedCount;
+    expected = Math.max(0, daysDiff) * habit.dailyTarget;
   } else if (habit.weeklyTarget) {
-    const weeksDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 7));
+    const weeksDiff = Math.ceil(
+      Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) + 1 - protectedCount) /
+        7
+    );
     expected = weeksDiff * habit.weeklyTarget;
   } else {
     if (habit.frequency === 'Daily') {
-      const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      expected = daysDiff;
+      const daysDiff =
+        Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1 - protectedCount;
+      expected = Math.max(0, daysDiff);
     } else if (habit.frequency === 'Weekly') {
-      const weeksDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 7));
+      const weeksDiff = Math.ceil(
+        Math.max(
+          0,
+          (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) + 1 - protectedCount
+        ) / 7
+      );
       expected = weeksDiff;
     }
   }
@@ -254,10 +308,11 @@ export function calculateCompletionRate(
  */
 export function getConsistencyScoreBreakdown(
   logs: HabitLog[],
-  habit: Habit
+  habit: Habit,
+  protectedDates?: Set<string>
 ): ConsistencyScoreBreakdown {
   if (logs.length === 0) {
-    const emptyRate = calculateCompletionRate(logs, habit);
+    const emptyRate = calculateCompletionRate(logs, habit, undefined, undefined, protectedDates);
     return {
       score: 0,
       completionRateComponent: 0,
@@ -267,7 +322,7 @@ export function getConsistencyScoreBreakdown(
     };
   }
 
-  const completionRate = calculateCompletionRate(logs, habit);
+  const completionRate = calculateCompletionRate(logs, habit, undefined, undefined, protectedDates);
   const completionRateComponent = (completionRate.rate / 100) * 70;
 
   const now = new Date();
@@ -283,7 +338,7 @@ export function getConsistencyScoreBreakdown(
   const recentWeight = Math.min(1, recentLogs.length / (recentDays * 0.5));
   const recencyComponent = recentWeight * 20;
 
-  const streaks = getAllStreaks(logs);
+  const streaks = getAllStreaks(logs, protectedDates);
   const streakComponent = Math.min(10, (streaks.current / 30) * 10);
 
   const score = Math.min(100, completionRateComponent + recencyComponent + streakComponent);
@@ -407,7 +462,8 @@ export function getLogsForDateRange(logs: HabitLog[], startDate: Date, endDate: 
 export function getWeeklyData(
   logs: HabitLog[],
   habit: Habit,
-  weeks: number = 8
+  weeks: number = 8,
+  protectedDates?: Set<string>
 ): WeeklyMonthlyData[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -418,8 +474,11 @@ export function getWeeklyData(
 
     const weekLogs = getLogsForDateRange(logs, monday, sunday);
     const completions = weekLogs.reduce((sum, log) => sum + (log.amount || 1), 0);
-    const expected = habit.weeklyTarget || (habit.dailyTarget ? habit.dailyTarget * 7 : 7);
-    const rate = (completions / expected) * 100;
+    const protectedInWeek = countProtectedDaysInRange(monday, sunday, protectedDates);
+    const availableDays = Math.max(1, 7 - protectedInWeek);
+    const expected =
+      habit.weeklyTarget || (habit.dailyTarget ? habit.dailyTarget * availableDays : availableDays);
+    const rate = expected > 0 ? (completions / expected) * 100 : 0;
 
     weekData.push({
       period: `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
@@ -441,7 +500,8 @@ export function getWeeklyData(
 export function getMonthlyData(
   logs: HabitLog[],
   habit: Habit,
-  months: number = 6
+  months: number = 6,
+  protectedDates?: Set<string>
 ): WeeklyMonthlyData[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -457,12 +517,14 @@ export function getMonthlyData(
     const monthLogs = getLogsForDateRange(logs, monthStart, monthEnd);
     const completions = monthLogs.reduce((sum, log) => sum + (log.amount || 1), 0);
     const daysInMonth = monthEnd.getDate();
+    const protectedInMonth = countProtectedDaysInRange(monthStart, monthEnd, protectedDates);
+    const availableDays = Math.max(1, daysInMonth - protectedInMonth);
     const expected = habit.dailyTarget
-      ? habit.dailyTarget * daysInMonth
+      ? habit.dailyTarget * availableDays
       : habit.weeklyTarget
-        ? habit.weeklyTarget * 4
-        : daysInMonth;
-    const rate = (completions / expected) * 100;
+        ? habit.weeklyTarget * Math.max(1, Math.ceil(availableDays / 7))
+        : availableDays;
+    const rate = expected > 0 ? (completions / expected) * 100 : 0;
 
     monthData.push({
       period: monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
@@ -485,7 +547,8 @@ export function getCompletionRateData(
   logs: HabitLog[],
   habit: Habit,
   period: 'day' | 'week' | 'month' = 'day',
-  days: number = 30
+  days: number = 30,
+  protectedDates?: Set<string>
 ): CompletionRateData[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -503,8 +566,10 @@ export function getCompletionRateData(
 
       const dayLogs = getLogsForDateRange(logs, date, nextDate);
       const actual = dayLogs.reduce((sum, log) => sum + (log.amount || 1), 0);
-      const expected = habit.dailyTarget || 1;
-      const rate = (actual / expected) * 100;
+      const dateKey = toLocalDateKey(date);
+      const isProtected = protectedDates?.has(dateKey) ?? false;
+      const expected = isProtected ? 0 : habit.dailyTarget || 1;
+      const rate = isProtected || expected === 0 ? 0 : (actual / expected) * 100;
 
       data.push({
         period: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -517,7 +582,7 @@ export function getCompletionRateData(
   }
 
   if (period === 'week') {
-    return getWeeklyData(logs, habit, Math.ceil(days / 7)).map((week) => ({
+    return getWeeklyData(logs, habit, Math.ceil(days / 7), protectedDates).map((week) => ({
       period: week.period,
       actual: week.completions,
       expected: week.expected,
@@ -525,7 +590,7 @@ export function getCompletionRateData(
     }));
   }
 
-  return getMonthlyData(logs, habit, Math.ceil(days / 30)).map((month) => ({
+  return getMonthlyData(logs, habit, Math.ceil(days / 30), protectedDates).map((month) => ({
     period: month.period,
     actual: month.completions,
     expected: month.expected,

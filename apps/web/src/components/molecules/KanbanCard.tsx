@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import type { Task } from '@/types/growth-system';
 import { formatDateString } from '@/utils/date-formatters';
+import { VelocityDragBadge } from '@/components/molecules/VelocityDragInterventionCard';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { Pencil } from 'lucide-react';
@@ -110,6 +111,7 @@ export function KanbanCard({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
+        <VelocityDragBadge rolloverCount={task.rolloverCount} />
         <AreaBadge area={task.area} size="sm" />
         {task.size != null && task.size > 0 ? (
           <span

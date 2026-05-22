@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Activity, Monitor, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
+import { Activity, CalendarRange, Monitor, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
 import { AISettingsPanel } from '@/components/settings/AISettingsPanel';
+import { MARGIN_OF_SAFETY_OPTIONS, useMarginOfSafetyBuffer } from '@/hooks/useMarginOfSafetyBuffer';
 import { useSoundEffects } from '@/hooks/useSoundEffects';
 import { apiClient } from '@/lib/api-client';
 
@@ -28,6 +29,16 @@ export default function SettingsPage() {
   const [weeklyReviewLoading, setWeeklyReviewLoading] = useState(true);
   const [weeklyReviewSaving, setWeeklyReviewSaving] = useState(false);
   const [weeklyReviewError, setWeeklyReviewError] = useState<string | null>(null);
+
+  const { query: marginQuery, mutation: marginMutation } = useMarginOfSafetyBuffer();
+  const [marginBuffer, setMarginBuffer] = useState(0);
+  const [marginError, setMarginError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (marginQuery.data !== undefined) {
+      setMarginBuffer(marginQuery.data);
+    }
+  }, [marginQuery.data]);
 
   useEffect(() => {
     let cancelled = false;
@@ -251,6 +262,57 @@ export default function SettingsPage() {
         </div>
         {weeklyReviewError && (
           <p className="mt-3 text-sm text-red-600 dark:text-red-400">{weeklyReviewError}</p>
+        )}
+      </div>
+
+      <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Planner</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+          Reserve daily capacity for unexpected fires and deep-dive overflow. Your week board and
+          day planner use the adjusted cap automatically.
+        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-400">
+              <CalendarRange size={20} />
+            </div>
+            <div>
+              <label
+                htmlFor="margin-of-safety-buffer"
+                className="block text-sm font-medium text-gray-900 dark:text-gray-100"
+              >
+                Margin of Safety Buffer
+              </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Lowers the daily story-point cap so plans stay under true capacity
+              </p>
+            </div>
+          </div>
+          <select
+            id="margin-of-safety-buffer"
+            disabled={marginQuery.isLoading || marginMutation.isPending}
+            value={marginBuffer}
+            onChange={async (e) => {
+              const next = Number(e.target.value);
+              setMarginBuffer(next);
+              setMarginError(null);
+              try {
+                await marginMutation.mutateAsync(next);
+              } catch (err) {
+                setMarginError(err instanceof Error ? err.message : 'Save failed');
+              }
+            }}
+            className="sm:ml-auto px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm min-w-[200px] disabled:opacity-50"
+          >
+            {MARGIN_OF_SAFETY_OPTIONS.map((opt) => (
+              <option key={opt.label} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {marginError && (
+          <p className="mt-3 text-sm text-red-600 dark:text-red-400">{marginError}</p>
         )}
       </div>
 

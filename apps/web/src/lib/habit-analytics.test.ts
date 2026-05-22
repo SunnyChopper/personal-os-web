@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import type { Habit, HabitLog } from '@/types/growth-system';
 import {
   getWeekRange,
   getCompletionRateData,
   getWeeklyData,
   getAllStreaks,
+  calculateCompletionRate,
 } from '@/utils/habit-analytics';
 
 const baseHabit: Habit = {
@@ -79,6 +80,10 @@ describe('getWeeklyData', () => {
   });
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('getAllStreaks', () => {
   it('stores startDate as older and endDate as newer within a streak', () => {
     const logs = [logOn('2026-05-19'), logOn('2026-05-20'), logOn('2026-05-21')];
@@ -88,5 +93,29 @@ describe('getAllStreaks', () => {
     expect(new Date(first.startDate).getTime()).toBeLessThanOrEqual(
       new Date(first.endDate ?? first.startDate).getTime()
     );
+  });
+
+  it('treats OOO standby days as neutral without breaking streak', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-22T12:00:00.000Z'));
+    try {
+      const logs = [logOn('2026-05-19'), logOn('2026-05-20')];
+      const protectedDates = new Set(['2026-05-21', '2026-05-22']);
+      const streaks = getAllStreaks(logs, protectedDates);
+      expect(streaks.current).toBeGreaterThanOrEqual(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('calculateCompletionRate with protected days', () => {
+  it('reduces expected denominator when days are on standby', () => {
+    const start = new Date('2026-05-01T00:00:00');
+    const end = new Date('2026-05-10T23:59:59');
+    const protectedDates = new Set(['2026-05-08', '2026-05-09', '2026-05-10']);
+    const without = calculateCompletionRate([], baseHabit, start, end);
+    const withProt = calculateCompletionRate([], baseHabit, start, end, protectedDates);
+    expect(withProt.expected).toBeLessThan(without.expected);
   });
 });

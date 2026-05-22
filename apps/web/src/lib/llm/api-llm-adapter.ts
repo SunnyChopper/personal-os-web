@@ -142,9 +142,54 @@ export class APILLMAdapter implements ILLMAdapter {
   }
 
   async breakdownTask(input: TaskBreakdownInput): Promise<LLMResponse<TaskBreakdownOutput>> {
-    return this.callAIEndpoint<{ taskId: string }, TaskBreakdownOutput>('/ai/tasks/breakdown', {
-      taskId: input.task.id,
+    const task = input.task;
+    type ApiSubtask = {
+      title: string;
+      description?: string | null;
+      storyPoints: number;
+      order: number;
+    };
+    type ApiBreakdown = {
+      subtasks: ApiSubtask[];
+      totalStoryPoints?: number;
+      criticalPath?: number[];
+      parallelPossible?: boolean;
+    };
+
+    const res = await this.postStandardEnvelope<ApiBreakdown>('/ai/tasks/breakdown', {
+      taskId: task.id,
+      title: task.title,
+      description: task.description ?? undefined,
+      area: task.area,
     });
+
+    if (!res.success || !res.data) {
+      return {
+        success: false,
+        data: null,
+        error: res.error ?? 'AI breakdown failed',
+      };
+    }
+
+    const subtasks = res.data.subtasks.map((st) => ({
+      title: st.title,
+      description: st.description ?? undefined,
+      area: task.area,
+      priority: task.priority,
+      size: 1,
+      projectIds: task.projectIds?.length ? [...task.projectIds] : undefined,
+      goalIds: task.goalIds?.length ? [...task.goalIds] : undefined,
+      status: 'Not Started' as const,
+    }));
+
+    return {
+      success: true,
+      data: {
+        subtasks,
+        reasoning: `Split into ${subtasks.length} one-point subtasks from AI breakdown.`,
+      },
+      error: null,
+    };
   }
 
   async resolveBlockers(
