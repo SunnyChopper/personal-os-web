@@ -342,6 +342,12 @@ export interface Habit {
   frictionDown: string | null;
   notes: string | null;
   goalIds?: string[];
+  currentStreak?: number;
+  longestStreak?: number;
+  totalCompletions?: number;
+  completionRate?: number;
+  lastCompletionDate?: string | null;
+  logs?: HabitLog[];
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -359,6 +365,8 @@ export interface HabitLog {
   completedAt: string;
   amount: number | null;
   notes: string | null;
+  pointsAwarded?: number;
+  milestoneBonus?: number;
   userId: string;
   createdAt: string;
 }

@@ -87,7 +87,7 @@ export const habitsService = {
     return response;
   },
 
-  async logCompletion(input: CreateHabitLogInput): Promise<ApiResponse<HabitLog>> {
+  async logCompletion(input: CreateHabitLogInput): Promise<ApiResponse<Habit>> {
     // Backend expects calendar day YYYY-MM-DD. Never derive that from UTC (toISOString().split)
     // — evening local time on a "past" day often becomes the next UTC date (looks like "today").
     const dateForApi = (() => {
@@ -97,7 +97,7 @@ export const habitsService = {
       return toLocalDateKey(new Date(raw));
     })();
 
-    const response = await apiClient.post<HabitLog>(`/habits/${input.habitId}/logs`, {
+    const response = await apiClient.post<Habit>(`/habits/${input.habitId}/logs`, {
       completed: true,
       date: dateForApi,
       notes: input.notes,

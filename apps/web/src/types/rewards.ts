@@ -37,6 +37,9 @@ export interface WalletTransaction {
   source:
     | 'task_completion'
     | 'task_completion_reversal'
+    | 'habit_completion'
+    | 'habit_completion_reversal'
+    | 'habit_streak_milestone'
     | 'reward_redemption'
     | 'manual'
     | 'system';
