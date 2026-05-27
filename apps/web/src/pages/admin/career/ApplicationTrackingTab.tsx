@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardPaste, ListPlus, Loader2, Plus, Upload } from 'lucide-react';
 import type { useCareerResume } from '@/hooks/useCareerResume';
-import { useCareerApplicationDetail, useCareerApplications } from '@/hooks/useCareerApplications';
+import {
+  useCareerApplicationAnalytics,
+  useCareerApplicationDetail,
+  useCareerApplications,
+} from '@/hooks/useCareerApplications';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { careerService } from '@/services/career.service';
@@ -12,7 +16,7 @@ import type {
   CareerGeneratedResume,
 } from '@/types/api/career.types';
 
-import { applicationStatusLabel } from './application-tracking-labels';
+import { applicationStatusLabel, rejectionTriageBucketLabel } from './application-tracking-labels';
 
 type Cr = ReturnType<typeof useCareerResume>;
 
@@ -105,29 +109,14 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
   });
 
   const detailQ = useCareerApplicationDetail(selectedId);
-
-  const insightCounts = useMemo(() => {
-    const items = appsHook.listApps.data?.items ?? ([] as CareerApplicationSummary[]);
-
-    const by = (s: string) => items.filter((i: CareerApplicationSummary) => i.status === s).length;
-    const active = items.filter(
-      (i: CareerApplicationSummary) =>
-        !i.archived && !['rejected', 'acceptedOffer'].includes(i.status)
-    ).length;
-    const themesSample = detailQ.data?.events
-      ?.filter((e: CareerApplicationEvent) => e.rejectionThemes?.length)
-      .flatMap((e: CareerApplicationEvent) => e.rejectionThemes)
-      .slice(0, 5);
-    return {
-      active,
-      rejected: by('rejected'),
-      interviewing: by('firstInterview') + by('nthInterview') + by('finalInterview'),
-      offers: by('offerReceived') + by('acceptedOffer'),
-      themesSample: themesSample ?? [],
-    };
-  }, [appsHook.listApps.data?.items, detailQ.data?.events]);
+  const analyticsQ = useCareerApplicationAnalytics();
 
   const items = appsHook.listApps.data?.items ?? [];
+
+  const rejectionRatePct = useMemo(() => {
+    const rate = analyticsQ.data?.rejectionRate ?? 0;
+    return `${(rate * 100).toFixed(1)}%`;
+  }, [analyticsQ.data?.rejectionRate]);
 
   const gens = cr.generated.data?.items ?? [];
 
@@ -271,43 +260,63 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
         application.
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5 text-xs">
+      {analyticsQ.isError ? (
+        <p className="text-xs text-amber-700 dark:text-amber-300">
+          Rejection analytics unavailable right now.
+        </p>
+      ) : null}
+
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
         <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
-          <div className="text-gray-500 text-[11px] uppercase tracking-wide">Active pipeline</div>
-          <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
-            {insightCounts.active}
-          </div>
+          <div className="text-gray-500 text-[11px] uppercase tracking-wide">Applications</div>
+          {analyticsQ.isLoading ? (
+            <div className="mt-1 h-6 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+          ) : (
+            <>
+              <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
+                {analyticsQ.data?.totalApplications ?? 0}
+              </div>
+              <div className="text-[11px] text-gray-600 dark:text-gray-400">
+                Rejection rate {rejectionRatePct}
+              </div>
+            </>
+          )}
         </div>
         <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
-          <div className="text-gray-500 text-[11px] uppercase tracking-wide">Rejected</div>
-          <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
-            {insightCounts.rejected}
-          </div>
+          <div className="text-gray-500 text-[11px] uppercase tracking-wide">ATS / fast filter</div>
+          {analyticsQ.isLoading ? (
+            <div className="mt-1 h-6 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+          ) : (
+            <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
+              {analyticsQ.data?.triageBuckets.automatedFast ?? 0}
+            </div>
+          )}
         </div>
         <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
-          <div className="text-gray-500 text-[11px] uppercase tracking-wide">In interviews</div>
-          <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
-            {insightCounts.interviewing}
-          </div>
+          <div className="text-gray-500 text-[11px] uppercase tracking-wide">Recruiter pass</div>
+          {analyticsQ.isLoading ? (
+            <div className="mt-1 h-6 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+          ) : (
+            <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
+              {analyticsQ.data?.triageBuckets.humanReview ?? 0}
+            </div>
+          )}
         </div>
-        <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
-          <div className="text-gray-500 text-[11px] uppercase tracking-wide">Offers</div>
-          <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
-            {insightCounts.offers}
+        <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2 min-h-0 flex flex-col">
+          <div className="text-gray-500 text-[11px] uppercase tracking-wide shrink-0">
+            Sample themes
           </div>
-        </div>
-        <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2 sm:col-span-3 lg:col-span-1 min-h-0">
-          <div className="text-gray-500 text-[11px] uppercase tracking-wide">Sample themes</div>
-          <div
-            className="mt-0.5 text-[11px] leading-snug text-gray-700 dark:text-gray-200 line-clamp-3 break-words max-h-[3.75rem] overflow-hidden"
-            title={
-              insightCounts.themesSample?.length
-                ? insightCounts.themesSample.join(' • ')
-                : undefined
-            }
-          >
-            {insightCounts.themesSample?.length ? insightCounts.themesSample.join(' • ') : '—'}
-          </div>
+          {analyticsQ.isLoading ? (
+            <div className="mt-1 h-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+          ) : (
+            <ul className="mt-1 max-h-40 overflow-y-auto text-[11px] leading-snug text-gray-700 dark:text-gray-200 list-disc pl-4 space-y-0.5">
+              {(analyticsQ.data?.sampleThemes ?? []).length ? (
+                analyticsQ.data?.sampleThemes.map((t) => <li key={t}>{t}</li>)
+              ) : (
+                <li className="list-none -ml-4 text-gray-500">—</li>
+              )}
+            </ul>
+          )}
         </div>
       </div>
 
@@ -798,8 +807,16 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                       className="rounded-lg border border-gray-100 dark:border-gray-800 px-3 py-2 text-sm"
                     >
                       <div className="flex justify-between gap-2 text-xs text-gray-500">
-                        <span>
-                          {ev.eventType} {ev.status ? `· ${applicationStatusLabel(ev.status)}` : ''}
+                        <span className="flex flex-wrap items-center gap-1">
+                          <span>
+                            {ev.eventType}{' '}
+                            {ev.status ? `· ${applicationStatusLabel(ev.status)}` : ''}
+                          </span>
+                          {ev.rejectionTriageBucket ? (
+                            <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] text-slate-700 dark:text-slate-200">
+                              {rejectionTriageBucketLabel(ev.rejectionTriageBucket)}
+                            </span>
+                          ) : null}
                         </span>
                         <span>{new Date(ev.eventAt).toLocaleString()}</span>
                       </div>

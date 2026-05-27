@@ -92,6 +92,7 @@ export interface CareerJobPosting {
     responsibilitiesSummary?: string;
   };
   atsKeywords: string[];
+  mandatoryKeywords?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -112,6 +113,9 @@ export interface CareerGeneratedResume {
   bulletRationales?: CareerResumeBulletRationale[];
   companyName?: string | null;
   jobTitle?: string | null;
+  mandatoryKeywords?: string[];
+  matchedKeywords?: string[];
+  missingKeywords?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -137,6 +141,8 @@ export type CareerApplicationStatusApi =
 export type CareerFitRecommendationApi = 'apply' | 'maybe' | 'skip';
 
 export type CareerApplicationEventTypeApi = 'statusChange' | 'interview' | 'note' | 'rejection';
+
+export type CareerRejectionTriageBucketApi = 'AUTOMATED_FAST' | 'HUMAN_REVIEW' | 'UNKNOWN';
 
 export interface CareerApplicationRecommendation {
   id: string;
@@ -204,8 +210,23 @@ export interface CareerApplication {
   statusUpdatedAt: string;
   notes?: string | null;
   archived: boolean;
+  rejectionReceivedAt?: string | null;
+  rejectionRawText?: string | null;
+  rejectionTriageBucket?: CareerRejectionTriageBucketApi | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CareerApplicationAnalytics {
+  totalApplications: number;
+  rejectedCount: number;
+  rejectionRate: number;
+  triageBuckets: {
+    automatedFast: number;
+    humanReview: number;
+    unknown: number;
+  };
+  sampleThemes: string[];
 }
 
 export interface CareerApplicationEvent {
@@ -220,6 +241,7 @@ export interface CareerApplicationEvent {
   notes?: string | null;
   rejectionReasonCategory?: string | null;
   rejectionEmailText?: string | null;
+  rejectionTriageBucket?: CareerRejectionTriageBucketApi | null;
   rejectionThemes: string[];
   actionableLesson?: string | null;
   createdAt: string;

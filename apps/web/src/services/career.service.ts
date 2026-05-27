@@ -2,6 +2,7 @@ import { apiClient } from '@/lib/api-client';
 import type {
   CareerAchievement,
   CareerAiSuggestion,
+  CareerApplicationAnalytics,
   CareerApplicationDetail,
   CareerApplicationsListResult,
   CareerEducation,
@@ -249,6 +250,10 @@ export const careerService = {
     return unwrap(
       apiClient.post<CareerRecommendApplicationsResult>(`${APPLICATIONS_BASE}/recommend`, body)
     );
+  },
+
+  async getApplicationAnalytics(): Promise<CareerApplicationAnalytics> {
+    return unwrap(apiClient.get<CareerApplicationAnalytics>(`${APPLICATIONS_BASE}/analytics`));
   },
 
   async listApplications(params?: {
