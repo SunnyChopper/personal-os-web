@@ -325,7 +325,12 @@ export const useHabits = () => {
 
   const logCompletionMutation = useMutation({
     mutationFn: habitsService.logCompletion,
-    onSuccess: () => {},
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertHabitCache(queryClient, response.data);
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wallet.detail() });
+    },
   });
 
   const updateCompletionNoteMutation = useMutation({
@@ -514,6 +519,8 @@ export const useGoals = () => {
     mutationFn: (id: string) => goalsService.delete(id),
     onSuccess: (_response, goalId) => {
       removeGoalCache(queryClient, goalId);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.goals.all() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
     },
   });
 

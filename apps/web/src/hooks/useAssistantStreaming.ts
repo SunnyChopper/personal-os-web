@@ -39,7 +39,7 @@ import {
   scheduleDeltaFlush,
   type StreamingStatusStage,
 } from '@/hooks/assistant-streaming/stream-helpers';
-import { invalidateGrowthSystemCachesAfterTaskTool } from '@/hooks/assistant-streaming/growth-system-tool-invalidation';
+import { invalidateGrowthSystemCachesAfterMutationTool } from '@/hooks/assistant-streaming/growth-system-tool-invalidation';
 import { formatAssistantRunErrorForDisplay } from '@/lib/chat/assistant-error-display';
 import { getResolvedWsUrl } from '@/lib/vite-public-env';
 import { apiClient } from '@/lib/api-client';
@@ -607,7 +607,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
         });
       },
       onToolCallComplete: (payload: WsToolCallCompletePayload) => {
-        invalidateGrowthSystemCachesAfterTaskTool(queryClient, payload);
+        invalidateGrowthSystemCachesAfterMutationTool(queryClient, payload);
         const runIdForEvent = payload.runId;
         if (!runIdForEvent) {
           return;

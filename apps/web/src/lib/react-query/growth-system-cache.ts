@@ -362,14 +362,46 @@ export const upsertGoalCache = (queryClient: QueryClient, goal: Goal): void => {
   updateDetailCache(queryClient, queryKeys.growthSystem.goals.detail, goal);
 };
 
+const stripGoalIdFromEntities = <T extends { goalIds?: string[] }>(
+  items: T[],
+  goalId: string
+): T[] =>
+  items.map((item) => {
+    if (!item.goalIds?.includes(goalId)) {
+      return item;
+    }
+    const nextGoalIds = item.goalIds.filter((id) => id !== goalId);
+    return {
+      ...item,
+      goalIds: nextGoalIds.length > 0 ? nextGoalIds : [],
+    };
+  });
+
 export const removeGoalCache = (queryClient: QueryClient, goalId: string): void => {
   updateListQueries<Goal>(queryClient, queryKeys.growthSystem.goals.lists(), (items) =>
     removeById(items, goalId)
   );
   updateDashboardQueries(queryClient, (data) => ({
     ...data,
-    goals: removeById(data.goals, goalId),
+    goals: removeById(data.goals ?? [], goalId),
+    tasks: stripGoalIdFromEntities(data.tasks ?? [], goalId),
+    projects: stripGoalIdFromEntities(data.projects ?? [], goalId),
+    habits: stripGoalIdFromEntities(data.habits ?? [], goalId),
+    metrics: stripGoalIdFromEntities(data.metrics ?? [], goalId),
   }));
+  updateListQueries<Task>(queryClient, queryKeys.growthSystem.tasks.lists(), (items) =>
+    stripGoalIdFromEntities(items, goalId)
+  );
+  updateListQueries<Project>(queryClient, queryKeys.growthSystem.projects.lists(), (items) =>
+    stripGoalIdFromEntities(items, goalId)
+  );
+  updateListQueries<Habit>(queryClient, queryKeys.growthSystem.habits.lists(), (items) =>
+    stripGoalIdFromEntities(items, goalId)
+  );
+  updateListQueries<Metric>(queryClient, queryKeys.growthSystem.metrics.lists(), (items) =>
+    stripGoalIdFromEntities(items, goalId)
+  );
+  queryClient.removeQueries({ queryKey: queryKeys.growthSystem.goals.detail(goalId) });
 };
 
 export const upsertProjectCache = (queryClient: QueryClient, project: Project): void => {

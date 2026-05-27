@@ -334,6 +334,8 @@ export const queryKeys = {
       [...queryKeys.careerResume.applicationsPrefix(), 'list', filters ?? {}] as const,
     applicationDetail: (id: string) =>
       [...queryKeys.careerResume.applicationsPrefix(), 'detail', id] as const,
+    applicationsAnalytics: () =>
+      [...queryKeys.careerResume.applicationsPrefix(), 'analytics'] as const,
   },
 
   // Proactive Assistant (`/proactive/*`) + related preferences keys
