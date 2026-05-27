@@ -22,13 +22,13 @@ describe('RolloverTaskCard', () => {
     expect(screen.getByText('Rolled Over')).toBeInTheDocument();
     expect(screen.getByText('Missed deploy')).toBeInTheDocument();
     expect(screen.getByText('5 SP')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Keep today/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Keep task for today/i }));
     expect(onAction).toHaveBeenCalledWith('2026-05-21#task-1', 'keep');
   });
 
   it('disables buttons when disabled', () => {
     render(<RolloverTaskCard task={sample} disabled onAction={vi.fn()} />);
-    expect(screen.getByRole('button', { name: /Keep today/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Keep task for today/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Backlog/i })).toBeDisabled();
   });
 
