@@ -3,6 +3,7 @@ import { useGrowthSystemDashboard } from '@/hooks/useGrowthSystemDashboard';
 import { habitsService } from '@/services/growth-system';
 import { getWeeklyData } from '@/utils/habit-analytics';
 import { getHabitTypeColors } from '@/utils/habit-colors';
+import { previewNextCompletionPoints } from '@/lib/habit-points';
 import type { HabitCompletionWidgetConfig, WeeklyDashboardWidget } from '@/types/weekly-dashboard';
 
 interface HabitCompletionWidgetProps {
@@ -36,12 +37,21 @@ export function HabitCompletionWidget({ widget }: HabitCompletionWidgetProps) {
   }
 
   const colors = getHabitTypeColors(habit.habitType);
+  const currentStreak = habit.currentStreak ?? 0;
+  const nextPoints = previewNextCompletionPoints(currentStreak);
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{habit.name}</h3>
-        <span className="text-xs text-gray-500">{weeks} weeks</span>
+        <div className="flex items-center gap-2">
+          {nextPoints > 0 && (
+            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+              +{nextPoints} pts / log
+            </span>
+          )}
+          <span className="text-xs text-gray-500">{weeks} weeks</span>
+        </div>
       </div>
       {isLoading ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">Loading habit logs…</p>

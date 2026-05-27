@@ -127,7 +127,7 @@ export interface HabitsApiContract {
   update: (id: string, input: UpdateHabitInput) => Promise<ApiResponse<Habit>>;
   delete: (id: string) => Promise<ApiResponse<void>>;
 
-  logCompletion: (input: CreateHabitLogInput) => Promise<ApiResponse<HabitLog>>;
+  logCompletion: (input: CreateHabitLogInput) => Promise<ApiResponse<Habit>>;
   getLogs: (habitId: string, filters?: FilterOptions) => Promise<PaginatedResponse<HabitLog>>;
   deleteLog: (logId: string) => Promise<ApiResponse<void>>;
 

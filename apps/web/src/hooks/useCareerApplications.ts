@@ -25,8 +25,10 @@ export function useCareerApplications(filters?: {
     pageSize: filters?.pageSize ?? 50,
   });
 
-  const invalidateApps = () =>
-    qc.invalidateQueries({ queryKey: queryKeys.careerResume.applicationsPrefix() });
+  const invalidateApps = () => {
+    void qc.invalidateQueries({ queryKey: queryKeys.careerResume.applicationsPrefix() });
+    void qc.invalidateQueries({ queryKey: queryKeys.careerResume.applicationsAnalytics() });
+  };
 
   const listApps = useQuery({
     queryKey: listKey,
@@ -102,6 +104,14 @@ export function useCareerApplications(filters?: {
     rejectionInsights,
     invalidateApps,
   };
+}
+
+export function useCareerApplicationAnalytics(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.careerResume.applicationsAnalytics(),
+    queryFn: () => careerService.getApplicationAnalytics(),
+    enabled,
+  });
 }
 
 export function useCareerApplicationDetail(applicationId: string | null) {

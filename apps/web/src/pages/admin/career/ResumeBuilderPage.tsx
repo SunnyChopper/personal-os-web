@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Loader2, Sparkles } from 'lucide-react';
 import { FormCheckbox } from '@/components/atoms/FormCheckbox';
 import { FormInput } from '@/components/atoms/FormInput';
+import { KeywordCoverageMatrix } from '@/components/molecules/KeywordCoverageMatrix';
 import MarkdownRenderer from '@/components/molecules/MarkdownRenderer';
 import { useCareerResume } from '@/hooks/useCareerResume';
 import { useCareerApplications } from '@/hooks/useCareerApplications';
@@ -336,6 +337,11 @@ export default function ResumeBuilderPage() {
     atsScore?: number | null;
     humanScore?: number | null;
     bulletRationales?: CareerResumeBulletRationale[];
+  } | null>(null);
+  const [previewKeywordDiff, setPreviewKeywordDiff] = useState<{
+    mandatory: string[];
+    matched: string[];
+    missing: string[];
   } | null>(null);
 
   useEffect(() => {
@@ -1994,6 +2000,11 @@ export default function ResumeBuilderPage() {
                       humanScore: res.humanScore,
                       bulletRationales: res.bulletRationales ?? [],
                     });
+                    setPreviewKeywordDiff({
+                      mandatory: res.mandatoryKeywords ?? [],
+                      matched: res.matchedKeywords ?? [],
+                      missing: res.missingKeywords ?? [],
+                    });
                   } catch {
                     /* error below */
                   }
@@ -2012,13 +2023,24 @@ export default function ResumeBuilderPage() {
 
               {previewMarkdown ? (
                 <div className="mt-8 space-y-4 border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-gray-50/60 dark:bg-gray-900/40">
+                  {previewKeywordDiff ? (
+                    <KeywordCoverageMatrix
+                      mandatory={previewKeywordDiff.mandatory}
+                      matched={previewKeywordDiff.matched}
+                      missing={previewKeywordDiff.missing}
+                      className="lg:hidden"
+                    />
+                  ) : null}
                   {previewMeta ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm opacity-90">
                       <div className="rounded-lg bg-white dark:bg-gray-950 p-3 border border-gray-200 dark:border-gray-700">
+                        <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
+                          LLM self-rated — not an export gate
+                        </div>
                         <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                           Resume scores (heuristic)
                         </div>
-                        <div className="font-semibold">
+                        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                           ATS: {previewMeta.atsScore ?? '—'} / 100 · Reader:{' '}
                           {previewMeta.humanScore ?? '—'} / 100
                         </div>
@@ -2081,13 +2103,27 @@ export default function ResumeBuilderPage() {
                       ) : null}
                     </div>
                   ) : null}
-                  <h4 className="text-sm font-semibold">Preview</h4>
-                  <MarkdownRenderer
-                    content={previewMarkdown}
-                    components={getCareerResumeMarkdownComponents(
-                      previewMeta?.atsKeywordsUsed ?? []
-                    )}
-                  />
+                  <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-semibold mb-2">Preview</h4>
+                      <MarkdownRenderer
+                        content={previewMarkdown}
+                        components={getCareerResumeMarkdownComponents(
+                          previewMeta?.atsKeywordsUsed ?? []
+                        )}
+                      />
+                    </div>
+                    {previewKeywordDiff ? (
+                      <div className="lg:sticky lg:top-4 lg:self-start">
+                        <KeywordCoverageMatrix
+                          mandatory={previewKeywordDiff.mandatory}
+                          matched={previewKeywordDiff.matched}
+                          missing={previewKeywordDiff.missing}
+                          className="hidden lg:block"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -2115,6 +2151,11 @@ export default function ResumeBuilderPage() {
                           atsScore: g.atsScore,
                           humanScore: g.humanScore,
                           bulletRationales: g.bulletRationales ?? [],
+                        });
+                        setPreviewKeywordDiff({
+                          mandatory: g.mandatoryKeywords ?? [],
+                          matched: g.matchedKeywords ?? [],
+                          missing: g.missingKeywords ?? [],
                         });
                         setGenTargetCompany(g.companyName ?? '');
                         setGenTargetRole(g.jobTitle ?? '');

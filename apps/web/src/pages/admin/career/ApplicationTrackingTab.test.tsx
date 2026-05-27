@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { applicationStatusLabel } from './application-tracking-labels';
+import { applicationStatusLabel, rejectionTriageBucketLabel } from './application-tracking-labels';
 
 describe('ApplicationTrackingTab', () => {
   it('maps API status enums to labels', () => {
@@ -9,5 +9,17 @@ describe('ApplicationTrackingTab', () => {
     expect(applicationStatusLabel('nthInterview')).toBe('Nth Interview');
     expect(applicationStatusLabel('acceptedOffer')).toBe('Accepted Offer');
     expect(applicationStatusLabel('unknown')).toBe('unknown');
+  });
+
+  it('maps rejection triage buckets to banner labels', () => {
+    expect(rejectionTriageBucketLabel('AUTOMATED_FAST')).toBe('ATS filter');
+    expect(rejectionTriageBucketLabel('HUMAN_REVIEW')).toBe('Recruiter pass');
+    expect(rejectionTriageBucketLabel('UNKNOWN')).toBe('Unknown');
+    expect(rejectionTriageBucketLabel(null)).toBe('Unknown');
+  });
+
+  it('formats zero rejection rate for analytics banner', () => {
+    const rate = 0;
+    expect(`${(rate * 100).toFixed(1)}%`).toBe('0.0%');
   });
 });

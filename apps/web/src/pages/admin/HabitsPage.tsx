@@ -14,6 +14,7 @@ import type { EstablishedHabitSuggestedPatch } from '@/types/habit-ai';
 import { habitsService } from '@/services/growth-system/habits.service';
 import { goalsService } from '@/services/growth-system/goals.service';
 import { useHabits } from '@/hooks/useGrowthSystem';
+import { useToast } from '@/hooks/use-toast';
 import Button from '@/components/atoms/Button';
 import { HabitCard } from '@/components/molecules/HabitCard';
 import { HabitCardSkeleton } from '@/components/molecules/HabitCardSkeleton';
@@ -89,6 +90,7 @@ export default function HabitsPage() {
     logCompletion,
     updateCompletionNote,
   } = useHabits();
+  const { showToast, ToastContainer } = useToast();
   const [habitLogs, setHabitLogs] = useState<Map<string, HabitLog[]>>(new Map());
   const [linkedGoals, setLinkedGoals] = useState<Map<string, Goal[]>>(new Map());
   const [searchQuery, setSearchQuery] = useState('');
@@ -245,8 +247,34 @@ export default function HabitsPage() {
     setIsSubmitting(true);
     try {
       const response = await logCompletion(input);
-      if (response.success) {
+      if (response.success && response.data) {
         await loadHabitLogs(input.habitId);
+        const completionDate =
+          input.completedAt && /^\d{4}-\d{2}-\d{2}$/.test(input.completedAt)
+            ? input.completedAt
+            : input.completedAt
+              ? getHabitLogCalendarDay(input.completedAt)
+              : toLocalDateKey(new Date());
+        const matchedLog = response.data.logs?.find(
+          (log) => getHabitLogCalendarDay(log.completedAt) === completionDate
+        );
+        const points = matchedLog?.pointsAwarded ?? 0;
+        const milestone = matchedLog?.milestoneBonus ?? 0;
+        const streak = response.data.currentStreak ?? getStreak(input.habitId);
+        if (points > 0) {
+          showToast({
+            type: 'success',
+            title: `+${points} pts`,
+            message: `${streak}-day streak`,
+          });
+        }
+        if (milestone > 0) {
+          showToast({
+            type: 'success',
+            title: 'Milestone reached',
+            message: `${streak}-day streak · +${milestone} bonus pts`,
+          });
+        }
         closeLogDialog();
         return;
       }
@@ -1164,6 +1192,7 @@ export default function HabitsPage() {
           />
         </Dialog>
       )}
+      <ToastContainer />
     </>
   );
 }

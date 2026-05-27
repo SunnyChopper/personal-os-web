@@ -1,7 +1,11 @@
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import { queryKeys } from '@/lib/react-query/query-keys';
-import { invalidateGrowthSystemCachesAfterTaskTool } from '@/hooks/assistant-streaming/growth-system-tool-invalidation';
+import {
+  invalidateGrowthSystemCachesAfterGoalTool,
+  invalidateGrowthSystemCachesAfterMutationTool,
+  invalidateGrowthSystemCachesAfterTaskTool,
+} from '@/hooks/assistant-streaming/growth-system-tool-invalidation';
 
 describe('invalidateGrowthSystemCachesAfterTaskTool', () => {
   it('invalidates growth system tasks, dashboard, and wallet after a successful task tool', () => {
@@ -40,5 +44,103 @@ describe('invalidateGrowthSystemCachesAfterTaskTool', () => {
     });
 
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe('invalidateGrowthSystemCachesAfterGoalTool', () => {
+  it('removes deleted goal from caches and invalidates goals + dashboard', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.growthSystem.goals.lists(), {
+      success: true,
+      data: [
+        {
+          id: 'goal-a',
+          title: 'A',
+          area: 'Operations',
+          timeHorizon: 'Quarterly',
+          status: 'Active',
+        },
+        {
+          id: 'goal-b',
+          title: 'B',
+          area: 'Operations',
+          timeHorizon: 'Quarterly',
+          status: 'Active',
+        },
+      ],
+    });
+    queryClient.setQueryData(queryKeys.growthSystem.data(), {
+      success: true,
+      data: {
+        goals: [
+          {
+            id: 'goal-a',
+            title: 'A',
+            area: 'Operations',
+            timeHorizon: 'Quarterly',
+            status: 'Active',
+          },
+          {
+            id: 'goal-b',
+            title: 'B',
+            area: 'Operations',
+            timeHorizon: 'Quarterly',
+            status: 'Active',
+          },
+        ],
+        tasks: [],
+        projects: [],
+        habits: [],
+        metrics: [],
+        logbookEntries: [],
+        rewards: [],
+        wallet: { balance: null, recentTransactions: [] },
+      },
+    });
+
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    invalidateGrowthSystemCachesAfterGoalTool(queryClient, {
+      toolName: 'delete_goal',
+      status: 'ok',
+      arguments: { goalId: 'goal-b' },
+    });
+
+    const goalsCache = queryClient.getQueryData<{ data: { id: string }[] }>(
+      queryKeys.growthSystem.goals.lists()
+    );
+    expect(goalsCache?.data.map((g) => g.id)).toEqual(['goal-a']);
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.growthSystem.goals.all() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.growthSystem.data() });
+  });
+
+  it('does nothing for list_goals', () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    invalidateGrowthSystemCachesAfterGoalTool(queryClient, {
+      toolName: 'list_goals',
+      status: 'ok',
+      arguments: {},
+    });
+
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe('invalidateGrowthSystemCachesAfterMutationTool', () => {
+  it('runs both task and goal handlers', () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    invalidateGrowthSystemCachesAfterMutationTool(queryClient, {
+      toolName: 'delete_goal',
+      status: 'ok',
+      arguments: { goalId: 'goal-x' },
+    });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.growthSystem.goals.all() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.growthSystem.data() });
   });
 });

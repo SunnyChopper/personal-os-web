@@ -57,7 +57,7 @@ export function PlannerDayColumn({
         ? 'border-amber-400/70 dark:border-amber-600'
         : isFocused
           ? 'border-blue-500'
-          : 'border-white/10';
+          : 'border-gray-200 dark:border-white/10';
 
   const handleBodyClick = () => onSelect?.(day.date);
 
@@ -79,19 +79,19 @@ export function PlannerDayColumn({
         }
       }}
       className={`relative flex min-h-[200px] w-full min-w-[120px] flex-1 cursor-pointer flex-col rounded-xl border-2 p-2 text-left transition lg:min-w-0 ${
-        blocked ? 'bg-slate-900/70' : 'bg-gray-900/40'
+        blocked ? 'bg-slate-100 dark:bg-slate-900/70' : 'bg-gray-50 dark:bg-gray-900/40'
       } ${isFocused ? 'ring-2 ring-blue-500/40 shadow-lg shadow-blue-500/10' : ''} ${
-        isToday && !isFocused ? 'ring-1 ring-white/20' : ''
+        isToday && !isFocused ? 'ring-1 ring-gray-300 dark:ring-white/20' : ''
       } ${border} ${!blocked && isOver ? 'ring-2 ring-blue-400' : ''} ${
-        !blocked ? 'hover:border-white/20' : ''
+        !blocked ? 'hover:border-gray-300 dark:hover:border-white/20' : ''
       }`}
     >
       {blocked ? (
         <div
-          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-slate-950/45"
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-slate-200/60 dark:bg-slate-950/45"
           aria-hidden
         >
-          <span className="rounded-md bg-slate-800/90 px-2 py-1 text-[10px] font-medium text-slate-200">
+          <span className="rounded-md bg-slate-700/90 px-2 py-1 text-[10px] font-medium text-white dark:bg-slate-800/90 dark:text-slate-200">
             {blockingLabel(day)} {blockingOverlayEmoji(day)}
           </span>
         </div>
@@ -99,7 +99,7 @@ export function PlannerDayColumn({
 
       <button
         type="button"
-        className="relative z-20 mb-2 w-full rounded-md text-center transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50"
+        className="relative z-20 mb-2 w-full rounded-md text-center transition hover:bg-gray-100 dark:hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50"
         onClick={handleHeaderClick}
         disabled={toggleBlockedPending || !onToggleBlocked}
         title={
@@ -113,11 +113,15 @@ export function PlannerDayColumn({
         <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
           {new Date(day.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short' })}
         </div>
-        <div className={`text-sm font-bold ${isFocused ? 'text-blue-300' : 'text-white'}`}>
+        <div
+          className={`text-sm font-bold ${
+            isFocused ? 'text-blue-600 dark:text-blue-300' : 'text-gray-900 dark:text-white'
+          }`}
+        >
           {day.date.slice(5)}
         </div>
         {isToday ? (
-          <span className="mt-0.5 inline-block rounded-full bg-blue-500/20 px-1.5 text-[9px] font-medium text-blue-300">
+          <span className="mt-0.5 inline-block rounded-full bg-blue-100 px-1.5 text-[9px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
             Today
           </span>
         ) : null}
@@ -135,7 +139,7 @@ export function PlannerDayColumn({
         capacityPoints={day.capacityStoryPoints}
         className="relative z-0 mb-2"
       />
-      <div className="relative z-0 min-h-[120px] flex-1 space-y-2">
+      <div className="relative z-0 flex min-h-[120px] flex-1 flex-col gap-3">
         {rollovers.map((r) => (
           <RolloverTaskCard
             key={r.rolloverId}
