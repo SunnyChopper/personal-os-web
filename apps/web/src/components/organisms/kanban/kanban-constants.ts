@@ -1,8 +1,15 @@
 import type { TaskStatus } from '@/types/growth-system';
 
-export type KanbanBacklogDensity = 'compact' | 'cards';
+/** Board-wide Kanban card density (all columns). */
+export type KanbanCardDensity = 'compact' | 'cards';
 
-/** Persisted preference for Backlog column card density (contract §6). */
+/** @deprecated Use KanbanCardDensity */
+export type KanbanBacklogDensity = KanbanCardDensity;
+
+/** Persisted preference for Kanban card density across all columns. */
+export const KANBAN_CARD_DENSITY_STORAGE_KEY = 'kanban.card.density';
+
+/** Legacy key (Backlog-only toggle); read for migration only. */
 export const KANBAN_BACKLOG_DENSITY_STORAGE_KEY = 'kanban.backlog.density';
 
 /** Column order on the board */
