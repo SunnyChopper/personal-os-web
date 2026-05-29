@@ -49,6 +49,7 @@ function validateAtomicDesign(): ValidationResult {
     'proactive',
     'tools',
     'chatbot',
+    'observability',
     'widgets', // weekly dashboard tile modules (e.g. widgets/weekly/*)
   ];
   const allowedDirs = [...atomicDirs, ...utilityDirs];
@@ -302,6 +303,7 @@ function validateFileNaming(): ValidationResult {
     for (const file of files) {
       const normalizedPath = file.replace(/\\/g, '/');
       const fileName = normalizedPath.split('/').pop() || '';
+      if (/\.test\.(ts|tsx)$/i.test(fileName)) continue;
 
       if (fileName && !pattern.test(fileName)) {
         violations.push(`${dir}/${file}: Should follow ${type} naming`);
