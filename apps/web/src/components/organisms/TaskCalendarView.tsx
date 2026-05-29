@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, X } from 'lucide-react';
 import type { Task } from '@/types/growth-system';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import Button from '@/components/atoms/Button';
 import { extractDateOnly, toLocalDateKey } from '@/utils/date-formatters';
+
+const VISIBLE_TASKS_PER_DAY = 2;
 
 interface TaskCalendarViewProps {
   tasks: Task[];
@@ -14,6 +16,7 @@ interface TaskCalendarViewProps {
 
 export function TaskCalendarView({ tasks, isLoading = false, onTaskClick }: TaskCalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   const getMonthData = () => {
     const year = currentDate.getFullYear();
@@ -48,10 +51,12 @@ export function TaskCalendarView({ tasks, isLoading = false, onTaskClick }: Task
   const [monthKey, setMonthKey] = useState(0);
   const handleMonthChange = (direction: 'prev' | 'next') => {
     setMonthKey((prev) => prev + 1);
+    setExpandedDate(null);
     navigateMonth(direction);
   };
 
   const goToToday = () => {
+    setExpandedDate(null);
     setCurrentDate(new Date());
   };
 
@@ -76,7 +81,7 @@ export function TaskCalendarView({ tasks, isLoading = false, onTaskClick }: Task
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+      className="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
     >
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
         <motion.div
@@ -139,6 +144,21 @@ export function TaskCalendarView({ tasks, isLoading = false, onTaskClick }: Task
         </div>
       </div>
 
+      <AnimatePresence>
+        {expandedDate !== null && (
+          <motion.div
+            key="calendar-overflow-backdrop"
+            data-testid="calendar-overflow-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40"
+            aria-hidden
+            onClick={() => setExpandedDate(null)}
+          />
+        )}
+      </AnimatePresence>
+
       <div className="p-4">
         <div className="grid grid-cols-7 gap-2">
           {weekDays.map((day) => (
@@ -165,9 +185,18 @@ export function TaskCalendarView({ tasks, isLoading = false, onTaskClick }: Task
             }
 
             const date = new Date(year, month, day);
+            const dateStr = toLocalDateKey(date);
+            const isExpanded = expandedDate === dateStr;
             const isToday = isCurrentMonth && day === today.getDate();
             const dateTasks = getTasksForDate(date);
             const hasTasks = dateTasks.length > 0;
+            const overflowCount = dateTasks.length - VISIBLE_TASKS_PER_DAY;
+            const alignPopoverLeft = index % 7 <= 3;
+            const formattedDateLabel = date.toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+            });
 
             return (
               <motion.div
@@ -175,9 +204,11 @@ export function TaskCalendarView({ tasks, isLoading = false, onTaskClick }: Task
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: index * 0.01 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className={`aspect-square border-2 rounded-lg p-2 transition-all ${
+                whileHover={isExpanded ? undefined : { scale: 1.05 }}
+                whileTap={isExpanded ? undefined : { scale: 0.95 }}
+                className={`relative aspect-square border-2 rounded-lg p-2 transition-all ${
+                  isExpanded ? 'z-50' : 'z-10'
+                } ${
                   isToday
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
                     : hasTasks
@@ -200,7 +231,7 @@ export function TaskCalendarView({ tasks, isLoading = false, onTaskClick }: Task
 
                   <div className="flex-1 space-y-1 overflow-hidden">
                     <AnimatePresence>
-                      {dateTasks.slice(0, 2).map((task, taskIndex) => (
+                      {dateTasks.slice(0, VISIBLE_TASKS_PER_DAY).map((task, taskIndex) => (
                         <motion.button
                           key={task.id}
                           initial={{ opacity: 0, x: -10 }}
@@ -222,13 +253,75 @@ export function TaskCalendarView({ tasks, isLoading = false, onTaskClick }: Task
                       ))}
                     </AnimatePresence>
 
-                    {dateTasks.length > 2 && (
-                      <div className="text-[10px] text-gray-500 dark:text-gray-400 pl-1.5 font-medium">
-                        +{dateTasks.length - 2} more
-                      </div>
+                    {overflowCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedDate(dateStr);
+                        }}
+                        className="w-full text-left text-[10px] text-gray-500 dark:text-gray-400 pl-1.5 font-medium hover:text-blue-600 dark:hover:text-blue-400 min-h-[44px] flex items-center"
+                        aria-expanded={isExpanded}
+                        aria-label={`Show ${overflowCount} more tasks on ${formattedDateLabel}`}
+                      >
+                        +{overflowCount} more
+                      </button>
                     )}
                   </div>
                 </div>
+
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      key={`popover-${dateStr}`}
+                      initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                      transition={{ duration: 0.15 }}
+                      role="dialog"
+                      aria-label={`Tasks on ${formattedDateLabel}`}
+                      className="absolute top-full mt-1 z-50 w-56 max-h-64 flex flex-col rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg overflow-hidden"
+                      style={alignPopoverLeft ? { left: 0 } : { right: 0, left: 'auto' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="sticky top-0 flex items-center justify-between gap-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
+                        <span className="text-xs font-semibold text-gray-900 dark:text-white truncate">
+                          {formattedDateLabel}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedDate(null)}
+                          className="shrink-0 p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          aria-label="Close task list"
+                        >
+                          <X className="w-4 h-4" aria-hidden />
+                        </button>
+                      </div>
+                      <ul className="overflow-y-auto p-2 space-y-1">
+                        {dateTasks.map((task) => (
+                          <li key={task.id}>
+                            <button
+                              type="button"
+                              aria-label={task.title}
+                              onClick={() => {
+                                setExpandedDate(null);
+                                onTaskClick(task);
+                              }}
+                              className="w-full text-left px-2 py-2 rounded text-xs bg-gray-50 dark:bg-gray-700/80 border border-gray-200 dark:border-gray-600 hover:shadow-sm hover:border-blue-400 dark:hover:border-blue-500 transition-all group min-h-[44px]"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <PriorityIndicator priority={task.priority} size="sm" />
+                                <span className="truncate text-gray-900 dark:text-white font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                  {task.title}
+                                </span>
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             );
           })}

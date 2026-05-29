@@ -33,7 +33,9 @@ import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { extractApiError, isNetworkError } from '@/lib/react-query/error-utils';
 import {
-  removeGoalCache,
+  applyGoalDeletedToCache,
+  applyCascadedUpdatesToCache,
+  applyGoalUpsertToCache,
   removeHabitCache,
   removeLogbookEntryCache,
   removeMetricCache,
@@ -42,7 +44,6 @@ import {
   removeMetricLogFromCache,
   removeProjectCache,
   removeTaskCache,
-  upsertGoalCache,
   upsertHabitCache,
   upsertLogbookEntryCache,
   upsertProjectCache,
@@ -497,30 +498,37 @@ export const useGoals = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: (input: CreateGoalInput) => goalsService.create(input),
-    onSuccess: (response) => {
+    mutationFn: async (input: CreateGoalInput) => {
+      const response = await goalsService.create(input);
       if (response.success && response.data) {
-        upsertGoalCache(queryClient, response.data);
+        await applyGoalUpsertToCache(queryClient, response.data);
       }
+      return response;
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: UpdateGoalInput }) =>
-      goalsService.update(id, input),
-    onSuccess: (response) => {
+    mutationFn: async ({ id, input }: { id: string; input: UpdateGoalInput }) => {
+      const response = await goalsService.update(id, input);
       if (response.success && response.data) {
-        upsertGoalCache(queryClient, response.data);
+        if ('goal' in response.data) {
+          await applyGoalUpsertToCache(queryClient, response.data.goal);
+          applyCascadedUpdatesToCache(queryClient, response.data.cascaded);
+        } else {
+          await applyGoalUpsertToCache(queryClient, response.data);
+        }
       }
+      return response;
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => goalsService.delete(id),
-    onSuccess: (_response, goalId) => {
-      removeGoalCache(queryClient, goalId);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.goals.all() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+    mutationFn: async (id: string) => {
+      const response = await goalsService.delete(id);
+      if (response.success) {
+        await applyGoalDeletedToCache(queryClient, id);
+      }
+      return response;
     },
   });
 
@@ -585,7 +593,10 @@ export const useProjects = () => {
     mutationFn: ({ id, input }: { id: string; input: UpdateProjectInput }) =>
       projectsService.update(id, input),
     onSuccess: (response) => {
-      if (response.success && response.data) {
+      if (!response.success || !response.data) return;
+      if ('project' in response.data) {
+        upsertProjectCache(queryClient, response.data.project);
+      } else {
         upsertProjectCache(queryClient, response.data);
       }
     },

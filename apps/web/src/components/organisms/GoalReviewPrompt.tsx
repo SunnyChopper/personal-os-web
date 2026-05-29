@@ -75,9 +75,7 @@ export function GoalReviewPrompt({
   };
 
   const prompts = getReviewPrompts();
-  const activeGoals = goals.filter(
-    (g) => g.status === 'Active' || g.status === 'On Track' || g.status === 'At Risk'
-  );
+  const activeGoals = goals.filter((g) => g.status === 'Active');
 
   const handleSubmit = () => {
     const review: GoalReview = {

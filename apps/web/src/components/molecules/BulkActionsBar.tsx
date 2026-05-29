@@ -1,6 +1,7 @@
 import { Check, X, Archive, Trash2, Edit } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { GoalStatus, Priority } from '@/types/growth-system';
+import { GOAL_STATUSES } from '@/constants/growth-system';
 import Button from '@/components/atoms/Button';
 
 interface BulkActionsBarProps {
@@ -52,16 +53,7 @@ export function BulkActionsBar({
                   Status
                 </button>
                 <div className="absolute bottom-full mb-2 left-0 hidden group-hover:block bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 min-w-[150px] z-10">
-                  {(
-                    [
-                      'Planning',
-                      'Active',
-                      'On Track',
-                      'At Risk',
-                      'Achieved',
-                      'Abandoned',
-                    ] as GoalStatus[]
-                  ).map((status) => (
+                  {GOAL_STATUSES.map((status) => (
                     <button
                       key={status}
                       onClick={() => onStatusChange(status)}

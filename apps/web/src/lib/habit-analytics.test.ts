@@ -95,6 +95,19 @@ describe('getAllStreaks', () => {
     );
   });
 
+  it('treats habit off days as neutral without breaking streak', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-25T12:00:00.000Z'));
+    try {
+      const logs = [logOn('2026-05-22'), logOn('2026-05-25')];
+      const protectedDates = new Set(['2026-05-23', '2026-05-24']);
+      const streaks = getAllStreaks(logs, protectedDates);
+      expect(streaks.current).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('treats OOO standby days as neutral without breaking streak', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-22T12:00:00.000Z'));

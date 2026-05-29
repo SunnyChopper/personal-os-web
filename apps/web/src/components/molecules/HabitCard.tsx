@@ -1,4 +1,5 @@
-import { Check, Flame, Calendar, Target, Coins } from 'lucide-react';
+import { Check, Flame, Calendar, Target } from 'lucide-react';
+import { PointBadge } from '@/components/atoms/PointBadge';
 import { motion } from 'framer-motion';
 import type { Habit } from '@/types/growth-system';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
@@ -298,11 +299,7 @@ export function HabitCard({
           className="w-full mt-3 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm hover:shadow-md min-h-[44px] touch-manipulation flex items-center justify-center gap-2"
         >
           <span>Mark Complete</span>
-          {nextPoints > 0 && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold">
-              <Coins className="h-3 w-3" aria-hidden />+{nextPoints} pts
-            </span>
-          )}
+          {nextPoints > 0 && <PointBadge value={nextPoints} size="sm" showPlus tone="inverse" />}
         </motion.button>
       )}
     </motion.div>

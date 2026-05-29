@@ -6,6 +6,7 @@ import type {
   TaskEnergyLevel,
   TaskExecutionWindow,
   GoalStatus,
+  GoalHealth,
   ProjectStatus,
   TimeHorizon,
   HabitType,
@@ -67,10 +68,16 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
 export const GOAL_STATUS_LABELS: Record<GoalStatus, string> = {
   Planning: 'Planning',
   Active: 'Active',
-  'On Track': 'On Track',
-  'At Risk': 'At Risk',
   Achieved: 'Achieved',
   Abandoned: 'Abandoned',
+};
+
+export const GOAL_HEALTH_LABELS: Record<GoalHealth, string> = {
+  onTrack: 'On Track',
+  atRisk: 'At Risk',
+  behind: 'Behind',
+  stagnant: 'Stagnant',
+  dormant: 'Dormant',
 };
 
 export const AREA_LABELS: Record<Area, string> = {
@@ -125,14 +132,7 @@ export const GOAL_TIME_HORIZONS: readonly TimeHorizon[] = [
   'Quarterly',
   'Yearly',
 ];
-export const GOAL_STATUSES: readonly GoalStatus[] = [
-  'Planning',
-  'Active',
-  'On Track',
-  'At Risk',
-  'Achieved',
-  'Abandoned',
-];
+export const GOAL_STATUSES: readonly GoalStatus[] = ['Planning', 'Active', 'Achieved', 'Abandoned'];
 
 export const PROJECT_STATUSES: readonly ProjectStatus[] = [
   'Planning',
@@ -149,6 +149,16 @@ export const HABIT_FREQUENCIES: readonly HabitFrequency[] = [
   'Monthly',
   'Custom',
 ];
+
+export const HABIT_OFF_WEEKDAY_OPTIONS = [
+  { code: 'mon', label: 'Mon' },
+  { code: 'tue', label: 'Tue' },
+  { code: 'wed', label: 'Wed' },
+  { code: 'thu', label: 'Thu' },
+  { code: 'fri', label: 'Fri' },
+  { code: 'sat', label: 'Sat' },
+  { code: 'sun', label: 'Sun' },
+] as const;
 
 /** Fibonacci story points for task `size` (planning poker set). */
 export const TASK_STORY_POINTS_FIBONACCI: readonly number[] = [1, 2, 3, 5, 8, 13, 21];

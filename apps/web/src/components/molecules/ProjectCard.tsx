@@ -11,6 +11,7 @@ import {
   type ProjectDisplayModel,
 } from '@/utils/project-summary';
 import { formatDateString } from '@/utils/date-formatters';
+import { getProjectTimelineBarColorClasses } from '@/utils/timeline-bar-colors';
 import { cn } from '@/lib/utils';
 
 type ViewMode = 'grid' | 'list' | 'timeline';
@@ -61,6 +62,8 @@ export function ProjectCard({
     (taskCount > 0 ? Math.round(((completedTaskCount || 0) / taskCount) * 100) : 0);
   const effectiveStatus = display?.effectiveStatus ?? project.status;
   const isWorkComplete = display?.isWorkComplete ?? project.status === 'Completed';
+  const isStale = display?.isStale ?? false;
+  const badgeStatus = isStale ? 'Stale' : effectiveStatus;
   const { showBar, barBgClass } = getProjectCardAccentBarClasses(project, isWorkComplete);
   const dateUrgency = getDateUrgency(project.targetEndDate, {
     hideWhenComplete: isWorkComplete || project.status === 'Cancelled',
@@ -136,7 +139,7 @@ export function ProjectCard({
                 {project.name}
               </motion.h3>
               <div className="flex items-center gap-2 flex-wrap">
-                <StatusBadge status={effectiveStatus} size="sm" />
+                <StatusBadge status={badgeStatus} size="sm" />
                 <AreaBadge area={project.area} size="sm" />
               </div>
             </div>
@@ -224,7 +227,7 @@ export function ProjectCard({
               {project.name}
             </h3>
             <div className="flex items-center gap-2 flex-wrap">
-              <StatusBadge status={effectiveStatus} size="sm" />
+              <StatusBadge status={badgeStatus} size="sm" />
               <AreaBadge area={project.area} size="sm" />
             </div>
           </div>
@@ -270,20 +273,12 @@ export function ProjectCard({
         'h-14 sm:h-16',
         'px-3 sm:px-4',
         'rounded-lg',
-        'bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700',
-        'border border-blue-600 dark:border-blue-500',
+        'bg-gradient-to-r',
+        getProjectTimelineBarColorClasses(effectiveStatus, { isWorkComplete, isStale }),
         'shadow-md hover:shadow-lg',
         'cursor-pointer',
         'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
-        'transition-shadow duration-200',
-        (effectiveStatus === 'Completed' || isWorkComplete) &&
-          'from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 border-green-600 dark:border-green-500',
-        effectiveStatus === 'On Hold' &&
-          'from-yellow-500 to-yellow-600 dark:from-yellow-600 dark:to-yellow-700 border-yellow-600 dark:border-yellow-500',
-        effectiveStatus === 'Cancelled' &&
-          'from-gray-500 to-gray-600 dark:from-gray-600 dark:to-gray-700 border-gray-600 dark:border-gray-500',
-        effectiveStatus === 'Planning' &&
-          'from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700 border-purple-600 dark:border-purple-500'
+        'transition-shadow duration-200'
       )}
       role="button"
       tabIndex={0}
@@ -295,7 +290,7 @@ export function ProjectCard({
         <PriorityIndicator priority={project.priority} size="sm" variant="badge" />
         <span className="text-xs sm:text-sm font-medium text-white truncate">{project.name}</span>
       </div>
-      <StatusBadge status={effectiveStatus} size="sm" />
+      <StatusBadge status={badgeStatus} size="sm" appearance="onSolid" />
       {/* Progress indicator */}
       {showProgressRing && (
         <div className="absolute left-2 right-2 bottom-1 h-0.5 bg-white/30 rounded-full overflow-hidden">

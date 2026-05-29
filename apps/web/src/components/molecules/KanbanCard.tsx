@@ -3,8 +3,11 @@ import type { Task } from '@/types/growth-system';
 import { formatDateString } from '@/utils/date-formatters';
 import { VelocityDragBadge } from '@/components/molecules/VelocityDragInterventionCard';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
+import { PointBadge } from '@/components/atoms/PointBadge';
+import { pointBadgeStatusFromTask } from '@/lib/point-badge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { Pencil } from 'lucide-react';
+import { TaskFieldMarkdown } from '@/components/molecules/TaskFieldMarkdown';
 
 const cardVariants = {
   hidden: { opacity: 0, y: 14, scale: 0.97 },
@@ -58,7 +61,11 @@ export function KanbanCard({
       }}
       onDragEnd={onDragEnd}
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest('button') || isBeingDragged) {
+        if (
+          (e.target as HTMLElement).closest('button') ||
+          (e.target as HTMLElement).closest('input[type="checkbox"]') ||
+          isBeingDragged
+        ) {
           return;
         }
         onOpen?.(task);
@@ -105,9 +112,15 @@ export function KanbanCard({
       </div>
 
       {task.description ? (
-        <p className="mb-3 line-clamp-2 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-          {task.description}
-        </p>
+        <div className="mb-3 line-clamp-2">
+          <TaskFieldMarkdown
+            taskId={task.id}
+            field="description"
+            value={task.description}
+            variant="compact"
+            className="text-xs"
+          />
+        </div>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -122,14 +135,12 @@ export function KanbanCard({
           </span>
         ) : null}
         {task.pointValue != null && task.pointValue > 0 ? (
-          <span className="rounded-md bg-amber-100/90 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/35 dark:text-amber-200">
-            +{task.pointValue} reward
-            {task.rewardLedgerStatus === 'reversed'
-              ? ' · clawed back'
-              : task.pointsAwarded
-                ? ' · earned'
-                : ''}
-          </span>
+          <PointBadge
+            value={task.pointValue}
+            status={pointBadgeStatusFromTask(task)}
+            size="sm"
+            showPlus
+          />
         ) : null}
         {task.dueDate ? (
           <span className="rounded-md bg-amber-100/90 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">

@@ -14,12 +14,18 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AIInsightsWidget } from '@/components/organisms/AIInsightsWidget';
+import { HealthActionWidget } from '@/components/organisms/HealthActionWidget';
+import { StaleVelocityAdvisoryCard } from '@/components/molecules/StaleVelocityAdvisoryCard';
 import { DailyPlanningAssistant } from '@/components/organisms/DailyPlanningAssistant';
 import { MorningLaunchpad } from '@/components/organisms/MorningLaunchpad';
 import { GoalsDashboardWidget } from '@/components/organisms/GoalsDashboardWidget';
 import { useMode } from '@/contexts/Mode';
 import { ROUTES } from '@/routes';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
+import {
+  formatHiddenActiveProjectsLabel,
+  getActiveProjectsWidgetView,
+} from '@/lib/growth-system/dashboard-active-projects';
 
 interface StatCardProps {
   title: string;
@@ -95,7 +101,12 @@ export default function DashboardPage() {
   );
   const activeHabits = habits.filter((h) => h.frequency === 'Daily');
   const activeGoals = goals.filter((g) => g.status === 'Active');
-  const activeProjects = projects.filter((p) => p.status === 'Active');
+
+  const { activeProjects, visibleActiveProjects, hiddenActiveProjectCount } = useMemo(
+    () => getActiveProjectsWidgetView(projects),
+    [projects]
+  );
+  const hiddenActiveProjectsLabel = formatHiddenActiveProjectsLabel(hiddenActiveProjectCount);
 
   // Calculate simple progress for goals (for dashboard widget)
   const goalsProgress = useMemo(() => {
@@ -239,121 +250,79 @@ export default function DashboardPage() {
             isLoading={dashboardLoading}
           />
         )}
+        <HealthActionWidget />
         <AIInsightsWidget />
+        {!isLeisureMode && <StaleVelocityAdvisoryCard />}
       </div>
 
       <MorningLaunchpad isOpen={isLaunchpadOpen} onClose={() => setIsLaunchpadOpen(false)} />
 
       {!isLeisureMode ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-white dark:bg-gray-800 p-5 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">Recent Tasks</h2>
-            {dashboardError ? (
-              <div className="text-center py-6">
-                <AlertCircle className="w-8 h-8 text-amber-500 dark:text-amber-400 mx-auto mb-2" />
-                <p className="text-sm text-amber-600 dark:text-amber-400">Unable to load tasks</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Backend connection unavailable
-                </p>
-              </div>
-            ) : dashboardLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg animate-pulse"
-                  >
-                    <div className="w-2 h-2 rounded-full mt-2 bg-gray-300 dark:bg-gray-600 shrink-0" />
-                    <div className="flex-1 min-w-0 space-y-2 pt-0.5">
-                      <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-[82%]" />
-                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-24" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : activeTasks.length > 0 ? (
-              <div className="space-y-2">
-                {activeTasks.slice(0, 5).map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex items-start gap-3 p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full mt-2 ${
-                        task.priority === 'P1'
-                          ? 'bg-red-500'
-                          : task.priority === 'P2'
-                            ? 'bg-orange-500'
-                            : task.priority === 'P3'
-                              ? 'bg-yellow-500'
-                              : 'bg-green-500'
-                      }`}
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
-                        {task.title}
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 capitalize">
-                        {task.status}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-6 text-sm">
-                No active tasks
-              </p>
-            )}
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Active Projects</h2>
+            {!dashboardLoading && !dashboardError && activeProjects.length > 0 ? (
+              <Link
+                to={ROUTES.admin.projects}
+                className="text-xs font-medium accent-text-600 dark:accent-text-400 hover:underline shrink-0"
+              >
+                View all projects
+              </Link>
+            ) : null}
           </div>
-
-          <div className="bg-white dark:bg-gray-800 p-5 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
-              Active Projects
-            </h2>
-            {dashboardError ? (
-              <div className="text-center py-6">
-                <AlertCircle className="w-8 h-8 text-amber-500 dark:text-amber-400 mx-auto mb-2" />
-                <p className="text-sm text-amber-600 dark:text-amber-400">
-                  Unable to load projects
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Backend connection unavailable
-                </p>
-              </div>
-            ) : dashboardLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className="p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg animate-pulse flex items-start justify-between gap-3"
-                  >
-                    <div className="h-4 flex-1 max-w-[72%] bg-gray-200 dark:bg-gray-600 rounded" />
-                    <div className="h-3 w-14 shrink-0 bg-gray-200 dark:bg-gray-600 rounded mt-0.5" />
-                  </div>
-                ))}
-              </div>
-            ) : activeProjects.length > 0 ? (
-              <div className="space-y-2">
-                {activeProjects.slice(0, 5).map((project) => (
-                  <div key={project.id} className="p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <div className="flex items-start justify-between">
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
-                        {project.name}
-                      </p>
-                      <span className="text-xs text-gray-600 dark:text-gray-400 capitalize">
-                        {project.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-6 text-sm">
-                No active projects
+          {dashboardError ? (
+            <div className="text-center py-6">
+              <AlertCircle className="w-8 h-8 text-amber-500 dark:text-amber-400 mx-auto mb-2" />
+              <p className="text-sm text-amber-600 dark:text-amber-400">Unable to load projects</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Backend connection unavailable
               </p>
-            )}
-          </div>
+            </div>
+          ) : dashboardLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg animate-pulse flex items-start justify-between gap-3"
+                >
+                  <div className="h-4 flex-1 max-w-[72%] bg-gray-200 dark:bg-gray-600 rounded" />
+                  <div className="h-3 w-14 shrink-0 bg-gray-200 dark:bg-gray-600 rounded mt-0.5" />
+                </div>
+              ))}
+            </div>
+          ) : activeProjects.length > 0 ? (
+            <div className="space-y-2">
+              {visibleActiveProjects.map((project) => (
+                <div key={project.id} className="p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                      {project.name}
+                    </p>
+                    <span className="text-xs text-gray-600 dark:text-gray-400 capitalize">
+                      {project.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {hiddenActiveProjectCount > 0 ? (
+                <div className="pt-1 flex flex-col items-center gap-1 sm:flex-row sm:justify-between">
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    {hiddenActiveProjectsLabel}
+                  </p>
+                  <Link
+                    to={ROUTES.admin.projects}
+                    className="text-xs font-medium accent-text-600 dark:accent-text-400 hover:underline"
+                  >
+                    View all projects
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-gray-500 dark:text-gray-400 text-center py-6 text-sm">
+              No active projects
+            </p>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

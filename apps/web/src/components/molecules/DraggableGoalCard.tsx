@@ -9,7 +9,7 @@ interface DraggableGoalCardProps {
   onClick: (goal: Goal) => void;
   progress?: GoalProgressBreakdown;
   linkedCounts?: { tasks: number; metrics: number; habits: number; projects: number };
-  healthStatus?: 'healthy' | 'at_risk' | 'behind' | 'dormant';
+  healthStatus?: import('@/types/growth-system').GoalHealth;
   daysRemaining?: number | null;
   momentum?: 'active' | 'dormant';
   onQuickAction?: (action: 'add_task' | 'log_metric' | 'complete_criterion') => void;

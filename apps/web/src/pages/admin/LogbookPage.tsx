@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type {
   LogbookEntry,
@@ -39,6 +39,15 @@ export default function LogbookPage() {
   // AI Assist State
   const [showAIAssist, setShowAIAssist] = useState(false);
   const [aiMode, setAIMode] = useState<AIMode>('prompts');
+
+  const hasBlockingOverlay = isEditDialogOpen || isCreateDialogOpen || Boolean(entryToDelete);
+
+  // Dismiss the fixed AI tool drawer when a modal/sheet opens (drawer is z-50; overlays are z-[60]+).
+  useEffect(() => {
+    if (hasBlockingOverlay && showAIAssist) {
+      setShowAIAssist(false);
+    }
+  }, [hasBlockingOverlay, showAIAssist]);
 
   // Mutation State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -183,9 +192,15 @@ export default function LogbookPage() {
             entry={selectedEntry}
             allEntries={allEntries || []}
             onBack={handleBackToList}
-            onEdit={() => setIsEditDialogOpen(true)}
-            onDelete={() => setEntryToDelete(selectedEntry)}
-            showAIAssist={showAIAssist}
+            onEdit={() => {
+              setShowAIAssist(false);
+              setIsEditDialogOpen(true);
+            }}
+            onDelete={() => {
+              setShowAIAssist(false);
+              setEntryToDelete(selectedEntry);
+            }}
+            showAIAssist={showAIAssist && !hasBlockingOverlay}
             aiMode={aiMode}
             onToggleAIAssist={() => setShowAIAssist(!showAIAssist)}
             onAIModeChange={setAIMode}

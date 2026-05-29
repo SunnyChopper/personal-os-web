@@ -10,6 +10,9 @@ import type {
 } from '@/types/growth-system';
 import type { ApiError } from '@/types/api-contracts';
 import Button from '@/components/atoms/Button';
+import { GoalProgressWeightsFields } from '@/components/molecules/GoalProgressWeightsFields';
+import { DEFAULT_GOAL_PROGRESS_WEIGHTS } from '@/utils/goal-progress-weights';
+import type { GoalProgressConfig } from '@/types/growth-system';
 import {
   AREAS,
   AREA_LABELS,
@@ -87,6 +90,10 @@ export function GoalCreateForm({
   const [criterionInput, setCriterionInput] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [showProgressWeights, setShowProgressWeights] = useState(false);
+  const [progressWeights, setProgressWeights] = useState<GoalProgressConfig>(
+    DEFAULT_GOAL_PROGRESS_WEIGHTS
+  );
 
   // Validate a single field
   const validateField = (field: string, value: unknown): string => {
@@ -199,11 +206,12 @@ export function GoalCreateForm({
       area: formData.area,
       subCategory: formData.subCategory || undefined,
       timeHorizon: formData.timeHorizon,
+      startDate: formData.startDate || undefined,
       targetDate: formData.targetDate || undefined,
       successCriteria: formData.successCriteria || undefined,
       parentGoalId: formData.parentGoalId || undefined,
       notes: formData.notes?.trim() || undefined,
-      progressConfig: formData.progressConfig || undefined,
+      progressConfig: showProgressWeights ? progressWeights : undefined,
       // Explicitly exclude fields not in CreateGoalInput
       // priority and status are not supported by backend
       // dailyTarget and weeklyTarget are for habits, not goals
@@ -348,11 +356,6 @@ export function GoalCreateForm({
                 {parentGoal.title}
               </span>
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-              Time horizon is set to <span className="font-medium">{formData.timeHorizon}</span>{' '}
-              (next level down). The link below is pre-filled; change it only if you need a
-              different parent.
-            </p>
           </div>
         )}
         {parentGoal && !isValidParent(parentGoal, formData.timeHorizon) && (
@@ -413,15 +416,6 @@ export function GoalCreateForm({
               ));
             })()}
           </select>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {(() => {
-              const validParentHorizon = getValidParentTimeHorizon(formData.timeHorizon);
-              if (!validParentHorizon) {
-                return 'Yearly goals cannot have parent goals.';
-              }
-              return `Explicitly link this goal to a parent goal to create a hierarchy. Only ${validParentHorizon} goals can be parents for ${formData.timeHorizon} goals.`;
-            })()}
-          </p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -563,6 +557,18 @@ export function GoalCreateForm({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Start Date
+          </label>
+          <input
+            type="date"
+            value={formData.startDate || ''}
+            onChange={(e) => handleChange('startDate', e.target.value || undefined)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Target Date
           </label>
           <input
@@ -612,6 +618,13 @@ export function GoalCreateForm({
             </div>
           )}
         </div>
+
+        <GoalProgressWeightsFields
+          value={progressWeights}
+          onChange={setProgressWeights}
+          showAdvanced={showProgressWeights}
+          onToggleAdvanced={() => setShowProgressWeights((v) => !v)}
+        />
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

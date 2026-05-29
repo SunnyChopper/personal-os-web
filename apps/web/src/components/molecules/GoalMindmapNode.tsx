@@ -1,7 +1,8 @@
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { Plus } from 'lucide-react';
-import type { Goal, GoalProgressBreakdown, TimeHorizon } from '@/types/growth-system';
+import { ExternalLink, Plus, Target } from 'lucide-react';
+import type { Goal, GoalHealth, GoalProgressBreakdown, TimeHorizon } from '@/types/growth-system';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
+import { HealthBadge } from '@/components/atoms/HealthBadge';
 import { ProgressRing } from '@/components/atoms/ProgressRing';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { GOAL_MINDMAP_LAYOUT_TOTAL_WIDTH } from '@/components/molecules/goal-mindmap-utils';
@@ -9,60 +10,50 @@ import { GOAL_MINDMAP_LAYOUT_TOTAL_WIDTH } from '@/components/molecules/goal-min
 export type GoalMindmapNodeData = {
   goal: Goal;
   progress?: GoalProgressBreakdown;
-  healthStatus?: 'healthy' | 'at_risk' | 'behind' | 'dormant';
+  healthStatus?: GoalHealth;
   isRoot?: boolean;
+  isDimmed?: boolean;
+  isFocused?: boolean;
   timeframeLabel: string;
   isOverdue: boolean;
   onAddSubgoal?: (goal: Goal) => void;
+  onOpenDetail?: (goal: Goal) => void;
 };
 
 export type GoalMindmapRfNode = Node<GoalMindmapNodeData, 'goalMindmap'>;
-
-function healthLabel(status: GoalMindmapNodeData['healthStatus']): string {
-  switch (status) {
-    case 'at_risk':
-      return 'At Risk';
-    case 'behind':
-      return 'Behind';
-    case 'dormant':
-      return 'Dormant';
-    case 'healthy':
-    default:
-      return 'On Track';
-  }
-}
-
-function healthClass(status: GoalMindmapNodeData['healthStatus']): string {
-  switch (status) {
-    case 'healthy':
-      return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
-    case 'at_risk':
-      return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400';
-    case 'behind':
-      return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400';
-    case 'dormant':
-      return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400';
-    default:
-      return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
-  }
-}
 
 function canAddSubgoalForHorizon(timeHorizon: TimeHorizon): boolean {
   return timeHorizon !== 'Weekly' && timeHorizon !== 'Daily';
 }
 
 export function GoalMindmapNode({ data, selected }: NodeProps<GoalMindmapRfNode>) {
-  const { goal, progress, healthStatus, isRoot, timeframeLabel, isOverdue, onAddSubgoal } = data;
+  const {
+    goal,
+    progress,
+    healthStatus,
+    isRoot,
+    isDimmed,
+    isFocused,
+    timeframeLabel,
+    isOverdue,
+    onAddSubgoal,
+    onOpenDetail,
+  } = data;
   const overall = progress?.overall ?? 0;
-  const showAdd = canAddSubgoalForHorizon(goal.timeHorizon) && onAddSubgoal;
+  const showAdd = !isDimmed && canAddSubgoalForHorizon(goal.timeHorizon) && onAddSubgoal;
+  const showDimmedDetail = isDimmed && onOpenDetail;
 
-  const borderClass = isOverdue
-    ? 'border-red-500 ring-1 ring-red-500/30 dark:border-red-500'
-    : selected
-      ? 'border-blue-500 ring-2 ring-blue-400/40 dark:ring-blue-500/30'
-      : isRoot
-        ? 'border-blue-300 dark:border-blue-600'
-        : 'border-gray-200 dark:border-gray-600';
+  const borderClass = isDimmed
+    ? 'border-gray-300 dark:border-gray-600'
+    : isFocused
+      ? 'border-blue-500 ring-2 ring-blue-400/50 ring-offset-2 ring-offset-gray-50 dark:ring-offset-gray-900'
+      : isOverdue
+        ? 'border-red-500 ring-1 ring-red-500/30 dark:border-red-500'
+        : selected
+          ? 'border-blue-500 ring-2 ring-blue-400/40 dark:ring-blue-500/30'
+          : isRoot
+            ? 'border-blue-300 dark:border-blue-600'
+            : 'border-gray-200 dark:border-gray-600';
 
   return (
     <div
@@ -70,7 +61,9 @@ export function GoalMindmapNode({ data, selected }: NodeProps<GoalMindmapRfNode>
       style={{ width: GOAL_MINDMAP_LAYOUT_TOTAL_WIDTH }}
     >
       <div
-        className={`relative w-[260px] shrink-0 rounded-lg border-2 bg-white p-3 shadow-md transition-colors dark:bg-gray-800 ${borderClass}`}
+        className={`relative w-[260px] shrink-0 rounded-lg border-2 bg-white p-3 shadow-md transition-colors dark:bg-gray-800 ${borderClass} ${
+          isDimmed ? 'pointer-events-none opacity-40 grayscale' : ''
+        }`}
       >
         <Handle
           type="target"
@@ -80,37 +73,45 @@ export function GoalMindmapNode({ data, selected }: NodeProps<GoalMindmapRfNode>
         <div className="flex gap-3">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-start gap-2">
-              <PriorityIndicator priority={goal.priority} size="sm" />
+              {!isDimmed ? <PriorityIndicator priority={goal.priority} size="sm" /> : null}
+              {isFocused ? (
+                <Target
+                  className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400"
+                  aria-hidden
+                />
+              ) : null}
               <h3
                 className={`line-clamp-2 text-sm font-semibold leading-snug ${
-                  isOverdue ? 'text-red-700 dark:text-red-400' : 'text-gray-900 dark:text-white'
+                  isDimmed
+                    ? 'text-gray-600 dark:text-gray-400'
+                    : isOverdue
+                      ? 'text-red-700 dark:text-red-400'
+                      : 'text-gray-900 dark:text-white'
                 }`}
               >
                 {goal.title}
               </h3>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              {isRoot ? <AreaBadge area={goal.area} /> : null}
+              {isRoot && !isDimmed ? <AreaBadge area={goal.area} /> : null}
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                  isOverdue
-                    ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
-                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  isDimmed
+                    ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                    : isOverdue
+                      ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
+                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                 }`}
               >
                 {timeframeLabel}
               </span>
-              {isOverdue ? (
+              {isOverdue && !isDimmed ? (
                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-900/40 dark:text-red-300">
                   Overdue
                 </span>
               ) : null}
-              {healthStatus ? (
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${healthClass(healthStatus)}`}
-                >
-                  {healthLabel(healthStatus)}
-                </span>
+              {!isDimmed && (goal.health ?? healthStatus) && goal.status === 'Active' ? (
+                <HealthBadge health={goal.health ?? healthStatus!} />
               ) : null}
             </div>
           </div>
@@ -130,6 +131,20 @@ export function GoalMindmapNode({ data, selected }: NodeProps<GoalMindmapRfNode>
         />
       </div>
       <div className="flex h-full w-10 shrink-0 items-center justify-center self-stretch">
+        {showDimmedDetail ? (
+          <button
+            type="button"
+            className="nodrag nopan pointer-events-auto flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            title="Open goal details"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDetail(goal);
+            }}
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Open goal details</span>
+          </button>
+        ) : null}
         {showAdd ? (
           <button
             type="button"

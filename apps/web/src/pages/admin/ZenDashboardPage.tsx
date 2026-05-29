@@ -1,5 +1,6 @@
 import { Heart, Sparkles, TreePine, Coffee, Book, Footprints } from 'lucide-react';
 import { useState } from 'react';
+import { HealthActionWidget } from '@/components/organisms/HealthActionWidget';
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -148,6 +149,10 @@ export default function ZenDashboardPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="mb-8">
+        <HealthActionWidget />
       </div>
 
       <div className="bg-gradient-to-r from-stone-50 to-slate-50 dark:from-stone-900/30 dark:to-slate-900/30 p-8 rounded-2xl border border-stone-200 dark:border-stone-800">

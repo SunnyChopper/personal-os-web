@@ -2,6 +2,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { X } from 'lucide-react';
 import type { PlannerBlock } from '@/types/planner';
+import { formatLocalTimeRange } from '@/utils/date-formatters';
 
 export interface PlannerBlockCardProps {
   block: PlannerBlock;
@@ -60,8 +61,7 @@ export function PlannerBlockCard({
         {title}
       </p>
       <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-        {new Date(block.startAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} –{' '}
-        {new Date(block.endAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+        {formatLocalTimeRange(block.startAt, block.endAt)}
       </p>
       {block.microStepText && (
         <p className="mt-1 line-clamp-2 text-[10px] text-amber-700 dark:text-amber-300">

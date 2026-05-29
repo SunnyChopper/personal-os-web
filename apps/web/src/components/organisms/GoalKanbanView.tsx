@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, MoreVertical, ArrowRight, Pencil } from 'lucide-react';
-import type { Goal, GoalStatus, GoalProgressBreakdown } from '@/types/growth-system';
+import type { Goal, GoalHealth, GoalStatus, GoalProgressBreakdown } from '@/types/growth-system';
+import { normalizeGoalLifecycleStatus } from '@/utils/goal-health-utils';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
+import { HealthBadge } from '@/components/atoms/HealthBadge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 
 interface GoalKanbanViewProps {
@@ -15,7 +17,7 @@ interface GoalKanbanViewProps {
   goalsHealth: Map<
     string,
     {
-      status: 'healthy' | 'at_risk' | 'behind' | 'dormant';
+      status: GoalHealth;
       daysRemaining: number | null;
       momentum: 'active' | 'dormant';
     }
@@ -29,16 +31,15 @@ interface GoalKanbanViewProps {
   onCreateGoal?: (status: GoalStatus) => void;
 }
 
-const KANBAN_COLUMNS: { status: GoalStatus; label: string; color: string }[] = [
+const KANBAN_COLUMNS: { status: GoalStatus; label: string; accentColor: string }[] = [
   {
     status: 'Planning',
     label: 'Planning',
-    color: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300',
+    accentColor: 'bg-gray-400 dark:bg-gray-500',
   },
-  { status: 'Active', label: 'Active', color: 'bg-blue-500 text-white' },
-  { status: 'On Track', label: 'On Track', color: 'bg-green-500 text-white' },
-  { status: 'At Risk', label: 'At Risk', color: 'bg-orange-500 text-white' },
-  { status: 'Achieved', label: 'Achieved', color: 'bg-purple-500 text-white' },
+  { status: 'Active', label: 'Active', accentColor: 'bg-blue-500' },
+  { status: 'Achieved', label: 'Achieved', accentColor: 'bg-purple-500' },
+  { status: 'Abandoned', label: 'Abandoned', accentColor: 'bg-gray-500' },
 ];
 
 export function GoalKanbanView({
@@ -56,7 +57,7 @@ export function GoalKanbanView({
   const menuRefs = useRef<Map<GoalStatus, HTMLDivElement>>(new Map());
 
   const getGoalsByStatus = (status: GoalStatus) => {
-    return goals.filter((goal) => goal.status === status);
+    return goals.filter((goal) => normalizeGoalLifecycleStatus(goal.status) === status);
   };
 
   const getTotalProgress = (status: GoalStatus) => {
@@ -150,26 +151,36 @@ export function GoalKanbanView({
               aria-label={`${column.status} goals column`}
             >
               {/* Column Header */}
-              <div className={`${column.color} px-4 py-3 rounded-t-lg shadow-sm`}>
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-bold text-sm uppercase tracking-wide">{column.label}</h3>
-                  <div className="flex items-center gap-1">
+              <div className="shrink-0 rounded-t-xl bg-gray-100/90 px-3 pb-2 pt-3 dark:bg-gray-800/70">
+                <div className="mb-1 flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span
+                      className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${column.accentColor}`}
+                      aria-hidden
+                    />
+                    <h3 className="text-sm font-semibold leading-tight text-gray-800 dark:text-gray-100">
+                      {column.label}
+                    </h3>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
                     {onCreateGoal && (
                       <button
+                        type="button"
                         onClick={() => onCreateGoal(column.status)}
-                        className="p-1.5 hover:bg-white/20 rounded transition-colors"
+                        className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-black/5 dark:text-gray-300 dark:hover:bg-white/10"
                         title="Add goal"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="h-4 w-4" />
                       </button>
                     )}
                     <div className="relative">
                       <button
+                        type="button"
                         onClick={(e) => toggleMenu(column.status, e)}
-                        className="p-1.5 hover:bg-white/20 rounded transition-colors"
+                        className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-black/5 dark:text-gray-300 dark:hover:bg-white/10"
                         title="Column options"
                       >
-                        <MoreVertical className="w-4 h-4" />
+                        <MoreVertical className="h-4 w-4" />
                       </button>
 
                       {openMenuStatus === column.status && (
@@ -212,13 +223,13 @@ export function GoalKanbanView({
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs opacity-90">
+                <div className="mt-1.5 min-h-[1.125rem] pl-4 text-xs text-gray-500 dark:text-gray-400">
                   <span>
                     {statusGoals.length} {statusGoals.length === 1 ? 'goal' : 'goals'}
                   </span>
                   {statusGoals.length > 0 && (
                     <>
-                      <span>•</span>
+                      <span> · </span>
                       <span>{totalProgress}% avg</span>
                     </>
                   )}
@@ -334,6 +345,9 @@ export function GoalKanbanView({
                                 </span>
                               )}
                             </>
+                          )}
+                          {goal.status === 'Active' && (goal.health ?? health?.status) && (
+                            <HealthBadge health={goal.health ?? health!.status} />
                           )}
                           {health && health.daysRemaining !== null && (
                             <span

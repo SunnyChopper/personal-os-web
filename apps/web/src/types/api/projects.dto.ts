@@ -10,6 +10,7 @@ export interface ProjectDto {
   endDate?: string | null; // Legacy field
   targetEndDate?: string | null;
   actualEndDate?: string | null;
+  isStale?: boolean | null;
   completedDate?: string | null;
   subCategory?: string | null;
   notes?: string | null;

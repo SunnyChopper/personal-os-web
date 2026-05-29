@@ -182,9 +182,7 @@ export const goalAIService = {
    */
   async detectConflicts(goals: Goal[]): Promise<ApiResponse<ConflictDetectionOutput>> {
     try {
-      const activeGoals = goals.filter(
-        (g) => g.status === 'Active' || g.status === 'On Track' || g.status === 'At Risk'
-      );
+      const activeGoals = goals.filter((g) => g.status === 'Active');
 
       const goalsSummary = activeGoals.map((g) => ({
         id: g.id,

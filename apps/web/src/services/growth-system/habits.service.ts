@@ -135,7 +135,7 @@ export const habitsService = {
   },
 
   async deleteLog(habitId: string, date: string): Promise<ApiResponse<void>> {
-    const response = await apiClient.delete<void>(`/habits/${habitId}/logs/${date}`);
+    const response = await apiClient.delete<void>(`/habits/${habitId}/completions/${date}`);
     return response;
   },
 

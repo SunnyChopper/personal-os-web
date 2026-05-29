@@ -43,9 +43,6 @@ export function GoalMindmapLoadingSkeleton() {
           className="min-h-[44px] min-w-[200px] rounded-lg border border-gray-300 bg-gray-100 animate-pulse dark:border-gray-600 dark:bg-gray-700/80"
           aria-hidden
         />
-        <span className="text-xs text-gray-500 dark:text-gray-400">
-          Pan and zoom the canvas. Click a node to open details.
-        </span>
       </div>
 
       <div className="relative h-[min(70vh,720px)] w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">

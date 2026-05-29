@@ -1,18 +1,24 @@
 import { useState } from 'react';
 import { CheckSquare, Plus, Filter } from 'lucide-react';
 import { motion } from 'framer-motion';
-import type { Task } from '@/types/growth-system';
+import type { Task, GoalLinkSuggestion } from '@/types/growth-system';
 import { formatDateString } from '@/utils/date-formatters';
 import { EmptyState } from './EmptyState';
+import { GoalLinkSuggestionsPanel } from './GoalLinkSuggestionsPanel';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import Button from '@/components/atoms/Button';
+import { TaskFieldMarkdown } from '@/components/molecules/TaskFieldMarkdown';
 
 interface GoalTasksSectionProps {
   tasks: Task[];
   onAddTask?: () => void;
   onTaskClick?: (task: Task) => void;
   showEmpty?: boolean;
+  linkSuggestions?: GoalLinkSuggestion[];
+  linkSuggestionsLoading?: boolean;
+  attachingSuggestionId?: string | null;
+  onAttachSuggestion?: (suggestion: GoalLinkSuggestion) => void;
 }
 
 export function GoalTasksSection({
@@ -20,6 +26,10 @@ export function GoalTasksSection({
   onAddTask,
   onTaskClick,
   showEmpty = true,
+  linkSuggestions = [],
+  linkSuggestionsLoading = false,
+  attachingSuggestionId = null,
+  onAttachSuggestion,
 }: GoalTasksSectionProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'done'>('all');
 
@@ -48,6 +58,15 @@ export function GoalTasksSection({
           actionLabel={onAddTask ? 'Add Task' : undefined}
           onAction={onAddTask}
         />
+        {onAttachSuggestion && (
+          <GoalLinkSuggestionsPanel
+            entityType="task"
+            suggestions={linkSuggestions}
+            isLoading={linkSuggestionsLoading}
+            attachingId={attachingSuggestionId}
+            onAttach={onAttachSuggestion}
+          />
+        )}
       </div>
     );
   }
@@ -102,7 +121,12 @@ export function GoalTasksSection({
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
-                onClick={() => onTaskClick?.(task)}
+                onClick={(event) => {
+                  if ((event.target as HTMLElement).closest('input[type="checkbox"]')) {
+                    return;
+                  }
+                  onTaskClick?.(task);
+                }}
                 className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 transition-colors cursor-pointer group"
               >
                 <div className="flex items-start gap-3">
@@ -112,9 +136,14 @@ export function GoalTasksSection({
                       {task.title}
                     </h4>
                     {task.description && (
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-1">
-                        {task.description}
-                      </p>
+                      <div className="mt-1 line-clamp-1">
+                        <TaskFieldMarkdown
+                          taskId={task.id}
+                          field="description"
+                          value={task.description}
+                          variant="compact"
+                        />
+                      </div>
                     )}
                     <div className="flex items-center gap-2 mt-2">
                       <StatusBadge status={task.status} size="sm" />

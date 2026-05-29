@@ -2,14 +2,18 @@ import { apiClient } from '@/lib/api-client';
 import type { ApiResponse, ApiListResponse } from '@/types/api-contracts';
 import type {
   Goal,
+  GoalDependency,
   CreateGoalInput,
   UpdateGoalInput,
+  GoalUpdateWithCascade,
+  CascadedGoalUpdate,
   Metric,
   Task,
   Habit,
   GoalProgressBreakdown,
   GoalActivity,
   SuccessCriterion,
+  GoalLinkSuggestions,
 } from '@/types/growth-system';
 
 interface BackendPaginatedResponse<T> {
@@ -33,6 +37,7 @@ interface BackendSuccessCriterion {
 function normalizeGoal(backendGoal: any): Goal {
   return {
     ...backendGoal,
+    startDate: backendGoal.startDate ?? null,
     successCriteria: Array.isArray(backendGoal.successCriteria)
       ? backendGoal.successCriteria.map(
           (criterion: BackendSuccessCriterion): SuccessCriterion => ({
@@ -54,11 +59,13 @@ export const goalsService = {
   async getAll(filters?: {
     area?: string;
     status?: string;
+    health?: string;
     priority?: string;
   }): Promise<ApiListResponse<Goal>> {
     const queryParams = new URLSearchParams();
     if (filters?.area) queryParams.append('area', filters.area);
     if (filters?.status) queryParams.append('status', filters.status);
+    if (filters?.health) queryParams.append('health', filters.health);
     if (filters?.priority) queryParams.append('priority', filters.priority);
 
     const endpoint = `/goals${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
@@ -96,7 +103,11 @@ export const goalsService = {
     return response;
   },
 
-  async update(id: string, input: UpdateGoalInput): Promise<ApiResponse<Goal>> {
+  async update(
+    id: string,
+    input: UpdateGoalInput,
+    options?: { cascade?: boolean }
+  ): Promise<ApiResponse<Goal> | ApiResponse<GoalUpdateWithCascade>> {
     // Transform success criteria from frontend format to backend format
     const requestBody: any = {
       ...input,
@@ -136,10 +147,19 @@ export const goalsService = {
       }
     }
 
-    const response = await apiClient.patch<any>(`/goals/${id}`, requestBody);
+    const cascadeQuery = options?.cascade ? '?cascade=true' : '';
+    const response = await apiClient.patch<any>(`/goals/${id}${cascadeQuery}`, requestBody);
 
-    // Normalize the response
     if (response.success && response.data) {
+      if (response.data.goal) {
+        return {
+          ...response,
+          data: {
+            goal: normalizeGoal(response.data.goal),
+            cascaded: (response.data.cascaded ?? []) as CascadedGoalUpdate[],
+          },
+        };
+      }
       return {
         ...response,
         data: normalizeGoal(response.data),
@@ -149,18 +169,75 @@ export const goalsService = {
     return response;
   },
 
+  async listAllDependencies(goalIds?: string[]): Promise<ApiResponse<GoalDependency[]>> {
+    const query = goalIds?.length ? `?goalIds=${goalIds.join(',')}` : '';
+    const response = await apiClient.get<{ dependencies: GoalDependency[] }>(
+      `/goals/dependencies${query}`
+    );
+    if (response.success && response.data) {
+      return { ...response, data: response.data.dependencies };
+    }
+    throw new Error(response.error?.message || 'Failed to fetch goal dependencies');
+  },
+
+  async listDependenciesForGoal(
+    goalId: string
+  ): Promise<ApiResponse<{ predecessors: GoalDependency[]; successors: GoalDependency[] }>> {
+    const response = await apiClient.get<{
+      predecessors: GoalDependency[];
+      successors: GoalDependency[];
+    }>(`/goals/${goalId}/dependencies`);
+    return response;
+  },
+
+  async addDependency(
+    successorGoalId: string,
+    predecessorGoalId: string,
+    lagDays?: number
+  ): Promise<ApiResponse<{ dependency: GoalDependency; cascaded: CascadedGoalUpdate[] }>> {
+    const body: { predecessorGoalId: string; lagDays?: number } = { predecessorGoalId };
+    if (lagDays !== undefined) body.lagDays = lagDays;
+    const response = await apiClient.post<{
+      dependency: GoalDependency;
+      cascaded: CascadedGoalUpdate[];
+    }>(`/goals/${successorGoalId}/dependencies`, body);
+    return response;
+  },
+
+  async updateDependencyLag(
+    successorGoalId: string,
+    predecessorGoalId: string,
+    lagDays: number
+  ): Promise<ApiResponse<{ dependency: GoalDependency; cascaded: CascadedGoalUpdate[] }>> {
+    const response = await apiClient.patch<{
+      dependency: GoalDependency;
+      cascaded: CascadedGoalUpdate[];
+    }>(`/goals/${successorGoalId}/dependencies/${predecessorGoalId}`, { lagDays });
+    return response;
+  },
+
+  async removeDependency(
+    successorGoalId: string,
+    predecessorGoalId: string
+  ): Promise<ApiResponse<void>> {
+    return apiClient.delete<void>(`/goals/${successorGoalId}/dependencies/${predecessorGoalId}`);
+  },
+
   async delete(id: string): Promise<ApiResponse<void>> {
     const response = await apiClient.delete<void>(`/goals/${id}`);
     return response;
   },
 
   async linkMetric(goalId: string, metricId: string): Promise<ApiResponse<void>> {
-    const response = await apiClient.post<void>(`/goals/${goalId}/metrics`, { metricId });
+    const response = await apiClient.post<void>(`/goals/${goalId}/link`, {
+      entityId: metricId,
+      entityType: 'metric',
+    });
     return response;
   },
 
   async unlinkMetric(goalId: string, metricId: string): Promise<ApiResponse<void>> {
-    const response = await apiClient.delete<void>(`/goals/${goalId}/metrics/${metricId}`);
+    const response = await apiClient.delete<void>(`/goals/${goalId}/link/metric/${metricId}`);
     return response;
   },
 
@@ -249,18 +326,29 @@ export const goalsService = {
   },
 
   async linkHabit(goalId: string, habitId: string): Promise<ApiResponse<void>> {
-    const response = await apiClient.post<void>(`/goals/${goalId}/habits`, { habitId });
+    const response = await apiClient.post<void>(`/goals/${goalId}/link`, {
+      entityId: habitId,
+      entityType: 'habit',
+    });
     return response;
   },
 
   async unlinkHabit(goalId: string, habitId: string): Promise<ApiResponse<void>> {
-    const response = await apiClient.delete<void>(`/goals/${goalId}/habits/${habitId}`);
+    const response = await apiClient.delete<void>(`/goals/${goalId}/link/habit/${habitId}`);
     return response;
   },
 
   async getProgress(goalId: string): Promise<ApiResponse<GoalProgressBreakdown>> {
-    const response = await apiClient.get<GoalProgressBreakdown>(`/goals/${goalId}/progress`);
-    return response;
+    const response = await apiClient.get<{ goalId: string; progress: GoalProgressBreakdown }>(
+      `/goals/${goalId}/progress`
+    );
+    if (response.success && response.data?.progress) {
+      return { success: true, data: response.data.progress };
+    }
+    return {
+      success: false,
+      error: response.error ?? { message: 'Failed to fetch goal progress', code: 'UNKNOWN' },
+    };
   },
 
   async completeCriterion(goalId: string, criterionId: string): Promise<ApiResponse<Goal>> {
@@ -305,6 +393,21 @@ export const goalsService = {
     activity: Omit<GoalActivity, 'id' | 'goalId' | 'createdAt'>
   ): Promise<ApiResponse<GoalActivity>> {
     const response = await apiClient.post<GoalActivity>(`/goals/${goalId}/activity`, activity);
+    return response;
+  },
+
+  async fetchLinkSuggestions(
+    goalId: string,
+    opts?: {
+      entityTypes?: Array<'task' | 'habit' | 'metric' | 'project'>;
+      limitPerType?: number;
+      useCache?: boolean;
+    }
+  ): Promise<ApiResponse<GoalLinkSuggestions>> {
+    const response = await apiClient.post<GoalLinkSuggestions>(
+      `/ai/goals/${goalId}/suggest-links`,
+      opts ?? {}
+    );
     return response;
   },
 };

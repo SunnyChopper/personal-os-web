@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Habit, HabitLog } from '@/types/growth-system';
 import { generateHeatmapData } from '@/utils/habit-analytics';
+import { habitConfiguredOffDates } from '@/utils/habit-off-days';
 
 interface HabitCalendarHeatmapProps {
   habit: Habit;
@@ -21,9 +22,19 @@ export function HabitCalendarHeatmap({
   const [hoveredDay, setHoveredDay] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
 
-  const heatmapData = useMemo(() => generateHeatmapData(logs, months), [logs, months]);
+  const heatmapData = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(today);
+    start.setMonth(start.getMonth() - months);
+    const offDayDates = habitConfiguredOffDates(habit, start, today);
+    return generateHeatmapData(logs, months, offDayDates);
+  }, [habit, logs, months]);
 
-  const getIntensityColor = (intensity: number, habitType: string) => {
+  const getIntensityColor = (intensity: number, habitType: string, isOffDay?: boolean) => {
+    if (isOffDay) {
+      return 'bg-slate-200 dark:bg-slate-700/80 ring-1 ring-inset ring-slate-300/60 dark:ring-slate-500/50';
+    }
     if (intensity === 0) {
       return 'bg-gray-200 dark:bg-gray-600/70 ring-1 ring-inset ring-gray-300/80 dark:ring-gray-500/60';
     }
@@ -190,14 +201,19 @@ export function HabitCalendarHeatmap({
                         key={day.date}
                         className={`w-3 h-3 rounded-sm cursor-pointer transition-all ${getIntensityColor(
                           day.intensity,
-                          habit.habitType
+                          habit.habitType,
+                          day.isOffDay
                         )} ${hoveredDay === day.date ? 'ring-2 ring-blue-500 dark:ring-blue-400 scale-110' : ''} ${
                           isToday ? 'ring-1 ring-blue-600 dark:ring-blue-400' : ''
                         }`}
                         onMouseEnter={(e) => handleDayHover(day, e)}
                         onMouseLeave={handleDayLeave}
                         onClick={() => onDateClick && onDateClick(new Date(day.date))}
-                        title={`${new Date(day.date).toLocaleDateString()}: ${day.count} completion${day.count !== 1 ? 's' : ''}${isToday ? ' (Today)' : day.count === 0 ? ' (miss)' : ''}`}
+                        title={`${new Date(day.date).toLocaleDateString()}: ${
+                          day.isOffDay
+                            ? 'Off day'
+                            : `${day.count} completion${day.count !== 1 ? 's' : ''}${isToday ? ' (Today)' : day.count === 0 ? ' (miss)' : ''}`
+                        }`}
                       />
                     );
                   })}
@@ -237,9 +253,11 @@ export function HabitCalendarHeatmap({
             })}
           </div>
           <div className="text-gray-300">
-            {hoveredDayData.count === 0
-              ? 'No completion (miss)'
-              : `${hoveredDayData.count} completion${hoveredDayData.count !== 1 ? 's' : ''}`}
+            {hoveredDayData.isOffDay
+              ? 'Off day (not counted against streak)'
+              : hoveredDayData.count === 0
+                ? 'No completion (miss)'
+                : `${hoveredDayData.count} completion${hoveredDayData.count !== 1 ? 's' : ''}`}
           </div>
         </div>
       )}

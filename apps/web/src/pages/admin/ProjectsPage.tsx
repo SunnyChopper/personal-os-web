@@ -34,6 +34,7 @@ import type {
 } from '@/types/growth-system';
 import { useProjects, useGoals, useTasks } from '@/hooks/useGrowthSystem';
 import { useProjectHealthMap } from '@/hooks/useProjectHealthMap';
+import { useProjectDependencies, useProjectTimelineUpdate } from '@/hooks/useProjectDependencies';
 import { tasksService } from '@/services/growth-system/tasks.service';
 import { projectsService } from '@/services/growth-system/projects.service';
 import { useQueryClient } from '@tanstack/react-query';
@@ -206,6 +207,10 @@ export default function ProjectsPage() {
 
   const { projectHealthMap, isLoading: isHealthLoading } = useProjectHealthMap(filteredProjectIds);
 
+  const { dependencies: projectDependencies, addDependency: addProjectDependency } =
+    useProjectDependencies(filteredProjectIds);
+  const projectTimelineUpdate = useProjectTimelineUpdate();
+
   const getProjectStats = useCallback(
     (projectId: string) => {
       const projectTasks = getTasksByProject(tasks, projectId);
@@ -281,8 +286,9 @@ export default function ProjectsPage() {
     try {
       const response = await updateProject({ id, input });
       if (response.success && response.data) {
+        const updated = 'project' in response.data ? response.data.project : response.data;
         if (selectedProject && selectedProject.id === id) {
-          setSelectedProject(response.data);
+          setSelectedProject(updated);
         }
         setIsEditDialogOpen(false);
       }
@@ -503,6 +509,9 @@ export default function ProjectsPage() {
       if (!response.success || !response.data) {
         throw new Error(response.error?.message ?? 'Failed to create task');
       }
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.growthSystem.projects.lists(),
+      });
       setIsCreateTaskOpen(false);
       showToast({
         type: 'success',
@@ -1462,7 +1471,18 @@ export default function ProjectsPage() {
         ) : (
           <ProjectTimelineView
             projects={filteredProjects}
+            dependencies={projectDependencies}
             onProjectClick={handleProjectClick}
+            onProjectDatesChange={async (projectId, dates) => {
+              await projectTimelineUpdate.mutateAsync({
+                id: projectId,
+                startDate: dates.startDate,
+                targetEndDate: dates.targetEndDate,
+              });
+            }}
+            onAddDependency={async (successorProjectId, predecessorProjectId) => {
+              await addProjectDependency({ successorProjectId, predecessorProjectId });
+            }}
             projectHealthMap={projectHealthMap}
             isHealthLoading={isHealthLoading}
             resolveProjectDisplay={getProjectDisplay}

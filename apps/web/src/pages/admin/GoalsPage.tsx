@@ -14,6 +14,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import type {
   Goal,
+  GoalHealth,
   CreateGoalInput,
   UpdateGoalInput,
   GoalStatus,
@@ -26,13 +27,33 @@ import type {
   Habit,
   Priority,
   Area,
+  GoalLinkSuggestion,
 } from '@/types/growth-system';
 import type { ApiError } from '@/types/api-contracts';
 import { goalsService } from '@/services/growth-system/goals.service';
+import { tasksService } from '@/services/growth-system/tasks.service';
 import { goalProgressService } from '@/services/growth-system/goal-progress.service';
 import { useTasks, useProjects, useMetrics, useHabits, useGoals } from '@/hooks/useGrowthSystem';
+import { useToast } from '@/hooks/use-toast';
+import { buildHabitCompletionToasts } from '@/lib/habit-completion-feedback';
+import { getHabitLogCalendarDay, toLocalDateKey } from '@/utils/date-formatters';
+import { useGoalDependencies, useGoalTimelineUpdate } from '@/hooks/useGoalDependencies';
+import { useGoalLinkSuggestions } from '@/hooks/useGoalLinkSuggestions';
 import { useQueryClient } from '@tanstack/react-query';
-import { upsertGoalCache } from '@/lib/react-query/growth-system-cache';
+import {
+  upsertGoalCache,
+  upsertTaskCache,
+  upsertMetricCache,
+  upsertHabitCache,
+  upsertProjectCache,
+} from '@/lib/react-query/growth-system-cache';
+import { queryKeys } from '@/lib/react-query/query-keys';
+import {
+  isGoalHealthAtRisk,
+  isGoalHealthDormant,
+  isGoalHealthStagnant,
+  isGoalVelocityStalled,
+} from '@/utils/goal-health-utils';
 import {
   getTasksByGoal,
   getProjectsByGoal,
@@ -51,12 +72,17 @@ import { GoalTimelineView } from '@/components/organisms/GoalTimelineView';
 import { GoalHierarchicalTimeView } from '@/components/organisms/GoalHierarchicalTimeView';
 import { GoalMindmapView } from '@/components/organisms/GoalMindmapView';
 import { GoalMindmapLoadingSkeleton } from '@/components/organisms/GoalMindmapLoadingSkeleton';
+import { RelationshipPicker } from '@/components/organisms/RelationshipPicker';
 import Dialog from '@/components/molecules/Dialog';
 import { EmptyState } from '@/components/molecules/EmptyState';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { CelebrationEffect } from '@/components/atoms/CelebrationEffect';
 import { GOAL_STATUSES, AREAS, PRIORITIES, AREA_LABELS } from '@/constants/growth-system';
 import { migrateGoals, needsMigration } from '@/utils/goal-migration';
+import {
+  listPipelineLeafGoals,
+  retainGoalsWithMatchingAncestors,
+} from '@/components/molecules/goal-mindmap-utils';
 import { getStorageAdapter } from '@/lib/storage';
 
 const STATUSES: GoalStatus[] = [...GOAL_STATUSES];
@@ -64,6 +90,15 @@ const AREA_OPTIONS: Area[] = [...AREAS];
 const PRIORITY_OPTIONS: Priority[] = [...PRIORITIES];
 
 type ViewMode = 'timeHorizon' | 'area' | 'kanban' | 'timeline' | 'mindmap';
+type LinkPickerEntityType = 'task' | 'metric' | 'habit' | 'project';
+
+function appendGoalId<T extends { goalIds?: string[] }>(entity: T, goalId: string): T {
+  const current = entity.goalIds ?? [];
+  if (current.includes(goalId)) {
+    return entity;
+  }
+  return { ...entity, goalIds: [...current, goalId] };
+}
 
 // Animation variants for mobile UI enhancements
 const containerVariants = {
@@ -108,6 +143,7 @@ type QuickFilter =
   | 'due_this_week'
   | 'needs_attention'
   | 'recently_completed'
+  | 'stagnant'
   | 'dormant';
 
 export default function GoalsPage() {
@@ -124,7 +160,8 @@ export default function GoalsPage() {
   const { tasks: allTasks } = useTasks();
   const { projects: allProjects } = useProjects();
   const { metrics: allMetrics } = useMetrics();
-  const { habits: allHabits } = useHabits();
+  const { habits: allHabits, logCompletion } = useHabits();
+  const { showToast } = useToast();
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [parentGoalForSubgoal, setParentGoalForSubgoal] = useState<Goal | null>(null);
@@ -133,6 +170,11 @@ export default function GoalsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [goalToDelete, setGoalToDelete] = useState<Goal | null>(null);
   const [createError, setCreateError] = useState<string | ApiError | null>(null);
+  const [linkPickerType, setLinkPickerType] = useState<LinkPickerEntityType | null>(null);
+  const [selectedLinkIds, setSelectedLinkIds] = useState<string[]>([]);
+  const [isLinkSaving, setIsLinkSaving] = useState(false);
+  const [linkSaveError, setLinkSaveError] = useState<string | null>(null);
+  const [attachingSuggestionId, setAttachingSuggestionId] = useState<string | null>(null);
 
   const [goalProjects, setGoalProjects] = useState<Map<string, EntitySummary[]>>(new Map());
   const [goalTasks, setGoalTasks] = useState<Map<string, Task[]>>(new Map());
@@ -147,7 +189,7 @@ export default function GoalsPage() {
     Map<
       string,
       {
-        status: 'healthy' | 'at_risk' | 'behind' | 'dormant';
+        status: GoalHealth;
         daysRemaining: number | null;
         momentum: 'active' | 'dormant';
       }
@@ -254,50 +296,12 @@ export default function GoalsPage() {
         goalForHealth = goalResponse.data;
       }
 
-      // Compute progress using data we already fetched (avoid duplicate API calls)
-      const weights = goalForHealth.progressConfig || {
-        criteriaWeight: 40,
-        tasksWeight: 30,
-        metricsWeight: 20,
-        habitsWeight: 10,
-      };
-
-      // Calculate criteria progress
-      const criteriaProgress = goalProgressService.calculateCriteriaProgress(
-        goalForHealth.successCriteria
+      const progressData = await goalProgressService.computeProgress(
+        goalForHealth,
+        tasks,
+        metrics,
+        habits
       );
-
-      // Calculate tasks progress
-      const tasksProgress = goalProgressService.calculateTasksProgress(tasks);
-
-      // Calculate metrics progress (requires fetching metric details and logs)
-      const metricsProgress = await goalProgressService.calculateMetricsProgress(
-        metrics.map((m) => m.id)
-      );
-
-      // Calculate habits progress
-      const habitsProgress = await goalProgressService.calculateHabitsProgress(habits);
-
-      // Calculate weighted overall progress
-      const totalWeight =
-        weights.criteriaWeight + weights.tasksWeight + weights.metricsWeight + weights.habitsWeight;
-      let overall = 0;
-      if (totalWeight > 0) {
-        overall =
-          ((criteriaProgress.percentage * weights.criteriaWeight) / 100 +
-            (tasksProgress.percentage * weights.tasksWeight) / 100 +
-            (metricsProgress.percentage * weights.metricsWeight) / 100 +
-            (habitsProgress.consistency * weights.habitsWeight) / 100) /
-          (totalWeight / 100);
-      }
-
-      const progressData: GoalProgressBreakdown = {
-        overall: Math.round(overall),
-        criteria: criteriaProgress,
-        tasks: tasksProgress,
-        metrics: metricsProgress,
-        habits: habitsProgress,
-      };
       setGoalsProgress((prev) => new Map(prev).set(goalId, progressData));
 
       // Calculate health using the goal we have
@@ -382,12 +386,10 @@ export default function GoalsPage() {
     try {
       const response = await updateGoal({ id, input });
       if (response.success && response.data) {
-        // React Query mutation automatically updates the cache via upsertGoalCache
+        const updatedGoal = 'goal' in response.data ? response.data.goal : response.data;
         if (selectedGoal && selectedGoal.id === id) {
-          // Reset the ref so the useEffect will reload the goal data
           lastLoadedGoalIdRef.current = null;
-          // Update selectedGoal - this will trigger the useEffect to reload data
-          setSelectedGoal(response.data);
+          setSelectedGoal(updatedGoal);
         }
         setIsEditDialogOpen(false);
       }
@@ -520,7 +522,10 @@ export default function GoalsPage() {
     filters.momentum,
     filters.hasLinkedTasks,
     filters.hasLinkedMetrics,
+    filters.focusGoalId,
   ].filter(Boolean).length;
+
+  const pipelineCandidates = useMemo(() => listPipelineLeafGoals(migratedGoals), [migratedGoals]);
 
   const filteredGoals = useMemo(() => {
     // Note: Area layout shows all goals regardless of parentGoalId (parent/child relationships)
@@ -539,9 +544,11 @@ export default function GoalsPage() {
         !filters.momentum ||
         (filters.momentum === 'active'
           ? goalsHealth.get(goal.id)?.momentum === 'active'
-          : filters.momentum === 'dormant'
-            ? goalsHealth.get(goal.id)?.momentum === 'dormant'
-            : true);
+          : filters.momentum === 'stagnant'
+            ? isGoalHealthStagnant(goal) || goalsHealth.get(goal.id)?.status === 'stagnant'
+            : filters.momentum === 'dormant'
+              ? isGoalHealthDormant(goal) || goalsHealth.get(goal.id)?.momentum === 'dormant'
+              : true);
       const matchesHasLinkedTasks =
         !filters.hasLinkedTasks || (goalsLinkedCounts.get(goal.id)?.tasks || 0) > 0;
       const matchesHasLinkedMetrics =
@@ -553,24 +560,22 @@ export default function GoalsPage() {
         const matchesQuickFilters = quickFilters.every((qf) => {
           switch (qf) {
             case 'at_risk':
-              return goal.status === 'At Risk';
+              return isGoalHealthAtRisk(goal);
             case 'due_this_week': {
               if (!goal.targetDate) return false;
               const target = new Date(goal.targetDate);
               const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
               return target >= now && target <= oneWeekFromNow;
             }
-            case 'needs_attention': {
-              const lastActivity = goal.lastActivityAt
-                ? new Date(goal.lastActivityAt)
-                : new Date(goal.createdAt);
-              const daysSinceActivity = Math.ceil(
-                (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+            case 'needs_attention':
+              return (
+                goal.status === 'Active' &&
+                (isGoalHealthAtRisk(goal) || isGoalVelocityStalled(goal))
               );
-              return daysSinceActivity > 7 && goal.status === 'Active';
-            }
+            case 'stagnant':
+              return isGoalHealthStagnant(goal);
             case 'dormant':
-              return goalsHealth.get(goal.id)?.momentum === 'dormant';
+              return isGoalHealthDormant(goal) || goalsHealth.get(goal.id)?.momentum === 'dormant';
             case 'recently_completed': {
               if (!goal.completedDate) return false;
               const completed = new Date(goal.completedDate);
@@ -595,6 +600,16 @@ export default function GoalsPage() {
       );
     });
   }, [migratedGoals, searchQuery, filters, quickFilters, goalsHealth, goalsLinkedCounts]);
+
+  const timelineGoalIds = useMemo(() => filteredGoals.map((g) => g.id), [filteredGoals]);
+  const { dependencies: goalDependencies, addDependency } = useGoalDependencies(timelineGoalIds);
+  const goalTimelineUpdate = useGoalTimelineUpdate();
+
+  /** Mindmap: flat filters must not leave child nodes without a matching parent on the canvas. */
+  const mindmapGoals = useMemo(
+    () => retainGoalsWithMatchingAncestors(filteredGoals, migratedGoals),
+    [filteredGoals, migratedGoals]
+  );
 
   const groupedByArea = useMemo(() => {
     const grouped = filteredGoals.reduce(
@@ -638,16 +653,349 @@ export default function GoalsPage() {
       latestLog: (goalMetricLogs.get(m.id) || [])[0] || null,
       progress: 0, // Would calculate from logs
     }));
-    const habits = (goalHabits.get(selectedGoal.id) || []).map((h) => ({
-      habit: h,
-      currentStreak: 0,
-      completedToday: false,
-      weeklyProgress: 0,
-    }));
+    const todayKey = toLocalDateKey(new Date());
+    const habits = (goalHabits.get(selectedGoal.id) || []).map((h) => {
+      const completedToday =
+        h.lastCompletionDate === todayKey ||
+        (h.logs?.some((log) => getHabitLogCalendarDay(log.completedAt) === todayKey) ?? false);
+      return {
+        habit: h,
+        currentStreak: h.currentStreak ?? 0,
+        completedToday,
+        weeklyProgress: 0,
+      };
+    });
     const projects = goalProjects.get(selectedGoal.id) || [];
 
     return { tasks, metrics, habits, projects };
   }, [selectedGoal?.id, goalTasks, goalMetrics, goalMetricLogs, goalHabits, goalProjects]);
+
+  const hasEmptyLinkedSection = useMemo(() => {
+    if (!goalDetailData) return false;
+    const { tasks, metrics, habits, projects } = goalDetailData;
+    return (
+      tasks.length === 0 || metrics.length === 0 || habits.length === 0 || projects.length === 0
+    );
+  }, [goalDetailData]);
+
+  const { suggestions: linkSuggestions, isLoading: linkSuggestionsLoading } =
+    useGoalLinkSuggestions(selectedGoal?.id, Boolean(selectedGoal) && hasEmptyLinkedSection);
+
+  const taskPickerEntities = useMemo<EntitySummary[]>(
+    () =>
+      allTasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        type: 'task',
+        area: task.area,
+        status: task.status,
+      })),
+    [allTasks]
+  );
+
+  const metricPickerEntities = useMemo<EntitySummary[]>(
+    () =>
+      allMetrics.map((metric) => ({
+        id: metric.id,
+        title: metric.name,
+        type: 'metric',
+        area: metric.area,
+        status: metric.status,
+      })),
+    [allMetrics]
+  );
+
+  const habitPickerEntities = useMemo<EntitySummary[]>(
+    () =>
+      allHabits.map((habit) => ({
+        id: habit.id,
+        title: habit.name,
+        type: 'habit',
+        area: habit.area,
+        status: 'Active',
+      })),
+    [allHabits]
+  );
+
+  const projectPickerEntities = useMemo<EntitySummary[]>(
+    () =>
+      allProjects.map((project) => ({
+        id: project.id,
+        title: project.name,
+        type: 'project',
+        area: project.area,
+        status: project.status,
+      })),
+    [allProjects]
+  );
+
+  const handleCompleteHabit = useCallback(
+    async (habitId: string) => {
+      if (!selectedGoal) return;
+      const goalId = selectedGoal.id;
+      setIsSubmitting(true);
+      try {
+        const response = await logCompletion({ habitId });
+        if (!response.success || !response.data) {
+          console.error('Failed to log habit:', response.error?.message);
+          return;
+        }
+
+        const todayKey = toLocalDateKey(new Date());
+        const matchedLog = response.data.logs?.find(
+          (log) => getHabitLogCalendarDay(log.completedAt) === todayKey
+        );
+        const points = matchedLog?.pointsAwarded ?? 0;
+        const milestone = matchedLog?.milestoneBonus ?? 0;
+        const streak = response.data.currentStreak ?? 0;
+        const toasts = buildHabitCompletionToasts(points, milestone, streak);
+        if (toasts.points) {
+          showToast({ type: 'success', ...toasts.points });
+        }
+        if (toasts.milestone) {
+          showToast({ type: 'success', ...toasts.milestone });
+        }
+
+        setGoalHabits((prev) => {
+          const linked = prev.get(goalId) ?? [];
+          const next = linked.map((h) => (h.id === habitId ? response.data! : h));
+          return new Map(prev).set(goalId, next);
+        });
+      } catch (error) {
+        console.error('Failed to log habit:', error);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [selectedGoal, logCompletion, showToast]
+  );
+
+  const openLinkPicker = useCallback(
+    (entityType: LinkPickerEntityType) => {
+      if (!selectedGoal) return;
+      const goalId = selectedGoal.id;
+      let currentIds: string[] = [];
+      switch (entityType) {
+        case 'task':
+          currentIds = (goalTasks.get(goalId) ?? []).map((task) => task.id);
+          break;
+        case 'metric':
+          currentIds = (goalMetrics.get(goalId) ?? []).map((metric) => metric.id);
+          break;
+        case 'habit':
+          currentIds = (goalHabits.get(goalId) ?? []).map((habit) => habit.id);
+          break;
+        case 'project':
+          currentIds = (goalProjects.get(goalId) ?? []).map((project) => project.id);
+          break;
+      }
+      setLinkPickerType(entityType);
+      setSelectedLinkIds(currentIds);
+      setLinkSaveError(null);
+    },
+    [selectedGoal, goalTasks, goalMetrics, goalHabits, goalProjects]
+  );
+
+  const handleLinkPickerSave = useCallback(async () => {
+    if (!selectedGoal || !linkPickerType) return;
+
+    setIsLinkSaving(true);
+    setLinkSaveError(null);
+
+    const goalId = selectedGoal.id;
+    let currentIds: string[] = [];
+    switch (linkPickerType) {
+      case 'task':
+        currentIds = (goalTasks.get(goalId) ?? []).map((task) => task.id);
+        break;
+      case 'metric':
+        currentIds = (goalMetrics.get(goalId) ?? []).map((metric) => metric.id);
+        break;
+      case 'habit':
+        currentIds = (goalHabits.get(goalId) ?? []).map((habit) => habit.id);
+        break;
+      case 'project':
+        currentIds = (goalProjects.get(goalId) ?? []).map((project) => project.id);
+        break;
+    }
+
+    const currentIdSet = new Set(currentIds);
+    const nextIdSet = new Set(selectedLinkIds);
+    const toLink = selectedLinkIds.filter((id) => !currentIdSet.has(id));
+    const toUnlink = currentIds.filter((id) => !nextIdSet.has(id));
+
+    try {
+      await Promise.all([
+        ...toLink.map(async (entityId) => {
+          if (linkPickerType === 'task') {
+            await tasksService.linkToGoal(entityId, goalId);
+            const task = allTasks.find((item) => item.id === entityId);
+            if (task) upsertTaskCache(queryClient, appendGoalId(task, goalId));
+          } else if (linkPickerType === 'metric') {
+            await goalsService.linkMetric(goalId, entityId);
+            const metric = allMetrics.find((item) => item.id === entityId);
+            if (metric) upsertMetricCache(queryClient, appendGoalId(metric, goalId));
+          } else if (linkPickerType === 'habit') {
+            await goalsService.linkHabit(goalId, entityId);
+            const habit = allHabits.find((item) => item.id === entityId);
+            if (habit) upsertHabitCache(queryClient, appendGoalId(habit, goalId));
+          } else {
+            await goalsService.linkProject(goalId, entityId);
+            const project = allProjects.find((item) => item.id === entityId);
+            if (project) upsertProjectCache(queryClient, appendGoalId(project, goalId));
+          }
+        }),
+        ...toUnlink.map(async (entityId) => {
+          if (linkPickerType === 'task') {
+            await tasksService.unlinkFromGoal(entityId, goalId);
+            const task = allTasks.find((item) => item.id === entityId);
+            if (task) {
+              upsertTaskCache(queryClient, {
+                ...task,
+                goalIds: (task.goalIds ?? []).filter((id) => id !== goalId),
+              });
+            }
+          } else if (linkPickerType === 'metric') {
+            await goalsService.unlinkMetric(goalId, entityId);
+            const metric = allMetrics.find((item) => item.id === entityId);
+            if (metric) {
+              upsertMetricCache(queryClient, {
+                ...metric,
+                goalIds: (metric.goalIds ?? []).filter((id) => id !== goalId),
+              });
+            }
+          } else if (linkPickerType === 'habit') {
+            await goalsService.unlinkHabit(goalId, entityId);
+            const habit = allHabits.find((item) => item.id === entityId);
+            if (habit) {
+              upsertHabitCache(queryClient, {
+                ...habit,
+                goalIds: (habit.goalIds ?? []).filter((id) => id !== goalId),
+              });
+            }
+          } else {
+            await goalsService.unlinkProject(goalId, entityId);
+            const project = allProjects.find((item) => item.id === entityId);
+            if (project) {
+              upsertProjectCache(queryClient, {
+                ...project,
+                goalIds: (project.goalIds ?? []).filter((id) => id !== goalId),
+              });
+            }
+          }
+        }),
+      ]);
+
+      await loadGoalData(goalId, selectedGoal);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.growthSystem.goals.linkSuggestions(goalId),
+      });
+      setLinkPickerType(null);
+    } catch (error) {
+      setLinkSaveError(error instanceof Error ? error.message : 'Failed to save links');
+    } finally {
+      setIsLinkSaving(false);
+    }
+  }, [
+    selectedGoal,
+    linkPickerType,
+    selectedLinkIds,
+    goalTasks,
+    goalMetrics,
+    goalHabits,
+    goalProjects,
+    allTasks,
+    allMetrics,
+    allHabits,
+    allProjects,
+    queryClient,
+    loadGoalData,
+  ]);
+
+  const handleAttachSuggestion = useCallback(
+    async (suggestion: GoalLinkSuggestion) => {
+      if (!selectedGoal) return;
+
+      const goalId = selectedGoal.id;
+      setAttachingSuggestionId(suggestion.entityId);
+
+      try {
+        switch (suggestion.entityType) {
+          case 'task': {
+            await tasksService.linkToGoal(suggestion.entityId, goalId);
+            const task = allTasks.find((item) => item.id === suggestion.entityId);
+            if (task) upsertTaskCache(queryClient, appendGoalId(task, goalId));
+            break;
+          }
+          case 'metric': {
+            await goalsService.linkMetric(goalId, suggestion.entityId);
+            const metric = allMetrics.find((item) => item.id === suggestion.entityId);
+            if (metric) upsertMetricCache(queryClient, appendGoalId(metric, goalId));
+            break;
+          }
+          case 'habit': {
+            await goalsService.linkHabit(goalId, suggestion.entityId);
+            const habit = allHabits.find((item) => item.id === suggestion.entityId);
+            if (habit) upsertHabitCache(queryClient, appendGoalId(habit, goalId));
+            break;
+          }
+          case 'project': {
+            await goalsService.linkProject(goalId, suggestion.entityId);
+            const project = allProjects.find((item) => item.id === suggestion.entityId);
+            if (project) upsertProjectCache(queryClient, appendGoalId(project, goalId));
+            break;
+          }
+        }
+
+        await loadGoalData(goalId, selectedGoal);
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.growthSystem.goals.linkSuggestions(goalId),
+        });
+      } catch (error) {
+        console.error('Failed to attach suggestion', error);
+      } finally {
+        setAttachingSuggestionId(null);
+      }
+    },
+    [selectedGoal, allTasks, allMetrics, allHabits, allProjects, queryClient, loadGoalData]
+  );
+
+  const linkPickerConfig = useMemo(() => {
+    switch (linkPickerType) {
+      case 'task':
+        return {
+          title: 'Link Tasks to Goal',
+          entities: taskPickerEntities,
+          entityType: 'task' as const,
+        };
+      case 'metric':
+        return {
+          title: 'Link Metrics to Goal',
+          entities: metricPickerEntities,
+          entityType: 'metric' as const,
+        };
+      case 'habit':
+        return {
+          title: 'Link Habits to Goal',
+          entities: habitPickerEntities,
+          entityType: 'habit' as const,
+        };
+      case 'project':
+        return {
+          title: 'Link Projects to Goal',
+          entities: projectPickerEntities,
+          entityType: 'project' as const,
+        };
+      default:
+        return null;
+    }
+  }, [
+    linkPickerType,
+    taskPickerEntities,
+    metricPickerEntities,
+    habitPickerEntities,
+    projectPickerEntities,
+  ]);
 
   if (selectedGoal && goalDetailData) {
     const { tasks, metrics, habits, projects } = goalDetailData;
@@ -670,12 +1018,38 @@ export default function GoalsPage() {
               console.log('Update criterion', criterionId, updates);
             }}
             onAddTask={() => console.log('Add task')}
-            onLinkMetric={() => console.log('Link metric')}
-            onLinkHabit={() => console.log('Link habit')}
-            onCompleteHabit={(habitId) => console.log('Complete habit', habitId)}
+            onLinkMetric={() => openLinkPicker('metric')}
+            onLinkHabit={() => openLinkPicker('habit')}
+            onLinkProject={() => openLinkPicker('project')}
+            onCompleteHabit={handleCompleteHabit}
             onLogMetric={(metricId) => console.log('Log metric', metricId)}
+            taskLinkSuggestions={tasks.length === 0 ? linkSuggestions.tasks : []}
+            metricLinkSuggestions={metrics.length === 0 ? linkSuggestions.metrics : []}
+            habitLinkSuggestions={habits.length === 0 ? linkSuggestions.habits : []}
+            projectLinkSuggestions={projects.length === 0 ? linkSuggestions.projects : []}
+            linkSuggestionsLoading={linkSuggestionsLoading}
+            attachingSuggestionId={attachingSuggestionId}
+            onAttachSuggestion={handleAttachSuggestion}
           />
         </AnimatePresence>
+
+        {linkPickerConfig && (
+          <RelationshipPicker
+            isOpen={Boolean(linkPickerType)}
+            onClose={() => {
+              setLinkPickerType(null);
+              setLinkSaveError(null);
+            }}
+            title={linkPickerConfig.title}
+            entities={linkPickerConfig.entities}
+            selectedIds={selectedLinkIds}
+            onSelectionChange={setSelectedLinkIds}
+            onSave={handleLinkPickerSave}
+            isSaving={isLinkSaving}
+            saveError={linkSaveError}
+            entityType={linkPickerConfig.entityType}
+          />
+        )}
 
         <Dialog
           isOpen={isEditDialogOpen}
@@ -742,9 +1116,6 @@ export default function GoalsPage() {
       >
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Goals Vision Board</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Track your goals and success criteria
-          </p>
         </div>
         <motion.div
           whileTap={{ scale: 0.95 }}
@@ -970,6 +1341,7 @@ export default function GoalsPage() {
                 >
                   <option value="">All</option>
                   <option value="active">Active</option>
+                  <option value="stagnant">Stagnant (health)</option>
                   <option value="dormant">Dormant</option>
                 </select>
               </div>
@@ -1002,6 +1374,34 @@ export default function GoalsPage() {
                   </label>
                 </div>
               </div>
+              {viewMode === 'mindmap' ? (
+                <div className="sm:col-span-3">
+                  <label
+                    htmlFor="mindmap-focus-pipeline"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                  >
+                    Focus Pipeline
+                  </label>
+                  <select
+                    id="mindmap-focus-pipeline"
+                    value={filters.focusGoalId ?? ''}
+                    onChange={(e) =>
+                      setFilters({
+                        ...filters,
+                        focusGoalId: e.target.value || undefined,
+                      })
+                    }
+                    className="w-full min-h-[44px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">No focus (show full canvas)</option>
+                    {pipelineCandidates.map((goal) => (
+                      <option key={goal.id} value={goal.id}>
+                        {goal.timeHorizon} · {goal.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
             </div>
           </motion.div>
         )}
@@ -1124,12 +1524,29 @@ export default function GoalsPage() {
           }}
         />
       ) : viewMode === 'timeline' ? (
-        <GoalTimelineView goals={filteredGoals} onGoalClick={handleGoalClick} />
+        <GoalTimelineView
+          goals={filteredGoals}
+          dependencies={goalDependencies}
+          onGoalClick={handleGoalClick}
+          onGoalDatesChange={async (goalId, dates) => {
+            await goalTimelineUpdate.mutateAsync({
+              id: goalId,
+              startDate: dates.startDate,
+              targetDate: dates.targetDate,
+            });
+          }}
+          onAddDependency={async (successorGoalId, predecessorGoalId) => {
+            await addDependency({ successorGoalId, predecessorGoalId });
+          }}
+        />
       ) : viewMode === 'mindmap' ? (
         <GoalMindmapView
-          goals={filteredGoals}
+          allGoals={migratedGoals}
+          goals={mindmapGoals}
           goalsProgress={goalsProgress}
           goalsHealth={goalsHealth}
+          focusGoalId={filters.focusGoalId}
+          onClearFocus={() => setFilters({ ...filters, focusGoalId: undefined })}
           onGoalClick={handleGoalClick}
           onCreateSubgoal={(parentGoal) => {
             setParentGoalForSubgoal(parentGoal);
