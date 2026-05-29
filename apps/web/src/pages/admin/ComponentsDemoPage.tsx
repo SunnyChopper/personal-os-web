@@ -9,6 +9,7 @@ import { DependencyBadge } from '@/components/atoms/DependencyBadge';
 import { EntityLinkChip } from '@/components/atoms/EntityLinkChip';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { ProgressRing } from '@/components/atoms/ProgressRing';
+import { HealthBadge } from '@/components/atoms/HealthBadge';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
 import { AIInsightBanner } from '@/components/molecules/AIInsightBanner';
 import { AISuggestionCard } from '@/components/molecules/AISuggestionCard';
@@ -113,9 +114,9 @@ export default function ComponentsDemoPage() {
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
               <StatusBadge status="Active" />
-              <StatusBadge status="On Track" />
-              <StatusBadge status="At Risk" />
               <StatusBadge status="Achieved" />
+              <HealthBadge health="onTrack" />
+              <HealthBadge health="atRisk" />
             </div>
           </div>
 

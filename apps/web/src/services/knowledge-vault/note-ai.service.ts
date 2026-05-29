@@ -11,6 +11,8 @@ import type {
   GenerateContentOutput,
   ContentAnalysisOutput,
 } from '@/lib/llm/schemas/note-ai-schemas';
+import type { NoteAIOptions } from '@/services/knowledge-vault/note-ai-options';
+import { withNoteAIModel } from '@/services/knowledge-vault/note-ai-options';
 
 interface AIResponse<T> {
   result: T;
@@ -27,16 +29,20 @@ export const noteAIService = {
    */
   async expandContent(
     content: string,
-    context?: { title?: string; area?: Area }
+    context?: { title?: string; area?: Area },
+    options?: NoteAIOptions
   ): Promise<ApiResponse<ExpandContentOutput>> {
     try {
       const response = await apiClient.post<{ data: AIResponse<ExpandContentOutput> }>(
         '/ai/notes/expand',
-        {
-          content,
-          title: context?.title,
-          area: context?.area,
-        }
+        withNoteAIModel(
+          {
+            content,
+            title: context?.title,
+            area: context?.area,
+          },
+          options
+        )
       );
 
       if (response.success && response.data) {
@@ -70,11 +76,14 @@ export const noteAIService = {
   /**
    * Summarize note content into key points
    */
-  async summarizeContent(content: string): Promise<ApiResponse<SummarizeContentOutput>> {
+  async summarizeContent(
+    content: string,
+    options?: NoteAIOptions
+  ): Promise<ApiResponse<SummarizeContentOutput>> {
     try {
       const response = await apiClient.post<{ data: AIResponse<SummarizeContentOutput> }>(
         '/ai/notes/summarize',
-        { content }
+        withNoteAIModel({ content }, options)
       );
 
       if (response.success && response.data) {
@@ -108,11 +117,14 @@ export const noteAIService = {
   /**
    * Improve clarity and readability of note content
    */
-  async improveClarity(content: string): Promise<ApiResponse<ImproveClarityOutput>> {
+  async improveClarity(
+    content: string,
+    options?: NoteAIOptions
+  ): Promise<ApiResponse<ImproveClarityOutput>> {
     try {
       const response = await apiClient.post<{ data: AIResponse<ImproveClarityOutput> }>(
         '/ai/notes/improve',
-        { content }
+        withNoteAIModel({ content }, options)
       );
 
       if (response.success && response.data) {
@@ -149,16 +161,20 @@ export const noteAIService = {
   async suggestTags(
     content: string,
     title: string,
-    existingTags: string[] = []
+    existingTags: string[] = [],
+    options?: NoteAIOptions
   ): Promise<ApiResponse<TagSuggestionsOutput>> {
     try {
       const response = await apiClient.post<{ data: AIResponse<TagSuggestionsOutput> }>(
         '/ai/notes/suggest-tags',
-        {
-          content,
-          title,
-          existingTags,
-        }
+        withNoteAIModel(
+          {
+            content,
+            title,
+            existingTags,
+          },
+          options
+        )
       );
 
       if (response.success && response.data) {
@@ -192,11 +208,15 @@ export const noteAIService = {
   /**
    * Suggest appropriate area for the note
    */
-  async suggestArea(content: string, title: string): Promise<ApiResponse<AreaSuggestionOutput>> {
+  async suggestArea(
+    content: string,
+    title: string,
+    options?: NoteAIOptions
+  ): Promise<ApiResponse<AreaSuggestionOutput>> {
     try {
       const response = await apiClient.post<{ data: AIResponse<AreaSuggestionOutput> }>(
         '/ai/notes/suggest-area',
-        { content, title }
+        withNoteAIModel({ content, title }, options)
       );
 
       if (response.success && response.data) {
@@ -230,11 +250,15 @@ export const noteAIService = {
   /**
    * Generate content from title and area
    */
-  async generateFromTitle(title: string, area: Area): Promise<ApiResponse<GenerateContentOutput>> {
+  async generateFromTitle(
+    title: string,
+    area: Area,
+    options?: NoteAIOptions
+  ): Promise<ApiResponse<GenerateContentOutput>> {
     try {
       const response = await apiClient.post<{ data: AIResponse<GenerateContentOutput> }>(
         '/ai/notes/generate',
-        { title, area }
+        withNoteAIModel({ title, area }, options)
       );
 
       if (response.success && response.data) {
@@ -270,12 +294,13 @@ export const noteAIService = {
    */
   async analyzeContent(
     content: string,
-    title: string
+    title: string,
+    options?: NoteAIOptions
   ): Promise<ApiResponse<ContentAnalysisOutput>> {
     try {
       const response = await apiClient.post<{ data: AIResponse<ContentAnalysisOutput> }>(
         '/ai/notes/analyze',
-        { content, title }
+        withNoteAIModel({ content, title }, options)
       );
 
       if (response.success && response.data) {

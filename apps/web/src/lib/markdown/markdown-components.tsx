@@ -1,6 +1,7 @@
 import React, { createContext, useContext } from 'react';
 import type { Components } from 'react-markdown';
 import { cn } from '@/lib/utils';
+import { MarkdownCheckboxInput } from '@/lib/markdown/markdown-checkbox-input';
 
 type ContentWrapper = (props: {
   children: React.ReactNode;
@@ -216,12 +217,7 @@ export function createInputComponent(): {
   input: Components['input'];
 } {
   return {
-    input({ type, checked, disabled, ...props }) {
-      if (type === 'checkbox') {
-        return <input type="checkbox" checked={checked} disabled={disabled} readOnly {...props} />;
-      }
-      return <input type={type} {...props} />;
-    },
+    input: MarkdownCheckboxInput,
   };
 }
 

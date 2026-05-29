@@ -184,6 +184,35 @@ describe('mergeFetchedMessageTreeWithCache', () => {
     expect(tree?.nodes.find((n) => n.id === 'a1')?.executionSteps).toEqual(steps);
   });
 
+  it('authoritative upsert replaces leaked streamed body with sanitized content', () => {
+    const qc = new QueryClient();
+    const threadId = 'thread-retract';
+    const base = {
+      id: 'a1',
+      threadId,
+      role: 'assistant' as const,
+      content: "Wait, I'm the assistant, I will use the tool now.",
+      createdAt: '2026-01-01',
+    };
+    upsertMessageTreeNodeCache(qc, threadId, base);
+    upsertMessageTreeNodeCache(
+      qc,
+      threadId,
+      {
+        ...base,
+        content: 'Here are your tasks:\n- **Book movers**',
+      },
+      { authoritativeContent: true }
+    );
+    const tree = qc.getQueryData<MessageTreeResponse>(queryKeys.chatbot.messages.tree(threadId));
+    expect(tree?.nodes.find((n) => n.id === 'a1')?.content).toBe(
+      'Here are your tasks:\n- **Book movers**'
+    );
+    expect(tree?.nodes.find((n) => n.id === 'a1')?.content).not.toContain(
+      "Wait, I'm the assistant"
+    );
+  });
+
   it('tree upsert merge keeps executionSteps when follow-up patch sends empty array', () => {
     const qc = new QueryClient();
     const threadId = 'thread-x';

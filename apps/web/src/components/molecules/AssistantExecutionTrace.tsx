@@ -16,6 +16,7 @@ import {
 import { AssistantTraceJsonViewer } from '@/components/molecules/AssistantTraceJsonViewer';
 import { ToolApprovalCard } from '@/components/molecules/ToolApprovalCard';
 import { getVisibleExecutionTraceEntries } from '@/lib/chat/assistant-execution-trace-entries';
+import { formatListToolCountBadge } from '@/lib/chat/assistant-list-tool-count-badge';
 import type {
   StatusEntry,
   WsToolApprovalRequiredPayload,
@@ -141,6 +142,7 @@ function TraceEntry({
       : (toolDetails?.durationMs ?? null)
     : (toolDetails?.durationMs ?? null);
   const canExpandTool = Boolean(toolDetails && toolName);
+  const listCountBadge = formatListToolCountBadge(toolDetails);
   const displayDurationMs =
     durationMs !== null && durationMs > 0 ? durationMs : (toolDetails?.durationMs ?? null);
 
@@ -266,6 +268,11 @@ function TraceEntry({
               >
                 {toolName}
               </code>
+              {listCountBadge ? (
+                <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 font-mono text-[10px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">
+                  {listCountBadge}
+                </span>
+              ) : null}
             </button>
             {displayDurationMs !== null && displayDurationMs > 0 && (
               <span className="ml-auto shrink-0 tabular-nums text-[10px] text-gray-400 dark:text-gray-500">
@@ -335,14 +342,14 @@ function TraceEntry({
               {toolDetails.result !== undefined && (
                 <div className="space-y-1">
                   {(toolDetails.truncatedForWs ||
+                    toolDetails.argumentsTruncatedForWs ||
                     toolDetails.originalItemCount != null ||
                     toolDetails.returnedItemCount != null) && (
                     <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                      {toolDetails.truncatedForWs ? 'Truncated for WebSocket. ' : ''}
-                      {toolDetails.originalItemCount != null &&
-                      toolDetails.returnedItemCount != null
-                        ? `Showing ${toolDetails.returnedItemCount} of ${toolDetails.originalItemCount} items. `
-                        : ''}
+                      {toolDetails.argumentsTruncatedForWs ? 'Arguments truncated for WS. ' : ''}
+                      {toolDetails.truncatedForWs ? 'Result truncated for WebSocket. ' : ''}
+                      {listCountBadge ? `${listCountBadge} items. ` : ''}
+                      {toolDetails.wsLimit != null ? `WS limit ${toolDetails.wsLimit} chars. ` : ''}
                       {toolDetails.wsResultChars != null
                         ? `~${toolDetails.wsResultChars} chars in payload.`
                         : ''}

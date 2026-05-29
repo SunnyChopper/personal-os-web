@@ -103,6 +103,11 @@ export function readThreadStrategyLabel(obj: Record<string, unknown>): string {
   return 'Reuse fixed thread';
 }
 
+export function readChannelWebhookEnabled(obj: Record<string, unknown>): boolean {
+  const v = obj.channelWebhookEnabled;
+  return typeof v === 'boolean' ? v : false;
+}
+
 export function readChannelEmailEnabled(obj: Record<string, unknown>): boolean {
   const v = obj.channelEmailEnabled;
   if (typeof v === 'boolean') return v;

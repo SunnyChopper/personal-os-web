@@ -54,6 +54,7 @@ It's like a **VS Code file explorer + markdown preview** embedded directly in Pe
 - ✅ **Create New File**: Modal/form to create new `.md` file with path
 - ✅ **Upload Files**: Drag-and-drop or file picker to upload markdown files
 - ✅ **Edit Mode**: Toggle between view/edit modes with save functionality
+- ✅ **Auto-save**: Debounced cloud autosave in Edit mode (1.5 s idle, 30 s safety net); manual Save remains as fallback
 - ✅ **Search**: Text search across file names and content
 - ✅ **Responsive Layout**: Sidebar hidden on mobile (< 768px), becomes bottom sheet/drawer
 
@@ -73,7 +74,7 @@ It's like a **VS Code file explorer + markdown preview** embedded directly in Pe
 - ❌ Export/Print functionality
 - ❌ File versioning/history
 - ❌ Collaborative editing
-- ❌ Real-time sync (files saved on action, not auto-save)
+- ❌ Real-time sync / collaborative editing (cloud **autosave** in Edit mode is in scope — see Auto-save below)
 - ❌ Image upload/embedding in markdown
 - ❌ Markdown linting/validation
 

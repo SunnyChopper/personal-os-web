@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Sparkles, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
+import { BrainstormModelPicker } from '@/components/assistant/BrainstormModelPicker';
+import { useCourseGeneratorAIModelPicker } from '@/hooks/knowledge-vault/useCourseGeneratorAIModelPicker';
 import { aiCourseGeneratorService } from '@/services/knowledge-vault';
 import { vaultPrimitivesService } from '@/services/knowledge-vault/vault-primitives.service';
 import type { PreAssessmentQuestion, DifficultyLevel } from '@/types/knowledge-vault';
@@ -34,6 +36,13 @@ function wizardStepIndex(step: Step): 1 | 2 | 3 {
 export default function CourseGeneratorPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const {
+    catalog: modelCatalog,
+    isCatalogLoading: isModelCatalogLoading,
+    picker: modelPicker,
+    setPicker: setModelPicker,
+    resolveApiModel,
+  } = useCourseGeneratorAIModelPicker();
   const [step, setStep] = useState<Step>('topic');
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('intermediate');
@@ -88,10 +97,12 @@ export default function CourseGeneratorPage() {
 
     try {
       const payload = await buildAugmentedTopic();
+      const model = resolveApiModel();
       const response = await aiCourseGeneratorService.generatePreAssessment({
         topic: payload.topic,
         targetDifficulty: difficulty,
         knowledgeSource: payload.knowledgeSource,
+        ...(model ? { model } : {}),
       });
 
       if (response.success && response.data) {
@@ -131,11 +142,13 @@ export default function CourseGeneratorPage() {
         completedAt,
       };
 
+      const model = resolveApiModel();
       const skeletonResponse = await aiCourseGeneratorService.generateCourseSkeleton({
         topic: payload.topic,
         preAssessment,
         targetDifficulty: difficulty,
         knowledgeSource: payload.knowledgeSource,
+        ...(model ? { model } : {}),
         onProgress: handleProgress,
       });
 
@@ -342,6 +355,18 @@ export default function CourseGeneratorPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-2">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">AI model</h3>
+              <BrainstormModelPicker
+                catalog={modelCatalog}
+                isLoading={isModelCatalogLoading}
+                value={modelPicker}
+                onChange={setModelPicker}
+                disabled={loading}
+                autoModeDescription="Uses server vault defaults (VAULT_AI_PROVIDER / VAULT_AI_MODEL). Switch to Manual to pick any model from the assistant catalog."
+              />
             </div>
 
             <button

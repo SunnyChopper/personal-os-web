@@ -8,6 +8,7 @@ import {
   removeNodeFromTree,
   shouldPreserveFailedPlaceholderOnMessageComplete,
 } from '@/hooks/useAssistantStreaming';
+import { upsertMessageTreeNodeCache } from '@/lib/react-query/chatbot-cache';
 
 describe('useAssistantStreaming', () => {
   const threadId = 'thread-123';
@@ -196,6 +197,56 @@ describe('useAssistantStreaming', () => {
     expect(shouldPreserveFailedPlaceholderOnMessageComplete(existingMessage, incomingMessage)).toBe(
       true
     );
+  });
+
+  it('authoritative content replace clears leaked assistant bubble in cache', () => {
+    const queryClient = new QueryClient();
+    const threadId = 'thread-replace';
+    const assistantMessageId = 'msg-assistant-replace';
+    const tree: MessageTreeResponse = {
+      rootKey,
+      nodes: [
+        {
+          id: userMessageId,
+          threadId,
+          role: 'user',
+          content: 'List tasks',
+          createdAt: '2026-02-09T00:00:00Z',
+        },
+        {
+          id: assistantMessageId,
+          threadId,
+          role: 'assistant',
+          content: "Wait, I'm the assistant, I will use the tool now.",
+          createdAt: '2026-02-09T00:00:01Z',
+          parentId: userMessageId,
+        },
+      ],
+      childrenByParentId: { [rootKey]: [userMessageId], [userMessageId]: [assistantMessageId] },
+      leafIds: [assistantMessageId],
+    };
+    queryClient.setQueryData(queryKeys.chatbot.messages.tree(threadId), tree);
+
+    upsertMessageTreeNodeCache(
+      queryClient,
+      threadId,
+      {
+        id: assistantMessageId,
+        threadId,
+        role: 'assistant',
+        content: 'Here are your tasks:\n- **Book movers**',
+        createdAt: '2026-02-09T00:00:01Z',
+        parentId: userMessageId,
+      },
+      { authoritativeContent: true }
+    );
+
+    const next = queryClient.getQueryData<MessageTreeResponse>(
+      queryKeys.chatbot.messages.tree(threadId)
+    );
+    const assistant = next?.nodes.find((node) => node.id === assistantMessageId);
+    expect(assistant?.content).toBe('Here are your tasks:\n- **Book movers**');
+    expect(assistant?.content).not.toContain("Wait, I'm the assistant");
   });
 
   it('maps run progress stage to readable labels', () => {

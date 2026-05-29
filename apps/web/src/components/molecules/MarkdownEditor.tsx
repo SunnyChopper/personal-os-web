@@ -12,7 +12,10 @@ import {
   BookOpen,
   Loader,
   ArrowDownUp,
+  Check,
+  AlertCircle,
 } from 'lucide-react';
+import type { AutosaveStatus } from '@/hooks/markdown/useMarkdownAutosave';
 import { cn } from '@/lib/utils';
 import MarkdownRenderer from './MarkdownRenderer';
 import { useTextareaLineOffsets } from '@/components/molecules/UseTextareaLineOffsets';
@@ -36,6 +39,104 @@ interface MarkdownEditorProps {
   fullWidth?: boolean;
   onEnterReaderMode?: () => void;
   isLoading?: boolean;
+  autosaveStatus?: AutosaveStatus;
+  autosaveLastSavedAt?: number | null;
+  autosaveErrorMessage?: string | null;
+}
+
+function formatAutosaveTimeAgo(timestampMs: number, nowMs: number): string {
+  const seconds = Math.floor((nowMs - timestampMs) / 1000);
+  if (seconds < 5) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
+
+function MarkdownAutosaveFooter({
+  status,
+  lastSavedAt,
+  errorMessage,
+}: {
+  status: AutosaveStatus;
+  lastSavedAt: number | null;
+  errorMessage: string | null;
+}) {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (status !== 'saved' || lastSavedAt === null) return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 15_000);
+    return () => window.clearInterval(id);
+  }, [status, lastSavedAt]);
+
+  if (status === 'idle') {
+    return (
+      <div
+        className="flex items-center justify-end px-3 sm:px-4 py-1.5 text-[11px] text-gray-400 dark:text-gray-500 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
+        data-testid="markdown-autosave-status"
+        data-status="idle"
+      >
+        All changes saved
+      </div>
+    );
+  }
+
+  if (status === 'pending') {
+    return (
+      <div
+        className="flex items-center justify-end px-3 sm:px-4 py-1.5 text-[11px] text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
+        data-testid="markdown-autosave-status"
+        data-status="pending"
+      >
+        Unsaved changes
+      </div>
+    );
+  }
+
+  if (status === 'saving') {
+    return (
+      <div
+        className="flex items-center justify-end gap-1.5 px-3 sm:px-4 py-1.5 text-[11px] text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
+        data-testid="markdown-autosave-status"
+        data-status="saving"
+      >
+        <Loader size={12} className="animate-spin shrink-0" aria-hidden />
+        Saving…
+      </div>
+    );
+  }
+
+  if (status === 'saved' && lastSavedAt !== null) {
+    const label = formatAutosaveTimeAgo(lastSavedAt, Date.now());
+    return (
+      <div
+        className="flex items-center justify-end gap-1.5 px-3 sm:px-4 py-1.5 text-[11px] text-green-600 dark:text-green-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
+        data-testid="markdown-autosave-status"
+        data-status="saved"
+      >
+        <Check size={12} className="shrink-0" aria-hidden />
+        Saved {label}
+      </div>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <div
+        className="flex items-center justify-end gap-1.5 px-3 sm:px-4 py-1.5 text-[11px] text-red-600 dark:text-red-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
+        data-testid="markdown-autosave-status"
+        data-status="error"
+        title={errorMessage ?? undefined}
+      >
+        <AlertCircle size={12} className="shrink-0" aria-hidden />
+        Couldn&apos;t autosave — try Save.
+      </div>
+    );
+  }
+
+  return null;
 }
 
 export default function MarkdownEditor({
@@ -47,6 +148,9 @@ export default function MarkdownEditor({
   fullWidth = false,
   onEnterReaderMode,
   isLoading = false,
+  autosaveStatus,
+  autosaveLastSavedAt = null,
+  autosaveErrorMessage = null,
 }: MarkdownEditorProps) {
   // Default to 'edit' mode on mobile, 'split' on desktop
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -472,6 +576,14 @@ export default function MarkdownEditor({
           </div>
         )}
       </div>
+
+      {autosaveStatus !== undefined && (
+        <MarkdownAutosaveFooter
+          status={autosaveStatus}
+          lastSavedAt={autosaveLastSavedAt}
+          errorMessage={autosaveErrorMessage}
+        />
+      )}
     </div>
   );
 }

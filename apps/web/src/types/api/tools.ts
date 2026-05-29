@@ -3,7 +3,7 @@
 export interface WhiteboardSummary {
   id: string;
   name: string;
-  vaultItemId: string;
+  fileId: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -15,7 +15,7 @@ export interface WhiteboardListResponse {
 export interface WhiteboardDetailResponse {
   id: string;
   name: string;
-  vaultItemId: string;
+  fileId: string;
   sceneJson: string;
   updatedAt: string;
   createdAt: string;
@@ -26,7 +26,7 @@ export interface SaveWhiteboardPayload {
   name: string;
   sceneJson: string;
   thumbnailDataUrl?: string | null;
-  vaultItemId?: string | null;
+  fileId?: string | null;
 }
 
 /** Workflows (node graph executor) */

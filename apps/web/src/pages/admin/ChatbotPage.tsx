@@ -10,6 +10,7 @@ import { AssistantChatTranscript } from '@/components/organisms/AssistantChatTra
 import { AssistantMemoryPanel } from '@/components/organisms/AssistantMemoryPanel';
 import { ChatThreadList } from '@/components/organisms/ChatThreadList';
 import { DeleteThreadDialog } from '@/components/molecules/DeleteThreadDialog';
+import { AssistantRunDebugPanel } from '@/components/molecules/AssistantRunDebugPanel';
 
 function formatContextTokens(n: number): string {
   if (!Number.isFinite(n)) return '—';
@@ -87,6 +88,9 @@ export default function ChatbotPage() {
     setThreadCompactionMode,
     contextUsageQuery,
     streamingMeterSnapshot,
+    activeRunDebug,
+    debugWsEvents,
+    lastContextBudgetMeta,
     manualSendBlockedMessage,
     handleCompactThread,
     isCompactingThread,
@@ -569,6 +573,12 @@ export default function ChatbotPage() {
               onSelectSibling={selectSibling}
               onPickStarterPrompt={(prompt) => composerRef.current?.setValue(prompt)}
               onRespondToToolApproval={respondToToolApproval}
+            />
+
+            <AssistantRunDebugPanel
+              activeRun={activeRunDebug}
+              debugEvents={debugWsEvents}
+              contextBudgetMeta={lastContextBudgetMeta}
             />
 
             <ChatComposer

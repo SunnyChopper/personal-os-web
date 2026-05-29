@@ -340,7 +340,11 @@ export const markdownFilesService = {
    * Note: This method does NOT fall back to local storage.
    * It will throw an error if the backend is unavailable.
    */
-  async updateFileById(fileId: string, content: string): Promise<ApiResponse<MarkdownFile>> {
+  async updateFileById(
+    fileId: string,
+    content: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<ApiResponse<MarkdownFile>> {
     // Validate that fileId is not a URL (common mistake: using downloadUrl instead of id)
     if (fileId.startsWith('http://') || fileId.startsWith('https://')) {
       logger.error('Attempted to update file using a URL instead of a file ID', { fileId });
@@ -358,7 +362,12 @@ export const markdownFilesService = {
       logger.debug('Updating file by ID', { fileId });
     }
     const request: UpdateFileRequest = { content };
-    const response = await apiClient.put<UpdateFileResponse>(`/markdown-files/${fileId}`, request);
+    const response = await apiClient.put<UpdateFileResponse>(
+      `/markdown-files/${fileId}`,
+      request,
+      undefined,
+      { signal: options?.signal }
+    );
 
     if (response.success && response.data) {
       if (import.meta.env.DEV) {

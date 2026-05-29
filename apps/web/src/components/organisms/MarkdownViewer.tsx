@@ -30,6 +30,7 @@ import BreadcrumbNavigation from '@/components/molecules/BreadcrumbNavigation';
 import { addRecentFile } from '@/hooks/useRecentFiles';
 import EditFileMetadataModal from '@/components/molecules/EditFileMetadataModal';
 import { useFileSave } from '@/hooks/markdown/useFileSave';
+import { useMarkdownAutosave } from '@/hooks/markdown/useMarkdownAutosave';
 import { useFileRename } from '@/hooks/markdown/useFileRename';
 import { useFileDeletion } from '@/hooks/markdown/useFileDeletion';
 import { useFileMetadata } from '@/hooks/markdown/useFileMetadata';
@@ -52,6 +53,7 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
+  const [lastSavedContent, setLastSavedContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [isReaderMode, setIsReaderMode] = useState(false);
@@ -60,6 +62,31 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
 
   // New hooks
   const { saveFile } = useFileSave();
+
+  const autosaveEnabled =
+    Boolean(filePath) &&
+    isEditing &&
+    !isLocalOnly &&
+    Boolean(filePath && !isUntitledLocalPath(filePath));
+
+  const handleAutosaved = (savedContent: string) => {
+    setLastSavedContent(savedContent);
+    setHasChanges(false);
+    fileContentRef.current = savedContent;
+  };
+
+  const {
+    status: autosaveStatus,
+    lastSavedAt: autosaveLastSavedAt,
+    errorMessage: autosaveErrorMessage,
+    resetBackoff: resetAutosaveBackoff,
+  } = useMarkdownAutosave({
+    filePath: filePath ?? null,
+    content: editedContent,
+    enabled: autosaveEnabled,
+    lastSavedContent,
+    onSaved: handleAutosaved,
+  });
   const { renameFile } = useFileRename();
   const { deleteFileWithCleanup } = useFileDeletion();
   const { updateMetadata } = useFileMetadata();
@@ -111,14 +138,18 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
         setIsEditing(true);
         // Initialize with content from localStorage or empty string
         const localFile = getLocalFile(filePath || '');
-        setEditedContent(localFile?.content || '');
+        const localContent = localFile?.content || '';
+        setEditedContent(localContent);
+        setLastSavedContent('');
         // Local-only files always need to be saved to cloud, so enable Save button
         setHasChanges(true);
       } else {
         // For regular files, load content and start in view mode
         // Content will be a string (empty string if not yet loaded from S3)
         if (file) {
-          setEditedContent(file.content || '');
+          const loadedContent = file.content || '';
+          setEditedContent(loadedContent);
+          setLastSavedContent(loadedContent);
           setHasChanges(false);
           setIsEditing(false);
         }
@@ -138,6 +169,7 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
     if (!isLocalOnly && !hasChanges) return;
 
     clearMessages();
+    resetAutosaveBackoff();
     setIsSaving(true);
 
     try {
@@ -145,7 +177,9 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
 
       // After successful save, switch to view mode once reload/invalidation has settled
       setIsEditing(false);
+      setLastSavedContent(editedContent);
       setHasChanges(false);
+      fileContentRef.current = editedContent;
 
       if (result.local) {
         setSaveSuccess('File saved locally');
@@ -238,11 +272,11 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
   const handleContentChange = (newContent: string) => {
     setEditedContent(newContent);
     // For local-only files, always allow saving (they need to be saved to cloud)
-    // For regular files, only mark as changed if content differs
+    // For regular files, compare against last persisted baseline (manual or autosave)
     if (isLocalOnly) {
       setHasChanges(true);
     } else {
-      setHasChanges(newContent !== file?.content);
+      setHasChanges(newContent !== lastSavedContent);
     }
 
     // Auto-save to localStorage for local-only files
@@ -250,6 +284,15 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
       updateLocalFile(filePath, newContent);
     }
   };
+
+  useEffect(() => {
+    if (!hasChanges || !isEditing) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasChanges, isEditing]);
 
   if (!filePath) {
     return (
@@ -505,6 +548,9 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
               className="h-full"
               fullWidth={true}
               onEnterReaderMode={() => setIsReaderMode(true)}
+              autosaveStatus={autosaveEnabled ? autosaveStatus : undefined}
+              autosaveLastSavedAt={autosaveEnabled ? autosaveLastSavedAt : undefined}
+              autosaveErrorMessage={autosaveEnabled ? autosaveErrorMessage : undefined}
             />
           ) : (
             <div className="w-full max-w-none">

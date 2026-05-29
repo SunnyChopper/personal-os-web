@@ -224,14 +224,14 @@ export function AssistantToolApprovalForm({
                         {category}
                       </span>
                       <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
-                        {approvedCount > 0 ? (
-                          <>
-                            <span className="text-amber-700 dark:text-amber-400 font-medium">
-                              {approvedCount}
-                            </span>
-                            {' / '}
-                          </>
-                        ) : null}
+                        <span
+                          className={cn(
+                            approvedCount > 0 && 'text-amber-700 dark:text-amber-400 font-medium'
+                          )}
+                        >
+                          {approvedCount}
+                        </span>
+                        {' / '}
                         {tools.length} write{tools.length === 1 ? '' : 's'}
                       </span>
                     </button>

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  defaultModelsFromDraft,
+  draftFromDefaultModels,
   modelPickerDraftFromRunConfig,
   runConfigFromModelPickerDraft,
   type ModelPickerDraft,
 } from '@/lib/assistant/run-config-picker-draft';
+import type { AssistantDefaultModelsConfig } from '@/types/api-contracts';
 import type { AssistantModelCatalogData, AssistantRunConfig } from '@/types/chatbot';
 
 const catalog: AssistantModelCatalogData = {
@@ -76,5 +79,76 @@ describe('run-config-picker-draft', () => {
     expect(draft.compactionMode).toBe('manual');
     const again = runConfigFromModelPickerDraft(draft, catalog);
     expect(again?.compactionMode).toBe('manual');
+  });
+
+  it('draftFromDefaultModels uses manual saved ids', () => {
+    const cfg: AssistantDefaultModelsConfig = {
+      mode: 'manual',
+      manual: { reasoningModelId: 'openai:a', responseModelId: 'openai:b' },
+    };
+    const draft = draftFromDefaultModels(cfg, catalog);
+    expect(draft).toMatchObject({
+      mode: 'manual',
+      reasoningModelId: 'openai:a',
+      responseModelId: 'openai:b',
+      compactionMode: 'auto',
+    });
+  });
+
+  it('draftFromDefaultModels uses auto optimizeFor with catalog ids for manual tab display', () => {
+    const cfg: AssistantDefaultModelsConfig = {
+      mode: 'auto',
+      auto: { optimizeFor: 'cost' },
+    };
+    const draft = draftFromDefaultModels(cfg, catalog);
+    expect(draft).toMatchObject({
+      mode: 'auto',
+      optimizeFor: 'cost',
+      reasoningModelId: 'openai:a',
+      responseModelId: 'openai:b',
+    });
+  });
+
+  it('draftFromDefaultModels falls back to auto intelligence when cfg is null', () => {
+    const draft = draftFromDefaultModels(null, catalog);
+    expect(draft).toMatchObject({
+      mode: 'auto',
+      optimizeFor: 'intelligence',
+      reasoningModelId: 'openai:a',
+      responseModelId: 'openai:b',
+    });
+  });
+
+  it('defaultModelsFromDraft round-trips manual mode without compaction', () => {
+    const draft: ModelPickerDraft = {
+      mode: 'manual',
+      reasoningModelId: 'openai:a',
+      responseModelId: 'openai:b',
+      optimizeFor: 'intelligence',
+      compactionMode: 'manual',
+    };
+    const cfg = defaultModelsFromDraft(draft, catalog);
+    expect(cfg).toEqual({
+      mode: 'manual',
+      manual: { reasoningModelId: 'openai:a', responseModelId: 'openai:b' },
+    });
+    const again = draftFromDefaultModels(cfg, catalog);
+    expect(again.mode).toBe('manual');
+    expect(again.reasoningModelId).toBe('openai:a');
+  });
+
+  it('defaultModelsFromDraft round-trips auto mode without compaction', () => {
+    const draft: ModelPickerDraft = {
+      mode: 'auto',
+      reasoningModelId: '',
+      responseModelId: '',
+      optimizeFor: 'balanced',
+      compactionMode: 'auto',
+    };
+    const cfg = defaultModelsFromDraft(draft, catalog);
+    expect(cfg).toEqual({
+      mode: 'auto',
+      auto: { optimizeFor: 'balanced' },
+    });
   });
 });

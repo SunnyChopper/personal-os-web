@@ -3,6 +3,7 @@ import type {
   WsCancelRunPayload,
   WsRunStartedPayload,
   WsAssistantDeltaPayload,
+  WsAssistantContentReplacePayload,
   WsThinkingDeltaPayload,
   WsStatusUpdatePayload,
   WsToolCallCompletePayload,
@@ -55,6 +56,7 @@ type WsEventHandlers = {
   /** Best-effort: server may emit during a run; optional cache refresh hook. */
   onContextBudgetMeta?: (payload: WsContextBudgetMetaPayload) => void;
   onAssistantDelta?: (payload: WsAssistantDeltaPayload) => void;
+  onAssistantContentReplace?: (payload: WsAssistantContentReplacePayload) => void;
   onThinkingDelta?: (payload: WsThinkingDeltaPayload) => void;
   onStatusUpdate?: (payload: WsStatusUpdatePayload) => void;
   onToolApprovalRequired?: (payload: WsToolApprovalRequiredPayload) => void;
@@ -86,6 +88,7 @@ type IncomingMessage =
   | { type: 'runStarted'; payload: WsRunStartedPayload }
   | { type: 'assistantModelResolved'; payload: WsAssistantModelResolvedPayload }
   | { type: 'assistantDelta'; payload: WsAssistantDeltaPayload }
+  | { type: 'assistantContentReplace'; payload: WsAssistantContentReplacePayload }
   | { type: 'thinkingDelta'; payload: WsThinkingDeltaPayload }
   | { type: 'statusUpdate'; payload: WsStatusUpdatePayload }
   | { type: 'toolApprovalRequired'; payload: WsToolApprovalRequiredPayload }
@@ -132,6 +135,7 @@ export class AssistantWsClient {
       onRunStarted: options.onRunStarted,
       onAssistantModelResolved: options.onAssistantModelResolved,
       onAssistantDelta: options.onAssistantDelta,
+      onAssistantContentReplace: options.onAssistantContentReplace,
       onThinkingDelta: options.onThinkingDelta,
       onStatusUpdate: options.onStatusUpdate,
       onToolApprovalRequired: options.onToolApprovalRequired,
@@ -390,6 +394,9 @@ export class AssistantWsClient {
         break;
       case 'assistantDelta':
         this.handlers.onAssistantDelta?.(parsed.payload);
+        break;
+      case 'assistantContentReplace':
+        this.handlers.onAssistantContentReplace?.(parsed.payload);
         break;
       case 'thinkingDelta':
         this.handlers.onThinkingDelta?.(parsed.payload);

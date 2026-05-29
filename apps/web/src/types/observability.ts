@@ -7,6 +7,8 @@ export interface ObservabilityBurnSummary {
   failedExecutions: number;
   avgLatencyMs: number | null;
   totalCalls: number;
+  /** Executions with token usage but no resolved USD rate (not counted in cost totals). */
+  unpricedExecutionCount?: number;
 }
 
 export interface ObservabilityBurnPoint {
@@ -49,6 +51,7 @@ export interface ObservabilityExecutionRow {
   threadId?: string | null;
   runId?: string | null;
   requestId?: string | null;
+  providerRequestId?: string | null;
 }
 
 export interface ObservabilityExecutionDetail extends ObservabilityExecutionRow {
@@ -90,6 +93,9 @@ export interface ObservabilityHealthRow {
   durationMs?: number | null;
   errorMessage?: string | null;
   stackTrace?: string | null;
+  threadId?: string | null;
+  runId?: string | null;
+  correlationId?: string | null;
 }
 
 export interface ObservabilityHealthMatrix {

@@ -220,7 +220,16 @@ export function mergeFetchedMessageTreeWithCache(
   };
 }
 
-const upsertOrMergeMessageNode = (items: ChatMessage[], item: ChatMessage): ChatMessage[] => {
+export type UpsertMessageTreeOptions = {
+  /** When true, incoming `content` wins even if empty (e.g. after `assistantContentReplace`). */
+  authoritativeContent?: boolean;
+};
+
+const upsertOrMergeMessageNode = (
+  items: ChatMessage[],
+  item: ChatMessage,
+  options?: UpsertMessageTreeOptions
+): ChatMessage[] => {
   const index = items.findIndex((n) => n.id === item.id);
   if (index === -1) {
     return [...items, item];
@@ -230,7 +239,9 @@ const upsertOrMergeMessageNode = (items: ChatMessage[], item: ChatMessage): Chat
   if (existing.role === 'assistant' && item.role === 'assistant') {
     const incomingEmpty = !(item.content && item.content.trim());
     const preserveStreamedBody =
-      incomingEmpty && Boolean(existing.content && existing.content.trim());
+      !options?.authoritativeContent &&
+      incomingEmpty &&
+      Boolean(existing.content && existing.content.trim());
     next[index] = {
       ...existing,
       ...item,
@@ -279,7 +290,8 @@ export const removeNodeFromTree = (
 export const upsertMessageTreeNodeCache = (
   queryClient: QueryClient,
   threadId: string,
-  message: ChatMessage
+  message: ChatMessage,
+  options?: UpsertMessageTreeOptions
 ): void => {
   const ROOT_KEY = 'ROOT';
   const existing = queryClient.getQueryData<MessageTreeResponse>(
@@ -295,7 +307,7 @@ export const upsertMessageTreeNodeCache = (
   };
 
   const existed = tree.nodes.some((node) => node.id === message.id);
-  const nodes = upsertOrMergeMessageNode(tree.nodes, message);
+  const nodes = upsertOrMergeMessageNode(tree.nodes, message, options);
   if (existed) {
     queryClient.setQueryData(queryKeys.chatbot.messages.tree(threadId), {
       ...tree,
