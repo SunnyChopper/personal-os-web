@@ -40,10 +40,11 @@ export interface WalletTransaction {
     | 'habit_completion'
     | 'habit_completion_reversal'
     | 'habit_streak_milestone'
+    | 'fitness_reward'
     | 'reward_redemption'
     | 'manual'
     | 'system';
-  sourceEntityType: 'task' | 'reward' | null;
+  sourceEntityType: 'task' | 'reward' | 'fitness' | null;
   sourceEntityId: string | null;
   description: string;
   createdAt: string;
