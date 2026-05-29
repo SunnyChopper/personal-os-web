@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Dumbbell } from 'lucide-react';
-import { localCalendarDate, addCalendarDays } from '@/lib/date/local-calendar';
+import Button from '@/components/atoms/Button';
+import { FormCheckbox } from '@/components/atoms/FormCheckbox';
+import { FormInput, formFieldClassName } from '@/components/atoms/FormInput';
 import {
   useFitnessExercises,
   useFitnessTemplates,
@@ -14,7 +16,29 @@ import {
   useCreateExerciseMutation,
   useCreateTemplateMutation,
 } from '@/hooks/useFitness';
+import { localCalendarDate, addCalendarDays } from '@/lib/date/local-calendar';
+import { cn } from '@/lib/utils';
+import WorkoutSchedulePanel from '@/components/organisms/fitness/WorkoutSchedulePanel';
 import type { FitnessExercise, WorkoutSession, WorkoutSet, WorkoutTemplate } from '@/types/fitness';
+
+const selectClassName = cn(formFieldClassName, 'block w-full min-w-0');
+
+function FieldLabel({
+  htmlFor,
+  children,
+  hint,
+}: {
+  htmlFor?: string;
+  children: ReactNode;
+  hint?: string;
+}) {
+  return (
+    <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+      <span className="mb-1.5 block">{children}</span>
+      {hint ? <span className="mb-1.5 block text-xs font-normal text-gray-500">{hint}</span> : null}
+    </label>
+  );
+}
 
 export default function HealthFitnessWorkoutsPage() {
   const today = localCalendarDate();
@@ -140,48 +164,66 @@ export default function HealthFitnessWorkoutsPage() {
         </p>
       </div>
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Library</h2>
-        <div className="mt-3 flex flex-wrap gap-4">
-          <div className="flex flex-1 flex-wrap items-end gap-2">
-            <label className="text-xs text-gray-600 dark:text-gray-400">
-              New exercise
-              <input
-                className="mt-1 block w-48 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
+      <WorkoutSchedulePanel />
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900/40">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">Library</h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Add exercises and build templates before you start a session.
+        </p>
+        <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50/80 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+            <FieldLabel htmlFor="new-exercise-name">New exercise</FieldLabel>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <FormInput
+                id="new-exercise-name"
+                className="w-full flex-1"
                 value={newExName}
                 onChange={(e) => setNewExName(e.target.value)}
                 placeholder="Bench press"
               />
-            </label>
-            <button
-              type="button"
-              disabled={!newExName.trim() || createExercise.isPending}
-              onClick={async () => {
-                await createExercise.mutateAsync({ name: newExName.trim() });
-                setNewExName('');
-              }}
-              className="rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-white hover:bg-gray-700 disabled:opacity-50 dark:bg-gray-200 dark:text-gray-900 dark:hover:bg-white"
-            >
-              Add exercise
-            </button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={!newExName.trim() || createExercise.isPending}
+                onClick={async () => {
+                  await createExercise.mutateAsync({ name: newExName.trim() });
+                  setNewExName('');
+                }}
+              >
+                Add exercise
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-1 flex-col gap-2">
-            <span className="text-xs text-gray-600 dark:text-gray-400">
-              New template (toggle exercises)
-            </span>
-            <input
-              className="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
-              placeholder="Template name"
+
+          <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50/80 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+            <FieldLabel htmlFor="template-name" hint="Select exercises to include in order.">
+              New template
+            </FieldLabel>
+            <FormInput
+              id="template-name"
+              className="w-full"
+              placeholder="Push day A"
               value={tplName}
               onChange={(e) => setTplName(e.target.value)}
             />
-            <div className="max-h-28 overflow-y-auto rounded border border-gray-200 p-2 text-xs dark:border-gray-700">
-              {exLoad && <span>Loading exercises…</span>}
+            <div
+              className="max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+              role="group"
+              aria-label="Exercises for template"
+            >
+              {exLoad && <p className="px-1 py-2 text-xs text-gray-500">Loading exercises…</p>}
+              {!exLoad && exercises.length === 0 && (
+                <p className="px-1 py-2 text-xs text-gray-500">Add an exercise first.</p>
+              )}
               {!exLoad &&
                 exercises.map((e) => (
-                  <label key={e.id} className="flex cursor-pointer items-center gap-2 py-0.5">
-                    <input
-                      type="checkbox"
+                  <label
+                    key={e.id}
+                    className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                  >
+                    <FormCheckbox
                       checked={tplExerciseIds.includes(e.id)}
                       onChange={() =>
                         setTplExerciseIds((ids) =>
@@ -189,12 +231,13 @@ export default function HealthFitnessWorkoutsPage() {
                         )
                       }
                     />
-                    {e.name}
+                    <span className="text-gray-800 dark:text-gray-200">{e.name}</span>
                   </label>
                 ))}
             </div>
-            <button
+            <Button
               type="button"
+              size="sm"
               disabled={!tplName.trim() || tplExerciseIds.length === 0 || createTemplate.isPending}
               onClick={async () => {
                 await createTemplate.mutateAsync({
@@ -204,21 +247,26 @@ export default function HealthFitnessWorkoutsPage() {
                 setTplName('');
                 setTplExerciseIds([]);
               }}
-              className="w-fit rounded-lg bg-violet-600 px-3 py-1.5 text-xs text-white hover:bg-violet-700 disabled:opacity-50"
             >
               Save template
-            </button>
+            </Button>
           </div>
         </div>
+        {(exLoad || tplLoad) && <p className="mt-3 text-xs text-gray-400">Loading library…</p>}
       </section>
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Session</h2>
-        <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="text-xs text-gray-600 dark:text-gray-400">
-            Template
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900/40">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">Session</h2>
+        <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/40 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+            <p className="text-sm font-medium text-gray-900 dark:text-white">Start new session</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              Optionally pick a template, then create today&apos;s session ({today}).
+            </p>
+            <FieldLabel htmlFor="start-template">Template (optional)</FieldLabel>
             <select
-              className="mt-1 block min-w-[200px] rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
+              id="start-template"
+              className={selectClassName}
               value={startTemplateId}
               onChange={(e) => setStartTemplateId(e.target.value)}
             >
@@ -229,19 +277,25 @@ export default function HealthFitnessWorkoutsPage() {
                 </option>
               ))}
             </select>
-          </label>
-          <button
-            type="button"
-            onClick={startFromTemplate}
-            disabled={createSession.isPending}
-            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            New session ({today})
-          </button>
-          <label className="text-xs text-gray-600 dark:text-gray-400">
-            Active session
+            <Button
+              type="button"
+              size="sm"
+              disabled={createSession.isPending}
+              onClick={startFromTemplate}
+            >
+              New session ({today})
+            </Button>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50/80 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+            <p className="text-sm font-medium text-gray-900 dark:text-white">Active session</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              Switch between recent sessions or mark the current one complete.
+            </p>
+            <FieldLabel htmlFor="active-session">Session</FieldLabel>
             <select
-              className="mt-1 block min-w-[240px] rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
+              id="active-session"
+              className={selectClassName}
               value={sessionId ?? ''}
               onChange={(e) => setSelectedSessionId(e.target.value || null)}
             >
@@ -253,20 +307,23 @@ export default function HealthFitnessWorkoutsPage() {
                 </option>
               ))}
             </select>
-          </label>
-          {sessionId && (
-            <button
-              type="button"
-              onClick={() => updateSession.mutate({ id: sessionId, body: { status: 'completed' } })}
-              disabled={updateSession.isPending}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-600"
-            >
-              Mark completed
-            </button>
-          )}
+            {sessionId && (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={updateSession.isPending}
+                onClick={() =>
+                  updateSession.mutate({ id: sessionId, body: { status: 'completed' } })
+                }
+              >
+                Mark completed
+              </Button>
+            )}
+          </div>
         </div>
         {sessionTpl && sessionId && (
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
             Template order:{' '}
             {sessionTpl.exerciseIds.map((id) => exById.get(id)?.name ?? id).join(' → ')}
           </p>
@@ -274,48 +331,68 @@ export default function HealthFitnessWorkoutsPage() {
       </section>
 
       {sessionId && (
-        <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Log sets</h2>
-          <div className="mt-3 flex flex-wrap items-end gap-3">
-            <label className="text-xs text-gray-600 dark:text-gray-400">
-              Exercise
-              <select
-                className="mt-1 block min-w-[200px] rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
-                value={addExerciseId}
-                onChange={(e) => setAddExerciseId(e.target.value)}
-              >
-                <option value="">— choose —</option>
-                {exercises.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {overload && addExerciseId && (
-              <div className="text-xs text-gray-600 dark:text-gray-400">
-                <div>Suggested weight: {overload.nextSuggestedWeight}</div>
-                <div>
-                  Reps {overload.nextSuggestedTargetRepsMin}–{overload.nextSuggestedTargetRepsMax}
-                </div>
-                <div className="mt-1 max-w-md text-[11px]">{overload.recommendationReason}</div>
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900/40">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">Log sets</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Choose an exercise, review the overload hint, then add a working set.
+          </p>
+
+          <div className="mt-5 space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,14rem)_1fr_auto] sm:items-end">
+              <div>
+                <FieldLabel htmlFor="log-exercise">Exercise</FieldLabel>
+                <select
+                  id="log-exercise"
+                  className={selectClassName}
+                  value={addExerciseId}
+                  onChange={(e) => setAddExerciseId(e.target.value)}
+                >
+                  <option value="">— choose —</option>
+                  {exercises.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
-            <button
-              type="button"
-              onClick={submitSet}
-              disabled={!addExerciseId || addSet.isPending}
-              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              Add working set
-            </button>
+
+              {overload && addExerciseId && (
+                <div
+                  className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100"
+                  role="status"
+                >
+                  <p className="font-medium">Overload suggestion</p>
+                  <p className="mt-1">
+                    Suggested weight: <strong>{overload.nextSuggestedWeight}</strong>
+                  </p>
+                  <p>
+                    Target reps: {overload.nextSuggestedTargetRepsMin}–
+                    {overload.nextSuggestedTargetRepsMax}
+                  </p>
+                  <p className="mt-2 text-xs text-emerald-800/90 dark:text-emerald-200/80">
+                    {overload.recommendationReason}
+                  </p>
+                </div>
+              )}
+
+              <Button
+                type="button"
+                size="sm"
+                variant="success"
+                className="w-full sm:w-auto"
+                onClick={submitSet}
+                disabled={!addExerciseId || addSet.isPending}
+              >
+                Add working set
+              </Button>
+            </div>
           </div>
 
-          <div className="mt-6 space-y-4">
+          <div className="mt-6 space-y-5">
             {sessLoad && <p className="text-sm text-gray-500">Loading…</p>}
             {Array.from(setsByExercise.entries()).map(([exId, row]) => (
               <div key={exId}>
-                <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                   {exById.get(exId)?.name ?? exId}
                 </h3>
                 <ul className="mt-2 space-y-2">
@@ -338,9 +415,10 @@ export default function HealthFitnessWorkoutsPage() {
       )}
 
       {!sessionId && !sessLoad && sortedSessions.length === 0 && (
-        <p className="text-sm text-gray-500">Create a session to start logging sets.</p>
+        <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30">
+          Create a session to start logging sets.
+        </p>
       )}
-      {(exLoad || tplLoad) && <p className="text-xs text-gray-400">Loading library…</p>}
     </div>
   );
 }
@@ -365,12 +443,15 @@ function SetRow({
   const [ok, setOk] = useState(s.isSuccessful);
 
   return (
-    <li className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-800/50">
-      <span className="text-gray-500">Set {s.setIndex + 1}</span>
-      <label className="flex items-center gap-1">
-        Reps
-        <input
-          className="w-14 rounded border px-1 dark:border-gray-600 dark:bg-gray-950"
+    <li className="grid grid-cols-[auto_1fr_1fr_1fr_auto] items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5 text-xs dark:border-gray-700 dark:bg-gray-800/50 sm:gap-4 sm:px-4">
+      <span className="whitespace-nowrap font-medium text-gray-500 dark:text-gray-400">
+        Set {s.setIndex + 1}
+      </span>
+      <label className="flex min-w-0 flex-col gap-1 text-gray-600 dark:text-gray-400">
+        <span>Reps</span>
+        <FormInput
+          className="w-full min-w-0 py-1.5"
+          inputMode="numeric"
           value={reps}
           onChange={(e) => setReps(e.target.value)}
           onBlur={() =>
@@ -380,27 +461,28 @@ function SetRow({
           }
         />
       </label>
-      <label className="flex items-center gap-1">
-        Weight
-        <input
-          className="w-16 rounded border px-1 dark:border-gray-600 dark:bg-gray-950"
+      <label className="flex min-w-0 flex-col gap-1 text-gray-600 dark:text-gray-400">
+        <span>Weight</span>
+        <FormInput
+          className="w-full min-w-0 py-1.5"
+          inputMode="decimal"
           value={weight}
           onChange={(e) => setWeight(e.target.value)}
           onBlur={() => onPatch({ weight: Number(weight) })}
         />
       </label>
-      <label className="flex items-center gap-1">
-        RPE
-        <input
-          className="w-12 rounded border px-1 dark:border-gray-600 dark:bg-gray-950"
+      <label className="flex min-w-0 flex-col gap-1 text-gray-600 dark:text-gray-400">
+        <span>RPE</span>
+        <FormInput
+          className="w-full min-w-0 py-1.5"
+          inputMode="decimal"
           value={rpe}
           onChange={(e) => setRpe(e.target.value)}
           onBlur={() => onPatch({ rpe: rpe === '' ? undefined : Number(rpe) })}
         />
       </label>
-      <label className="flex items-center gap-1">
-        <input
-          type="checkbox"
+      <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700/50">
+        <FormCheckbox
           checked={ok}
           disabled={disabled}
           onChange={(e) => {
@@ -408,7 +490,7 @@ function SetRow({
             onPatch({ isSuccessful: e.target.checked });
           }}
         />
-        OK
+        <span className="font-medium">OK</span>
       </label>
     </li>
   );

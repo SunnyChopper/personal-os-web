@@ -92,6 +92,34 @@ export function formatDateString(
   return parsed.toLocaleDateString('en-US', options);
 }
 
+const LOCAL_CLOCK_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  hour: 'numeric',
+  minute: '2-digit',
+};
+
+/**
+ * Human-readable local clock time (e.g. "8:00 AM") from an ISO timestamp or date string.
+ */
+export function formatLocalTime(dateInput: string | Date | null | undefined): string | null {
+  if (dateInput == null || dateInput === '') return null;
+  const parsed = typeof dateInput === 'string' ? parseDateInput(dateInput) : dateInput;
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleTimeString('en-US', LOCAL_CLOCK_TIME_OPTIONS);
+}
+
+/**
+ * Local clock range for planner blocks and schedules (e.g. "8:00 AM – 8:05 AM").
+ */
+export function formatLocalTimeRange(
+  start: string | Date | null | undefined,
+  end: string | Date | null | undefined
+): string {
+  const startLabel = formatLocalTime(start);
+  const endLabel = formatLocalTime(end);
+  if (startLabel && endLabel) return `${startLabel} – ${endLabel}`;
+  return [startLabel, endLabel].filter(Boolean).join(' – ');
+}
+
 /**
  * Format a date as a relative string (e.g., "2 days ago", "Today", "Yesterday")
  */
@@ -241,10 +269,13 @@ export function parseHabitCompletionConflictDate(message: string): string | null
  * Calendar day (YYYY-MM-DD) for a habit log's `completedAt`, regardless of whether
  * the API returned a date-only string or an ISO timestamp (including legacy rows
  * that incorrectly used `createdAt` as `completedAt`).
+ *
+ * Must match Dynamo `COMPLETION#{date}` — use the stored calendar date from the
+ * string (date-only or ISO date prefix), not local timezone conversion on the
+ * full timestamp (API log responses use `…T12:00:00.000Z` for stability).
  */
 export function getHabitLogCalendarDay(completedAt: string): string {
-  if (DATE_ONLY_PATTERN.test(completedAt)) return completedAt;
-  return toLocalDateKey(parseDateInput(completedAt));
+  return extractDateOnly(completedAt);
 }
 
 /**

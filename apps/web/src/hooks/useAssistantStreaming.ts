@@ -8,6 +8,7 @@ import type {
   MessageTreeResponse,
   StatusEntry,
   WsAssistantModelResolvedPayload,
+  WsAssistantContentReplacePayload,
   WsStatusUpdatePayload,
   WsThinkingDeltaPayload,
   WsToolApprovalRequiredPayload,
@@ -18,6 +19,7 @@ import type {
 import {
   AssistantWsClient,
   type AssistantWsConnectionState,
+  type WsContextBudgetMetaPayload,
 } from '@/lib/websocket/assistant-ws-client';
 import { authService } from '@/lib/auth/auth.service';
 import { queryKeys } from '@/lib/react-query/query-keys';
@@ -95,6 +97,23 @@ export type AssistantStreamingMeterSnapshot = {
   lastRunUsage: AssistantRunUsageTokens | null;
   lastContextSummaryApplied: boolean | null;
 };
+
+export type AssistantDebugWsEvent = {
+  type: string;
+  at: number;
+  summary: string;
+};
+
+const MAX_DEBUG_WS_EVENTS = 40;
+
+function summarizeDebugPayload(payload: unknown): string {
+  try {
+    const text = JSON.stringify(payload);
+    return text.length > 180 ? `${text.slice(0, 180)}…` : text;
+  } catch {
+    return String(payload);
+  }
+}
 
 const WS_BASE_URL = getResolvedWsUrl();
 
@@ -248,6 +267,9 @@ export function useAssistantStreaming(threadId: string | undefined) {
   const [error, setError] = useState<WsRunErrorPayload | null>(null);
   const [connectionState, setConnectionState] =
     useState<AssistantWsConnectionState>('disconnected');
+  const [debugWsEvents, setDebugWsEvents] = useState<AssistantDebugWsEvent[]>([]);
+  const [lastContextBudgetMeta, setLastContextBudgetMeta] =
+    useState<WsContextBudgetMetaPayload | null>(null);
   const clientRef = useRef<AssistantWsClient | null>(null);
   const thinkingSoundPlayedRef = useRef<Record<string, boolean>>({});
   const failedRunIdsRef = useRef<Record<string, boolean>>({});
@@ -286,7 +308,21 @@ export function useAssistantStreaming(threadId: string | undefined) {
   useEffect(() => {
     setLastResolvedModelPick(null);
     setStreamingMeterSnapshot(null);
+    setDebugWsEvents([]);
+    setLastContextBudgetMeta(null);
   }, [threadId]);
+
+  const pushDebugEvent = useCallback((type: string, payload: unknown) => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+    setDebugWsEvents((current) =>
+      [{ type, at: Date.now(), summary: summarizeDebugPayload(payload) }, ...current].slice(
+        0,
+        MAX_DEBUG_WS_EVENTS
+      )
+    );
+  }, []);
 
   const applyPendingDeltas = useCallback(
     (pendingRuns: Record<string, PendingRunDelta>) => {
@@ -378,6 +414,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
         }
       },
       onRunStarted: (payload) => {
+        pushDebugEvent('runStarted', payload);
         soundEffects.play('whoosh', { volume: 0.14 });
         wsLogger.info('Assistant runStarted (awaiting first status/delta)', {
           runId: payload.runId,
@@ -442,6 +479,10 @@ export function useAssistantStreaming(threadId: string | undefined) {
         upsertMessageTreeNodeCache(queryClient, payload.threadId, placeholder);
       },
       onContextBudgetMeta: (payload) => {
+        pushDebugEvent('contextBudgetMeta', payload);
+        if (import.meta.env.DEV) {
+          setLastContextBudgetMeta(payload);
+        }
         const tid = typeof payload.threadId === 'string' ? payload.threadId : '';
         if (tid) {
           void queryClient.invalidateQueries({
@@ -488,6 +529,34 @@ export function useAssistantStreaming(threadId: string | undefined) {
         pending.assistantDelta = `${pending.assistantDelta}${payload.delta}`;
         pendingDeltasRef.current[payload.runId] = pending;
         schedulePendingDeltaFlush();
+      },
+      onAssistantContentReplace: (payload: WsAssistantContentReplacePayload) => {
+        streamedAssistantByRunIdRef.current[payload.runId] = payload.content;
+        startTransition(() => {
+          setRuns((current) => {
+            const run = current[payload.runId];
+            if (!run) {
+              return current;
+            }
+            const placeholder = buildPlaceholderMessage(
+              payload.threadId,
+              run.assistantMessageId,
+              run.userMessageId,
+              payload.content,
+              run.thinkingBuffer || undefined
+            );
+            upsertMessageTreeNodeCache(queryClient, payload.threadId, placeholder, {
+              authoritativeContent: true,
+            });
+            return {
+              ...current,
+              [payload.runId]: {
+                ...run,
+                buffer: payload.content,
+              },
+            };
+          });
+        });
       },
       onThinkingDelta: (payload: WsThinkingDeltaPayload) => {
         if (!thinkingSoundPlayedRef.current[payload.runId]) {
@@ -607,6 +676,13 @@ export function useAssistantStreaming(threadId: string | undefined) {
         });
       },
       onToolCallComplete: (payload: WsToolCallCompletePayload) => {
+        pushDebugEvent('toolCallComplete', {
+          toolName: payload.toolName,
+          returnedItemCount: payload.returnedItemCount,
+          originalItemCount: payload.originalItemCount,
+          total: payload.total,
+          truncatedForWs: payload.truncatedForWs,
+        });
         invalidateGrowthSystemCachesAfterMutationTool(queryClient, payload);
         const runIdForEvent = payload.runId;
         if (!runIdForEvent) {
@@ -755,7 +831,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
     clientRef.current = client;
     setConnectionState(client.getConnectionState());
     return client;
-  }, [flushPendingDeltas, queryClient, schedulePendingDeltaFlush]);
+  }, [flushPendingDeltas, pushDebugEvent, queryClient, schedulePendingDeltaFlush]);
 
   // Removed the useEffect that cleared pendingRunStartCount when runs was empty,
   // because it immediately cleared the count right after sendUserMessage before the run could start.
@@ -1061,6 +1137,8 @@ export function useAssistantStreaming(threadId: string | undefined) {
     ...state,
     lastResolvedModelPick,
     streamingMeterSnapshot,
+    debugWsEvents,
+    lastContextBudgetMeta,
     sendUserMessage,
     sendFollowUp,
     registerOptimisticUserId,

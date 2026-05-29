@@ -1,5 +1,6 @@
 import type { CookedTaskResult } from '@/types/planner';
 import Dialog from '@/components/molecules/Dialog';
+import { formatLocalTimeRange } from '@/utils/date-formatters';
 
 import { RescueMicroStepList } from './RescueMicroStepList';
 
@@ -24,9 +25,7 @@ export function CookedTaskDrawer({ open, onClose, result, error }: CookedTaskDra
               </h4>
               <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                 {result.insertedBlocks.map((b) => (
-                  <li key={b.id}>
-                    {b.startAt} → {b.endAt}
-                  </li>
+                  <li key={b.id}>{formatLocalTimeRange(b.startAt, b.endAt)}</li>
                 ))}
               </ul>
             </div>

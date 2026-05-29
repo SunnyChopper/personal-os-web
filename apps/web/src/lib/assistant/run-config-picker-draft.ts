@@ -4,6 +4,7 @@ import type {
   AssistantOptimizeFor,
   AssistantRunConfig,
 } from '@/types/chatbot';
+import type { AssistantDefaultModelsConfig } from '@/types/api-contracts';
 
 export type ModelPickerDraft = {
   mode: 'manual' | 'auto';
@@ -71,5 +72,73 @@ export function modelPickerDraftFromRunConfig(
     responseModelId: cfg.manual.responseModelId,
     optimizeFor: 'intelligence',
     compactionMode,
+  };
+}
+
+function catalogDefaultIds(catalog: AssistantModelCatalogData | null): {
+  reasoningModelId: string;
+  responseModelId: string;
+} {
+  return {
+    reasoningModelId: catalog?.defaults.defaultReasoningModelId ?? '',
+    responseModelId: catalog?.defaults.defaultResponseModelId ?? '',
+  };
+}
+
+/** Hydrate picker draft from saved Assistant settings defaultModels. */
+export function draftFromDefaultModels(
+  cfg: AssistantDefaultModelsConfig | null | undefined,
+  catalog: AssistantModelCatalogData | null
+): ModelPickerDraft {
+  const { reasoningModelId: dr, responseModelId: dresp } = catalogDefaultIds(catalog);
+  if (!cfg) {
+    return {
+      mode: 'auto',
+      reasoningModelId: dr,
+      responseModelId: dresp,
+      optimizeFor: 'intelligence',
+      compactionMode: 'auto',
+    };
+  }
+  if (cfg.mode === 'manual') {
+    return {
+      mode: 'manual',
+      reasoningModelId: cfg.manual.reasoningModelId || dr,
+      responseModelId: cfg.manual.responseModelId || dresp,
+      optimizeFor: 'intelligence',
+      compactionMode: 'auto',
+    };
+  }
+  return {
+    mode: 'auto',
+    reasoningModelId: dr,
+    responseModelId: dresp,
+    optimizeFor: cfg.auto.optimizeFor,
+    compactionMode: 'auto',
+  };
+}
+
+/** Build saved defaultModels payload from picker draft (no compaction / webSearch). */
+export function defaultModelsFromDraft(
+  draft: ModelPickerDraft,
+  catalog: AssistantModelCatalogData | null
+): AssistantDefaultModelsConfig | undefined {
+  if (!catalog?.models?.length) {
+    return undefined;
+  }
+  if (draft.mode === 'auto') {
+    return {
+      mode: 'auto',
+      auto: { optimizeFor: draft.optimizeFor },
+    };
+  }
+  const reasoningModelId = draft.reasoningModelId || catalog.defaults.defaultReasoningModelId;
+  const responseModelId = draft.responseModelId || catalog.defaults.defaultResponseModelId;
+  if (!reasoningModelId || !responseModelId) {
+    return undefined;
+  }
+  return {
+    mode: 'manual',
+    manual: { reasoningModelId, responseModelId },
   };
 }

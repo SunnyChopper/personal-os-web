@@ -7,6 +7,7 @@ import type {
   ModePreference,
   AssistantToolApprovalConfig,
   AssistantMemoryIngestionConfig,
+  AssistantDefaultModelsConfig,
   AssistantSettingsConfig,
   AssistantToolRegistryEntry,
   DashboardSummaryResponse,
@@ -15,6 +16,9 @@ import type {
   ProactiveDispatchJob,
   ProactiveDispatchRunResult,
   ProactiveEmailTestResult,
+  NotificationWebhookConfig,
+  RecoveryNotificationsConfig,
+  ProactiveWebhookTestResult,
   ProactiveBrainstormResult,
   ProactiveAutomationRunsList,
   ProactiveSuggestion,
@@ -496,10 +500,13 @@ class ApiClient {
   async put<T>(
     endpoint: string,
     body?: unknown,
-    _schema?: z.ZodSchema<T>
+    _schema?: z.ZodSchema<T>,
+    config?: { signal?: AbortSignal }
   ): Promise<ApiResponse<T>> {
     try {
-      const response = await this.client.put<ApiResponse<T>>(endpoint, body);
+      const response = await this.client.put<ApiResponse<T>>(endpoint, body, {
+        signal: config?.signal,
+      });
       const backendResponse = response.data;
 
       // Check if backend wrapped the response
@@ -749,12 +756,17 @@ class ApiClient {
   async setAssistantSettings(body: {
     toolApproval: AssistantToolApprovalConfig;
     memoryIngestion: AssistantMemoryIngestionConfig;
+    defaultModels?: AssistantDefaultModelsConfig;
   }): Promise<ApiResponse<AssistantSettingsConfig>> {
     return this.put<AssistantSettingsConfig>('/preferences/assistant-settings', body);
   }
 
   async resetAssistantMemoryIngestion(): Promise<ApiResponse<AssistantSettingsConfig>> {
     return this.delete<AssistantSettingsConfig>('/preferences/assistant-settings/memory-ingestion');
+  }
+
+  async resetAssistantDefaultModels(): Promise<ApiResponse<AssistantSettingsConfig>> {
+    return this.delete<AssistantSettingsConfig>('/preferences/assistant-settings/default-models');
   }
 
   async getAssistantToolApprovalConfig(): Promise<ApiResponse<AssistantToolApprovalConfig>> {
@@ -858,6 +870,10 @@ class ApiClient {
     return this.post<ProactiveEmailTestResult>('/proactive/email/test', {});
   }
 
+  async sendProactiveTestWebhook(): Promise<ApiResponse<ProactiveWebhookTestResult>> {
+    return this.post<ProactiveWebhookTestResult>('/proactive/webhook/test', {});
+  }
+
   async createProactiveAutomation(
     body: Record<string, unknown>
   ): Promise<ApiResponse<ProactiveAutomation>> {
@@ -915,6 +931,26 @@ class ApiClient {
     timeZone: string;
   }): Promise<ApiResponse<{ timeZone: string }>> {
     return this.put<{ timeZone: string }>('/preferences/time-zone', body);
+  }
+
+  async getNotificationWebhook(): Promise<ApiResponse<NotificationWebhookConfig>> {
+    return this.get<NotificationWebhookConfig>('/preferences/notification-webhook');
+  }
+
+  async setNotificationWebhook(
+    body: NotificationWebhookConfig
+  ): Promise<ApiResponse<NotificationWebhookConfig>> {
+    return this.put<NotificationWebhookConfig>('/preferences/notification-webhook', body);
+  }
+
+  async getRecoveryNotifications(): Promise<ApiResponse<RecoveryNotificationsConfig>> {
+    return this.get<RecoveryNotificationsConfig>('/preferences/recovery-notifications');
+  }
+
+  async setRecoveryNotifications(
+    body: RecoveryNotificationsConfig
+  ): Promise<ApiResponse<RecoveryNotificationsConfig>> {
+    return this.put<RecoveryNotificationsConfig>('/preferences/recovery-notifications', body);
   }
 
   async getPreferencesWeeklyReviewDay(): Promise<ApiResponse<{ weeklyReviewDay: number }>> {

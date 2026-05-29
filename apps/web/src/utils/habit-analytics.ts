@@ -31,6 +31,7 @@ export interface HeatmapDay {
   date: string;
   count: number;
   intensity: number; // 0-4 for color intensity
+  isOffDay?: boolean;
 }
 
 export interface CalendarDay {
@@ -40,6 +41,7 @@ export interface CalendarDay {
   isCurrentMonth: boolean;
   completionCount: number;
   logs: HabitLog[];
+  isOffDay?: boolean;
 }
 
 export interface WeeklyMonthlyData {
@@ -397,7 +399,11 @@ export function calculateTrend(
 /**
  * Generate heatmap data for calendar visualization
  */
-export function generateHeatmapData(logs: HabitLog[], months: number = 6): HeatmapDay[] {
+export function generateHeatmapData(
+  logs: HabitLog[],
+  months: number = 6,
+  offDayDates?: Set<string>
+): HeatmapDay[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const startDate = new Date(today);
@@ -432,10 +438,12 @@ export function generateHeatmapData(logs: HabitLog[], months: number = 6): Heatm
       }
     }
 
+    const isOffDay = offDayDates?.has(dateKey) ?? false;
     heatmapDays.push({
       date: dateKey,
-      count,
-      intensity,
+      count: isOffDay ? 0 : count,
+      intensity: isOffDay ? 0 : intensity,
+      isOffDay,
     });
 
     currentDate.setDate(currentDate.getDate() + 1);
@@ -601,7 +609,12 @@ export function getCompletionRateData(
 /**
  * Generate calendar days for a specific month
  */
-export function generateCalendarDays(year: number, month: number, logs: HabitLog[]): CalendarDay[] {
+export function generateCalendarDays(
+  year: number,
+  month: number,
+  logs: HabitLog[],
+  offDayDates?: Set<string>
+): CalendarDay[] {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const daysInMonth = lastDay.getDate();
@@ -650,6 +663,7 @@ export function generateCalendarDays(year: number, month: number, logs: HabitLog
       isCurrentMonth: true,
       completionCount,
       logs: dayLogs,
+      isOffDay: offDayDates?.has(dateKey) ?? false,
     });
   }
 

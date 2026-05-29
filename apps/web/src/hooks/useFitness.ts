@@ -1,7 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fitnessService } from '@/services/fitness.service';
 import { queryKeys } from '@/lib/react-query/query-keys';
-import type { AuraXMetric, MealType, SetType } from '@/types/fitness';
+import type {
+  AuraXMetric,
+  CreateFitnessRewardRuleInput,
+  MealPlanMeal,
+  MealType,
+  PatchScheduledWorkoutDayInput,
+  SetType,
+  ScheduleDayType,
+  UpdateFitnessRewardRuleInput,
+  UpsertWorkoutScheduleInput,
+  WorkoutScheduleWeekdayEntry,
+} from '@/types/fitness';
 
 export function useFitnessExercises(page = 1, pageSize = 50) {
   return useQuery({
@@ -84,6 +95,94 @@ export function useParseNutritionMutation() {
   });
 }
 
+export function useFitnessPantryList(page = 1, pageSize = 100) {
+  return useQuery({
+    queryKey: queryKeys.fitness.pantry.list(page, pageSize),
+    queryFn: () => fitnessService.listPantry(page, pageSize),
+  });
+}
+
+export function useFitnessMealPlansList(page = 1, pageSize = 20) {
+  return useQuery({
+    queryKey: queryKeys.fitness.mealPlans.list(page, pageSize),
+    queryFn: () => fitnessService.listMealPlans(page, pageSize),
+  });
+}
+
+export function useCreatePantryItemMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; quantity?: number; unit?: string; category?: string }) =>
+      fitnessService.createPantryItem(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.pantry.all() });
+    },
+  });
+}
+
+export function useUpdatePantryItemMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: { name?: string; quantity?: number; unit?: string; category?: string };
+    }) => fitnessService.updatePantryItem(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.pantry.all() });
+    },
+  });
+}
+
+export function useDeletePantryItemMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => fitnessService.deletePantryItem(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.pantry.all() });
+    },
+  });
+}
+
+export function useGenerateMealsMutation() {
+  return useMutation({
+    mutationFn: (body: {
+      mealsCount?: number;
+      preferences?: string;
+      provider?: string;
+      useCache?: boolean;
+    }) => fitnessService.generateMeals(body),
+  });
+}
+
+export function useCreateMealPlanMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      title?: string;
+      pantrySnapshot: string[];
+      meals: MealPlanMeal[];
+      provider?: string;
+      model?: string;
+    }) => fitnessService.createMealPlan(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.mealPlans.all() });
+    },
+  });
+}
+
+export function useDeleteMealPlanMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => fitnessService.deleteMealPlan(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.mealPlans.all() });
+    },
+  });
+}
+
 export function useCreateNutritionMutation() {
   const qc = useQueryClient();
   return useMutation({
@@ -115,6 +214,24 @@ export function useUpsertRecoveryMutation() {
   return useMutation({
     mutationFn: ({ date, body }: { date: string; body: Record<string, unknown> }) =>
       fitnessService.upsertRecovery(date, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.all });
+    },
+  });
+}
+
+export function useRecoveryMetricLinks() {
+  return useQuery({
+    queryKey: queryKeys.fitness.recovery.metricLinks(),
+    queryFn: () => fitnessService.getRecoveryMetricLinks(),
+  });
+}
+
+export function useSetRecoveryMetricLinksMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (links: Record<string, string | null>) =>
+      fitnessService.setRecoveryMetricLinks(links),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.fitness.all });
     },
@@ -228,4 +345,132 @@ export function useCreateTemplateMutation() {
       qc.invalidateQueries({ queryKey: queryKeys.fitness.templates.all() });
     },
   });
+}
+
+export function useFitnessRewardRules(page = 1, pageSize = 50, activeOnly = false) {
+  return useQuery({
+    queryKey: queryKeys.fitness.rewardRules.list(page, pageSize, activeOnly),
+    queryFn: () => fitnessService.listRewardRules(page, pageSize, activeOnly),
+  });
+}
+
+export function useFitnessRewardClaims(filters?: {
+  page?: number;
+  pageSize?: number;
+  ruleId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  return useQuery({
+    queryKey: queryKeys.fitness.rewardClaims.list(filters ?? {}),
+    queryFn: () => fitnessService.listRewardClaims(filters),
+  });
+}
+
+export function useCreateRewardRuleMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateFitnessRewardRuleInput) => fitnessService.createRewardRule(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.rewardRules.all() });
+    },
+  });
+}
+
+export function useUpdateRewardRuleMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateFitnessRewardRuleInput }) =>
+      fitnessService.updateRewardRule(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.rewardRules.all() });
+    },
+  });
+}
+
+export function useDeleteRewardRuleMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => fitnessService.deleteRewardRule(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.rewardRules.all() });
+    },
+  });
+}
+
+export function useClaimRewardRuleMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => fitnessService.claimRewardRule(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.rewardRules.all() });
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.rewardClaims.all() });
+      qc.invalidateQueries({ queryKey: queryKeys.wallet.all });
+    },
+  });
+}
+
+export function useWorkoutSchedule() {
+  return useQuery({
+    queryKey: queryKeys.fitness.workoutSchedule.baseline(),
+    queryFn: () => fitnessService.getWorkoutSchedule(),
+  });
+}
+
+export function useScheduledWorkoutDays(startDate: string, endDate: string) {
+  return useQuery({
+    queryKey: queryKeys.fitness.workoutSchedule.days(startDate, endDate),
+    queryFn: () => fitnessService.listScheduledWorkoutDays(startDate, endDate),
+    enabled: Boolean(startDate && endDate),
+  });
+}
+
+export function usePendingWorkoutSkips() {
+  return useQuery({
+    queryKey: queryKeys.fitness.workoutSchedule.pendingSkips(),
+    queryFn: () => fitnessService.listPendingWorkoutSkips(),
+  });
+}
+
+export function useUpsertWorkoutScheduleMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpsertWorkoutScheduleInput) => fitnessService.upsertWorkoutSchedule(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.workoutSchedule.all() });
+    },
+  });
+}
+
+export function usePatchScheduledWorkoutDayMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ date, body }: { date: string; body: PatchScheduledWorkoutDayInput }) =>
+      fitnessService.patchScheduledWorkoutDay(date, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.workoutSchedule.all() });
+    },
+  });
+}
+
+export function useSubmitWorkoutSkipReasonMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ date, reason }: { date: string; reason: string }) =>
+      fitnessService.submitWorkoutSkipReason(date, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.fitness.workoutSchedule.all() });
+      qc.invalidateQueries({ queryKey: queryKeys.wallet.all });
+    },
+  });
+}
+
+export const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+
+export function defaultWeekdayEntries(): WorkoutScheduleWeekdayEntry[] {
+  return WEEKDAY_LABELS.map((_, weekday) => ({
+    weekday,
+    dayType: 'rest' as ScheduleDayType,
+    templateId: null,
+  }));
 }

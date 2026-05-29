@@ -1,4 +1,4 @@
-import { ChevronRight, Edit2, Trash2 } from 'lucide-react';
+import { Edit2, Trash2 } from 'lucide-react';
 import type { Habit, HabitLog } from '@/types/growth-system';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import Button from '@/components/atoms/Button';
@@ -32,18 +32,13 @@ export function HabitDetailHeader({
   return (
     <div className="mb-6">
       {/* Breadcrumbs */}
-      <nav
-        className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-4"
-        aria-label="Breadcrumb"
-      >
+      <nav className="mb-4" aria-label="Breadcrumb">
         <button
           onClick={onBack}
-          className="hover:text-gray-900 dark:hover:text-white transition-colors"
+          className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
         >
           Habits
         </button>
-        <ChevronRight className="w-4 h-4" />
-        <span className="text-gray-900 dark:text-white font-medium">{habit.name}</span>
       </nav>
 
       {/* Header Card */}

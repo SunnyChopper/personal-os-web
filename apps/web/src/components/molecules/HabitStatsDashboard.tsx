@@ -9,6 +9,7 @@ import {
   getLogsForDateRange,
   getWeekRange,
 } from '@/utils/habit-analytics';
+import { streakProtectedDatesForHabit } from '@/utils/habit-off-days';
 import { HabitStatCard } from './HabitStatCard';
 
 interface HabitStatsDashboardProps {
@@ -18,7 +19,8 @@ interface HabitStatsDashboardProps {
 
 export function HabitStatsDashboard({ habit, logs }: HabitStatsDashboardProps) {
   const stats = useMemo(() => {
-    const streaks = getAllStreaks(logs);
+    const protectedDates = streakProtectedDatesForHabit(habit);
+    const streaks = getAllStreaks(logs, protectedDates);
     const completionRate = calculateCompletionRate(logs, habit);
     const consistency = getConsistencyScoreBreakdown(logs, habit);
     const totalCompletions = logs.reduce((sum, log) => sum + (log.amount || 1), 0);

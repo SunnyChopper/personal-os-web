@@ -45,8 +45,10 @@ import {
   Link2,
   Newspaper,
   BarChart2,
+  Play,
   Ship,
   Dumbbell,
+  Gift,
   Briefcase,
 } from 'lucide-react';
 import LeisureModeToggle from '@/components/atoms/LeisureModeToggle';
@@ -134,6 +136,7 @@ const workNavigation: NavItem[] = [
       { name: 'Settings', href: ROUTES.admin.assistantToolSafety, icon: Shield },
       { name: 'Proactive', href: ROUTES.admin.assistantProactive, icon: Zap },
       { name: 'Observability', href: ROUTES.admin.assistantObservability, icon: BarChart2 },
+      { name: 'Sandbox', href: ROUTES.admin.assistantSandbox, icon: Play },
       { name: 'Memory Audit', href: ROUTES.admin.memoryAudit, icon: ClipboardList },
     ],
   },
@@ -161,6 +164,7 @@ const workNavigation: NavItem[] = [
       { name: 'Nutrition', href: ROUTES.admin.healthFitnessNutrition, icon: Coffee },
       { name: 'Workouts', href: ROUTES.admin.healthFitnessWorkouts, icon: Dumbbell },
       { name: 'Aura', href: ROUTES.admin.healthFitnessAura, icon: Sparkles },
+      { name: 'Rewards', href: ROUTES.admin.healthFitnessRewards, icon: Gift },
     ],
   },
   {
@@ -218,6 +222,7 @@ const leisureNavigation: NavItem[] = [
       { name: 'Settings', href: ROUTES.admin.assistantToolSafety, icon: Shield },
       { name: 'Proactive', href: ROUTES.admin.assistantProactive, icon: Zap },
       { name: 'Observability', href: ROUTES.admin.assistantObservability, icon: BarChart2 },
+      { name: 'Sandbox', href: ROUTES.admin.assistantSandbox, icon: Play },
       { name: 'Memory Audit', href: ROUTES.admin.memoryAudit, icon: ClipboardList },
     ],
   },

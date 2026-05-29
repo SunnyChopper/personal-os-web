@@ -260,7 +260,7 @@ export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantPro
             <Sun className="w-6 h-6 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Daily Planning</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Top 3 Tasks</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               {plan.energyLevel === 'morning' && 'Start your day right'}
               {plan.energyLevel === 'afternoon' && 'Maintain momentum'}

@@ -86,8 +86,10 @@ export const observabilityService = {
     provider?: string;
     status?: string;
     requestId?: string;
+    providerRequestId?: string;
     threadId?: string;
     runId?: string;
+    jobRunId?: string;
   }): Promise<ObservabilityExecutionsPage> {
     const res = await apiClient.get<ObservabilityExecutionsPage>(
       `/observability/executions${searchFromRecord(filters as Record<string, string | number | undefined>)}`

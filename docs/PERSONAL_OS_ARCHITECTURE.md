@@ -204,7 +204,8 @@ interface Goal {
   title: string;
   area: Area;
   timeHorizon: TimeHorizon; // Yearly | Quarterly | Monthly | Weekly | Daily
-  status: GoalStatus; // Planning | Active | OnTrack | AtRisk | Achieved | Abandoned
+  status: GoalStatus; // Planning | Active | Achieved | Abandoned
+  health?: GoalHealth | null; // onTrack | atRisk | behind | dormant (computed, Active only)
   successCriteria: SuccessCriterion[]; // Enhanced with completion tracking
   progressConfig: GoalProgressConfig | null; // Weighted progress calculation
   parentGoalId: string | null; // Goal hierarchy

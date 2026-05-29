@@ -14,6 +14,8 @@ type BrainstormModelPickerProps = {
   value: BrainstormModelPickerValue;
   onChange: (next: BrainstormModelPickerValue) => void;
   disabled?: boolean;
+  /** Override the hint shown when mode is ``auto``. */
+  autoModeDescription?: string;
 };
 
 export function BrainstormModelPicker({
@@ -22,6 +24,7 @@ export function BrainstormModelPicker({
   value,
   onChange,
   disabled,
+  autoModeDescription,
 }: BrainstormModelPickerProps) {
   const [manualSortBy, setManualSortBy] = useState<ManualModelSortKey>('default');
 
@@ -68,9 +71,8 @@ export function BrainstormModelPicker({
       />
       {value.mode === 'auto' ? (
         <p className="text-[11px] text-gray-500 dark:text-gray-400">
-          Uses the deployment default brainstorm model (OpenAI{' '}
-          <span className="tabular-nums">gpt-5.4-mini</span> unless overridden server-side). Same
-          catalog rankings as chat when you switch to manual.
+          {autoModeDescription ??
+            'Uses the deployment default brainstorm model (OpenAI gpt-5.4-mini unless overridden server-side). Same catalog rankings as chat when you switch to manual.'}
         </p>
       ) : (
         <>

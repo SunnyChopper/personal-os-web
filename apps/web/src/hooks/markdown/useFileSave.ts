@@ -18,6 +18,12 @@ export interface SaveFileResult {
   local: boolean;
 }
 
+export interface SaveFileOptions {
+  /** When true, caller handles UI (no blocking overlay); used by autosave. */
+  silent?: boolean;
+  signal?: AbortSignal;
+}
+
 /**
  * Hook for saving files with local fallback
  */
@@ -29,13 +35,13 @@ export function useFileSave() {
   const saveFile = async (
     filePath: string,
     content: string,
-    isLocalOnly: boolean
+    isLocalOnly: boolean,
+    options?: SaveFileOptions
   ): Promise<SaveFileResult> => {
     if (isLocalOnlyFile(filePath) || isLocalOnly) {
       return await saveLocalOnlyFile(filePath, content);
-    } else {
-      return await saveRegularFile(filePath, content);
     }
+    return await saveRegularFile(filePath, content, options);
   };
 
   const saveLocalOnlyFile = async (filePath: string, content: string): Promise<SaveFileResult> => {
@@ -93,7 +99,11 @@ export function useFileSave() {
     }
   };
 
-  const saveRegularFile = async (filePath: string, content: string): Promise<SaveFileResult> => {
+  const saveRegularFile = async (
+    filePath: string,
+    content: string,
+    options?: SaveFileOptions
+  ): Promise<SaveFileResult> => {
     // Get the file ID from the tree
     const fileNode = findNodeByPath(filePath);
     const fileId = fileNode?.metadata?.id;
@@ -123,7 +133,9 @@ export function useFileSave() {
     }
 
     // Use the ID-based update method
-    const result = await markdownFilesService.updateFileById(fileId, content);
+    const result = await markdownFilesService.updateFileById(fileId, content, {
+      signal: options?.signal,
+    });
 
     if (result && result.success) {
       if (isLocalFileResult(result.data)) {

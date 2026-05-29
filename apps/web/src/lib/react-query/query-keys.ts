@@ -50,6 +50,11 @@ export const queryKeys = {
           : queryKeys.growthSystem.goals.lists(),
       details: () => [...queryKeys.growthSystem.goals.all(), 'detail'] as const,
       detail: (id: string) => [...queryKeys.growthSystem.goals.details(), id] as const,
+      linkSuggestions: (goalId: string) =>
+        [...queryKeys.growthSystem.goals.all(), 'link-suggestions', goalId] as const,
+      dependencies: () => [...queryKeys.growthSystem.goals.all(), 'dependencies'] as const,
+      goalDependencies: (goalId: string) =>
+        [...queryKeys.growthSystem.goals.all(), 'dependencies', goalId] as const,
     },
     projects: {
       all: () => [...queryKeys.growthSystem.all, 'projects'] as const,
@@ -62,6 +67,7 @@ export const queryKeys = {
       detail: (id: string) => [...queryKeys.growthSystem.projects.details(), id] as const,
       health: () => [...queryKeys.growthSystem.projects.all(), 'health'] as const,
       healthList: (ids: string[]) => [...queryKeys.growthSystem.projects.health(), ids] as const,
+      dependencies: () => [...queryKeys.growthSystem.projects.all(), 'dependencies'] as const,
     },
     logbook: {
       all: () => [...queryKeys.growthSystem.all, 'logbook'] as const,
@@ -136,15 +142,43 @@ export const queryKeys = {
       list: (filters: Record<string, unknown>) =>
         [...queryKeys.fitness.nutrition.all(), 'list', filters] as const,
     },
+    pantry: {
+      all: () => [...queryKeys.fitness.all, 'pantry'] as const,
+      list: (page: number, pageSize: number) =>
+        [...queryKeys.fitness.pantry.all(), 'list', page, pageSize] as const,
+    },
+    mealPlans: {
+      all: () => [...queryKeys.fitness.all, 'mealPlans'] as const,
+      list: (page: number, pageSize: number) =>
+        [...queryKeys.fitness.mealPlans.all(), 'list', page, pageSize] as const,
+    },
     recovery: {
       all: () => [...queryKeys.fitness.all, 'recovery'] as const,
       day: (date: string) => [...queryKeys.fitness.recovery.all(), 'day', date] as const,
       range: (start: string, end: string) =>
         [...queryKeys.fitness.recovery.all(), 'range', start, end] as const,
+      metricLinks: () => [...queryKeys.fitness.recovery.all(), 'metricLinks'] as const,
     },
     overload: (exerciseId: string) => [...queryKeys.fitness.all, 'overload', exerciseId] as const,
     aura: (start: string, end: string, xMetric: string) =>
       [...queryKeys.fitness.all, 'aura', start, end, xMetric] as const,
+    rewardRules: {
+      all: () => [...queryKeys.fitness.all, 'rewardRules'] as const,
+      list: (page: number, pageSize: number, activeOnly?: boolean) =>
+        [...queryKeys.fitness.rewardRules.all(), 'list', page, pageSize, activeOnly] as const,
+    },
+    rewardClaims: {
+      all: () => [...queryKeys.fitness.all, 'rewardClaims'] as const,
+      list: (filters: Record<string, unknown>) =>
+        [...queryKeys.fitness.rewardClaims.all(), 'list', filters] as const,
+    },
+    workoutSchedule: {
+      all: () => [...queryKeys.fitness.all, 'workoutSchedule'] as const,
+      baseline: () => [...queryKeys.fitness.workoutSchedule.all(), 'baseline'] as const,
+      days: (start: string, end: string) =>
+        [...queryKeys.fitness.workoutSchedule.all(), 'days', start, end] as const,
+      pendingSkips: () => [...queryKeys.fitness.workoutSchedule.all(), 'pendingSkips'] as const,
+    },
   },
 
   // Markdown Files
@@ -186,6 +220,7 @@ export const queryKeys = {
           : ([...queryKeys.chatbot.memory.all(), 'long-term'] as const),
     },
     modelCatalog: () => [...queryKeys.chatbot.all, 'model-catalog'] as const,
+    assistantSettings: () => [...queryKeys.chatbot.all, 'assistant-settings'] as const,
     /** Prefix match invalidates all leaf/runConfig variants for a thread. */
     contextUsage: {
       prefix: (threadId: string) => [...queryKeys.chatbot.all, 'context-usage', threadId] as const,
@@ -225,6 +260,14 @@ export const queryKeys = {
         ? ([...queryKeys.observability.all, 'executions', filters] as const)
         : ([...queryKeys.observability.all, 'executions'] as const),
     executionDetail: (id: string) => [...queryKeys.observability.all, 'execution', id] as const,
+  },
+
+  admin: {
+    assistantSandbox: {
+      all: ['assistant-sandbox'] as const,
+      session: (sessionId: string) =>
+        [...queryKeys.admin.assistantSandbox.all, 'session', sessionId] as const,
+    },
   },
 
   // Draft Notes
@@ -350,6 +393,8 @@ export const queryKeys = {
   preferences: {
     all: ['preferences'] as const,
     timeZone: () => [...queryKeys.preferences.all, 'time-zone'] as const,
+    notificationWebhook: () => [...queryKeys.preferences.all, 'notification-webhook'] as const,
+    recoveryNotifications: () => [...queryKeys.preferences.all, 'recovery-notifications'] as const,
     weeklyDashboard: () => [...queryKeys.preferences.all, 'weekly-dashboard'] as const,
     marginOfSafetyBuffer: () => [...queryKeys.preferences.all, 'margin-of-safety-buffer'] as const,
   },

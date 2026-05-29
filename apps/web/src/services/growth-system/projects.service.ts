@@ -5,6 +5,9 @@ import type {
   Task,
   UpdateProjectInput,
   Goal,
+  ProjectDependency,
+  CascadedProjectUpdate,
+  ProjectUpdateWithCascade,
 } from '@/types/growth-system';
 import type { ApiResponse, ApiListResponse, ApiError } from '@/types/api-contracts';
 import { goalsService } from '@/services/growth-system/goals.service';
@@ -76,7 +79,11 @@ export const projectsService = {
     return response;
   },
 
-  async update(id: string, input: UpdateProjectInput): Promise<ApiResponse<Project>> {
+  async update(
+    id: string,
+    input: UpdateProjectInput,
+    options?: { cascade?: boolean }
+  ): Promise<ApiResponse<Project> | ApiResponse<ProjectUpdateWithCascade>> {
     const requestBody = {
       name: input.name,
       description: input.description || undefined,
@@ -91,8 +98,82 @@ export const projectsService = {
       notes: input.notes || undefined,
     };
 
-    const response = await apiClient.patch<Project>(`/projects/${id}`, requestBody);
+    const cascadeQuery = options?.cascade ? '?cascade=true' : '';
+    const response = await apiClient.patch<any>(`/projects/${id}${cascadeQuery}`, requestBody);
+
+    if (response.success && response.data) {
+      if (response.data.project) {
+        return {
+          ...response,
+          data: {
+            project: response.data.project as Project,
+            cascaded: (response.data.cascaded ?? []) as CascadedProjectUpdate[],
+          },
+        };
+      }
+      return {
+        ...response,
+        data: response.data as Project,
+      };
+    }
+
     return response;
+  },
+
+  async listAllDependencies(projectIds?: string[]): Promise<ApiResponse<ProjectDependency[]>> {
+    const query = projectIds?.length ? `?projectIds=${projectIds.join(',')}` : '';
+    const response = await apiClient.get<{ dependencies: ProjectDependency[] }>(
+      `/projects/dependencies${query}`
+    );
+    if (response.success && response.data) {
+      return { ...response, data: response.data.dependencies };
+    }
+    throw new Error(response.error?.message || 'Failed to fetch project dependencies');
+  },
+
+  async listDependenciesForProject(
+    projectId: string
+  ): Promise<ApiResponse<{ predecessors: ProjectDependency[]; successors: ProjectDependency[] }>> {
+    const response = await apiClient.get<{
+      predecessors: ProjectDependency[];
+      successors: ProjectDependency[];
+    }>(`/projects/${projectId}/dependencies`);
+    return response;
+  },
+
+  async addDependency(
+    successorProjectId: string,
+    predecessorProjectId: string,
+    lagDays?: number
+  ): Promise<ApiResponse<{ dependency: ProjectDependency; cascaded: CascadedProjectUpdate[] }>> {
+    const body: { predecessorProjectId: string; lagDays?: number } = { predecessorProjectId };
+    if (lagDays !== undefined) body.lagDays = lagDays;
+    const response = await apiClient.post<{
+      dependency: ProjectDependency;
+      cascaded: CascadedProjectUpdate[];
+    }>(`/projects/${successorProjectId}/dependencies`, body);
+    return response;
+  },
+
+  async updateDependencyLag(
+    successorProjectId: string,
+    predecessorProjectId: string,
+    lagDays: number
+  ): Promise<ApiResponse<{ dependency: ProjectDependency; cascaded: CascadedProjectUpdate[] }>> {
+    const response = await apiClient.patch<{
+      dependency: ProjectDependency;
+      cascaded: CascadedProjectUpdate[];
+    }>(`/projects/${successorProjectId}/dependencies/${predecessorProjectId}`, { lagDays });
+    return response;
+  },
+
+  async removeDependency(
+    successorProjectId: string,
+    predecessorProjectId: string
+  ): Promise<ApiResponse<void>> {
+    return apiClient.delete<void>(
+      `/projects/${successorProjectId}/dependencies/${predecessorProjectId}`
+    );
   },
 
   async delete(id: string): Promise<ApiResponse<void>> {

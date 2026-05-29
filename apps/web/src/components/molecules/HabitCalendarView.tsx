@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import type { Habit, HabitLog } from '@/types/growth-system';
 import { generateCalendarDays } from '@/utils/habit-analytics';
+import { habitConfiguredOffDates } from '@/utils/habit-off-days';
 import { getHabitTypeColors } from '@/utils/habit-colors';
 
 interface HabitCalendarViewProps {
@@ -38,7 +39,10 @@ export function HabitCalendarView({
   const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const today = new Date();
 
-  const calendarDays = generateCalendarDays(year, month, logs);
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0);
+  const offDayDates = habitConfiguredOffDates(habit, monthStart, monthEnd);
+  const calendarDays = generateCalendarDays(year, month, logs, offDayDates);
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const colors = getHabitTypeColors(habit.habitType);
 
@@ -91,6 +95,7 @@ export function HabitCalendarView({
 
         {calendarDays.map((calendarDay, index) => {
           const hasCompletions = calendarDay.completionCount > 0;
+          const isOffDay = calendarDay.isOffDay ?? false;
           const isToday = calendarDay.isToday;
           const dayDate = new Date(calendarDay.date);
           dayDate.setHours(0, 0, 0, 0);
@@ -103,9 +108,11 @@ export function HabitCalendarView({
               className={`aspect-square border-2 rounded-lg p-2 transition-all cursor-pointer group ${
                 isToday
                   ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-md ring-2 ring-blue-200 dark:ring-blue-800'
-                  : hasCompletions
-                    ? `${colors.border} bg-white dark:bg-gray-800 hover:shadow-md hover:scale-105`
-                    : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-600/50 ring-1 ring-inset ring-gray-200/80 dark:ring-gray-500/50 hover:bg-gray-200 dark:hover:bg-gray-600/70'
+                  : isOffDay
+                    ? 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800/60 ring-1 ring-inset ring-slate-200/80 dark:ring-slate-600/50'
+                    : hasCompletions
+                      ? `${colors.border} bg-white dark:bg-gray-800 hover:shadow-md hover:scale-105`
+                      : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-600/50 ring-1 ring-inset ring-gray-200/80 dark:ring-gray-500/50 hover:bg-gray-200 dark:hover:bg-gray-600/70'
               } ${!calendarDay.isCurrentMonth ? 'opacity-40' : ''} ${
                 isCurrentWeek && !isToday ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''
               }`}

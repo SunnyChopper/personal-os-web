@@ -26,6 +26,8 @@ export type AssistantRunConfigPickerFormProps = {
   manualHelpText?: string;
   /** When Auto and `lastResolved` is absent, show this note (e.g. chat: “after next reply”). */
   autoLastReplyPlaceholder?: string | null;
+  /** When false, hide context compaction controls (e.g. settings default-models section). */
+  showCompaction?: boolean;
 };
 
 export function AssistantRunConfigPickerForm({
@@ -37,6 +39,7 @@ export function AssistantRunConfigPickerForm({
   disabled,
   manualHelpText = 'Manual choices apply after you tap Save — your next message uses the saved models.',
   autoLastReplyPlaceholder = null,
+  showCompaction = true,
 }: AssistantRunConfigPickerFormProps) {
   const [manualSortBy, setManualSortBy] = useState<ManualModelSortKey>('default');
 
@@ -63,42 +66,46 @@ export function AssistantRunConfigPickerForm({
         disabled={disabled}
         onChange={(m) => onDraftChange({ mode: m })}
       />
-      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 mt-3">
-        Context compaction
-      </p>
-      <div className="flex flex-col gap-1.5 mb-2">
-        <div className="flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onDraftChange({ compactionMode: 'auto' })}
-            className={`px-2 py-2 sm:py-1.5 rounded-md text-xs text-left min-h-[44px] sm:min-h-0 flex-1 sm:flex-none ${
-              (draft.compactionMode ?? 'auto') !== 'manual'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
-            }`}
-          >
-            Auto compact
-          </button>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onDraftChange({ compactionMode: 'manual' })}
-            className={`px-2 py-2 sm:py-1.5 rounded-md text-xs text-left min-h-[44px] sm:min-h-0 flex-1 sm:flex-none ${
-              (draft.compactionMode ?? 'auto') === 'manual'
-                ? 'bg-amber-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
-            }`}
-          >
-            Manual compact
-          </button>
-        </div>
-        <p className="text-[11px] text-gray-500 dark:text-gray-400">
-          <strong>Auto</strong> lets the server summarize older turns when you are near the model
-          limit. <strong>Manual</strong> never does that silently—you run &quot;Compact thread&quot;
-          in chat (or start a new thread) when the meter says it is required.
-        </p>
-      </div>
+      {showCompaction ? (
+        <>
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 mt-3">
+            Context compaction
+          </p>
+          <div className="flex flex-col gap-1.5 mb-2">
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onDraftChange({ compactionMode: 'auto' })}
+                className={`px-2 py-2 sm:py-1.5 rounded-md text-xs text-left min-h-[44px] sm:min-h-0 flex-1 sm:flex-none ${
+                  (draft.compactionMode ?? 'auto') !== 'manual'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                }`}
+              >
+                Auto compact
+              </button>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onDraftChange({ compactionMode: 'manual' })}
+                className={`px-2 py-2 sm:py-1.5 rounded-md text-xs text-left min-h-[44px] sm:min-h-0 flex-1 sm:flex-none ${
+                  (draft.compactionMode ?? 'auto') === 'manual'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                }`}
+              >
+                Manual compact
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              <strong>Auto</strong> lets the server summarize older turns when you are near the
+              model limit. <strong>Manual</strong> never does that silently—you run &quot;Compact
+              thread&quot; in chat (or start a new thread) when the meter says it is required.
+            </p>
+          </div>
+        </>
+      ) : null}
       {draft.mode === 'auto' ? (
         <>
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">

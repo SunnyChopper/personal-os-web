@@ -51,6 +51,7 @@ export interface AutomationFormDefaults {
   customUserPrompt: string;
   threadStrategy: ProactiveThreadStrategy;
   channelEmailEnabled: boolean;
+  channelWebhookEnabled: boolean;
   title: string;
   /** Selected weekday indices; empty means every day (omit `daysOfWeek` on save). */
   daysOfWeek: number[];
@@ -92,6 +93,7 @@ function buildDefaults(
       customUserPrompt: initialAutomation.customUserPrompt ?? '',
       threadStrategy: initialAutomation.threadStrategy,
       channelEmailEnabled: initialAutomation.channelEmailEnabled,
+      channelWebhookEnabled: initialAutomation.channelWebhookEnabled,
       title: (initialAutomation.title ?? '').trim(),
       daysOfWeek: [...(initialAutomation.daysOfWeek ?? [])].filter(
         (d) => Number.isInteger(d) && d >= 0 && d <= 6
@@ -111,6 +113,7 @@ function buildDefaults(
         ? suggestionPayload.threadStrategy
         : 'reuseFixedThread';
     const ce = suggestionPayload.channelEmailEnabled;
+    const cw = suggestionPayload.channelWebhookEnabled;
     const prompt =
       typeof suggestionPayload.customUserPrompt === 'string'
         ? suggestionPayload.customUserPrompt
@@ -123,6 +126,7 @@ function buildDefaults(
       customUserPrompt: prompt,
       threadStrategy: ts,
       channelEmailEnabled: typeof ce === 'boolean' ? ce : true,
+      channelWebhookEnabled: typeof cw === 'boolean' ? cw : false,
       title,
       daysOfWeek: readDaysFromPayload(suggestionPayload),
       assistantRunConfig: parseProactiveAssistantRunConfigFromUnknown(
@@ -137,6 +141,7 @@ function buildDefaults(
     customUserPrompt: '',
     threadStrategy: 'reuseFixedThread',
     channelEmailEnabled: true,
+    channelWebhookEnabled: false,
     title: '',
     daysOfWeek: [],
     assistantRunConfig: null,
@@ -172,6 +177,9 @@ function AutomationFormFields({
     defaults.threadStrategy
   );
   const [channelEmailEnabled, setChannelEmailEnabled] = useState(defaults.channelEmailEnabled);
+  const [channelWebhookEnabled, setChannelWebhookEnabled] = useState(
+    defaults.channelWebhookEnabled
+  );
   const [title, setTitle] = useState(defaults.title);
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>(defaults.daysOfWeek);
   const [modelDraft, setModelDraft] = useState<ModelPickerDraft>(() =>
@@ -230,6 +238,7 @@ function AutomationFormFields({
       timeZone,
       threadStrategy,
       channelEmailEnabled,
+      channelWebhookEnabled,
     };
     const t = title.trim();
     if (t) body.title = t;
@@ -380,7 +389,7 @@ function AutomationFormFields({
             manualHelpText="Manual choices apply when you save this automation."
           />
         </div>
-        <label className="text-xs flex items-center gap-2 sm:col-span-2">
+        <label className="text-xs flex items-center gap-2">
           <input
             type="checkbox"
             className="rounded border-gray-400"
@@ -389,6 +398,17 @@ function AutomationFormFields({
           />
           <span className="font-medium text-gray-700 dark:text-gray-300">
             Send email notifications (when configured)
+          </span>
+        </label>
+        <label className="text-xs flex items-center gap-2 sm:col-span-2">
+          <input
+            type="checkbox"
+            className="rounded border-gray-400"
+            checked={channelWebhookEnabled}
+            onChange={(e) => setChannelWebhookEnabled(e.target.checked)}
+          />
+          <span className="font-medium text-gray-700 dark:text-gray-300">
+            Send webhook notifications (Discord or generic; configure in Settings)
           </span>
         </label>
       </div>

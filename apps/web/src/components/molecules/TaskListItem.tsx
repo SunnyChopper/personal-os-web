@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Calendar, Clock, GitBranch, Coins } from 'lucide-react';
+import { Pencil, Trash2, Calendar, Clock, GitBranch } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import type { Task } from '@/types/growth-system';
@@ -7,10 +7,24 @@ import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
 import { DependencyBadge } from '@/components/atoms/DependencyBadge';
+import { PointBadge } from '@/components/atoms/PointBadge';
+import { pointBadgeStatusFromTask, pointBadgeStatusHint } from '@/lib/point-badge';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
 import { formatTaskStoryPointsLabel } from '@/constants/growth-system';
 import { differenceInCalendarDaysLocal, formatDateString } from '@/utils/date-formatters';
+import { TaskFieldMarkdown } from '@/components/molecules/TaskFieldMarkdown';
+
+function TaskRewardPointsRow({ task }: { task: Task }) {
+  const status = pointBadgeStatusFromTask(task);
+  const hint = pointBadgeStatusHint(status);
+  return (
+    <div className="flex items-center gap-1.5">
+      <PointBadge value={task.pointValue!} status={status} size="md" />
+      {hint ? <span className="text-xs text-gray-500 dark:text-gray-400">{hint}</span> : null}
+    </div>
+  );
+}
 
 interface TaskListItemProps {
   task: Task;
@@ -97,21 +111,7 @@ export function TaskListItem({
         </span>
       ) : null}
 
-      {task.pointValue ? (
-        <div className="flex items-center gap-1.5">
-          <Coins className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-500" />
-          <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">
-            Reward: {task.pointValue} {task.pointValue === 1 ? 'pt' : 'pts'}
-            {task.rewardLedgerStatus === 'reversed'
-              ? ' · clawed back (reopened)'
-              : task.status === 'Done' && task.pointsAwarded
-                ? ' · earned'
-                : task.status !== 'Done'
-                  ? ' · if completed'
-                  : ''}
-          </span>
-        </div>
-      ) : null}
+      {task.pointValue ? <TaskRewardPointsRow task={task} /> : null}
 
       {dueInfo ? (
         <div className="flex items-center gap-1.5">
@@ -175,8 +175,11 @@ export function TaskListItem({
           : ''
       }`}
       onClick={(e) => {
-        // Don't trigger click if clicking on action buttons
-        if ((e.target as HTMLElement).closest('button')) {
+        // Don't trigger click if clicking on action buttons or checklist toggles
+        if (
+          (e.target as HTMLElement).closest('button') ||
+          (e.target as HTMLElement).closest('input[type="checkbox"]')
+        ) {
           return;
         }
         handleClick();
@@ -285,9 +288,14 @@ export function TaskListItem({
               </div>
             </div>
             {task.description ? (
-              <p className="text-sm leading-snug text-gray-600 line-clamp-2 dark:text-gray-400 sm:line-clamp-3 sm:leading-relaxed">
-                {task.description}
-              </p>
+              <div className="line-clamp-2 sm:line-clamp-3">
+                <TaskFieldMarkdown
+                  taskId={task.id}
+                  field="description"
+                  value={task.description}
+                  variant="compact"
+                />
+              </div>
             ) : null}
           </div>
         </div>

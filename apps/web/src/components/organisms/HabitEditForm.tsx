@@ -8,7 +8,9 @@ import type {
   HabitFrequency,
 } from '@/types/growth-system';
 import Button from '@/components/atoms/Button';
+import { HabitOffDaysFields } from '@/components/molecules/HabitOffDaysFields';
 import { AREAS, HABIT_FREQUENCIES, HABIT_TYPES } from '@/constants/growth-system';
+import type { HabitWeekdayCode } from '@/utils/habit-off-days';
 
 interface HabitEditFormProps {
   habit: Habit;
@@ -34,6 +36,8 @@ export function HabitEditForm({ habit, onSubmit, onCancel, isLoading }: HabitEdi
     frictionUp: habit.frictionUp || '',
     frictionDown: habit.frictionDown || '',
     notes: habit.notes || '',
+    offDaysOfWeek: habit.offDaysOfWeek ?? [],
+    offDates: habit.offDates ?? [],
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -235,6 +239,20 @@ export function HabitEditForm({ habit, onSubmit, onCancel, isLoading }: HabitEdi
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
+
+      <HabitOffDaysFields
+        value={{
+          offDaysOfWeek: (formData.offDaysOfWeek ?? []) as HabitWeekdayCode[],
+          offDates: formData.offDates ?? [],
+        }}
+        onChange={(offDays) =>
+          setFormData({
+            ...formData,
+            offDaysOfWeek: offDays.offDaysOfWeek,
+            offDates: offDays.offDates,
+          })
+        }
+      />
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

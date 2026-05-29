@@ -1,41 +1,9 @@
 import { Link } from 'react-router-dom';
-import { LayoutGrid, Coffee, Dumbbell, Sparkles, ExternalLink } from 'lucide-react';
+import { LayoutGrid, Coffee, Dumbbell, Sparkles, Gift, ExternalLink } from 'lucide-react';
 import { ROUTES } from '@/routes';
-import { localCalendarDate } from '@/lib/date/local-calendar';
-import { useFitnessRecoveryRange, useUpsertRecoveryMutation } from '@/hooks/useFitness';
-import { useState, useEffect } from 'react';
+import { DailyRecoveryCard } from '@/components/organisms/fitness/DailyRecoveryCard';
 
 export default function HealthFitnessOverviewPage() {
-  const today = localCalendarDate();
-  const { data: recoveryRes } = useFitnessRecoveryRange(today, today);
-  const upsert = useUpsertRecoveryMutation();
-
-  const recoveryPage = recoveryRes?.success && recoveryRes.data ? recoveryRes.data : undefined;
-  const existing = recoveryPage?.data?.[0];
-
-  const [sleepHours, setSleepHours] = useState<string>('');
-  const [sleepQuality, setSleepQuality] = useState<string>('');
-  const [energyLevel, setEnergyLevel] = useState<string>('');
-  const [notes, setNotes] = useState('');
-
-  useEffect(() => {
-    if (existing) {
-      setSleepHours(existing.sleepHours != null ? String(existing.sleepHours) : '');
-      setSleepQuality(existing.sleepQuality != null ? String(existing.sleepQuality) : '');
-      setEnergyLevel(existing.energyLevel != null ? String(existing.energyLevel) : '');
-      setNotes(existing.notes ?? '');
-    }
-  }, [existing]);
-
-  const saveRecovery = async () => {
-    const body: Record<string, unknown> = {};
-    if (sleepHours !== '') body.sleepHours = Number(sleepHours);
-    if (sleepQuality !== '') body.sleepQuality = Number(sleepQuality);
-    if (energyLevel !== '') body.energyLevel = Number(energyLevel);
-    if (notes !== '') body.notes = notes;
-    await upsert.mutateAsync({ date: today, body });
-  };
-
   const cards = [
     {
       title: 'Nutrition',
@@ -55,6 +23,12 @@ export default function HealthFitnessOverviewPage() {
       icon: <Sparkles className="h-8 w-8" />,
       to: ROUTES.admin.healthFitnessAura,
     },
+    {
+      title: 'Rewards',
+      desc: 'Configurable points for health actions — feeds your global wallet.',
+      icon: <Gift className="h-8 w-8" />,
+      to: ROUTES.admin.healthFitnessRewards,
+    },
   ];
 
   return (
@@ -71,68 +45,7 @@ export default function HealthFitnessOverviewPage() {
         </p>
       </div>
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900/40">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Today&apos;s recovery ({today})
-        </h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Saved to DailyRecovery (not logbook) for Aura and analytics.
-        </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <label className="text-sm text-gray-700 dark:text-gray-300">
-            Sleep hours
-            <input
-              type="number"
-              step="0.25"
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-950"
-              value={sleepHours}
-              onChange={(e) => setSleepHours(e.target.value)}
-              placeholder="e.g. 7.5"
-            />
-          </label>
-          <label className="text-sm text-gray-700 dark:text-gray-300">
-            Sleep quality (1–10)
-            <input
-              type="number"
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-950"
-              value={sleepQuality}
-              onChange={(e) => setSleepQuality(e.target.value)}
-            />
-          </label>
-          <label className="text-sm text-gray-700 dark:text-gray-300">
-            Energy (1–10)
-            <input
-              type="number"
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-950"
-              value={energyLevel}
-              onChange={(e) => setEnergyLevel(e.target.value)}
-            />
-          </label>
-        </div>
-        <label className="mt-4 block text-sm text-gray-700 dark:text-gray-300">
-          Notes
-          <textarea
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-950"
-            rows={2}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </label>
-        <button
-          type="button"
-          onClick={saveRecovery}
-          disabled={upsert.isPending}
-          className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {upsert.isPending ? 'Saving…' : 'Save recovery'}
-        </button>
-        {existing?.recoveryScore != null && (
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Recovery score:{' '}
-            <span className="font-mono font-semibold">{existing.recoveryScore.toFixed(0)}</span>
-          </p>
-        )}
-      </section>
+      <DailyRecoveryCard />
 
       <section className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">

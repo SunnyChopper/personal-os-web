@@ -17,6 +17,7 @@ import type {
   PreAssessmentStored,
 } from '@/types/knowledge-vault';
 import type { CourseGenerationProgress, LessonGenerationProgress } from './course-generation/types';
+import { withNoteAIModel } from './note-ai-options';
 
 interface AIResponse<T> {
   result: T;
@@ -32,6 +33,8 @@ interface GeneratePreAssessmentInput {
   targetDifficulty: DifficultyLevel;
   /** When `vault`, backend / client should treat `topic` as already including vault RAG text. */
   knowledgeSource?: 'global' | 'vault';
+  /** Catalog model id when manual; omit for server vault defaults. */
+  model?: string;
 }
 
 interface PreAssessmentResult {
@@ -43,6 +46,8 @@ export interface GenerateCourseSkeletonInput {
   preAssessment: PreAssessmentStored;
   targetDifficulty: DifficultyLevel;
   knowledgeSource?: 'global' | 'vault';
+  /** Catalog model id when manual; omit for server vault defaults. */
+  model?: string;
   onProgress?: (progress: CourseGenerationProgress) => void;
   /**
    * When true, skip WebSocket and use `POST /ai/courses/skeleton` only.
@@ -79,12 +84,15 @@ async function generateCourseSkeletonRest(
 
   const response = await apiClient.post<{ data: AIResponse<WsCourseSkeletonResult> }>(
     '/ai/courses/skeleton',
-    {
-      topic: input.topic,
-      preAssessment: input.preAssessment,
-      targetDifficulty: input.targetDifficulty,
-      knowledgeSource: input.knowledgeSource ?? 'global',
-    }
+    withNoteAIModel(
+      {
+        topic: input.topic,
+        preAssessment: input.preAssessment,
+        targetDifficulty: input.targetDifficulty,
+        knowledgeSource: input.knowledgeSource ?? 'global',
+      },
+      { model: input.model }
+    )
   );
 
   if (response.success && response.data) {
@@ -117,11 +125,14 @@ export const aiCourseGeneratorService = {
     try {
       const response = await apiClient.post<{ data: AIResponse<PreAssessmentResult> }>(
         '/ai/courses/pre-assessment',
-        {
-          topic: input.topic,
-          targetDifficulty: input.targetDifficulty,
-          knowledgeSource: input.knowledgeSource ?? 'global',
-        }
+        withNoteAIModel(
+          {
+            topic: input.topic,
+            targetDifficulty: input.targetDifficulty,
+            knowledgeSource: input.knowledgeSource ?? 'global',
+          },
+          { model: input.model }
+        )
       );
 
       if (response.success && response.data) {
@@ -164,6 +175,7 @@ export const aiCourseGeneratorService = {
           preAssessment: input.preAssessment,
           targetDifficulty: input.targetDifficulty,
           knowledgeSource: input.knowledgeSource ?? 'global',
+          model: input.model,
           onProgress: input.onProgress,
         });
         return { data, error: null, success: true };

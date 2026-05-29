@@ -11,6 +11,8 @@ import type {
   SuccessCriterion,
 } from '@/types/growth-system';
 import Button from '@/components/atoms/Button';
+import { GoalProgressWeightsFields } from '@/components/molecules/GoalProgressWeightsFields';
+import { DEFAULT_GOAL_PROGRESS_WEIGHTS } from '@/utils/goal-progress-weights';
 import {
   AREAS,
   AREA_LABELS,
@@ -47,6 +49,7 @@ export function GoalEditForm({
     timeHorizon: goal.timeHorizon,
     priority: goal.priority,
     status: goal.status,
+    startDate: goal.startDate ? extractDateOnly(goal.startDate) : '',
     targetDate: goal.targetDate ? extractDateOnly(goal.targetDate) : '',
     successCriteria:
       goal.successCriteria && goal.successCriteria.length > 0
@@ -56,7 +59,10 @@ export function GoalEditForm({
         : [],
     notes: goal.notes || '',
     parentGoalId: goal.parentGoalId || undefined,
+    progressConfig: goal.progressConfig || DEFAULT_GOAL_PROGRESS_WEIGHTS,
   });
+
+  const [showProgressWeights, setShowProgressWeights] = useState(Boolean(goal.progressConfig));
 
   // Get valid parent goals based on current time horizon
   const validParentGoals = useMemo(() => {
@@ -327,12 +333,6 @@ export function GoalEditForm({
                   </div>
                 </div>
               </div>
-              {!formData.parentGoalId && validParentGoals.length > 0 && (
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Select a parent goal to create a hierarchy. Only goals one timeframe higher are
-                  available.
-                </p>
-              )}
             </>
           )}
         </div>
@@ -415,6 +415,20 @@ export function GoalEditForm({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Start Date
+            </label>
+            <input
+              type="date"
+              value={formData.startDate || ''}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, startDate: e.target.value || null }))
+              }
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Target Date
             </label>
             <input
@@ -463,6 +477,13 @@ export function GoalEditForm({
             </div>
           )}
         </div>
+
+        <GoalProgressWeightsFields
+          value={formData.progressConfig ?? DEFAULT_GOAL_PROGRESS_WEIGHTS}
+          onChange={(config) => setFormData((prev) => ({ ...prev, progressConfig: config }))}
+          showAdvanced={showProgressWeights}
+          onToggleAdvanced={() => setShowProgressWeights((v) => !v)}
+        />
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

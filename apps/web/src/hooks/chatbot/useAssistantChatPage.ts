@@ -27,6 +27,11 @@ import { useChatbotSendHandlers } from '@/hooks/chatbot/useChatbotSendHandlers';
 import type { ChatThreadListProps } from '@/components/organisms/ChatThreadList';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { chatbotService } from '@/services/chatbot.service';
+import { apiClient } from '@/lib/api-client';
+import {
+  draftFromDefaultModels,
+  type ModelPickerDraft,
+} from '@/lib/assistant/run-config-picker-draft';
 import type {
   AssistantCompactionMode,
   AssistantNextSendModelsDisplay,
@@ -104,6 +109,8 @@ export function useAssistantChatPage({
     runs,
     lastResolvedModelPick,
     streamingMeterSnapshot,
+    debugWsEvents,
+    lastContextBudgetMeta,
     isStreaming,
     isAwaitingRunStart,
     error: streamingError,
@@ -131,6 +138,18 @@ export function useAssistantChatPage({
     staleTime: 120_000,
   });
 
+  const assistantSettingsQuery = useQuery({
+    queryKey: queryKeys.chatbot.assistantSettings(),
+    queryFn: async () => {
+      const res = await apiClient.getAssistantSettings();
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? 'Failed to load assistant settings');
+      }
+      return res.data;
+    },
+    staleTime: 120_000,
+  });
+
   const [modelPickerMode, setModelPickerMode] = useState<'manual' | 'auto'>('auto');
   const [reasoningModelId, setReasoningModelId] = useState('');
   const [responseModelId, setResponseModelId] = useState('');
@@ -140,11 +159,8 @@ export function useAssistantChatPage({
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
   const [isCompactingThread, setIsCompactingThread] = useState(false);
 
-  const pickerStorageKey = user?.id ? `assistant-model-picker:${user.id}` : null;
-  /** Avoid re-applying localStorage / defaults when React Query refreshes `data` object identity. */
+  /** Avoid re-applying saved defaults when React Query refreshes object identity. */
   const pickerHydratedForKeyRef = useRef<string | null>(null);
-  /** When true, the next picker→localStorage sync is skipped (leaf hydration is in-memory only). */
-  const skipNextPickerPersistRef = useRef(false);
   /** Last (thread, leaf, run-config snapshot) we applied from transcript metadata — avoids reverting Save & apply when picker state changes. */
   const lastLeafSyncRef = useRef<{
     threadId: string | null;
@@ -154,140 +170,60 @@ export function useAssistantChatPage({
 
   useEffect(() => {
     pickerHydratedForKeyRef.current = null;
-  }, [pickerStorageKey]);
+  }, [user?.id]);
 
-  /** Sync picker from localStorage before paint so the header does not briefly show Auto while Manual is saved. */
+  const applyModelPickerDraft = useCallback((draft: ModelPickerDraft) => {
+    setModelPickerMode(draft.mode);
+    setReasoningModelId(draft.reasoningModelId);
+    setResponseModelId(draft.responseModelId);
+    setOptimizeFor(draft.optimizeFor);
+    setWebSearchEnabled(false);
+    setThreadCompactionMode('auto');
+  }, []);
+
+  const seedDraftFromSavedDefaults = useCallback((): ModelPickerDraft | null => {
+    const catalog = modelCatalogQuery.data;
+    if (!catalog?.defaults) {
+      return null;
+    }
+    return draftFromDefaultModels(assistantSettingsQuery.data?.defaultModels, catalog);
+  }, [assistantSettingsQuery.data?.defaultModels, modelCatalogQuery.data]);
+
+  /** Sync picker from saved default models before paint so the header does not briefly show stale values. */
   useLayoutEffect(() => {
     const data = modelCatalogQuery.data;
-    if (!data?.defaults || !pickerStorageKey) {
+    if (!data?.defaults || !user?.id) {
       return;
     }
-    if (pickerHydratedForKeyRef.current === pickerStorageKey) {
+    if (assistantSettingsQuery.isLoading || assistantSettingsQuery.isError) {
       return;
     }
-    pickerHydratedForKeyRef.current = pickerStorageKey;
-    try {
-      const raw = localStorage.getItem(pickerStorageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as {
-          mode?: 'manual' | 'auto';
-          reasoningModelId?: string;
-          responseModelId?: string;
-          optimizeFor?: AssistantOptimizeFor;
-          webSearchEnabled?: boolean;
-          compactionMode?: AssistantCompactionMode;
-        };
-        if (parsed.mode === 'auto' || parsed.mode === 'manual') {
-          setModelPickerMode(parsed.mode);
-        }
-        if (parsed.reasoningModelId) {
-          setReasoningModelId(parsed.reasoningModelId);
-        }
-        if (parsed.responseModelId) {
-          setResponseModelId(parsed.responseModelId);
-        }
-        if (parsed.optimizeFor) {
-          setOptimizeFor(parsed.optimizeFor);
-        }
-        if (typeof parsed.webSearchEnabled === 'boolean') {
-          setWebSearchEnabled(parsed.webSearchEnabled);
-        }
-        if (parsed.compactionMode === 'manual' || parsed.compactionMode === 'auto') {
-          setThreadCompactionMode(parsed.compactionMode);
-        }
-        return;
-      }
-    } catch {
-      /* ignore corrupt localStorage; fall through to defaults */
-    }
-    setModelPickerMode('auto');
-    setOptimizeFor('intelligence');
-    setReasoningModelId(data.defaults.defaultReasoningModelId);
-    setResponseModelId(data.defaults.defaultResponseModelId);
-    setWebSearchEnabled(false);
-    setThreadCompactionMode('auto');
-  }, [modelCatalogQuery.data, pickerStorageKey]);
-
-  useEffect(() => {
-    if (!pickerStorageKey) {
+    const hydrationKey = `${user.id}:${assistantSettingsQuery.dataUpdatedAt}`;
+    if (pickerHydratedForKeyRef.current === hydrationKey) {
       return;
     }
-    if (skipNextPickerPersistRef.current) {
-      skipNextPickerPersistRef.current = false;
-      return;
-    }
-    try {
-      localStorage.setItem(
-        pickerStorageKey,
-        JSON.stringify({
-          mode: modelPickerMode,
-          reasoningModelId,
-          responseModelId,
-          optimizeFor,
-          webSearchEnabled,
-          compactionMode: threadCompactionMode,
-        })
-      );
-    } catch {
-      /* ignore quota */
+    pickerHydratedForKeyRef.current = hydrationKey;
+    const draft = seedDraftFromSavedDefaults();
+    if (draft) {
+      applyModelPickerDraft(draft);
     }
   }, [
-    pickerStorageKey,
-    modelPickerMode,
-    reasoningModelId,
-    responseModelId,
-    optimizeFor,
-    webSearchEnabled,
-    threadCompactionMode,
+    applyModelPickerDraft,
+    assistantSettingsQuery.dataUpdatedAt,
+    assistantSettingsQuery.isError,
+    assistantSettingsQuery.isLoading,
+    modelCatalogQuery.data,
+    seedDraftFromSavedDefaults,
+    user?.id,
   ]);
 
-  /** Re-apply the saved global picker when a thread leaf has no stored per-message run config. */
+  /** Re-apply saved default models when a thread leaf has no stored per-message run config. */
   const restoreGlobalModelPicker = useCallback(() => {
-    const data = modelCatalogQuery.data;
-    if (!data?.defaults || !pickerStorageKey) {
-      return;
+    const draft = seedDraftFromSavedDefaults();
+    if (draft) {
+      applyModelPickerDraft(draft);
     }
-    try {
-      const raw = localStorage.getItem(pickerStorageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as {
-          mode?: 'manual' | 'auto';
-          reasoningModelId?: string;
-          responseModelId?: string;
-          optimizeFor?: AssistantOptimizeFor;
-          webSearchEnabled?: boolean;
-          compactionMode?: AssistantCompactionMode;
-        };
-        if (parsed.mode === 'auto' || parsed.mode === 'manual') {
-          setModelPickerMode(parsed.mode);
-        }
-        if (parsed.reasoningModelId) {
-          setReasoningModelId(parsed.reasoningModelId);
-        }
-        if (parsed.responseModelId) {
-          setResponseModelId(parsed.responseModelId);
-        }
-        if (parsed.optimizeFor) {
-          setOptimizeFor(parsed.optimizeFor);
-        }
-        if (typeof parsed.webSearchEnabled === 'boolean') {
-          setWebSearchEnabled(parsed.webSearchEnabled);
-        }
-        if (parsed.compactionMode === 'manual' || parsed.compactionMode === 'auto') {
-          setThreadCompactionMode(parsed.compactionMode);
-        }
-        return;
-      }
-    } catch {
-      /* ignore corrupt localStorage */
-    }
-    setModelPickerMode('auto');
-    setOptimizeFor('intelligence');
-    setReasoningModelId(data.defaults.defaultReasoningModelId);
-    setResponseModelId(data.defaults.defaultResponseModelId);
-    setWebSearchEnabled(false);
-    setThreadCompactionMode('auto');
-  }, [modelCatalogQuery.data, pickerStorageKey]);
+  }, [applyModelPickerDraft, seedDraftFromSavedDefaults]);
 
   const getRunConfig = useCallback((): AssistantRunConfig | undefined => {
     const models = modelCatalogQuery.data?.models;
@@ -326,6 +262,24 @@ export function useAssistantChatPage({
       tree,
       runs,
     });
+
+  const activeRunDebug = useMemo(() => {
+    if (!activeRunId) {
+      return null;
+    }
+    const run = runs[activeRunId];
+    if (!run) {
+      return null;
+    }
+    return {
+      runId: activeRunId,
+      threadId: run.threadId,
+      statusStage: run.statusStage,
+      statusMessage: run.statusMessage,
+      resolvedReasoningModelId: run.resolvedReasoningModelId,
+      resolvedResponseModelId: run.resolvedResponseModelId,
+    };
+  }, [activeRunId, runs]);
 
   const nextSendModelsDisplay = useMemo((): AssistantNextSendModelsDisplay | null => {
     const catalogModels = modelCatalogQuery.data?.models ?? [];
@@ -416,7 +370,6 @@ export function useAssistantChatPage({
       return;
     }
     const cfg = runConfigForSelectedLeaf;
-    skipNextPickerPersistRef.current = true;
     if (cfg.mode === 'manual') {
       setModelPickerMode('manual');
       setReasoningModelId(cfg.manual.reasoningModelId);
@@ -639,7 +592,7 @@ export function useAssistantChatPage({
     !isLocalDraft && connectionState === 'reconnecting' && (isStreaming || isAwaitingRunStart);
 
   const handleCreateThread = useCallback(() => {
-    /** Respect saved defaults (localStorage); do not force Auto — that caused a visible mismatch vs Manual defaults until hydration caught up. */
+    /** Seed from saved Default Models in Assistant Settings (settings-authoritative). */
     restoreGlobalModelPicker();
     navigate(`/admin/assistant/${createLocalAssistantThreadId()}`);
   }, [navigate, restoreGlobalModelPicker]);
@@ -890,6 +843,9 @@ export function useAssistantChatPage({
     setThreadCompactionMode,
     contextUsageQuery,
     streamingMeterSnapshot,
+    activeRunDebug,
+    debugWsEvents,
+    lastContextBudgetMeta,
     manualSendBlockedMessage,
     handleCompactThread,
     isCompactingThread,

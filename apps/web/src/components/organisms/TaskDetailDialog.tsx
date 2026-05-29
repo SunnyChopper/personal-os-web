@@ -1,8 +1,10 @@
-import { Pencil, Calendar, Clock, FileText, Tag, Award } from 'lucide-react';
+import { Pencil, Calendar, Clock, FileText, Tag } from 'lucide-react';
 import type { Task } from '@/types/growth-system';
 import Dialog from '@/components/molecules/Dialog';
 import Button from '@/components/atoms/Button';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
+import { PointBadge } from '@/components/atoms/PointBadge';
+import { pointBadgeStatusFromTask, pointBadgeStatusHint } from '@/lib/point-badge';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
 import { TaskContextVibePills } from '@/components/molecules/TaskContextVibePills';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
@@ -11,6 +13,33 @@ import { parseDateInput, formatDateString } from '@/utils/date-formatters';
 import { JitKnowledgePanel } from '@/components/organisms/JitKnowledgePanel';
 import { VelocityDragInterventionCard } from '@/components/molecules/VelocityDragInterventionCard';
 import { CookedTaskButton } from '@/components/organisms/planner/CookedTaskButton';
+import { TaskFieldMarkdown } from '@/components/molecules/TaskFieldMarkdown';
+
+function TaskWalletRewardDetail({ task }: { task: Task }) {
+  const status = pointBadgeStatusFromTask(task);
+  const hint = pointBadgeStatusHint(status);
+  const detail =
+    task.rewardLedgerStatus === 'reversed'
+      ? 'Clawed back after reopening — see wallet history.'
+      : task.pointsAwarded
+        ? 'Credited to your rewards wallet.'
+        : 'Credited when this task is marked Done.';
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className="mt-0.5 shrink-0">
+        <PointBadge value={task.pointValue!} status={status} size="md" />
+      </div>
+      <div>
+        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Wallet reward</div>
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          {detail}
+          {hint ? ` · ${hint}` : null}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface TaskDetailDialogProps {
   task: Task | null;
@@ -94,14 +123,20 @@ export function TaskDetailDialog({
             </div>
             <div className="pl-6 space-y-2">
               {task.description && (
-                <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-                  {task.description}
-                </p>
+                <TaskFieldMarkdown
+                  taskId={task.id}
+                  field="description"
+                  value={task.description}
+                  className="text-gray-700 dark:text-gray-300"
+                />
               )}
               {task.extendedDescription && (
-                <p className="text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap">
-                  {task.extendedDescription}
-                </p>
+                <TaskFieldMarkdown
+                  taskId={task.id}
+                  field="extendedDescription"
+                  value={task.extendedDescription}
+                  className="text-gray-600 dark:text-gray-400"
+                />
               )}
             </div>
           </div>
@@ -158,23 +193,8 @@ export function TaskDetailDialog({
           )}
 
           {/* Wallet reward (distinct from effort) */}
-          {task.pointValue !== null && task.pointValue !== undefined && (
-            <div className="flex items-start gap-3">
-              <Award className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Wallet reward
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {task.pointValue} {task.pointValue === 1 ? 'point' : 'points'}
-                  {task.rewardLedgerStatus === 'reversed'
-                    ? ' · reward was clawed back after reopening (see wallet history)'
-                    : task.pointsAwarded
-                      ? ' · credited to wallet'
-                      : ' · credited when marked Done'}
-                </div>
-              </div>
-            </div>
+          {task.pointValue !== null && task.pointValue !== undefined && task.pointValue > 0 && (
+            <TaskWalletRewardDetail task={task} />
           )}
         </div>
 
@@ -186,9 +206,12 @@ export function TaskDetailDialog({
               <span>Notes</span>
             </div>
             <div className="pl-6">
-              <p className="text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap">
-                {task.notes}
-              </p>
+              <TaskFieldMarkdown
+                taskId={task.id}
+                field="notes"
+                value={task.notes}
+                className="text-gray-600 dark:text-gray-400"
+              />
             </div>
           </div>
         )}

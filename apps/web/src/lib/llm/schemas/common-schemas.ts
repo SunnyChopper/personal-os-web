@@ -59,14 +59,9 @@ export const ProjectStatusSchema = z.enum([
   'Cancelled',
 ]);
 
-export const GoalStatusSchema = z.enum([
-  'Planning',
-  'Active',
-  'On Track',
-  'At Risk',
-  'Achieved',
-  'Abandoned',
-]);
+export const GoalStatusSchema = z.enum(['Planning', 'Active', 'Achieved', 'Abandoned']);
+
+export const GoalHealthSchema = z.enum(['onTrack', 'atRisk', 'behind', 'stagnant', 'dormant']);
 
 export const ConfidenceSchema = z.number().min(0).max(1);
 

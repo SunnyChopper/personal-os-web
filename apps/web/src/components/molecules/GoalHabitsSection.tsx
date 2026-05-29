@@ -1,7 +1,8 @@
 import { Repeat, Plus, Check, Flame } from 'lucide-react';
 import { motion } from 'framer-motion';
-import type { Habit } from '@/types/growth-system';
+import type { Habit, GoalLinkSuggestion } from '@/types/growth-system';
 import { EmptyState } from './EmptyState';
+import { GoalLinkSuggestionsPanel } from './GoalLinkSuggestionsPanel';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import Button from '@/components/atoms/Button';
 
@@ -18,6 +19,10 @@ interface GoalHabitsSectionProps {
   onCompleteHabit?: (habitId: string) => void;
   onHabitClick?: (habit: Habit) => void;
   showEmpty?: boolean;
+  linkSuggestions?: GoalLinkSuggestion[];
+  linkSuggestionsLoading?: boolean;
+  attachingSuggestionId?: string | null;
+  onAttachSuggestion?: (suggestion: GoalLinkSuggestion) => void;
 }
 
 export function GoalHabitsSection({
@@ -26,6 +31,10 @@ export function GoalHabitsSection({
   onCompleteHabit,
   onHabitClick,
   showEmpty = true,
+  linkSuggestions = [],
+  linkSuggestionsLoading = false,
+  attachingSuggestionId = null,
+  onAttachSuggestion,
 }: GoalHabitsSectionProps) {
   if (habits.length === 0 && showEmpty) {
     return (
@@ -43,6 +52,15 @@ export function GoalHabitsSection({
           actionLabel={onLinkHabit ? 'Link Habit' : undefined}
           onAction={onLinkHabit}
         />
+        {onAttachSuggestion && (
+          <GoalLinkSuggestionsPanel
+            entityType="habit"
+            suggestions={linkSuggestions}
+            isLoading={linkSuggestionsLoading}
+            attachingId={attachingSuggestionId}
+            onAttach={onAttachSuggestion}
+          />
+        )}
       </div>
     );
   }

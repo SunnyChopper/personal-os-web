@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import CourseGeneratorPage from '@/pages/admin/CourseGeneratorPage';
 
@@ -19,11 +20,23 @@ vi.mock('@/services/knowledge-vault', () => ({
   },
 }));
 
+vi.mock('@/services/chatbot.service', () => ({
+  chatbotService: {
+    getAssistantModelCatalog: vi.fn().mockResolvedValue({
+      success: true,
+      data: { providersConfigured: {}, models: [], defaults: {} },
+    }),
+  },
+}));
+
 function renderPage() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter>
-      <CourseGeneratorPage />
-    </MemoryRouter>
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>
+        <CourseGeneratorPage />
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 

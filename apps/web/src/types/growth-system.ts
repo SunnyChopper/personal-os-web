@@ -40,7 +40,9 @@ export type TaskStatus =
   | 'Done'
   | 'Cancelled';
 export type ProjectStatus = 'Planning' | 'Active' | 'On Hold' | 'Completed' | 'Cancelled';
-export type GoalStatus = 'Planning' | 'Active' | 'On Track' | 'At Risk' | 'Achieved' | 'Abandoned';
+export type GoalStatus = 'Planning' | 'Active' | 'Achieved' | 'Abandoned';
+/** Computed server-side for Active goals; null otherwise. */
+export type GoalHealth = 'onTrack' | 'atRisk' | 'behind' | 'stagnant' | 'dormant';
 export type MetricStatus = 'Active' | 'Paused' | 'Archived';
 
 export type TimeHorizon = 'Yearly' | 'Quarterly' | 'Monthly' | 'Weekly' | 'Daily';
@@ -163,6 +165,8 @@ export interface Project {
   startDate: string | null;
   targetEndDate: string | null;
   actualEndDate: string | null;
+  /** Computed on read: Planning/On Hold with targetEndDate in the past. */
+  isStale?: boolean;
   notes: string | null;
   goalIds?: string[];
   userId: string;
@@ -207,6 +211,21 @@ export interface GoalActivity {
   createdAt: string;
 }
 
+export interface GoalLinkSuggestion {
+  entityId: string;
+  entityType: 'task' | 'habit' | 'metric' | 'project';
+  title: string;
+  reason: string;
+  confidence: number;
+}
+
+export interface GoalLinkSuggestions {
+  tasks: GoalLinkSuggestion[];
+  habits: GoalLinkSuggestion[];
+  metrics: GoalLinkSuggestion[];
+  projects: GoalLinkSuggestion[];
+}
+
 // Goal Progress Configuration
 export interface GoalProgressConfig {
   criteriaWeight: number; // 0-100
@@ -216,13 +235,17 @@ export interface GoalProgressConfig {
   manualOverride: number | null;
 }
 
-// Computed Progress (for display)
+// Computed Progress (for display; canonical from GET /goals/{id}/progress)
 export interface GoalProgressBreakdown {
   overall: number;
   criteria: { completed: number; total: number; percentage: number };
   tasks: { completed: number; total: number; percentage: number };
   metrics: { atTarget: number; total: number; percentage: number };
   habits: { streakDays: number; consistency: number };
+  weights?: GoalProgressConfig;
+  daysElapsed?: number;
+  daysRemaining?: number | null;
+  isOnTrack?: boolean;
 }
 
 export interface Goal {
@@ -234,14 +257,33 @@ export interface Goal {
   timeHorizon: TimeHorizon;
   priority: Priority;
   status: GoalStatus;
+  health?: GoalHealth | null;
+  startDate: string | null;
   targetDate: string | null;
   completedDate: string | null;
   successCriteria: SuccessCriterion[]; // Changed from string[]
   progressConfig: GoalProgressConfig | null;
   parentGoalId: string | null; // For goal hierarchy
   lastActivityAt: string | null; // For momentum tracking
+  activeSince?: string | null;
+  lastVelocityActivityAt?: string | null;
+  stagnantSince?: string | null;
   notes: string | null;
   userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Persisted stale-velocity advisory surfaced on the dashboard. */
+export interface GoalAdvisory {
+  id: string;
+  goalId: string;
+  goalTitle: string;
+  type: 'staleVelocity';
+  severity: 'stagnant' | 'dormant';
+  daysSinceActivity: number;
+  dismissedAt: string | null;
+  lastEscalatedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -341,6 +383,8 @@ export interface Habit {
   frictionUp: string | null;
   frictionDown: string | null;
   notes: string | null;
+  offDaysOfWeek?: string[];
+  offDates?: string[];
   goalIds?: string[];
   currentStreak?: number;
   longestStreak?: number;
@@ -452,6 +496,51 @@ export interface AIInsight {
   viewedAt: string | null;
 }
 
+export type DashboardInsightType =
+  | 'bottleneck'
+  | 'opportunity'
+  | 'warning'
+  | 'achievement'
+  | 'recommendation';
+
+export type DashboardInsightSeverity = 'low' | 'medium' | 'high';
+
+export type DashboardInsightsStatus = 'fresh' | 'stale' | 'pending';
+
+export interface DashboardInsightAction {
+  label: string;
+  link: string;
+}
+
+export interface DashboardInsightRelatedEntity {
+  kind: 'task' | 'project' | 'goal' | 'habit';
+  id: string;
+}
+
+export interface DashboardInsight {
+  id: string;
+  type: DashboardInsightType;
+  severity: DashboardInsightSeverity;
+  area?: Area;
+  title: string;
+  description: string;
+  recommendation?: string;
+  action?: DashboardInsightAction;
+  relatedEntities?: DashboardInsightRelatedEntity[];
+  detectorType: string;
+}
+
+export interface DashboardInsightsResponse {
+  insights: DashboardInsight[];
+  summary?: string;
+  generatedAt: string;
+  focusAreas: Area[];
+  provider: string;
+  model: string;
+  cached: boolean;
+  status: DashboardInsightsStatus;
+}
+
 export interface CreateTaskInput {
   title: string;
   description?: string;
@@ -541,6 +630,46 @@ export interface UpdateProjectInput {
   notes?: string;
 }
 
+/** Finish-to-start dependency between goals (Gantt timeline). */
+export interface GoalDependency {
+  predecessorGoalId: string;
+  successorGoalId: string;
+  lagDays: number;
+  createdAt: string;
+}
+
+/** Goal dates shifted by rigid cascade after a predecessor moved. */
+export interface CascadedGoalUpdate {
+  id: string;
+  startDate?: string | null;
+  targetDate?: string | null;
+}
+
+export interface GoalUpdateWithCascade {
+  goal: Goal;
+  cascaded: CascadedGoalUpdate[];
+}
+
+/** Finish-to-start dependency between projects (Gantt timeline). */
+export interface ProjectDependency {
+  predecessorProjectId: string;
+  successorProjectId: string;
+  lagDays: number;
+  createdAt: string;
+}
+
+/** Project dates shifted by rigid cascade after a predecessor moved. */
+export interface CascadedProjectUpdate {
+  id: string;
+  startDate?: string | null;
+  targetEndDate?: string | null;
+}
+
+export interface ProjectUpdateWithCascade {
+  project: Project;
+  cascaded: CascadedProjectUpdate[];
+}
+
 export interface CreateGoalInput {
   title: string;
   description?: string;
@@ -549,6 +678,7 @@ export interface CreateGoalInput {
   timeHorizon: TimeHorizon;
   priority?: Priority;
   status?: GoalStatus;
+  startDate?: string;
   targetDate?: string;
   successCriteria?: string[] | SuccessCriterion[]; // Support both for migration
   progressConfig?: GoalProgressConfig;
@@ -564,7 +694,8 @@ export interface UpdateGoalInput {
   timeHorizon?: TimeHorizon;
   priority?: Priority;
   status?: GoalStatus;
-  targetDate?: string;
+  startDate?: string | null;
+  targetDate?: string | null;
   completedDate?: string;
   successCriteria?: string[] | SuccessCriterion[]; // Support both for migration
   progressConfig?: GoalProgressConfig;
@@ -625,6 +756,8 @@ export interface CreateHabitInput {
   frictionUp?: string;
   frictionDown?: string;
   notes?: string;
+  offDaysOfWeek?: string[];
+  offDates?: string[];
 }
 
 export interface UpdateHabitInput {
@@ -643,6 +776,8 @@ export interface UpdateHabitInput {
   frictionUp?: string;
   frictionDown?: string;
   notes?: string;
+  offDaysOfWeek?: string[];
+  offDates?: string[];
 }
 
 export interface CreateHabitLogInput {
@@ -688,7 +823,7 @@ export interface FilterOptions {
   hasLinkedTasks?: boolean;
   hasLinkedMetrics?: boolean;
   hasLinkedHabits?: boolean;
-  healthStatus?: 'healthy' | 'at_risk' | 'behind' | 'dormant';
+  healthStatus?: GoalHealth;
   progressRange?: { min: number; max: number };
   startDate?: string;
   endDate?: string;
@@ -696,6 +831,9 @@ export interface FilterOptions {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
+
+  /** Mindmap: isolate one leaf goal and its ancestor pipeline on the canvas. */
+  focusGoalId?: string;
 
   // Task-specific filters
   projectId?: string;

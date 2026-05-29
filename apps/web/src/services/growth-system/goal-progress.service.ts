@@ -1,30 +1,68 @@
 import { goalsService } from './goals.service';
 import { metricsService } from './metrics.service';
+import { habitsService } from './habits.service';
+import { DEFAULT_GOAL_PROGRESS_WEIGHTS } from '@/utils/goal-progress-weights';
 import type {
   Goal,
+  GoalHealth,
   GoalProgressBreakdown,
+  GoalProgressConfig,
   SuccessCriterion,
   Task,
   Metric,
   Habit,
 } from '@/types/growth-system';
-import { randomDelay } from '@/mocks/storage';
-
-type HealthStatus = 'healthy' | 'at_risk' | 'behind' | 'dormant';
 
 interface GoalHealthData {
-  status: HealthStatus;
+  status: GoalHealth;
   daysRemaining: number | null;
   velocityScore: number;
   momentum: 'active' | 'dormant';
 }
 
-const DEFAULT_WEIGHTS = {
-  criteriaWeight: 40,
-  tasksWeight: 30,
-  metricsWeight: 20,
-  habitsWeight: 10,
-};
+const DEFAULT_WEIGHTS = DEFAULT_GOAL_PROGRESS_WEIGHTS;
+
+function rolling30dStartDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().slice(0, 10);
+}
+
+function expectedHabitOccurrences30d(habit: Habit): number {
+  if (habit.frequency === 'Daily') {
+    return 30;
+  }
+  if (habit.frequency === 'Weekly') {
+    const perWeek = habit.weeklyTarget ?? 1;
+    return Math.max(1, Math.round((30 / 7) * perWeek));
+  }
+  if (habit.frequency === 'Monthly') {
+    return Math.max(1, habit.weeklyTarget ? habit.weeklyTarget * 4 : 1);
+  }
+  return 30;
+}
+
+function computeLocalOverall(
+  criteriaPct: number,
+  tasksPct: number,
+  metricsPct: number,
+  habitsPct: number,
+  weights: GoalProgressConfig
+): number {
+  if (weights.manualOverride != null) {
+    return Math.round(weights.manualOverride);
+  }
+  const totalWeight =
+    weights.criteriaWeight + weights.tasksWeight + weights.metricsWeight + weights.habitsWeight;
+  if (totalWeight <= 0) return 0;
+  const overall =
+    ((criteriaPct * weights.criteriaWeight) / 100 +
+      (tasksPct * weights.tasksWeight) / 100 +
+      (metricsPct * weights.metricsWeight) / 100 +
+      (habitsPct * weights.habitsWeight) / 100) /
+    (totalWeight / 100);
+  return Math.round(overall);
+}
 
 export const goalProgressService = {
   async computeProgress(
@@ -33,9 +71,17 @@ export const goalProgressService = {
     metrics?: Metric[],
     habits?: Habit[]
   ): Promise<GoalProgressBreakdown> {
-    await randomDelay();
+    const goalId = typeof goal === 'string' ? goal : goal.id;
 
-    // Support both goal object and goal ID for backward compatibility
+    try {
+      const apiResult = await goalsService.getProgress(goalId);
+      if (apiResult.success && apiResult.data) {
+        return apiResult.data;
+      }
+    } catch (error) {
+      console.warn('Goal progress API unavailable, using local fallback', error);
+    }
+
     let goalObj: Goal;
     if (typeof goal === 'string') {
       const goalResponse = await goalsService.getById(goal);
@@ -49,10 +95,8 @@ export const goalProgressService = {
 
     const weights = goalObj.progressConfig || DEFAULT_WEIGHTS;
 
-    // Calculate criteria progress
     const criteriaProgress = this.calculateCriteriaProgress(goalObj.successCriteria);
 
-    // Calculate tasks progress - use provided tasks or fetch from API
     let tasksForProgress: Task[];
     if (tasks !== undefined) {
       tasksForProgress = tasks;
@@ -62,7 +106,6 @@ export const goalProgressService = {
     }
     const tasksProgress = this.calculateTasksProgress(tasksForProgress);
 
-    // Calculate metrics progress - use provided metrics or fetch from API
     let metricsForProgress: Metric[];
     if (metrics !== undefined) {
       metricsForProgress = metrics;
@@ -74,7 +117,6 @@ export const goalProgressService = {
       metricsForProgress.map((m) => m.id)
     );
 
-    // Calculate habits progress - use provided habits or fetch from API
     let habitsForProgress: Habit[];
     if (habits !== undefined) {
       habitsForProgress = habits;
@@ -84,26 +126,21 @@ export const goalProgressService = {
     }
     const habitsProgress = await this.calculateHabitsProgress(habitsForProgress);
 
-    // Calculate weighted overall progress
-    let overall = 0;
-    const totalWeight =
-      weights.criteriaWeight + weights.tasksWeight + weights.metricsWeight + weights.habitsWeight;
-
-    if (totalWeight > 0) {
-      overall =
-        ((criteriaProgress.percentage * weights.criteriaWeight) / 100 +
-          (tasksProgress.percentage * weights.tasksWeight) / 100 +
-          (metricsProgress.percentage * weights.metricsWeight) / 100 +
-          (habitsProgress.consistency * weights.habitsWeight) / 100) /
-        (totalWeight / 100);
-    }
+    const overall = computeLocalOverall(
+      criteriaProgress.percentage,
+      tasksProgress.percentage,
+      metricsProgress.percentage,
+      habitsProgress.consistency,
+      weights
+    );
 
     return {
-      overall: Math.round(overall),
+      overall,
       criteria: criteriaProgress,
       tasks: tasksProgress,
       metrics: metricsProgress,
       habits: habitsProgress,
+      weights,
     };
   },
 
@@ -116,7 +153,6 @@ export const goalProgressService = {
       return { completed: 0, total: 0, percentage: 0 };
     }
 
-    // Handle old string format
     if (typeof criteria[0] === 'string') {
       const completed = (criteria as string[]).filter((c) => c.includes('✓')).length;
       const total = criteria.length;
@@ -127,7 +163,6 @@ export const goalProgressService = {
       };
     }
 
-    // Handle new SuccessCriterion format
     const typedCriteria = criteria as SuccessCriterion[];
     const completed = typedCriteria.filter((c) => c.isCompleted).length;
     const total = typedCriteria.length;
@@ -189,7 +224,7 @@ export const goalProgressService = {
   isMetricAtTarget(value: number, metric: Metric): boolean {
     if (metric.targetValue === null) return false;
 
-    const threshold = metric.targetValue * 0.9; // 90% of target counts as "at target"
+    const threshold = metric.targetValue * 0.9;
 
     if (metric.direction === 'Higher') {
       return value >= threshold;
@@ -210,16 +245,17 @@ export const goalProgressService = {
       return { streakDays: 0, consistency: 0 };
     }
 
+    const startDate = rolling30dStartDate();
     let totalConsistency = 0;
     let maxStreak = 0;
 
-    // TODO: Implement actual habit progress calculation
-
-    for (const _habit of habits) {
-      // This is a simplified calculation - would need actual habit logs service
-      // For now, return placeholder values
-      totalConsistency += 70; // Assume 70% consistency
-      maxStreak = Math.max(maxStreak, 5); // Placeholder
+    for (const habit of habits) {
+      const logsResponse = await habitsService.getLogsByHabit(habit.id, { startDate });
+      const completions30d = logsResponse.success ? (logsResponse.data?.length ?? 0) : 0;
+      const expected = expectedHabitOccurrences30d(habit);
+      const consistency = Math.min(100, Math.round((completions30d / expected) * 100));
+      totalConsistency += consistency;
+      maxStreak = Math.max(maxStreak, habit.currentStreak ?? 0);
     }
 
     return {
@@ -229,8 +265,6 @@ export const goalProgressService = {
   },
 
   async calculateHealth(goal: Goal, progress: GoalProgressBreakdown): Promise<GoalHealthData> {
-    await randomDelay();
-
     if (!goal) {
       throw new Error('Goal is required for health calculation');
     }
@@ -238,41 +272,51 @@ export const goalProgressService = {
     const now = new Date();
     const targetDate = goal.targetDate ? new Date(goal.targetDate) : null;
     const createdDate = new Date(goal.createdAt);
-    const lastActivity = goal.lastActivityAt ? new Date(goal.lastActivityAt) : createdDate;
+    const velocityReference = goal.lastVelocityActivityAt
+      ? new Date(goal.lastVelocityActivityAt)
+      : goal.lastActivityAt
+        ? new Date(goal.lastActivityAt)
+        : goal.activeSince
+          ? new Date(goal.activeSince)
+          : createdDate;
 
-    // Calculate days remaining
     const daysRemaining = targetDate
       ? Math.ceil((targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       : null;
 
-    // Calculate momentum (days since last activity)
     const daysSinceActivity = Math.ceil(
-      (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+      (now.getTime() - velocityReference.getTime()) / (1000 * 60 * 60 * 24)
     );
-    const momentum: 'active' | 'dormant' = daysSinceActivity <= 7 ? 'active' : 'dormant';
+    let momentum: 'active' | 'dormant' = daysSinceActivity < 7 ? 'active' : 'dormant';
 
-    // Calculate velocity score (progress per day)
     const totalDays =
       Math.ceil((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) || 1;
     const velocityScore = progress.overall / totalDays;
 
-    // Determine health status
-    let status: HealthStatus = 'healthy';
+    let status: GoalHealth = goal.health ?? 'onTrack';
 
-    if (momentum === 'dormant') {
-      status = 'dormant';
-    } else if (daysRemaining !== null && targetDate) {
-      const totalProjectDays = Math.ceil(
-        (targetDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      const expectedProgress =
-        totalProjectDays > 0 ? ((totalProjectDays - daysRemaining) / totalProjectDays) * 100 : 0;
+    if (goal.health == null) {
+      if (daysSinceActivity >= 14) {
+        status = 'dormant';
+        momentum = 'dormant';
+      } else if (daysSinceActivity >= 7) {
+        status = 'stagnant';
+        momentum = 'dormant';
+      } else if (daysRemaining !== null && targetDate) {
+        const totalProjectDays = Math.ceil(
+          (targetDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        const expectedProgress =
+          totalProjectDays > 0 ? ((totalProjectDays - daysRemaining) / totalProjectDays) * 100 : 0;
 
-      if (progress.overall < expectedProgress - 20) {
-        status = 'behind';
-      } else if (progress.overall < expectedProgress - 10) {
-        status = 'at_risk';
+        if (progress.overall < expectedProgress - 20) {
+          status = 'behind';
+        } else if (progress.overall < expectedProgress - 10) {
+          status = 'atRisk';
+        }
       }
+    } else if (goal.health === 'dormant' || goal.health === 'stagnant') {
+      momentum = 'dormant';
     }
 
     return {
@@ -286,8 +330,6 @@ export const goalProgressService = {
   getLinkedCounts: async (
     goalId: string
   ): Promise<{ tasks: number; metrics: number; habits: number; projects: number }> => {
-    await randomDelay();
-
     const [tasksRes, metricsRes, habitsRes, projectsRes] = await Promise.all([
       goalsService.getLinkedTasks(goalId),
       goalsService.getLinkedMetrics(goalId),

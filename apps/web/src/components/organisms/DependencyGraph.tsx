@@ -1,7 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import dagre from '@dagrejs/dagre';
+import {
+  Background,
+  Controls,
+  MarkerType,
+  MiniMap,
+  ReactFlow,
+  ReactFlowProvider,
+  useEdgesState,
+  useNodesState,
+  useReactFlow,
+  type Edge,
+  type Node,
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import type { Task, TaskDependency } from '@/types/growth-system';
+import {
+  TaskGraphNode,
+  TASK_GRAPH_NODE_HEIGHT,
+  TASK_GRAPH_NODE_WIDTH,
+  type TaskGraphRfNode,
+} from '@/components/molecules/TaskGraphNode';
 import { cn } from '@/lib/utils';
 
 interface DependencyGraphProps {
@@ -12,19 +33,169 @@ interface DependencyGraphProps {
   className?: string;
 }
 
-interface GraphNode {
-  id: string;
-  task: Task;
-  x: number;
-  y: number;
-  level: number;
+const nodeTypes = { taskGraph: TaskGraphNode };
+
+const GRAPH_SHELL_CLASS =
+  'h-[min(70vh,600px)] min-h-96 w-full rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden';
+
+function layoutElements(nodes: Node[], edges: Edge[]): Node[] {
+  const g = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  g.setGraph({
+    rankdir: 'TB',
+    nodesep: 48,
+    ranksep: 80,
+    marginx: 24,
+    marginy: 24,
+  });
+
+  for (const node of nodes) {
+    g.setNode(node.id, { width: TASK_GRAPH_NODE_WIDTH, height: TASK_GRAPH_NODE_HEIGHT });
+  }
+  for (const edge of edges) {
+    g.setEdge(edge.source, edge.target);
+  }
+
+  dagre.layout(g);
+
+  return nodes.map((node) => {
+    const pos = g.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: pos.x - TASK_GRAPH_NODE_WIDTH / 2,
+        y: pos.y - TASK_GRAPH_NODE_HEIGHT / 2,
+      },
+    };
+  });
 }
 
-interface GraphEdge {
-  from: string;
-  to: string;
-  fromNode: GraphNode;
-  toNode: GraphNode;
+function buildFlowGraph(
+  tasks: Task[],
+  dependencies: TaskDependency[],
+  selectedNodeId: string | null
+): { nodes: TaskGraphRfNode[]; edges: Edge[] } {
+  const taskIds = new Set(tasks.map((t) => t.id));
+
+  const flowNodes: TaskGraphRfNode[] = tasks.map((task) => ({
+    id: task.id,
+    type: 'taskGraph',
+    position: { x: 0, y: 0 },
+    data: { task },
+    selected: selectedNodeId === task.id,
+  }));
+
+  const flowEdges: Edge[] = dependencies
+    .filter((dep) => taskIds.has(dep.taskId) && taskIds.has(dep.dependsOnTaskId))
+    .map((dep) => {
+      const highlighted = selectedNodeId === dep.taskId || selectedNodeId === dep.dependsOnTaskId;
+      return {
+        id: `dep-${dep.dependsOnTaskId}-${dep.taskId}`,
+        source: dep.dependsOnTaskId,
+        target: dep.taskId,
+        type: 'smoothstep',
+        markerEnd: { type: MarkerType.ArrowClosed },
+        animated: highlighted,
+        style: highlighted
+          ? { stroke: '#3b82f6', strokeWidth: 2.5 }
+          : { stroke: '#9ca3af', strokeWidth: 2 },
+      };
+    });
+
+  const layoutedNodes = layoutElements(flowNodes, flowEdges) as TaskGraphRfNode[];
+  return { nodes: layoutedNodes, edges: flowEdges };
+}
+
+function DependencyGraphFlow({
+  tasks,
+  dependencies,
+  onTaskClick,
+  className,
+}: Omit<DependencyGraphProps, 'isLoading'>) {
+  const { fitView } = useReactFlow();
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+
+  const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
+    () => buildFlowGraph(tasks, dependencies, selectedNode),
+    [tasks, dependencies, selectedNode]
+  );
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
+
+  useEffect(() => {
+    setNodes(layoutNodes);
+    setEdges(layoutEdges);
+  }, [layoutNodes, layoutEdges, setNodes, setEdges]);
+
+  useEffect(() => {
+    if (nodes.length === 0) return;
+    const id = requestAnimationFrame(() => {
+      void fitView({ padding: 0.2, duration: 280 });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [nodes, fitView]);
+
+  const onNodeClick = useCallback(
+    (_event: MouseEvent, node: Node) => {
+      setSelectedNode(node.id);
+      onTaskClick?.(node.id);
+    },
+    [onTaskClick]
+  );
+
+  const selectedTask = useMemo(
+    () => tasks.find((t) => t.id === selectedNode) ?? null,
+    [tasks, selectedNode]
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className={cn('bg-white dark:bg-gray-800', className)}
+    >
+      <div className={GRAPH_SHELL_CLASS}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
+          nodeTypes={nodeTypes}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable
+          fitView
+          proOptions={{ hideAttribution: true }}
+          className="bg-gray-50 dark:bg-gray-900/50"
+        >
+          <Background gap={16} size={1} />
+          <Controls />
+          <MiniMap
+            nodeStrokeWidth={2}
+            className="!bg-white/90 dark:!bg-gray-800/90"
+            maskColor="rgba(0,0,0,0.08)"
+          />
+        </ReactFlow>
+      </div>
+
+      <AnimatePresence>
+        {selectedTask && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900"
+          >
+            <h4 className="mb-2 font-semibold text-gray-900 dark:text-white">Selected Task</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{selectedTask.title}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
 }
 
 export default function DependencyGraph({
@@ -34,161 +205,21 @@ export default function DependencyGraph({
   onTaskClick,
   className,
 }: DependencyGraphProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [nodes, setNodes] = useState<GraphNode[]>([]);
-  const [edges, setEdges] = useState<GraphEdge[]>([]);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
-
-  const NODE_WIDTH = 180;
-  const NODE_HEIGHT = 60;
-  const LEVEL_HEIGHT = 120;
-  const NODE_SPACING = 40;
-
-  useEffect(() => {
-    if (tasks.length === 0) return;
-
-    const taskMap = new Map(tasks.map((t) => [t.id, t]));
-    const dependencyMap = new Map<string, string[]>();
-
-    dependencies.forEach((dep) => {
-      if (!dependencyMap.has(dep.taskId)) {
-        dependencyMap.set(dep.taskId, []);
-      }
-      dependencyMap.get(dep.taskId)!.push(dep.dependsOnTaskId);
-    });
-
-    const visited = new Set<string>();
-    const levels = new Map<string, number>();
-
-    function calculateLevel(taskId: string): number {
-      if (levels.has(taskId)) return levels.get(taskId)!;
-      if (visited.has(taskId)) return 0;
-
-      visited.add(taskId);
-      const deps = dependencyMap.get(taskId) || [];
-
-      if (deps.length === 0) {
-        levels.set(taskId, 0);
-        return 0;
-      }
-
-      const maxDepLevel = Math.max(...deps.map((depId) => calculateLevel(depId)));
-      const level = maxDepLevel + 1;
-      levels.set(taskId, level);
-      return level;
-    }
-
-    tasks.forEach((task) => {
-      if (!levels.has(task.id)) {
-        calculateLevel(task.id);
-      }
-    });
-
-    const levelGroups = new Map<number, string[]>();
-    levels.forEach((level, taskId) => {
-      if (!levelGroups.has(level)) {
-        levelGroups.set(level, []);
-      }
-      levelGroups.get(level)!.push(taskId);
-    });
-
-    const graphNodes: GraphNode[] = [];
-
-    levelGroups.forEach((taskIds, level) => {
-      const y = level * LEVEL_HEIGHT + 50;
-      const startX = 50;
-
-      taskIds.forEach((taskId, index) => {
-        const task = taskMap.get(taskId);
-        if (task) {
-          graphNodes.push({
-            id: taskId,
-            task,
-            x: startX + index * (NODE_WIDTH + NODE_SPACING),
-            y,
-            level,
-          });
-        }
-      });
-    });
-
-    const nodeMap = new Map(graphNodes.map((n) => [n.id, n]));
-    const graphEdges: GraphEdge[] = [];
-
-    dependencies.forEach((dep) => {
-      const fromNode = nodeMap.get(dep.taskId);
-      const toNode = nodeMap.get(dep.dependsOnTaskId);
-      if (fromNode && toNode) {
-        graphEdges.push({
-          from: dep.taskId,
-          to: dep.dependsOnTaskId,
-          fromNode,
-          toNode,
-        });
-      }
-    });
-
-    setNodes(graphNodes);
-    setEdges(graphEdges);
-  }, [tasks, dependencies]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Done':
-        return 'fill-green-500 dark:fill-green-600';
-      case 'In Progress':
-        return 'fill-blue-500 dark:fill-blue-600';
-      case 'Blocked':
-        return 'fill-red-500 dark:fill-red-600';
-      case 'On Hold':
-        return 'fill-yellow-500 dark:fill-yellow-600';
-      case 'Backlog':
-        return 'fill-zinc-400 dark:fill-zinc-500';
-      default:
-        return 'fill-gray-400 dark:fill-gray-600';
-    }
-  };
-
-  const getStatusStroke = (status: string) => {
-    switch (status) {
-      case 'Done':
-        return 'stroke-green-600 dark:stroke-green-700';
-      case 'In Progress':
-        return 'stroke-blue-600 dark:stroke-blue-700';
-      case 'Blocked':
-        return 'stroke-red-600 dark:stroke-red-700';
-      case 'On Hold':
-        return 'stroke-yellow-600 dark:stroke-yellow-700';
-      case 'Backlog':
-        return 'stroke-zinc-500 dark:stroke-zinc-600';
-      default:
-        return 'stroke-gray-500 dark:stroke-gray-700';
-    }
-  };
-
-  const handleNodeClick = (nodeId: string) => {
-    setSelectedNode(nodeId);
-    if (onTaskClick) {
-      onTaskClick(nodeId);
-    }
-  };
-
   if (isLoading) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className={cn(
-          'flex flex-col items-center justify-center gap-4 min-h-96 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700',
+          'flex min-h-96 flex-col items-center justify-center gap-4 rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800',
           className
         )}
         aria-busy="true"
         aria-label="Loading dependency graph"
       >
-        <Loader2 className="w-10 h-10 animate-spin text-blue-600 dark:text-blue-400" />
+        <Loader2 className="h-10 w-10 animate-spin text-blue-600 dark:text-blue-400" />
         <p className="text-sm text-gray-600 dark:text-gray-400">Loading dependency graph…</p>
-        <div className="w-full max-w-md h-32 rounded-lg bg-gray-200/80 dark:bg-gray-700/80 animate-pulse" />
+        <div className="h-32 w-full max-w-md animate-pulse rounded-lg bg-gray-200/80 dark:bg-gray-700/80" />
       </motion.div>
     );
   }
@@ -199,7 +230,7 @@ export default function DependencyGraph({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className={cn(
-          'flex items-center justify-center h-96 bg-gray-50 dark:bg-gray-800 rounded-lg',
+          'flex h-96 items-center justify-center rounded-lg bg-gray-50 dark:bg-gray-800',
           className
         )}
       >
@@ -214,7 +245,7 @@ export default function DependencyGraph({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className={cn(
-          'flex items-center justify-center h-96 bg-gray-50 dark:bg-gray-800 rounded-lg',
+          'flex h-96 items-center justify-center rounded-lg bg-gray-50 dark:bg-gray-800',
           className
         )}
       >
@@ -223,184 +254,14 @@ export default function DependencyGraph({
     );
   }
 
-  // Safety check for empty nodes
-  if (nodes.length === 0) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className={cn(
-          'flex items-center justify-center h-96 bg-gray-50 dark:bg-gray-800 rounded-lg',
-          className
-        )}
-      >
-        <p className="text-gray-500 dark:text-gray-400">Calculating graph layout...</p>
-      </motion.div>
-    );
-  }
-
-  const viewBoxWidth = Math.max(...nodes.map((n) => n.x + NODE_WIDTH)) + 50;
-  const viewBoxHeight = Math.max(...nodes.map((n) => n.y + NODE_HEIGHT)) + 50;
-
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-      className={cn(
-        'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-auto',
-        className
-      )}
-    >
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
-        className="w-full h-full min-h-96 max-h-[600px]"
-      >
-        <defs>
-          <marker
-            id="arrowhead"
-            markerWidth="10"
-            markerHeight="10"
-            refX="9"
-            refY="3"
-            orient="auto"
-            className="fill-gray-400 dark:fill-gray-600"
-          >
-            <polygon points="0 0, 10 3, 0 6" />
-          </marker>
-          <style>
-            {`
-              @keyframes fadeInNode {
-                from {
-                  opacity: 0;
-                }
-                to {
-                  opacity: 1;
-                }
-              }
-              @keyframes fadeInEdge {
-                from {
-                  opacity: 0;
-                }
-                to {
-                  opacity: 1;
-                }
-              }
-            `}
-          </style>
-        </defs>
-
-        {/* Edges - using regular line elements with CSS animation */}
-        <g>
-          {edges.map((edge, index) => {
-            const fromX = edge.fromNode.x + NODE_WIDTH / 2;
-            const fromY = edge.fromNode.y;
-            const toX = edge.toNode.x + NODE_WIDTH / 2;
-            const toY = edge.toNode.y + NODE_HEIGHT;
-
-            const isHighlighted = selectedNode === edge.from || selectedNode === edge.to;
-
-            return (
-              <line
-                key={`edge-${edge.from}-${edge.to}`}
-                x1={fromX}
-                y1={fromY}
-                x2={toX}
-                y2={toY}
-                className={cn(
-                  'stroke-2 transition-all',
-                  isHighlighted
-                    ? 'stroke-blue-500 dark:stroke-blue-400 stroke-[3]'
-                    : 'stroke-gray-300 dark:stroke-gray-600'
-                )}
-                markerEnd="url(#arrowhead)"
-                style={{
-                  opacity: 0,
-                  animation: `fadeInEdge 0.3s ease-out ${index * 0.05}s forwards`,
-                }}
-              />
-            );
-          })}
-        </g>
-
-        {/* Nodes - using regular g elements with SVG transform */}
-        <g>
-          {nodes.map((node, index) => {
-            const isSelected = selectedNode === node.id;
-            const isHovered = hoveredNode === node.id;
-
-            return (
-              <g
-                key={node.id}
-                transform={`translate(${node.x}, ${node.y})`}
-                onClick={() => handleNodeClick(node.id)}
-                onMouseEnter={() => setHoveredNode(node.id)}
-                onMouseLeave={() => setHoveredNode(null)}
-                className="cursor-pointer transition-opacity"
-                style={{
-                  opacity: 0,
-                  animation: `fadeInNode 0.3s ease-out ${index * 0.1}s forwards`,
-                }}
-              >
-                <rect
-                  width={NODE_WIDTH}
-                  height={NODE_HEIGHT}
-                  rx="8"
-                  className={cn(
-                    'transition-all',
-                    getStatusColor(node.task.status),
-                    getStatusStroke(node.task.status),
-                    'stroke-2',
-                    isSelected && 'stroke-[4]',
-                    isHovered && 'filter brightness-110'
-                  )}
-                  opacity={isSelected || isHovered ? 1 : 0.9}
-                />
-
-                <text
-                  x={NODE_WIDTH / 2}
-                  y={NODE_HEIGHT / 2 - 5}
-                  textAnchor="middle"
-                  className="fill-white text-sm font-semibold pointer-events-none"
-                  style={{ fontSize: '14px' }}
-                >
-                  {node.task.title.length > 20
-                    ? `${node.task.title.substring(0, 20)}...`
-                    : node.task.title}
-                </text>
-
-                <text
-                  x={NODE_WIDTH / 2}
-                  y={NODE_HEIGHT / 2 + 12}
-                  textAnchor="middle"
-                  className="fill-white text-xs pointer-events-none opacity-90"
-                  style={{ fontSize: '11px' }}
-                >
-                  {node.task.status} • {node.task.priority}
-                </text>
-              </g>
-            );
-          })}
-        </g>
-      </svg>
-
-      <AnimatePresence>
-        {selectedNode && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.2 }}
-            className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
-          >
-            <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Selected Task</h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {nodes.find((n) => n.id === selectedNode)?.task.title}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+    <ReactFlowProvider>
+      <DependencyGraphFlow
+        tasks={tasks}
+        dependencies={dependencies}
+        onTaskClick={onTaskClick}
+        className={className}
+      />
+    </ReactFlowProvider>
   );
 }

@@ -23,6 +23,7 @@ import { useTasks } from '@/hooks/useGrowthSystem';
 import { ROUTES } from '@/routes';
 import type { Task } from '@/types/growth-system';
 import { formatDateString } from '@/utils/date-formatters';
+import { TaskFieldMarkdown } from '@/components/molecules/TaskFieldMarkdown';
 
 const POMODORO_DURATION = 25 * 60;
 
@@ -419,18 +420,26 @@ export default function FocusModePage() {
                           </div>
                         )}
 
-                        {currentTask.description && (
+                        {(currentTask.description || currentTask.extendedDescription) && (
                           <div className="mt-6 pt-6 border-t border-white/10">
                             <h4 className="text-sm font-semibold text-white/80 mb-2">
                               Task Details
                             </h4>
-                            <p className="text-gray-300 text-sm leading-relaxed">
-                              {currentTask.description}
-                            </p>
+                            {currentTask.description && (
+                              <TaskFieldMarkdown
+                                taskId={currentTask.id}
+                                field="description"
+                                value={currentTask.description}
+                                className="text-gray-300 prose-invert"
+                              />
+                            )}
                             {currentTask.extendedDescription && (
-                              <p className="text-gray-400 text-sm leading-relaxed mt-3">
-                                {currentTask.extendedDescription}
-                              </p>
+                              <TaskFieldMarkdown
+                                taskId={currentTask.id}
+                                field="extendedDescription"
+                                value={currentTask.extendedDescription}
+                                className="text-gray-400 prose-invert mt-3"
+                              />
                             )}
                           </div>
                         )}

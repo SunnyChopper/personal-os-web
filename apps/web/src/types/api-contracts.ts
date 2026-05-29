@@ -32,6 +32,7 @@ import type {
   EntitySummary,
 } from './growth-system';
 import type { RewardWithRedemptions, WalletBalance, WalletTransaction } from './rewards';
+import type { AssistantOptimizeFor } from '@/types/chatbot';
 
 export interface ApiError {
   message: string;
@@ -287,16 +288,30 @@ export interface AssistantToolApprovalConfig {
   dangerousTools: string[];
 }
 
+/** User-defined standout-fact filters for STM extraction and thread summarization. */
+export interface AssistantMemoryIngestionFactCriteria {
+  alwaysCapture: string[];
+  neverCapture: string[];
+}
+
 /** Background STM extract + thread summarization (API camelCase). */
 export interface AssistantMemoryIngestionConfig {
   provider: string;
   model: string;
+  factCriteria: AssistantMemoryIngestionFactCriteria;
 }
+
+/** Saved Assistant chat default model routing (API camelCase; no webSearch / compaction). */
+export type AssistantDefaultModelsConfig =
+  | { mode: 'manual'; manual: { reasoningModelId: string; responseModelId: string } }
+  | { mode: 'auto'; auto: { optimizeFor: AssistantOptimizeFor } };
 
 export interface AssistantSettingsConfig {
   toolApproval: AssistantToolApprovalConfig;
   memoryIngestion: AssistantMemoryIngestionConfig;
   memoryIngestionIsCustom: boolean;
+  defaultModels: AssistantDefaultModelsConfig;
+  defaultModelsIsCustom: boolean;
 }
 
 export interface AssistantToolRegistryEntry {
@@ -337,6 +352,7 @@ export interface ProactiveAutomation {
   threadStrategy: ProactiveThreadStrategy;
   dedicatedThreadId?: string | null;
   channelEmailEnabled: boolean;
+  channelWebhookEnabled: boolean;
   customUserPrompt?: string | null;
   /** Optional display name (e.g. from brainstorm or user). */
   title?: string | null;
@@ -393,6 +409,25 @@ export interface ProactiveEmailTestResult {
   messageId?: string | null;
   replyToUsed: boolean;
   threadId: string;
+  deployedStage: string;
+}
+
+export type NotificationWebhookFormat = 'discord' | 'generic';
+
+export interface NotificationWebhookConfig {
+  url: string | null;
+  format: NotificationWebhookFormat;
+  enabled: boolean;
+}
+
+export interface RecoveryNotificationsConfig {
+  enabled: boolean;
+  channelEmailEnabled: boolean;
+  channelWebhookEnabled: boolean;
+}
+
+export interface ProactiveWebhookTestResult {
+  deliveredTo: string;
   deployedStage: string;
 }
 

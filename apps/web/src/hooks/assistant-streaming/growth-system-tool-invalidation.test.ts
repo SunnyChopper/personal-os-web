@@ -48,7 +48,7 @@ describe('invalidateGrowthSystemCachesAfterTaskTool', () => {
 });
 
 describe('invalidateGrowthSystemCachesAfterGoalTool', () => {
-  it('removes deleted goal from caches and invalidates goals + dashboard', () => {
+  it('removes deleted goal from caches and invalidates goals + dashboard', async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(queryKeys.growthSystem.goals.lists(), {
       success: true,
@@ -98,9 +98,10 @@ describe('invalidateGrowthSystemCachesAfterGoalTool', () => {
       },
     });
 
+    const cancel = vi.spyOn(queryClient, 'cancelQueries');
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
 
-    invalidateGrowthSystemCachesAfterGoalTool(queryClient, {
+    await invalidateGrowthSystemCachesAfterGoalTool(queryClient, {
       toolName: 'delete_goal',
       status: 'ok',
       arguments: { goalId: 'goal-b' },
@@ -111,15 +112,17 @@ describe('invalidateGrowthSystemCachesAfterGoalTool', () => {
     );
     expect(goalsCache?.data.map((g) => g.id)).toEqual(['goal-a']);
 
+    expect(cancel).toHaveBeenCalledWith({ queryKey: queryKeys.growthSystem.goals.all() });
+    expect(cancel).toHaveBeenCalledWith({ queryKey: queryKeys.growthSystem.data() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.growthSystem.goals.all() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.growthSystem.data() });
   });
 
-  it('does nothing for list_goals', () => {
+  it('does nothing for list_goals', async () => {
     const queryClient = new QueryClient();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
 
-    invalidateGrowthSystemCachesAfterGoalTool(queryClient, {
+    await invalidateGrowthSystemCachesAfterGoalTool(queryClient, {
       toolName: 'list_goals',
       status: 'ok',
       arguments: {},
@@ -130,11 +133,11 @@ describe('invalidateGrowthSystemCachesAfterGoalTool', () => {
 });
 
 describe('invalidateGrowthSystemCachesAfterMutationTool', () => {
-  it('runs both task and goal handlers', () => {
+  it('runs both task and goal handlers', async () => {
     const queryClient = new QueryClient();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
 
-    invalidateGrowthSystemCachesAfterMutationTool(queryClient, {
+    await invalidateGrowthSystemCachesAfterMutationTool(queryClient, {
       toolName: 'delete_goal',
       status: 'ok',
       arguments: { goalId: 'goal-x' },

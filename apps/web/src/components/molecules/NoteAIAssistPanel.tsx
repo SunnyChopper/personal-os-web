@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Sparkles,
   Expand,
@@ -12,8 +12,11 @@ import {
   Check,
 } from 'lucide-react';
 import { noteAIService } from '@/services/knowledge-vault/note-ai.service';
+import type { NoteAIOptions } from '@/services/knowledge-vault/note-ai-options';
 import type { Area } from '@/types/growth-system';
 import { cn } from '@/lib/utils';
+import { BrainstormModelPicker } from '@/components/assistant/BrainstormModelPicker';
+import { useVaultNoteAIModelPicker } from '@/hooks/knowledge-vault/useVaultNoteAIModelPicker';
 
 interface NoteAIAssistPanelProps {
   content: string;
@@ -112,6 +115,14 @@ export default function NoteAIAssistPanel({
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
 
+  const { catalog, isCatalogLoading, picker, setPicker, resolveApiModel } =
+    useVaultNoteAIModelPicker();
+
+  const aiOptions: NoteAIOptions = useMemo(() => {
+    const model = resolveApiModel();
+    return model ? { model } : {};
+  }, [resolveApiModel]);
+
   const handleAction = async (action: AIAction) => {
     if (loading) return;
 
@@ -123,7 +134,7 @@ export default function NoteAIAssistPanel({
     try {
       switch (action) {
         case 'expand': {
-          const result = await noteAIService.expandContent(content, { title, area });
+          const result = await noteAIService.expandContent(content, { title, area }, aiOptions);
           if (result.success && result.data) {
             onContentChange(result.data.expandedContent);
             setLastResult('Content expanded successfully');
@@ -133,7 +144,7 @@ export default function NoteAIAssistPanel({
           break;
         }
         case 'summarize': {
-          const result = await noteAIService.summarizeContent(content);
+          const result = await noteAIService.summarizeContent(content, aiOptions);
           if (result.success && result.data) {
             onContentChange(result.data.summary);
             setLastResult(
@@ -145,7 +156,7 @@ export default function NoteAIAssistPanel({
           break;
         }
         case 'improve': {
-          const result = await noteAIService.improveClarity(content);
+          const result = await noteAIService.improveClarity(content, aiOptions);
           if (result.success && result.data) {
             onContentChange(result.data.improvedContent);
             setLastResult(`Improved with ${result.data.changes.length} changes`);
@@ -158,7 +169,7 @@ export default function NoteAIAssistPanel({
           if (!title.trim()) {
             throw new Error('Please enter a title first');
           }
-          const result = await noteAIService.generateFromTitle(title, area);
+          const result = await noteAIService.generateFromTitle(title, area, aiOptions);
           if (result.success && result.data) {
             onContentChange(result.data.generatedContent);
             setLastResult('Content generated successfully');
@@ -168,7 +179,7 @@ export default function NoteAIAssistPanel({
           break;
         }
         case 'suggestTags': {
-          const result = await noteAIService.suggestTags(content, title, tags);
+          const result = await noteAIService.suggestTags(content, title, tags, aiOptions);
           if (result.success && result.data) {
             const newTags = result.data.suggestedTags
               .filter((t) => t.relevance > 0.5)
@@ -186,7 +197,7 @@ export default function NoteAIAssistPanel({
           break;
         }
         case 'suggestArea': {
-          const result = await noteAIService.suggestArea(content, title);
+          const result = await noteAIService.suggestArea(content, title, aiOptions);
           if (result.success && result.data) {
             onAreaChange(result.data.suggestedArea);
             setLastResult(`Area changed to ${result.data.suggestedArea}`);
@@ -196,7 +207,7 @@ export default function NoteAIAssistPanel({
           break;
         }
         case 'analyze': {
-          const result = await noteAIService.analyzeContent(content, title);
+          const result = await noteAIService.analyzeContent(content, title, aiOptions);
           if (result.success && result.data) {
             const analysis = result.data;
             const summary = `Sentiment: ${analysis.sentiment} | Readability: ${analysis.readabilityScore}/100 | Completeness: ${analysis.completeness.score}/100`;
@@ -252,6 +263,20 @@ export default function NoteAIAssistPanel({
             <p className="text-sm text-green-800 dark:text-green-200">{lastResult}</p>
           </div>
         )}
+
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+            Model
+          </h4>
+          <BrainstormModelPicker
+            catalog={catalog}
+            isLoading={isCatalogLoading}
+            value={picker}
+            onChange={setPicker}
+            disabled={loading}
+            autoModeDescription="Uses server vault defaults (VAULT_AI_PROVIDER / VAULT_AI_MODEL). Switch to Manual to pick any model from the assistant catalog."
+          />
+        </div>
 
         <div className="space-y-4">
           {/* Content Actions */}

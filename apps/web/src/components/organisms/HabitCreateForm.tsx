@@ -7,7 +7,9 @@ import type {
   HabitFrequency,
 } from '@/types/growth-system';
 import Button from '@/components/atoms/Button';
+import { HabitOffDaysFields } from '@/components/molecules/HabitOffDaysFields';
 import { AREAS, HABIT_FREQUENCIES, HABIT_TYPES } from '@/constants/growth-system';
+import type { HabitWeekdayCode } from '@/utils/habit-off-days';
 
 interface HabitCreateFormProps {
   onSubmit: (input: CreateHabitInput) => void;
@@ -22,6 +24,8 @@ export function HabitCreateForm({ onSubmit, onCancel, isLoading }: HabitCreateFo
     area: 'Health',
     habitType: 'Build',
     frequency: 'Daily',
+    offDaysOfWeek: [],
+    offDates: [],
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -233,6 +237,20 @@ export function HabitCreateForm({ onSubmit, onCancel, isLoading }: HabitCreateFo
           placeholder="How to make this habit easier to do..."
         />
       </div>
+
+      <HabitOffDaysFields
+        value={{
+          offDaysOfWeek: (formData.offDaysOfWeek ?? []) as HabitWeekdayCode[],
+          offDates: formData.offDates ?? [],
+        }}
+        onChange={(offDays) =>
+          setFormData({
+            ...formData,
+            offDaysOfWeek: offDays.offDaysOfWeek,
+            offDates: offDays.offDates,
+          })
+        }
+      />
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

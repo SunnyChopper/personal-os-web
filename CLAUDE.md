@@ -65,7 +65,7 @@ When this repo is opened inside the monorepo workspace (sibling `personal-os-bac
 `apps/web/scripts/validate-architecture.ts` enforces layout under `apps/web/src/components/`:
 
 - **Atomic levels**: `atoms/`, `molecules/`, `organisms/`, `templates/`, `pages/`
-- **Feature groups** (allowed siblings, not atomic levels): `auth/`, `routing/`, `settings/`, `shared/`, `assistant/`, `proactive/`, `tools/`, `chatbot/`, `widgets/` (e.g. `widgets/weekly/*` for dashboard tiles)
+- **Feature groups** (allowed siblings, not atomic levels): `auth/`, `routing/`, `settings/`, `shared/`, `assistant/`, `proactive/`, `tools/`, `chatbot/`, `observability/`, `widgets/` (e.g. `widgets/weekly/*` for dashboard tiles)
 - **Do not** add new top-level folders under `components/` without updating `utilityDirs` in `validate-architecture.ts` and this section.
 
 **File naming under `components/`** (also checked by `validate-architecture`):

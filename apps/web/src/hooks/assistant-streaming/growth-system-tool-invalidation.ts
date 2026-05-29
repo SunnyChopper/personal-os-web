@@ -1,7 +1,10 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { WsToolCallCompletePayload } from '@/types/chatbot';
 import type { Goal } from '@/types/growth-system';
-import { removeGoalCache, upsertGoalCache } from '@/lib/react-query/growth-system-cache';
+import {
+  applyGoalDeletedToCache,
+  applyGoalUpsertToCache,
+} from '@/lib/react-query/growth-system-cache';
 import { queryKeys } from '@/lib/react-query/query-keys';
 
 /** Assistant tools that mutate Growth System tasks or dependencies. */
@@ -70,10 +73,10 @@ export function invalidateGrowthSystemCachesAfterTaskTool(
  * When a goal-related tool succeeds, update goal caches immediately and invalidate list/dashboard
  * queries so Area/Board views and pickers cannot show deleted goals.
  */
-export function invalidateGrowthSystemCachesAfterGoalTool(
+export async function invalidateGrowthSystemCachesAfterGoalTool(
   queryClient: QueryClient,
   payload: MutationToolPayload
-): void {
+): Promise<void> {
   if (payload.status !== 'ok') {
     return;
   }
@@ -84,24 +87,22 @@ export function invalidateGrowthSystemCachesAfterGoalTool(
   if (payload.toolName === 'delete_goal') {
     const goalId = goalIdFromArguments(payload.arguments);
     if (goalId) {
-      removeGoalCache(queryClient, goalId);
+      await applyGoalDeletedToCache(queryClient, goalId);
     }
-  } else {
-    const goal = goalFromToolResult(payload.result);
-    if (goal) {
-      upsertGoalCache(queryClient, goal);
-    }
+    return;
   }
 
-  void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.goals.all() });
-  void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+  const goal = goalFromToolResult(payload.result);
+  if (goal) {
+    await applyGoalUpsertToCache(queryClient, goal);
+  }
 }
 
 /** Apply task + goal Growth System cache updates after a successful assistant tool. */
-export function invalidateGrowthSystemCachesAfterMutationTool(
+export async function invalidateGrowthSystemCachesAfterMutationTool(
   queryClient: QueryClient,
   payload: MutationToolPayload
-): void {
+): Promise<void> {
   invalidateGrowthSystemCachesAfterTaskTool(queryClient, payload);
-  invalidateGrowthSystemCachesAfterGoalTool(queryClient, payload);
+  await invalidateGrowthSystemCachesAfterGoalTool(queryClient, payload);
 }

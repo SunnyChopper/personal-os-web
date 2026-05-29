@@ -55,6 +55,66 @@ describe('AssistantWsClient', () => {
     expect(url.searchParams.has('threadId')).toBe(false);
   });
 
+  it('dispatches assistantDelta payloads to handler', async () => {
+    const onAssistantDelta = vi.fn();
+    const client = new AssistantWsClient({
+      wsBaseUrl,
+      getAccessToken: async () => token,
+      onAssistantDelta,
+    });
+
+    await client.connect();
+    const socket = MockWebSocket.instances[0];
+    expect(socket).toBeDefined();
+
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: 'assistantDelta',
+        payload: {
+          runId: 'run-1',
+          threadId,
+          delta: 'Hello',
+        },
+      }),
+    } as MessageEvent);
+
+    expect(onAssistantDelta).toHaveBeenCalledWith({
+      runId: 'run-1',
+      threadId,
+      delta: 'Hello',
+    });
+  });
+
+  it('dispatches assistantContentReplace payloads to handler', async () => {
+    const onAssistantContentReplace = vi.fn();
+    const client = new AssistantWsClient({
+      wsBaseUrl,
+      getAccessToken: async () => token,
+      onAssistantContentReplace,
+    });
+
+    await client.connect();
+    const socket = MockWebSocket.instances[0];
+    expect(socket).toBeDefined();
+
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: 'assistantContentReplace',
+        payload: {
+          runId: 'run-1',
+          threadId,
+          content: 'Clean reply body',
+        },
+      }),
+    } as MessageEvent);
+
+    expect(onAssistantContentReplace).toHaveBeenCalledWith({
+      runId: 'run-1',
+      threadId,
+      content: 'Clean reply body',
+    });
+  });
+
   it('dispatches thinkingDelta payloads to handler', async () => {
     const onThinkingDelta = vi.fn();
     const client = new AssistantWsClient({

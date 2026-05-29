@@ -7,6 +7,7 @@ type QuickFilter =
   | 'due_this_week'
   | 'needs_attention'
   | 'recently_completed'
+  | 'stagnant'
   | 'dormant';
 
 interface QuickFilterBarProps {
@@ -40,8 +41,8 @@ export function QuickFilterBar({
       icon: AlertCircle,
       color:
         'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800',
-      count: (goals) => goals.filter((g) => g.status === 'At Risk').length,
-      filter: (goal) => goal.status === 'At Risk',
+      count: (goals) => goals.filter((g) => g.health === 'atRisk' || g.health === 'behind').length,
+      filter: (goal) => goal.health === 'atRisk' || goal.health === 'behind',
     },
     {
       id: 'due_this_week',
@@ -92,31 +93,22 @@ export function QuickFilterBar({
       },
     },
     {
+      id: 'stagnant',
+      label: 'Stagnant',
+      icon: Activity,
+      color:
+        'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800',
+      count: (goals) => goals.filter((g) => g.health === 'stagnant').length,
+      filter: (goal) => goal.health === 'stagnant',
+    },
+    {
       id: 'dormant',
       label: 'Dormant',
       icon: Activity,
       color:
         'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400 border-gray-300 dark:border-gray-600',
-      count: (goals) => {
-        return goals.filter((g) => {
-          const lastActivity = g.lastActivityAt
-            ? new Date(g.lastActivityAt)
-            : new Date(g.createdAt);
-          const daysSinceActivity = Math.ceil(
-            (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
-          );
-          return daysSinceActivity > 14;
-        }).length;
-      },
-      filter: (goal) => {
-        const lastActivity = goal.lastActivityAt
-          ? new Date(goal.lastActivityAt)
-          : new Date(goal.createdAt);
-        const daysSinceActivity = Math.ceil(
-          (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        return daysSinceActivity > 14;
-      },
+      count: (goals) => goals.filter((g) => g.health === 'dormant').length,
+      filter: (goal) => goal.health === 'dormant',
     },
     {
       id: 'recently_completed',

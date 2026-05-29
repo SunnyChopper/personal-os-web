@@ -8,6 +8,8 @@ import {
 interface StatusBadgeProps {
   status: TaskStatus | ProjectStatus | GoalStatus | string;
   size?: 'sm' | 'md' | 'lg';
+  /** Pastel pill (default) or high-contrast label for saturated timeline bars. */
+  appearance?: 'default' | 'onSolid';
   className?: string;
 }
 
@@ -37,16 +39,12 @@ const statusColors: Record<string, { bg: string; text: string }> = {
     bg: 'bg-green-100 dark:bg-green-900/30',
     text: 'text-green-700 dark:text-green-400',
   },
-  'On Track': {
-    bg: 'bg-green-100 dark:bg-green-900/30',
-    text: 'text-green-700 dark:text-green-400',
-  },
-  'At Risk': {
-    bg: 'bg-orange-100 dark:bg-orange-900/30',
-    text: 'text-orange-700 dark:text-orange-400',
-  },
   Achieved: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400' },
   Abandoned: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-500 dark:text-gray-500' },
+  Stale: {
+    bg: 'bg-rose-100 dark:bg-rose-900/30',
+    text: 'text-rose-700 dark:text-rose-400',
+  },
   Paused: {
     bg: 'bg-yellow-100 dark:bg-yellow-900/30',
     text: 'text-yellow-700 dark:text-yellow-400',
@@ -60,10 +58,19 @@ const sizeClasses = {
   lg: 'px-3 py-1.5 text-base',
 };
 
-export function StatusBadge({ status, size = 'md', className = '' }: StatusBadgeProps) {
+export function StatusBadge({
+  status,
+  size = 'md',
+  appearance = 'default',
+  className = '',
+}: StatusBadgeProps) {
   const colors = statusColors[status] || statusColors['Not Started'];
   const isCompleted = status === 'Done' || status === 'Completed' || status === 'Achieved';
   const isCancelled = status === 'Cancelled' || status === 'Abandoned';
+  const appearanceClasses =
+    appearance === 'onSolid'
+      ? 'bg-white/20 text-white ring-1 ring-inset ring-white/30'
+      : `${colors.bg} ${colors.text}`;
 
   // Get the formatted label with proper spacing
   const getLabel = (status: string): string => {
@@ -81,7 +88,7 @@ export function StatusBadge({ status, size = 'md', className = '' }: StatusBadge
 
   return (
     <span
-      className={`inline-flex items-center rounded-full font-medium ${colors.bg} ${colors.text} ${sizeClasses[size]} ${isCancelled ? 'line-through' : ''} ${className}`}
+      className={`inline-flex items-center rounded-full font-medium ${appearanceClasses} ${sizeClasses[size]} ${isCancelled ? 'line-through' : ''} ${className}`}
     >
       {isCompleted && <span className="mr-1">✓</span>}
       {getLabel(status)}

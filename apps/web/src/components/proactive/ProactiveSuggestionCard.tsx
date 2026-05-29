@@ -1,6 +1,7 @@
 import Button from '@/components/atoms/Button';
 import {
   readChannelEmailEnabled,
+  readChannelWebhookEnabled,
   readThreadStrategyLabel,
   summarizeProactiveSuggestionPayload,
 } from '@/components/proactive/proactive-suggestion-summary';
@@ -52,6 +53,7 @@ export default function ProactiveSuggestionCard({
   const summary = summarizeProactiveSuggestionPayload(payload);
   const threadLabel = readThreadStrategyLabel(payload);
   const emailOn = readChannelEmailEnabled(payload);
+  const webhookOn = readChannelWebhookEnabled(payload);
   const modelsLine = formatProactiveAssistantRunConfigSummary(
     parseProactiveAssistantRunConfigFromUnknown(payload.assistantRunConfig),
     modelCatalog
@@ -126,7 +128,7 @@ export default function ProactiveSuggestionCard({
             <div className={subcardClass}>
               <p className="font-medium text-gray-500 dark:text-gray-400">Delivery</p>
               <p className="mt-0.5 text-gray-900 dark:text-gray-100">
-                Email {emailOn ? 'on' : 'off'} · {threadLabel}
+                Email {emailOn ? 'on' : 'off'} · Webhook {webhookOn ? 'on' : 'off'} · {threadLabel}
                 {modelsLine ? (
                   <>
                     <span className="text-gray-500 dark:text-gray-400"> · </span>

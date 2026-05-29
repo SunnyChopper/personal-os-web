@@ -1,4 +1,5 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -6,21 +7,32 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  ExternalLink,
   Play,
   RefreshCw,
+  Search,
 } from 'lucide-react';
 import Button from '@/components/atoms/Button';
+import EditorLinkSettingsControl from '@/components/observability/EditorLinkSettingsControl';
+import LinkedStackTrace from '@/components/observability/LinkedStackTrace';
 import Dialog from '@/components/molecules/Dialog';
+import MarkdownRenderer from '@/components/molecules/MarkdownRenderer';
+import { useEditorLinkSettings } from '@/hooks/useEditorLinkSettings';
+import { formatObservabilityUsd } from '@/lib/observability-formatters';
+import {
+  getObservabilityMessageRole,
+  parseObservabilityPromptText,
+  resolveObservabilityMessageContent,
+} from '@/lib/observability-prompt-display';
 import { queryKeys } from '@/lib/react-query/query-keys';
+import { ROUTES } from '@/routes';
+import { assistantSandboxService } from '@/services/assistant-sandbox.service';
 import { observabilityService } from '@/services/observability.service';
 import { cn } from '@/lib/utils';
-import type { ObservabilityExecutionRow } from '@/types/observability';
+import type { ObservabilityExecutionRow, ObservabilityHealthRow } from '@/types/observability';
+import { formatLatencyMs } from '@/utils/latency-formatters';
+import ExecutionDetailMetadata from './ExecutionDetailMetadata';
 
-const USD = new Intl.NumberFormat(undefined, {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 4,
-});
 const TAB_ORDER = ['burn', 'executions', 'health'] as const;
 type MainTab = (typeof TAB_ORDER)[number];
 
@@ -37,9 +49,61 @@ function tabLabel(t: MainTab): string {
   }
 }
 
+function parseMainTab(value: string | null): MainTab | null {
+  if (value && (TAB_ORDER as readonly string[]).includes(value)) {
+    return value as MainTab;
+  }
+  return null;
+}
+
+const EXECUTION_TEXT_PANEL_CLASS =
+  'text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto';
+
+function renderPromptText(text: string) {
+  const parsed = parseObservabilityPromptText(text);
+
+  if (parsed.kind === 'messages') {
+    return (
+      <div className="space-y-4">
+        {parsed.messages.map((msg, idx) => (
+          <div
+            key={idx}
+            className="space-y-1 pb-3 border-b border-gray-200 dark:border-gray-800 last:border-0 last:pb-0"
+          >
+            <div className="text-xs font-semibold text-violet-600 dark:text-violet-400 capitalize">
+              {getObservabilityMessageRole(msg)}
+            </div>
+            <MarkdownRenderer content={resolveObservabilityMessageContent(msg)} variant="chat" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (parsed.kind === 'json') {
+    return (
+      <pre className="whitespace-pre-wrap font-mono text-xs">
+        {JSON.stringify(parsed.value, null, 2)}
+      </pre>
+    );
+  }
+
+  return <MarkdownRenderer content={parsed.content} variant="chat" />;
+}
+
 export default function ObservabilityPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<MainTab>('burn');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlHydratedRef = useRef(false);
+  const {
+    protocol,
+    localRepoRoot,
+    setProtocol,
+    setLocalRepoRoot,
+    settings: editorLinkSettings,
+  } = useEditorLinkSettings();
+  const [tab, setTab] = useState<MainTab>(() => parseMainTab(searchParams.get('tab')) ?? 'burn');
 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -107,8 +171,41 @@ export default function ObservabilityPage() {
   const [execProvider, setExecProvider] = useState('');
   const [execStatus, setExecStatus] = useState('');
   const [execRequestId, setExecRequestId] = useState('');
-  const [execThreadId, setExecThreadId] = useState('');
-  const [execRunId, setExecRunId] = useState('');
+  const [execProviderRequestId, setExecProviderRequestId] = useState('');
+  const [execThreadId, setExecThreadId] = useState(() => searchParams.get('threadId') ?? '');
+  const [execRunId, setExecRunId] = useState(() => searchParams.get('runId') ?? '');
+  const [execJobRunId, setExecJobRunId] = useState(() => searchParams.get('jobRunId') ?? '');
+
+  useEffect(() => {
+    if (urlHydratedRef.current) return;
+    urlHydratedRef.current = true;
+    const tabParam = parseMainTab(searchParams.get('tab'));
+    if (tabParam) setTab(tabParam);
+    const threadId = searchParams.get('threadId');
+    if (threadId != null) setExecThreadId(threadId);
+    const runId = searchParams.get('runId');
+    if (runId != null) setExecRunId(runId);
+    const jobRunId = searchParams.get('jobRunId');
+    if (jobRunId != null) setExecJobRunId(jobRunId);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!urlHydratedRef.current) return;
+    const next = new URLSearchParams();
+    if (tab !== 'burn') next.set('tab', tab);
+    if (tab === 'executions') {
+      const threadId = execThreadId.trim();
+      const runId = execRunId.trim();
+      const jobRunId = execJobRunId.trim();
+      if (threadId) next.set('threadId', threadId);
+      if (runId) next.set('runId', runId);
+      if (jobRunId) next.set('jobRunId', jobRunId);
+    }
+    const nextStr = next.toString();
+    if (nextStr !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [tab, execThreadId, execRunId, execJobRunId, searchParams, setSearchParams]);
 
   const execFilters = useMemo(
     () => ({
@@ -121,8 +218,10 @@ export default function ObservabilityPage() {
       provider: execProvider.trim() || undefined,
       status: execStatus.trim() || undefined,
       requestId: execRequestId.trim() || undefined,
+      providerRequestId: execProviderRequestId.trim() || undefined,
       threadId: execThreadId.trim() || undefined,
       runId: execRunId.trim() || undefined,
+      jobRunId: execJobRunId.trim() || undefined,
     }),
     [
       execPage,
@@ -133,8 +232,10 @@ export default function ObservabilityPage() {
       execProvider,
       execStatus,
       execRequestId,
+      execProviderRequestId,
       execThreadId,
       execRunId,
+      execJobRunId,
     ]
   );
 
@@ -152,6 +253,14 @@ export default function ObservabilityPage() {
     enabled: Boolean(detailId),
   });
 
+  const openSandboxM = useMutation({
+    mutationFn: (executionId: string) =>
+      assistantSandboxService.createSession({ fromExecutionId: executionId }),
+    onSuccess: (session) => {
+      navigate(`${ROUTES.admin.assistantSandbox}?session=${encodeURIComponent(session.sessionId)}`);
+    },
+  });
+
   const [sinceDays, setSinceDays] = useState(14);
   const healthSummaryQ = useQuery({
     queryKey: queryKeys.observability.healthSummary(sinceDays),
@@ -166,6 +275,15 @@ export default function ObservabilityPage() {
   });
 
   const [expandedHealth, setExpandedHealth] = useState<string | null>(null);
+
+  const investigateHealthRow = (h: ObservabilityHealthRow) => {
+    setTab('executions');
+    setExecPage(1);
+    setExecThreadId(h.threadId ?? '');
+    setExecRunId(h.runId ?? '');
+    setExecJobRunId(h.rowId);
+  };
+
   const replayMut = useMutation({
     mutationFn: (jobRunId: string) => observabilityService.replayJob(jobRunId),
     onSuccess: () => {
@@ -205,6 +323,13 @@ export default function ObservabilityPage() {
         </Button>
       </header>
 
+      <EditorLinkSettingsControl
+        protocol={protocol}
+        localRepoRoot={localRepoRoot}
+        onProtocolChange={setProtocol}
+        onLocalRepoRootChange={setLocalRepoRoot}
+      />
+
       <div className="border-b border-gray-200 dark:border-gray-700 flex gap-1 flex-wrap">
         {TAB_ORDER.map((t) => (
           <button
@@ -233,12 +358,18 @@ export default function ObservabilityPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {[
-              { label: 'Today (USD)', value: USD.format(summaryQ.data?.todayCostUsd ?? 0) },
-              { label: 'Last 7d (USD)', value: USD.format(summaryQ.data?.last7dCostUsd ?? 0) },
+              {
+                label: 'Today (USD)',
+                value: formatObservabilityUsd(summaryQ.data?.todayCostUsd ?? 0),
+              },
+              {
+                label: 'Last 7d (USD)',
+                value: formatObservabilityUsd(summaryQ.data?.last7dCostUsd ?? 0),
+              },
               { label: 'Tokens', value: summaryQ.data?.totalTokens?.toLocaleString() ?? '—' },
               {
                 label: 'Avg latency (ms)',
-                value: summaryQ.data?.avgLatencyMs?.toFixed?.(1) ?? '—',
+                value: formatLatencyMs(summaryQ.data?.avgLatencyMs),
               },
               {
                 label: 'Failures',
@@ -338,7 +469,7 @@ export default function ObservabilityPage() {
                   <div
                     key={p.bucketStart}
                     className="flex-1 min-w-0 flex flex-col justify-end group relative"
-                    title={`${p.bucketStart}: ${USD.format(p.totalCostUsd)}`}
+                    title={`${p.bucketStart}: ${formatObservabilityUsd(p.totalCostUsd)}`}
                   >
                     <div
                       className="w-full mx-auto max-w-[12px] rounded-t bg-violet-500/90 dark:bg-violet-400/90"
@@ -382,7 +513,9 @@ export default function ObservabilityPage() {
                     className="border-b border-gray-100 dark:border-gray-800"
                   >
                     <td className="py-2 pr-4 font-mono text-xs">{r.key || '—'}</td>
-                    <td className="py-2 pr-4 tabular-nums">{USD.format(r.totalCostUsd)}</td>
+                    <td className="py-2 pr-4 tabular-nums">
+                      {formatObservabilityUsd(r.totalCostUsd)}
+                    </td>
                     <td className="py-2 pr-4 tabular-nums">{r.totalTokens.toLocaleString()}</td>
                     <td className="py-2 tabular-nums">{r.callCount}</td>
                   </tr>
@@ -407,8 +540,10 @@ export default function ObservabilityPage() {
                 ['provider', execProvider, setExecProvider],
                 ['status', execStatus, setExecStatus],
                 ['requestId', execRequestId, setExecRequestId],
+                ['providerRequestId', execProviderRequestId, setExecProviderRequestId],
                 ['threadId', execThreadId, setExecThreadId],
                 ['runId', execRunId, setExecRunId],
+                ['jobRunId', execJobRunId, setExecJobRunId],
               ] as const
             ).map(([k, v, setV]) => (
               <label key={k} className="text-xs text-gray-500 flex flex-col gap-1">
@@ -467,7 +602,7 @@ export default function ObservabilityPage() {
                       <td className="p-2 font-mono text-xs">{row.model}</td>
                       <td className="p-2 text-xs">{row.status}</td>
                       <td className="p-2 text-xs tabular-nums">
-                        {row.totalCostUsd != null ? USD.format(row.totalCostUsd) : '—'}
+                        {formatObservabilityUsd(row.totalCostUsd)}
                       </td>
                       <td className="p-2 text-xs text-gray-600 max-w-xs truncate">
                         {row.responsePreview ?? '—'}
@@ -519,50 +654,60 @@ export default function ObservabilityPage() {
               </div>
             )}
             {detailQ.data && (
-              <div className="space-y-4 max-h-[75vh] overflow-y-auto text-sm">
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                  {Object.entries({
-                    id: detailQ.data.id,
-                    module: detailQ.data.module,
-                    model: detailQ.data.model,
-                    provider: detailQ.data.provider,
-                    status: detailQ.data.status,
-                    requestId: detailQ.data.requestId,
-                    threadId: detailQ.data.threadId,
-                    runId: detailQ.data.runId,
-                    totalCostUsd: detailQ.data.totalCostUsd,
-                    latencyMs: detailQ.data.latencyMs,
-                  }).map(([k, v]) => (
-                    <div key={k}>
-                      <dt className="text-gray-500">{k}</dt>
-                      <dd className="font-mono text-gray-900 dark:text-gray-100 break-all">
-                        {String(v ?? '—')}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+              <div className="space-y-4 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={detailQ.data.module !== 'assistant' || openSandboxM.isPending}
+                    title={
+                      detailQ.data.module !== 'assistant'
+                        ? 'Only assistant module executions can open in sandbox'
+                        : 'Open captured prompt in interactive sandbox'
+                    }
+                    onClick={() => {
+                      if (detailId) openSandboxM.mutate(detailId);
+                    }}
+                  >
+                    {openSandboxM.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    ) : (
+                      <ExternalLink className="h-4 w-4 mr-1" />
+                    )}
+                    Open in Sandbox
+                  </Button>
+                  {openSandboxM.isError && (
+                    <span className="text-xs text-red-600">
+                      {(openSandboxM.error as Error).message}
+                    </span>
+                  )}
+                </div>
+                <ExecutionDetailMetadata detail={detailQ.data} />
                 {detailQ.data.promptText != null && (
                   <div>
                     <div className="text-xs font-semibold text-gray-600 mb-1">Prompt</div>
-                    <pre className="text-xs whitespace-pre-wrap bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 max-h-48 overflow-auto">
-                      {detailQ.data.promptText}
-                    </pre>
+                    <div className={cn(EXECUTION_TEXT_PANEL_CLASS, 'max-h-48')}>
+                      {renderPromptText(detailQ.data.promptText)}
+                    </div>
                   </div>
                 )}
                 {detailQ.data.responseRawText != null && (
                   <div>
                     <div className="text-xs font-semibold text-gray-600 mb-1">Response</div>
-                    <pre className="text-xs whitespace-pre-wrap bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 max-h-64 overflow-auto">
-                      {detailQ.data.responseRawText}
-                    </pre>
+                    <div className={cn(EXECUTION_TEXT_PANEL_CLASS, 'max-h-64')}>
+                      <MarkdownRenderer content={detailQ.data.responseRawText} variant="chat" />
+                    </div>
                   </div>
                 )}
                 {detailQ.data.stackTrace != null && (
                   <div>
                     <div className="text-xs font-semibold text-red-600 mb-1">Stack trace</div>
-                    <pre className="text-xs whitespace-pre-wrap bg-red-50 dark:bg-red-950/30 p-3 rounded border border-red-200 dark:border-red-900 max-h-48 overflow-auto">
-                      {detailQ.data.stackTrace}
-                    </pre>
+                    <LinkedStackTrace
+                      text={detailQ.data.stackTrace}
+                      settings={editorLinkSettings}
+                      className="bg-red-50 dark:bg-red-950/30 p-3 rounded border border-red-200 dark:border-red-900"
+                    />
                   </div>
                 )}
               </div>
@@ -640,6 +785,16 @@ export default function ObservabilityPage() {
                           <Button
                             type="button"
                             size="sm"
+                            variant="secondary"
+                            className="gap-1"
+                            onClick={() => investigateHealthRow(h)}
+                          >
+                            <Search className="h-3 w-3" />
+                            Investigate
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
                             className="gap-1"
                             disabled={replayMut.isPending}
                             onClick={() => replayMut.mutate(h.rowId)}
@@ -660,9 +815,11 @@ export default function ObservabilityPage() {
                             </div>
                           )}
                           {h.stackTrace && (
-                            <pre className="whitespace-pre-wrap font-mono bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 max-h-40 overflow-auto">
-                              {h.stackTrace}
-                            </pre>
+                            <LinkedStackTrace
+                              text={h.stackTrace}
+                              settings={editorLinkSettings}
+                              className="font-mono bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 max-h-40 overflow-auto"
+                            />
                           )}
                           {!h.errorMessage && !h.stackTrace && (
                             <span className="text-gray-500">No error payload for this run.</span>

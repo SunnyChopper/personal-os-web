@@ -1,173 +1,353 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Calendar } from 'lucide-react';
-import { motion } from 'framer-motion';
-import type { Goal } from '@/types/growth-system';
-import { AreaBadge } from '@/components/atoms/AreaBadge';
-import { StatusBadge } from '@/components/atoms/StatusBadge';
-import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
-import { formatDateString } from '@/utils/date-formatters';
+import type { Goal, GoalDependency } from '@/types/growth-system';
+import { getGoalTimelineBarColorClasses, GOAL_TIMELINE_LEGEND } from '@/utils/timeline-bar-colors';
+import {
+  applyCascadeToGoals,
+  buildGoalDateMap,
+  computeCascadeUpdates,
+  goalBarEnd,
+  goalBarStart,
+} from '@/utils/gantt-cascade';
+import {
+  GoalGanttBar,
+  type GanttBarLayout,
+  type GanttDragMode,
+} from '@/components/organisms/timeline/GoalGanttBar';
+import { DependencyArrowLayer } from '@/components/organisms/timeline/DependencyArrowLayer';
 
 interface GoalTimelineViewProps {
   goals: Goal[];
+  dependencies: GoalDependency[];
   onGoalClick: (goal: Goal) => void;
-}
-
-interface TimelineGoal extends Goal {
-  startDate: Date;
-  endDate: Date;
-  position: number;
-  width: number;
-  lane: number;
+  onGoalDatesChange: (
+    goalId: string,
+    dates: { startDate: string; targetDate: string }
+  ) => Promise<void>;
+  onAddDependency: (successorGoalId: string, predecessorGoalId: string) => Promise<void>;
 }
 
 type ZoomLevel = '1M' | '3M' | '6M' | '1Y' | 'All';
 
 const ZOOM_RANGES: Record<ZoomLevel, number> = {
-  '1M': 30 * 24 * 60 * 60 * 1000, // 1 month in ms
-  '3M': 90 * 24 * 60 * 60 * 1000, // 3 months
-  '6M': 180 * 24 * 60 * 60 * 1000, // 6 months
-  '1Y': 365 * 24 * 60 * 60 * 1000, // 1 year
+  '1M': 30 * 24 * 60 * 60 * 1000,
+  '3M': 90 * 24 * 60 * 60 * 1000,
+  '6M': 180 * 24 * 60 * 60 * 1000,
+  '1Y': 365 * 24 * 60 * 60 * 1000,
   All: Infinity,
 };
 
-export function GoalTimelineView({ goals, onGoalClick }: GoalTimelineViewProps) {
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MIN_WIDTH_PX = 120;
+const LANE_HEIGHT = 72;
+
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function addDays(d: Date, days: number): Date {
+  return new Date(d.getTime() + days * MS_PER_DAY);
+}
+
+interface DragState {
+  goalId: string;
+  mode: GanttDragMode;
+  startClientX: number;
+  originalStart: Date;
+  originalEnd: Date;
+}
+
+interface ConnectState {
+  fromGoalId: string;
+}
+
+export function GoalTimelineView({
+  goals,
+  dependencies,
+  onGoalClick,
+  onGoalDatesChange,
+  onAddDependency,
+}: GoalTimelineViewProps) {
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('All');
   const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1000);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [connectState, setConnectState] = useState<ConnectState | null>(null);
+  const [connectPointer, setConnectPointer] = useState<{ x: number; y: number } | null>(null);
+  const [previewGoals, setPreviewGoals] = useState<Goal[] | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const goalsWithDates = useMemo(() => {
-    return goals.filter((g) => g.targetDate);
-  }, [goals]);
+  const displayGoals = previewGoals ?? goals;
 
-  // Update container width on resize
+  const goalsWithDates = useMemo(
+    () => displayGoals.filter((g) => g.targetDate && (goalBarStart(g) || g.createdAt)),
+    [displayGoals]
+  );
+
   useEffect(() => {
     const updateWidth = () => {
       if (containerRef.current) {
         setContainerWidth(containerRef.current.offsetWidth);
       }
     };
-
     updateWidth();
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
   }, []);
 
-  const { timelineGoals, minDate, maxDate, lanes } = useMemo(() => {
+  const { minDate, maxDate, layouts, laneCount, dateMap } = useMemo(() => {
     if (goalsWithDates.length === 0) {
-      return { timelineGoals: [], minDate: new Date(), maxDate: new Date(), lanes: 0 };
+      return {
+        minDate: new Date(),
+        maxDate: new Date(),
+        layouts: new Map<string, GanttBarLayout>(),
+        laneCount: 0,
+        dateMap: {},
+      };
     }
 
-    // Find date range
-    const dates = goalsWithDates.map((g) => new Date(g.targetDate!));
-    let minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
-    let maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+    const ends = goalsWithDates.map((g) => goalBarEnd(g)!).filter(Boolean);
+    const starts = goalsWithDates.map((g) => goalBarStart(g)!).filter(Boolean);
+    let minD = new Date(Math.min(...starts.map((d) => d.getTime())));
+    let maxD = new Date(Math.max(...ends.map((d) => d.getTime())));
 
-    // Apply zoom level
     if (zoomLevel !== 'All') {
       const now = new Date();
       const zoomRange = ZOOM_RANGES[zoomLevel];
-      minDate = new Date(now.getTime() - zoomRange / 2);
-      maxDate = new Date(now.getTime() + zoomRange / 2);
+      minD = new Date(now.getTime() - zoomRange / 2);
+      maxD = new Date(now.getTime() + zoomRange / 2);
     } else {
-      // Extend range by 5% on each side for "All" view
-      const range = maxDate.getTime() - minDate.getTime();
-      minDate = new Date(minDate.getTime() - range * 0.05);
-      maxDate = new Date(maxDate.getTime() + range * 0.05);
+      const range = maxD.getTime() - minD.getTime();
+      minD = new Date(minD.getTime() - range * 0.05);
+      maxD = new Date(maxD.getTime() + range * 0.05);
     }
 
-    const totalRange = maxDate.getTime() - minDate.getTime();
+    const totalRange = maxD.getTime() - minD.getTime();
+    const minWidthPercent = (MIN_WIDTH_PX / containerWidth) * 100;
 
-    // Minimum width in pixels (enough for title + badges)
-    const MIN_WIDTH_PX = 120;
-    const MIN_WIDTH_PERCENT = (MIN_WIDTH_PX / containerWidth) * 100;
-
-    // Calculate positions and assign lanes to avoid overlap
-    const goalsInRange = goalsWithDates.filter((goal) => {
-      const targetDate = new Date(goal.targetDate!);
-      const startDate = new Date(goal.createdAt);
-      return startDate <= maxDate && targetDate >= minDate;
+    const sorted = [...goalsWithDates].sort((a, b) => {
+      const aS = goalBarStart(a)?.getTime() ?? 0;
+      const bS = goalBarStart(b)?.getTime() ?? 0;
+      return aS - bS;
     });
 
-    // Sort by start date for lane assignment
-    const sortedGoals = goalsInRange.sort((a, b) => {
-      const aStart = new Date(a.createdAt).getTime();
-      const bStart = new Date(b.createdAt).getTime();
-      return aStart - bStart;
-    });
+    const laneOccupancy: { endPosition: number }[][] = [[]];
+    const layoutMap = new Map<string, GanttBarLayout>();
 
-    interface LaneOccupancy {
-      endPosition: number;
-      goalId: string;
-    }
-    const laneOccupancy: LaneOccupancy[][] = [[]];
+    for (const goal of sorted) {
+      const rawStart = goalBarStart(goal)!;
+      const rawEnd = goalBarEnd(goal)!;
+      const startDate = rawStart < minD ? minD : rawStart;
+      const endDate = rawEnd > maxD ? maxD : rawEnd;
 
-    const timelineGoals: TimelineGoal[] = sortedGoals.map((goal) => {
-      const targetDate = new Date(goal.targetDate!);
-      const createdDate = new Date(goal.createdAt);
-      const startDate = createdDate < minDate ? minDate : createdDate;
-      const endDate = targetDate > maxDate ? maxDate : targetDate;
-
-      let startPos = ((startDate.getTime() - minDate.getTime()) / totalRange) * 100;
-      const endPos = ((endDate.getTime() - minDate.getTime()) / totalRange) * 100;
+      let startPos = ((startDate.getTime() - minD.getTime()) / totalRange) * 100;
+      const endPos = ((endDate.getTime() - minD.getTime()) / totalRange) * 100;
       let width = endPos - startPos;
-
-      // Apply minimum width
-      if (width < MIN_WIDTH_PERCENT) {
-        width = MIN_WIDTH_PERCENT;
-        if (startPos + width > 100) {
-          startPos = 100 - width;
-        }
+      if (width < minWidthPercent) {
+        width = minWidthPercent;
+        if (startPos + width > 100) startPos = 100 - width;
       }
 
-      // Find available lane (avoid overlaps)
       let lane = 0;
       let placed = false;
-
       while (!placed) {
-        if (!laneOccupancy[lane]) {
-          laneOccupancy[lane] = [];
-        }
-
-        // Check if this position conflicts with any goal in this lane
-        const conflicts = laneOccupancy[lane].some((occupancy) => {
-          return startPos < occupancy.endPosition + 1; // +1 for small gap
-        });
-
+        if (!laneOccupancy[lane]) laneOccupancy[lane] = [];
+        const conflicts = laneOccupancy[lane].some((o) => startPos < o.endPosition + 1);
         if (!conflicts) {
-          laneOccupancy[lane].push({ endPosition: startPos + width, goalId: goal.id });
+          laneOccupancy[lane].push({ endPosition: startPos + width });
           placed = true;
         } else {
           lane++;
         }
       }
 
-      return {
-        ...goal,
-        startDate,
-        endDate,
-        position: startPos,
-        width,
-        lane,
-      };
-    });
+      layoutMap.set(goal.id, {
+        goalId: goal.id,
+        leftPercent: startPos,
+        widthPercent: width,
+        topPx: lane * LANE_HEIGHT + 24,
+      });
+    }
 
-    return { timelineGoals, minDate, maxDate, lanes: laneOccupancy.length };
+    return {
+      minDate: minD,
+      maxDate: maxD,
+      layouts: layoutMap,
+      laneCount: laneOccupancy.length,
+      dateMap: buildGoalDateMap(goalsWithDates),
+    };
   }, [goalsWithDates, zoomLevel, containerWidth]);
 
   const monthsBetween = useMemo(() => {
     const months: Date[] = [];
     const current = new Date(minDate);
     current.setDate(1);
-
     while (current <= maxDate) {
       months.push(new Date(current));
       current.setMonth(current.getMonth() + 1);
     }
-
     return months;
   }, [minDate, maxDate]);
 
-  if (goalsWithDates.length === 0) {
+  const applyPreviewDates = useCallback(
+    (goalId: string, start: Date, end: Date) => {
+      const next = goals.map((g) =>
+        g.id === goalId ? { ...g, startDate: toIsoDate(start), targetDate: toIsoDate(end) } : g
+      );
+      const map = buildGoalDateMap(next);
+      map[goalId] = { startDate: toIsoDate(start), targetDate: toIsoDate(end) };
+      const cascaded = computeCascadeUpdates(map, dependencies, [goalId]);
+      setPreviewGoals(applyCascadeToGoals(next, cascaded));
+    },
+    [goals, dependencies]
+  );
+
+  const clientXToDayDelta = useCallback(
+    (clientX: number, originX: number): number => {
+      const el = chartRef.current;
+      if (!el) return 0;
+      const rect = el.getBoundingClientRect();
+      const totalRange = maxDate.getTime() - minDate.getTime();
+      const pxPerMs = rect.width / totalRange;
+      const deltaPx = clientX - originX;
+      return Math.round(deltaPx / pxPerMs / MS_PER_DAY);
+    },
+    [minDate, maxDate]
+  );
+
+  const handleDragStart = useCallback(
+    (goalId: string, mode: GanttDragMode, clientX: number) => {
+      const goal = goals.find((g) => g.id === goalId);
+      if (!goal) return;
+      const start = goalBarStart(goal);
+      const end = goalBarEnd(goal);
+      if (!start || !end) return;
+      setDragState({
+        goalId,
+        mode,
+        startClientX: clientX,
+        originalStart: start,
+        originalEnd: end,
+      });
+      if (mode === 'connect') {
+        setConnectState({ fromGoalId: goalId });
+      }
+    },
+    [goals]
+  );
+
+  useEffect(() => {
+    if (!dragState && !connectState) return;
+
+    const onMove = (e: PointerEvent) => {
+      if (connectState && chartRef.current) {
+        const rect = chartRef.current.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = e.clientY - rect.top;
+        setConnectPointer({ x, y });
+        return;
+      }
+
+      if (!dragState || dragState.mode === 'connect') return;
+      const dayDelta = clientXToDayDelta(e.clientX, dragState.startClientX);
+      const { originalStart, originalEnd, mode, goalId } = dragState;
+      const durationDays = Math.max(
+        Math.round((originalEnd.getTime() - originalStart.getTime()) / MS_PER_DAY),
+        1
+      );
+
+      let newStart = originalStart;
+      let newEnd = originalEnd;
+
+      if (mode === 'move') {
+        newStart = addDays(originalStart, dayDelta);
+        newEnd = addDays(originalEnd, dayDelta);
+      } else if (mode === 'resize-start') {
+        newStart = addDays(originalStart, dayDelta);
+        if (newStart >= originalEnd) {
+          newStart = addDays(originalEnd, -1);
+        }
+        newEnd = originalEnd;
+      } else if (mode === 'resize-end') {
+        newEnd = addDays(originalEnd, dayDelta);
+        if (newEnd <= originalStart) {
+          newEnd = addDays(originalStart, 1);
+        }
+        newStart = originalStart;
+      }
+
+      void durationDays;
+      applyPreviewDates(goalId, newStart, newEnd);
+    };
+
+    const onUp = async (e: PointerEvent) => {
+      if (connectState && chartRef.current) {
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const barEl = el?.closest('[data-gantt-goal-id]');
+        const targetId = barEl?.getAttribute('data-gantt-goal-id');
+        if (targetId && targetId !== connectState.fromGoalId) {
+          setIsSaving(true);
+          try {
+            await onAddDependency(targetId, connectState.fromGoalId);
+          } finally {
+            setIsSaving(false);
+          }
+        }
+        setConnectState(null);
+        setConnectPointer(null);
+        setDragState(null);
+        return;
+      }
+
+      if (dragState && dragState.mode !== 'connect' && previewGoals) {
+        const updated = previewGoals.find((g) => g.id === dragState.goalId);
+        const orig = goals.find((g) => g.id === dragState.goalId);
+        if (updated && orig) {
+          const newStart = goalBarStart(updated);
+          const newEnd = goalBarEnd(updated);
+          const oldStart = goalBarStart(orig);
+          const oldEnd = goalBarEnd(orig);
+          if (
+            newStart &&
+            newEnd &&
+            (toIsoDate(newStart) !== toIsoDate(oldStart!) ||
+              toIsoDate(newEnd) !== toIsoDate(oldEnd!))
+          ) {
+            setIsSaving(true);
+            try {
+              await onGoalDatesChange(dragState.goalId, {
+                startDate: toIsoDate(newStart),
+                targetDate: toIsoDate(newEnd),
+              });
+            } finally {
+              setIsSaving(false);
+            }
+          }
+        }
+      }
+      setDragState(null);
+      setPreviewGoals(null);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [
+    dragState,
+    connectState,
+    clientXToDayDelta,
+    applyPreviewDates,
+    previewGoals,
+    goals,
+    onGoalDatesChange,
+    onAddDependency,
+  ]);
+
+  if (goals.filter((g) => g.targetDate).length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
         <Calendar className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
@@ -175,26 +355,31 @@ export function GoalTimelineView({ goals, onGoalClick }: GoalTimelineViewProps) 
           No goals with target dates
         </h3>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Add target dates to your goals to see them on the timeline
+          Add target dates to your goals to see them on the timeline. Optional start dates refine
+          scheduling.
         </p>
       </div>
     );
   }
 
+  const chartHeight = laneCount * LANE_HEIGHT + 24;
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-      {/* Timeline Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
           <Calendar className="w-5 h-5" />
-          Goal Timeline ({timelineGoals.length} goals)
+          Goal Timeline ({goalsWithDates.length} goals)
+          {isSaving && (
+            <span className="text-xs font-normal text-blue-600 dark:text-blue-400">Saving…</span>
+          )}
         </h3>
         <div className="flex items-center gap-4">
-          {/* Zoom Controls */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             {(['1M', '3M', '6M', '1Y', 'All'] as ZoomLevel[]).map((level) => (
               <button
                 key={level}
+                type="button"
                 onClick={() => setZoomLevel(level)}
                 className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
                   zoomLevel === level
@@ -206,7 +391,6 @@ export function GoalTimelineView({ goals, onGoalClick }: GoalTimelineViewProps) 
               </button>
             ))}
           </div>
-
           <span className="text-sm text-gray-600 dark:text-gray-400 px-3">
             {minDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} -{' '}
             {maxDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
@@ -214,10 +398,13 @@ export function GoalTimelineView({ goals, onGoalClick }: GoalTimelineViewProps) 
         </div>
       </div>
 
-      {/* Timeline Container */}
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+        Drag bars to reschedule; drag the right connector to another goal to add a finish-to-start
+        dependency. Downstream goals shift automatically.
+      </p>
+
       <div ref={containerRef} className="relative overflow-x-visible">
-        {/* Month Labels */}
-        <div className="relative mb-4 h-8 border-b border-gray-200 dark:border-gray-700 overflow-visible">
+        <div className="relative mb-4 h-8 border-b border-gray-200 dark:border-gray-700">
           {(() => {
             const totalRange = maxDate.getTime() - minDate.getTime();
             const validMonths = monthsBetween
@@ -226,18 +413,15 @@ export function GoalTimelineView({ goals, onGoalClick }: GoalTimelineViewProps) 
                 rawPosition: ((month.getTime() - minDate.getTime()) / totalRange) * 100,
               }))
               .filter((m) => m.rawPosition >= 0 && m.rawPosition <= 100);
-
-            const visibleMonths = [];
+            const visibleMonths: typeof validMonths = [];
             for (let i = 0; i < validMonths.length; i++) {
               const current = validMonths[i];
               const isLast = i === validMonths.length - 1;
-
               if (visibleMonths.length === 0) {
                 visibleMonths.push(current);
               } else {
                 const lastVisible = visibleMonths[visibleMonths.length - 1];
                 const distance = current.rawPosition - lastVisible.rawPosition;
-
                 if (distance >= 8) {
                   visibleMonths.push(current);
                 } else if (isLast && visibleMonths.length > 1) {
@@ -246,29 +430,20 @@ export function GoalTimelineView({ goals, onGoalClick }: GoalTimelineViewProps) 
                 }
               }
             }
-
             return visibleMonths.map(({ month, rawPosition }) => {
               let textStyle: React.CSSProperties = {
                 left: '0',
                 transform: 'translateX(-50%)',
               };
-
-              if (rawPosition < 5) {
-                textStyle = { left: '0.5rem' };
-              } else if (rawPosition > 95) {
-                textStyle = { right: '0.5rem' };
-              }
-
+              if (rawPosition < 5) textStyle = { left: '0.5rem' };
+              else if (rawPosition > 95) textStyle = { right: '0.5rem' };
               return (
                 <div
                   key={month.toISOString()}
                   className="absolute top-0 bottom-0"
                   style={{ left: `${rawPosition}%` }}
                 >
-                  {/* Vertical border line */}
                   <div className="absolute top-0 bottom-0 left-0 border-l border-gray-300 dark:border-gray-600" />
-
-                  {/* Text label */}
                   <span
                     className="absolute top-0 text-xs text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap"
                     style={textStyle}
@@ -281,9 +456,23 @@ export function GoalTimelineView({ goals, onGoalClick }: GoalTimelineViewProps) 
           })()}
         </div>
 
-        {/* Timeline Bars */}
-        <div className="relative" style={{ minHeight: `${lanes * 72 + 24}px` }}>
-          {/* Today Marker - positioned absolutely to extend through all goal bars */}
+        <div ref={chartRef} className="relative select-none" style={{ minHeight: chartHeight }}>
+          <DependencyArrowLayer
+            dependencies={dependencies}
+            layouts={layouts}
+            dateMap={dateMap}
+            containerHeight={chartHeight}
+            connectPreview={
+              connectState && connectPointer
+                ? {
+                    fromGoalId: connectState.fromGoalId,
+                    toX: connectPointer.x,
+                    toY: connectPointer.y,
+                  }
+                : null
+            }
+          />
+
           {(() => {
             const today = new Date();
             const totalRange = maxDate.getTime() - minDate.getTime();
@@ -291,7 +480,7 @@ export function GoalTimelineView({ goals, onGoalClick }: GoalTimelineViewProps) 
             if (todayPos >= 0 && todayPos <= 100) {
               return (
                 <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-blue-500 dark:bg-blue-400 z-20"
+                  className="absolute top-0 bottom-0 w-0.5 bg-blue-500 dark:bg-blue-400 z-20 pointer-events-none"
                   style={{ left: `${todayPos}%` }}
                 >
                   <div className="absolute top-0 left-1/2 transform -translate-x-1/2 px-2 py-0.5 bg-blue-500 dark:bg-blue-400 text-white text-xs rounded whitespace-nowrap font-medium">
@@ -303,127 +492,42 @@ export function GoalTimelineView({ goals, onGoalClick }: GoalTimelineViewProps) 
             return null;
           })()}
 
-          {timelineGoals.map((goal) => {
-            // Determine color based on status
-            let colorClasses =
-              'from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 border-blue-600 dark:border-blue-500';
-
-            if (goal.status === 'Achieved') {
-              colorClasses =
-                'from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700 border-purple-600 dark:border-purple-500';
-            } else if (goal.status === 'At Risk') {
-              colorClasses =
-                'from-orange-500 to-orange-600 dark:from-orange-600 dark:to-orange-700 border-orange-600 dark:border-orange-500';
-            } else if (goal.status === 'On Track') {
-              colorClasses =
-                'from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 border-green-600 dark:border-green-500';
-            }
-
+          {goalsWithDates.map((goal) => {
+            const layout = layouts.get(goal.id);
+            if (!layout) return null;
+            const isDragging = dragState?.goalId === goal.id;
             return (
-              <motion.div
-                key={goal.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="absolute h-16"
-                style={{
-                  left: `${goal.position}%`,
-                  width: `${goal.width}%`,
-                  top: `${goal.lane * 72 + 24}px`,
-                }}
-              >
-                {/* Goal Bar */}
-                <div
-                  onClick={() => onGoalClick(goal)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      onGoalClick(goal);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`View goal: ${goal.title}`}
-                  className={`h-full p-2 bg-gradient-to-r ${colorClasses} rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer group border relative`}
-                >
-                  <div className="flex items-center justify-between h-full">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <PriorityIndicator priority={goal.priority} size="sm" />
-                      <span className="text-xs font-medium text-white truncate">{goal.title}</span>
-                    </div>
-                    <StatusBadge status={goal.status} size="sm" />
-                  </div>
-
-                  {/* Hover tooltip */}
-                  <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-30 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2 text-sm">
-                      {goal.title}
-                    </h4>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Created:</span>
-                        <span className="text-gray-900 dark:text-white font-medium">
-                          {new Date(goal.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Target:</span>
-                        <span className="text-gray-900 dark:text-white font-medium">
-                          {formatDateString(goal.targetDate!) || ''}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Duration:</span>
-                        <span className="text-gray-900 dark:text-white font-medium">
-                          {Math.ceil(
-                            (new Date(goal.targetDate!).getTime() -
-                              new Date(goal.createdAt).getTime()) /
-                              (1000 * 60 * 60 * 24)
-                          )}{' '}
-                          days
-                        </span>
-                      </div>
-                      {goal.description && (
-                        <p className="text-gray-600 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
-                          {goal.description}
-                        </p>
-                      )}
-                      <div className="flex gap-2 pt-2 flex-wrap">
-                        <AreaBadge area={goal.area} />
-                        <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-                          {goal.timeHorizon}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
+              <div key={goal.id} data-gantt-goal-id={goal.id}>
+                <GoalGanttBar
+                  goal={goal}
+                  layout={layout}
+                  colorClasses={getGoalTimelineBarColorClasses(goal.status)}
+                  isPreview={isDragging && !!previewGoals}
+                  isConnecting={connectState?.fromGoalId === goal.id}
+                  onGoalClick={onGoalClick}
+                  onDragStart={handleDragStart}
+                />
+              </div>
             );
           })}
         </div>
       </div>
 
-      {/* Legend */}
       <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-6 flex-wrap text-xs text-gray-600 dark:text-gray-400">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-blue-500 rounded" />
-            <span>Active/Planning</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded" />
-            <span>On Track</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-orange-500 rounded" />
-            <span>At Risk</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-purple-500 rounded" />
-            <span>Achieved</span>
-          </div>
+          {GOAL_TIMELINE_LEGEND.map(({ label, swatchClass }) => (
+            <div key={label} className="flex items-center gap-2">
+              <div className={`w-3 h-3 ${swatchClass} rounded`} />
+              <span>{label}</span>
+            </div>
+          ))}
           <div className="flex items-center gap-2">
             <div className="w-0.5 h-3 bg-blue-500" />
             <span>Today</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-red-500">—</span>
+            <span>Violated dependency</span>
           </div>
         </div>
       </div>

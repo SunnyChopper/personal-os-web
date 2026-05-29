@@ -22,7 +22,7 @@ export default function WhiteboardPage() {
 
   const [ready, setReady] = useState(false);
   const [name, setName] = useState('Untitled board');
-  const [vaultItemId, setVaultItemId] = useState<string | null>(null);
+  const [fileId, setFileId] = useState<string | null>(null);
   const [initialData, setInitialData] = useState<ExcalidrawScene | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export default function WhiteboardPage() {
         const remote = await whiteboardsService.get(boardId);
         if (cancelled) return;
         setName(remote.name);
-        setVaultItemId(remote.vaultItemId);
+        setFileId(remote.fileId);
         try {
           const parsed = JSON.parse(remote.sceneJson) as ExcalidrawScene;
           setInitialData(parsed);
@@ -108,11 +108,11 @@ export default function WhiteboardPage() {
         boardId,
         name,
         sceneJson,
-        vaultItemId,
+        fileId,
         thumbnailDataUrl: thumb,
       });
-      setVaultItemId(res.vaultItemId);
-      setSaveMsg('Saved to Knowledge Vault');
+      setFileId(res.fileId);
+      setSaveMsg('Saved');
       setTimeout(() => setSaveMsg(null), 3500);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');

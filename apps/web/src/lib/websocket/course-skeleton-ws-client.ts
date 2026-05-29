@@ -58,6 +58,8 @@ export function runCourseSkeletonOverWebSocket(options: {
   preAssessment: PreAssessmentStored;
   targetDifficulty: DifficultyLevel;
   knowledgeSource?: 'global' | 'vault';
+  /** Catalog model id when manual; omit for server vault defaults. */
+  model?: string;
   onProgress?: (progress: CourseGenerationProgress) => void;
 }): Promise<CourseSkeletonResult> {
   return new Promise((resolve, reject) => {
@@ -93,16 +95,21 @@ export function runCourseSkeletonOverWebSocket(options: {
 
         ws.onopen = () => {
           try {
+            const payload: Record<string, unknown> = {
+              topic: options.topic,
+              targetDifficulty: options.targetDifficulty,
+              knowledgeSource: options.knowledgeSource ?? 'global',
+              preAssessment: options.preAssessment,
+              useCache: true,
+            };
+            const model = options.model?.trim();
+            if (model) {
+              payload.model = model;
+            }
             ws.send(
               JSON.stringify({
                 type: 'courseSkeletonStart',
-                payload: {
-                  topic: options.topic,
-                  targetDifficulty: options.targetDifficulty,
-                  knowledgeSource: options.knowledgeSource ?? 'global',
-                  preAssessment: options.preAssessment,
-                  useCache: true,
-                },
+                payload,
               })
             );
           } catch (e) {

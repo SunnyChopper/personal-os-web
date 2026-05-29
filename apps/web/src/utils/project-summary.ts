@@ -59,10 +59,19 @@ export const getEffectiveProjectStatus = (
   return project.status;
 };
 
+/** True when backend marks the project stale and it is not terminal/complete for display. */
+export const isProjectStaleForDisplay = (project: Project, workComplete: boolean): boolean => {
+  if (workComplete || project.status === 'Completed' || project.status === 'Cancelled') {
+    return false;
+  }
+  return project.isStale ?? false;
+};
+
 export interface ProjectDisplayModel {
   progressPercent: number;
   isWorkComplete: boolean;
   effectiveStatus: ProjectStatus;
+  isStale: boolean;
 }
 
 export const getProjectDisplayModel = (
@@ -77,6 +86,7 @@ export const getProjectDisplayModel = (
     progressPercent,
     isWorkComplete,
     effectiveStatus: getEffectiveProjectStatus(project, isWorkComplete),
+    isStale: isProjectStaleForDisplay(project, isWorkComplete),
   };
 };
 

@@ -7,6 +7,14 @@ import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { ROUTES } from '@/routes';
 
+const TIMEFRAME_RANK: Record<Goal['timeHorizon'], number> = {
+  Daily: 0,
+  Weekly: 1,
+  Monthly: 2,
+  Quarterly: 3,
+  Yearly: 4,
+};
+
 interface GoalWithProgress {
   goal: Goal;
   progress: number;
@@ -77,16 +85,23 @@ export function GoalsDashboardWidget({
     );
   }
 
-  // Get top 3 priority goals
-  const activeGoals = goals
-    .filter((g) => g.status === 'Active' || g.status === 'On Track' || g.status === 'At Risk')
+  // Focus on lowest (shortest) timeframe among active goals, then top 3 by priority/progress
+  const activeGoalsAll = goals.filter((g) => g.status === 'Active');
+  const lowestTimeframe =
+    activeGoalsAll.length > 0
+      ? activeGoalsAll.reduce(
+          (lowest, g) =>
+            TIMEFRAME_RANK[g.timeHorizon] < TIMEFRAME_RANK[lowest] ? g.timeHorizon : lowest,
+          activeGoalsAll[0].timeHorizon
+        )
+      : null;
+  const activeGoals = activeGoalsAll
+    .filter((g) => g.timeHorizon === lowestTimeframe)
     .sort((a, b) => {
-      // Sort by priority first
       const priorityOrder = { P1: 0, P2: 1, P3: 2, P4: 3 };
       const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
       if (priorityDiff !== 0) return priorityDiff;
 
-      // Then by progress (lower progress first for focus)
       const progressA = goalsProgress.get(a.id) || 0;
       const progressB = goalsProgress.get(b.id) || 0;
       return progressA - progressB;
@@ -161,6 +176,16 @@ export function GoalsDashboardWidget({
       <div className="space-y-4">
         {goalsWithData.map((item, index) => {
           const { goal, progress, daysRemaining } = item;
+          const isOverdue = daysRemaining !== null && daysRemaining < 0;
+          const isDueSoon = daysRemaining !== null && daysRemaining >= 0 && daysRemaining <= 3;
+
+          const cardUrgencyClasses = isOverdue
+            ? 'bg-gradient-to-br from-red-50/50 to-white dark:from-red-900/20 dark:to-gray-800 border-red-500/50 dark:border-red-500/50 animate-border-pulse-red'
+            : isDueSoon
+              ? 'bg-gradient-to-br from-amber-50/50 to-white dark:from-amber-900/20 dark:to-gray-800 border-amber-500/50 dark:border-amber-500/50 animate-border-pulse-amber'
+              : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400';
+
+          const progressRingColor = isOverdue ? 'red' : isDueSoon ? 'orange' : 'blue';
 
           return (
             <motion.div
@@ -170,7 +195,9 @@ export function GoalsDashboardWidget({
               transition={{ delay: index * 0.1 }}
             >
               <Link to={`${ROUTES.admin.goals}?goalId=${goal.id}`}>
-                <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 transition-all group min-h-[140px] flex flex-col">
+                <div
+                  className={`p-4 rounded-lg border transition-all group min-h-[140px] flex flex-col ${cardUrgencyClasses}`}
+                >
                   {/* Top Row */}
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -187,7 +214,7 @@ export function GoalsDashboardWidget({
                         </div>
                       </div>
                     </div>
-                    <ProgressRing progress={progress} size="sm" />
+                    <ProgressRing progress={progress} size="sm" color={progressRingColor} />
                   </div>
 
                   {/* Progress Bar */}

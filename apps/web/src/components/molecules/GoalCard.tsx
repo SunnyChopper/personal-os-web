@@ -12,22 +12,26 @@ import {
   Repeat,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Goal, GoalProgressBreakdown, SuccessCriterion } from '@/types/growth-system';
+import type {
+  Goal,
+  GoalHealth,
+  GoalProgressBreakdown,
+  SuccessCriterion,
+} from '@/types/growth-system';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
+import { HealthBadge } from '@/components/atoms/HealthBadge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import { ProgressRing } from '@/components/atoms/ProgressRing';
 import { SUBCATEGORY_LABELS } from '@/constants/growth-system';
 import { formatDateString } from '@/utils/date-formatters';
-
-type HealthStatus = 'healthy' | 'at_risk' | 'behind' | 'dormant';
 
 interface GoalCardProps {
   goal: Goal;
   onClick: (goal: Goal) => void;
   progress?: GoalProgressBreakdown;
   linkedCounts?: { tasks: number; metrics: number; habits: number; projects: number };
-  healthStatus?: HealthStatus;
+  healthStatus?: GoalHealth;
   daysRemaining?: number | null;
   momentum?: 'active' | 'dormant';
   onQuickAction?: (action: 'add_task' | 'log_metric' | 'complete_criterion') => void;
@@ -38,7 +42,7 @@ export function GoalCard({
   onClick,
   progress,
   linkedCounts = { tasks: 0, metrics: 0, habits: 0, projects: 0 },
-  healthStatus = 'healthy',
+  healthStatus,
   daysRemaining = null,
   momentum = 'active',
   onQuickAction,
@@ -79,29 +83,7 @@ export function GoalCard({
     return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30';
   };
 
-  const getHealthBadge = () => {
-    const configs = {
-      healthy: {
-        color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-        label: 'On Track',
-      },
-      at_risk: {
-        color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
-        label: 'At Risk',
-      },
-      behind: {
-        color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
-        label: 'Behind',
-      },
-      dormant: {
-        color: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400',
-        label: 'Dormant',
-      },
-    };
-    return configs[healthStatus];
-  };
-
-  const healthBadge = getHealthBadge();
+  const resolvedHealth = healthStatus ?? goal.health ?? null;
 
   const handleQuickAction = (
     e: React.MouseEvent,
@@ -129,9 +111,9 @@ export function GoalCard({
               <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
                 {goal.timeHorizon}
               </span>
-              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${healthBadge.color}`}>
-                {healthBadge.label}
-              </span>
+              {resolvedHealth && goal.status === 'Active' && (
+                <HealthBadge health={resolvedHealth} />
+              )}
               {momentum === 'active' ? (
                 <Zap className="w-3.5 h-3.5 text-amber-500" aria-label="Active" />
               ) : (

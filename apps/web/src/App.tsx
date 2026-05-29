@@ -55,6 +55,7 @@ import HealthFitnessOverviewPage from './pages/admin/HealthFitnessOverviewPage';
 import HealthFitnessNutritionPage from './pages/admin/HealthFitnessNutritionPage';
 import HealthFitnessWorkoutsPage from './pages/admin/HealthFitnessWorkoutsPage';
 import HealthFitnessAuraPage from './pages/admin/HealthFitnessAuraPage';
+import HealthFitnessRewardsPage from './pages/admin/HealthFitnessRewardsPage';
 import ZenDashboardPage from './pages/admin/ZenDashboardPage';
 import MarkdownViewerPage from './pages/admin/MarkdownViewerPage';
 import VoyagerLayout from './pages/admin/voyager/VoyagerLayout';
@@ -68,6 +69,7 @@ import MemoryAuditPage from './pages/admin/MemoryAuditPage';
 import AssistantSettingsPage from './pages/admin/AssistantSettingsPage';
 import ProactiveAutomationsPage from './pages/admin/ProactiveAutomationsPage';
 import ObservabilityPage from './pages/admin/ObservabilityPage';
+import AssistantSandboxPage from './pages/admin/AssistantSandboxPage';
 import ToolsSkeleton from './components/molecules/ToolsSkeleton';
 import ToolsOverviewPage from './pages/admin/tools/ToolsOverviewPage';
 import HomePage from './pages/HomePage';
@@ -201,6 +203,10 @@ function AppContent() {
             element={<HealthFitnessWorkoutsPage />}
           />
           <Route path={ADMIN_CHILD_ROUTES.healthFitnessAura} element={<HealthFitnessAuraPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.healthFitnessRewards}
+            element={<HealthFitnessRewardsPage />}
+          />
           <Route path={ADMIN_CHILD_ROUTES.assistant} element={<ChatbotPage />} />
           <Route
             path={ADMIN_CHILD_ROUTES.assistantToolSafety}
@@ -211,6 +217,7 @@ function AppContent() {
             element={<ProactiveAutomationsPage />}
           />
           <Route path={ADMIN_CHILD_ROUTES.assistantObservability} element={<ObservabilityPage />} />
+          <Route path={ADMIN_CHILD_ROUTES.assistantSandbox} element={<AssistantSandboxPage />} />
           <Route path={`${ADMIN_CHILD_ROUTES.assistant}/:threadId`} element={<ChatbotPage />} />
           <Route path={ADMIN_CHILD_ROUTES.memoryAudit} element={<MemoryAuditPage />} />
           <Route path={ADMIN_CHILD_ROUTES.componentsDemo} element={<ComponentsDemoPage />} />

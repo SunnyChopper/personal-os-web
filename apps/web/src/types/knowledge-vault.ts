@@ -391,6 +391,8 @@ export interface GenerateCourseSkeletonInput {
   preAssessment: PreAssessmentStored;
   targetDifficulty: DifficultyLevel;
   knowledgeSource?: 'global' | 'vault';
+  /** Catalog model id when manual; omit for server vault defaults. */
+  model?: string;
 }
 
 export interface GenerateLessonContentInput {

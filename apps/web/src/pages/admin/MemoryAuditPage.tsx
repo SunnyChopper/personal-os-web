@@ -381,12 +381,6 @@ export default function MemoryAuditPage() {
               </div>
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 pt-3">
                 <div>
-                  <dt className="font-medium text-gray-600 dark:text-gray-500">dedupeKey</dt>
-                  <dd className="truncate font-mono" title={entry.dedupeKey}>
-                    {entry.dedupeKey}
-                  </dd>
-                </div>
-                <div>
                   <dt className="font-medium text-gray-600 dark:text-gray-500">id</dt>
                   <dd className="truncate font-mono" title={entry.id}>
                     {entry.id}

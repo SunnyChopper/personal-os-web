@@ -523,6 +523,28 @@ interface SettingsTabProps {
   onEmailTest: () => void;
   emailTestError: string | null;
   emailTestMessage: string | null;
+  webhookUrl: string;
+  webhookFormat: 'discord' | 'generic';
+  webhookEnabled: boolean;
+  onWebhookUrlChange: (url: string) => void;
+  onWebhookFormatChange: (format: 'discord' | 'generic') => void;
+  onWebhookEnabledChange: (enabled: boolean) => void;
+  webhookSaving: boolean;
+  onSaveWebhook: () => void;
+  webhookTestPending: boolean;
+  onWebhookTest: () => void;
+  webhookTestError: string | null;
+  webhookTestMessage: string | null;
+  webhookSaveError: string | null;
+  recoveryEnabled: boolean;
+  recoveryEmailEnabled: boolean;
+  recoveryWebhookEnabled: boolean;
+  onRecoveryEnabledChange: (enabled: boolean) => void;
+  onRecoveryEmailEnabledChange: (enabled: boolean) => void;
+  onRecoveryWebhookEnabledChange: (enabled: boolean) => void;
+  recoverySaving: boolean;
+  onSaveRecovery: () => void;
+  recoverySaveError: string | null;
   tz: string;
   zoneOptions: string[];
   onTzChange: (z: string) => void;
@@ -536,6 +558,28 @@ function SettingsTab({
   onEmailTest,
   emailTestError,
   emailTestMessage,
+  webhookUrl,
+  webhookFormat,
+  webhookEnabled,
+  onWebhookUrlChange,
+  onWebhookFormatChange,
+  onWebhookEnabledChange,
+  webhookSaving,
+  onSaveWebhook,
+  webhookTestPending,
+  onWebhookTest,
+  webhookTestError,
+  webhookTestMessage,
+  webhookSaveError,
+  recoveryEnabled,
+  recoveryEmailEnabled,
+  recoveryWebhookEnabled,
+  onRecoveryEnabledChange,
+  onRecoveryEmailEnabledChange,
+  onRecoveryWebhookEnabledChange,
+  recoverySaving,
+  onSaveRecovery,
+  recoverySaveError,
   tz,
   zoneOptions,
   onTzChange,
@@ -579,6 +623,153 @@ function SettingsTab({
             {emailTestMessage}
           </p>
         ) : null}
+      </div>
+
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:p-5">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+          Webhook delivery (Discord)
+        </h3>
+        <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 max-w-2xl">
+          Push bite-sized run snapshots to a private channel via an HTTPS webhook. Create an
+          Incoming Webhook in your Discord server channel settings, paste the URL below, and enable
+          webhook notifications on each automation. Works alongside email.
+        </p>
+        <div className="space-y-3 max-w-2xl">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+            Webhook URL
+            <input
+              type="url"
+              className="mt-1 w-full border rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-900 dark:border-gray-600"
+              placeholder="https://discord.com/api/webhooks/…"
+              value={webhookUrl}
+              onChange={(e) => onWebhookUrlChange(e.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <div className="flex flex-wrap gap-3 items-center">
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              Format
+              <select
+                className="mt-1 block border rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-900 dark:border-gray-600"
+                value={webhookFormat}
+                onChange={(e) => onWebhookFormatChange(e.target.value as 'discord' | 'generic')}
+              >
+                <option value="discord">Discord (embed)</option>
+                <option value="generic">Generic JSON</option>
+              </select>
+            </label>
+            <label className="text-xs flex items-center gap-2 pt-5">
+              <input
+                type="checkbox"
+                className="rounded border-gray-400"
+                checked={webhookEnabled}
+                onChange={(e) => onWebhookEnabledChange(e.target.checked)}
+              />
+              <span className="font-medium text-gray-700 dark:text-gray-300">
+                Enable webhook delivery
+              </span>
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="text-sm px-3 py-2 rounded-lg bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 disabled:opacity-50"
+              disabled={webhookSaving}
+              onClick={onSaveWebhook}
+            >
+              {webhookSaving ? 'Saving…' : 'Save webhook settings'}
+            </button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="rounded-lg"
+              disabled={webhookTestPending}
+              onClick={onWebhookTest}
+            >
+              {webhookTestPending ? 'Sending…' : 'Send test webhook'}
+            </Button>
+          </div>
+          {webhookSaveError ? (
+            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+              {webhookSaveError}
+            </p>
+          ) : null}
+          {webhookTestError ? (
+            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+              {webhookTestError}
+            </p>
+          ) : null}
+          {webhookTestMessage ? (
+            <p className="text-sm text-green-700 dark:text-green-400" role="status">
+              {webhookTestMessage}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:p-5">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+          Recovery notifications
+        </h3>
+        <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 max-w-2xl">
+          When your daily recovery check-in shows suboptimal sleep or recovery signals, Personal OS
+          can warn you proactively (email and/or webhook). The dashboard also shows a recovery
+          warning in the Health Action widget. Requires recovery data logged for today; sent at most
+          once per day after the morning health-action job runs.
+        </p>
+        <div className="space-y-3 max-w-2xl">
+          <label className="text-xs flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="rounded border-gray-400"
+              checked={recoveryEnabled}
+              onChange={(e) => onRecoveryEnabledChange(e.target.checked)}
+            />
+            <span className="font-medium text-gray-700 dark:text-gray-300">
+              Enable recovery warnings
+            </span>
+          </label>
+          <div className="flex flex-wrap gap-4 pl-1">
+            <label className="text-xs flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="rounded border-gray-400"
+                checked={recoveryEmailEnabled}
+                disabled={!recoveryEnabled}
+                onChange={(e) => onRecoveryEmailEnabledChange(e.target.checked)}
+              />
+              <span className="text-gray-700 dark:text-gray-300">Email</span>
+            </label>
+            <label className="text-xs flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="rounded border-gray-400"
+                checked={recoveryWebhookEnabled}
+                disabled={!recoveryEnabled}
+                onChange={(e) => onRecoveryWebhookEnabledChange(e.target.checked)}
+              />
+              <span className="text-gray-700 dark:text-gray-300">
+                Webhook (uses webhook URL above)
+              </span>
+            </label>
+          </div>
+          <div>
+            <button
+              type="button"
+              className="text-sm px-3 py-2 rounded-lg bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 disabled:opacity-50"
+              disabled={recoverySaving}
+              onClick={onSaveRecovery}
+            >
+              {recoverySaving ? 'Saving…' : 'Save recovery notifications'}
+            </button>
+          </div>
+          {recoverySaveError ? (
+            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+              {recoverySaveError}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:p-5">
@@ -646,6 +837,20 @@ export default function ProactiveAutomationsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [emailTestMessage, setEmailTestMessage] = useState<string | null>(null);
   const [emailTestError, setEmailTestError] = useState<string | null>(null);
+  const [draftWebhookUrl, setDraftWebhookUrl] = useState<string | null>(null);
+  const [draftWebhookFormat, setDraftWebhookFormat] = useState<'discord' | 'generic' | null>(null);
+  const [draftWebhookEnabled, setDraftWebhookEnabled] = useState<boolean | null>(null);
+  const [webhookSaving, setWebhookSaving] = useState(false);
+  const [webhookSaveError, setWebhookSaveError] = useState<string | null>(null);
+  const [webhookTestMessage, setWebhookTestMessage] = useState<string | null>(null);
+  const [webhookTestError, setWebhookTestError] = useState<string | null>(null);
+  const [draftRecoveryEnabled, setDraftRecoveryEnabled] = useState<boolean | null>(null);
+  const [draftRecoveryEmailEnabled, setDraftRecoveryEmailEnabled] = useState<boolean | null>(null);
+  const [draftRecoveryWebhookEnabled, setDraftRecoveryWebhookEnabled] = useState<boolean | null>(
+    null
+  );
+  const [recoverySaving, setRecoverySaving] = useState(false);
+  const [recoverySaveError, setRecoverySaveError] = useState<string | null>(null);
   const [singleRunFeedback, setSingleRunFeedback] = useState<{
     variant: 'success' | 'error';
     message: string;
@@ -675,6 +880,26 @@ export default function ProactiveAutomationsPage() {
     null
   );
 
+  const notificationWebhookQ = useQuery({
+    queryKey: queryKeys.preferences.notificationWebhook(),
+    queryFn: async () => {
+      const res = await apiClient.getNotificationWebhook();
+      if (!res.success || !res.data)
+        throw new Error(res.error?.message ?? 'Failed to load webhook settings');
+      return res.data;
+    },
+  });
+
+  const recoveryNotificationsQ = useQuery({
+    queryKey: queryKeys.preferences.recoveryNotifications(),
+    queryFn: async () => {
+      const res = await apiClient.getRecoveryNotifications();
+      if (!res.success || !res.data)
+        throw new Error(res.error?.message ?? 'Failed to load recovery notification settings');
+      return res.data;
+    },
+  });
+
   const timeZonePrefQ = useQuery({
     queryKey: queryKeys.preferences.timeZone(),
     queryFn: async () => {
@@ -687,6 +912,26 @@ export default function ProactiveAutomationsPage() {
 
   const savedTimeZone = timeZonePrefQ.data ?? 'UTC';
   const tz = draftTimeZone ?? savedTimeZone;
+
+  const savedWebhook = notificationWebhookQ.data ?? {
+    url: null,
+    format: 'discord' as const,
+    enabled: false,
+  };
+  const webhookUrl = draftWebhookUrl ?? savedWebhook.url ?? '';
+  const webhookFormat = draftWebhookFormat ?? savedWebhook.format ?? 'discord';
+  const webhookEnabled = draftWebhookEnabled ?? savedWebhook.enabled ?? false;
+
+  const savedRecovery = recoveryNotificationsQ.data ?? {
+    enabled: false,
+    channelEmailEnabled: true,
+    channelWebhookEnabled: false,
+  };
+  const recoveryEnabled = draftRecoveryEnabled ?? savedRecovery.enabled ?? false;
+  const recoveryEmailEnabled =
+    draftRecoveryEmailEnabled ?? savedRecovery.channelEmailEnabled ?? true;
+  const recoveryWebhookEnabled =
+    draftRecoveryWebhookEnabled ?? savedRecovery.channelWebhookEnabled ?? false;
 
   const automationsQ = useQuery({
     queryKey: queryKeys.proactive.automations(),
@@ -744,6 +989,44 @@ export default function ProactiveAutomationsPage() {
     }
     setDraftTimeZone(null);
     void qc.invalidateQueries({ queryKey: queryKeys.preferences.timeZone() });
+  };
+
+  const saveWebhook = async () => {
+    setWebhookSaving(true);
+    setWebhookSaveError(null);
+    const res = await apiClient.setNotificationWebhook({
+      url: webhookUrl.trim() || null,
+      format: webhookFormat,
+      enabled: webhookEnabled,
+    });
+    setWebhookSaving(false);
+    if (!res.success) {
+      setWebhookSaveError(res.error?.message ?? 'Failed to save webhook settings');
+      return;
+    }
+    setDraftWebhookUrl(null);
+    setDraftWebhookFormat(null);
+    setDraftWebhookEnabled(null);
+    void qc.invalidateQueries({ queryKey: queryKeys.preferences.notificationWebhook() });
+  };
+
+  const saveRecovery = async () => {
+    setRecoverySaving(true);
+    setRecoverySaveError(null);
+    const res = await apiClient.setRecoveryNotifications({
+      enabled: recoveryEnabled,
+      channelEmailEnabled: recoveryEmailEnabled,
+      channelWebhookEnabled: recoveryWebhookEnabled,
+    });
+    setRecoverySaving(false);
+    if (!res.success) {
+      setRecoverySaveError(res.error?.message ?? 'Failed to save recovery notifications');
+      return;
+    }
+    setDraftRecoveryEnabled(null);
+    setDraftRecoveryEmailEnabled(null);
+    setDraftRecoveryWebhookEnabled(null);
+    void qc.invalidateQueries({ queryKey: queryKeys.preferences.recoveryNotifications() });
   };
 
   const createMut = useMutation({
@@ -894,6 +1177,24 @@ export default function ProactiveAutomationsPage() {
     onError: (e: Error) => {
       setEmailTestMessage(null);
       setEmailTestError(e.message);
+    },
+  });
+
+  const webhookTestMut = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.sendProactiveTestWebhook();
+      if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Test webhook failed');
+      return res.data;
+    },
+    onSuccess: (data) => {
+      setWebhookTestError(null);
+      setWebhookTestMessage(
+        `Webhook delivered (${data.deliveredTo}) on stage ${data.deployedStage}. Check your channel for the test message.`
+      );
+    },
+    onError: (e: Error) => {
+      setWebhookTestMessage(null);
+      setWebhookTestError(e.message);
     },
   });
 
@@ -1170,6 +1471,32 @@ export default function ProactiveAutomationsPage() {
             }}
             emailTestError={emailTestError}
             emailTestMessage={emailTestMessage}
+            webhookUrl={webhookUrl}
+            webhookFormat={webhookFormat}
+            webhookEnabled={webhookEnabled}
+            onWebhookUrlChange={setDraftWebhookUrl}
+            onWebhookFormatChange={setDraftWebhookFormat}
+            onWebhookEnabledChange={setDraftWebhookEnabled}
+            webhookSaving={webhookSaving}
+            onSaveWebhook={() => void saveWebhook()}
+            webhookTestPending={webhookTestMut.isPending}
+            onWebhookTest={() => {
+              setWebhookTestMessage(null);
+              setWebhookTestError(null);
+              webhookTestMut.mutate();
+            }}
+            webhookTestError={webhookTestError}
+            webhookTestMessage={webhookTestMessage}
+            webhookSaveError={webhookSaveError}
+            recoveryEnabled={recoveryEnabled}
+            recoveryEmailEnabled={recoveryEmailEnabled}
+            recoveryWebhookEnabled={recoveryWebhookEnabled}
+            onRecoveryEnabledChange={setDraftRecoveryEnabled}
+            onRecoveryEmailEnabledChange={setDraftRecoveryEmailEnabled}
+            onRecoveryWebhookEnabledChange={setDraftRecoveryWebhookEnabled}
+            recoverySaving={recoverySaving}
+            onSaveRecovery={() => void saveRecovery()}
+            recoverySaveError={recoverySaveError}
             tz={tz}
             zoneOptions={zoneOptions}
             onTzChange={setDraftTimeZone}

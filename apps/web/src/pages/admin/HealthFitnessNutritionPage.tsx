@@ -1,5 +1,7 @@
 import { Coffee } from 'lucide-react';
+import { MealPlanner } from '@/components/organisms/fitness/MealPlanner';
 import { NutritionQuickAdd } from '@/components/organisms/fitness/NutritionQuickAdd';
+import { PantryManager } from '@/components/organisms/fitness/PantryManager';
 import { useFitnessNutritionList } from '@/hooks/useFitness';
 import { localCalendarDate, addCalendarDays } from '@/lib/date/local-calendar';
 
@@ -21,19 +23,20 @@ export default function HealthFitnessNutritionPage() {
           <Coffee className="h-6 w-6" />
           <span className="text-sm font-medium">Nutrition</span>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Quick add</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Nutrition</h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Parse free text with{' '}
-          <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">
-            POST /ai/fitness/nutrition/parse
-          </code>
-          , edit, then save to{' '}
-          <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">POST /fitness/nutrition</code>
-          .
+          Log meals, manage your pantry, and generate meal plans from ingredients at home.
         </p>
       </div>
 
-      <NutritionQuickAdd plannerQueryExample="?mealPlanId=&mealSlotId=&recipeId=" />
+      <PantryManager />
+
+      <MealPlanner />
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">Quick add</h2>
+        <NutritionQuickAdd />
+      </section>
 
       <section>
         <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">Recent (14d)</h2>

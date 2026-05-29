@@ -202,6 +202,9 @@ export interface WsUserMessagePayload {
   metadata?: ChatMessage['metadata'];
   messageId?: string;
   runConfig?: AssistantRunConfig;
+  /** Admin sandbox: dry-run tools, no thread/STM/LTM writes. */
+  sandbox?: boolean;
+  sandboxSessionId?: string;
 }
 
 export interface WsCancelRunPayload {
@@ -228,6 +231,12 @@ export interface WsAssistantDeltaPayload {
   runId: string;
   threadId: string;
   delta: string;
+}
+
+export interface WsAssistantContentReplacePayload {
+  runId: string;
+  threadId: string;
+  content: string;
 }
 
 export interface WsThinkingDeltaPayload {

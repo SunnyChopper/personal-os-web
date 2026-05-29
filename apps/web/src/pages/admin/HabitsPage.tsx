@@ -41,7 +41,9 @@ import {
   parseHabitCompletionConflictDate,
   toLocalDateKey,
 } from '@/utils/date-formatters';
-import { getLogsForDateRange } from '@/utils/habit-analytics';
+import { getAllStreaks, getLogsForDateRange } from '@/utils/habit-analytics';
+import { streakProtectedDatesForHabit } from '@/utils/habit-off-days';
+import { buildHabitCompletionToasts } from '@/lib/habit-completion-feedback';
 
 type ViewMode = 'today' | 'all';
 
@@ -176,7 +178,7 @@ export default function HabitsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [habits]);
 
-  const loadHabitLogs = async (habitId: string) => {
+  const loadHabitLogs = async (habitId: string, options?: { throwOnError?: boolean }) => {
     try {
       const response = await habitsService.getLogsByHabit(habitId, {
         sortBy: 'completedAt',
@@ -184,8 +186,17 @@ export default function HabitsPage() {
       });
       if (response.success && response.data && isMountedRef.current) {
         setHabitLogs((prev) => new Map(prev).set(habitId, response.data!));
+        return;
       }
+      const message = 'Failed to refresh completion history';
+      if (options?.throwOnError) {
+        throw new Error(message);
+      }
+      console.error(message);
     } catch (error) {
+      if (options?.throwOnError) {
+        throw error instanceof Error ? error : new Error('Failed to refresh completion history');
+      }
       console.error('Failed to load habit logs:', error);
     }
   };
@@ -261,19 +272,12 @@ export default function HabitsPage() {
         const points = matchedLog?.pointsAwarded ?? 0;
         const milestone = matchedLog?.milestoneBonus ?? 0;
         const streak = response.data.currentStreak ?? getStreak(input.habitId);
-        if (points > 0) {
-          showToast({
-            type: 'success',
-            title: `+${points} pts`,
-            message: `${streak}-day streak`,
-          });
+        const toasts = buildHabitCompletionToasts(points, milestone, streak);
+        if (toasts.points) {
+          showToast({ type: 'success', ...toasts.points });
         }
-        if (milestone > 0) {
-          showToast({
-            type: 'success',
-            title: 'Milestone reached',
-            message: `${streak}-day streak · +${milestone} bonus pts`,
-          });
+        if (toasts.milestone) {
+          showToast({ type: 'success', ...toasts.milestone });
         }
         closeLogDialog();
         return;
@@ -402,33 +406,14 @@ export default function HabitsPage() {
   };
 
   const getStreak = (habitId: string): number => {
-    // Only calculate streak if logs are loaded for this habit
+    const habit = habits.find((h) => h.id === habitId);
+    if (habit?.currentStreak != null) {
+      return habit.currentStreak;
+    }
     const logs = habitLogs.get(habitId) || [];
     if (logs.length === 0) return 0;
-
-    const sortedLogs = [...logs].sort((a, b) =>
-      getHabitLogCalendarDay(b.completedAt).localeCompare(getHabitLogCalendarDay(a.completedAt))
-    );
-
-    let streak = 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (let i = 0; i < sortedLogs.length; i++) {
-      const logKey = getHabitLogCalendarDay(sortedLogs[i].completedAt);
-
-      const expectedDate = new Date(today);
-      expectedDate.setDate(today.getDate() - i);
-      const expectedKey = toLocalDateKey(expectedDate);
-
-      if (logKey === expectedKey) {
-        streak++;
-      } else {
-        break;
-      }
-    }
-
-    return streak;
+    const protectedDates = habit ? streakProtectedDatesForHabit(habit) : undefined;
+    return getAllStreaks(logs, protectedDates).current;
   };
 
   const isTodayCompleted = (habitId: string): boolean => {
@@ -786,19 +771,20 @@ export default function HabitsPage() {
                   logs={selectedDateLogs}
                   onLog={handleDateModalLog}
                   onUpdateCompletionNote={async (completionDate, note) => {
-                    if (!selectedHabit) return;
+                    if (!selectedHabit) {
+                      throw new Error('No habit selected');
+                    }
                     const response = await updateCompletionNote({
                       habitId: selectedHabit.id,
                       completionDate,
                       note,
                     });
-                    if (response.success) {
-                      await loadHabitLogs(selectedHabit.id);
-                    } else {
+                    if (!response.success) {
                       throw new Error(
                         response.error?.message ?? 'Failed to update completion note'
                       );
                     }
+                    await loadHabitLogs(selectedHabit.id, { throwOnError: true });
                   }}
                 />
               )}

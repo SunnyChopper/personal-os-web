@@ -1,7 +1,8 @@
 import { BarChart3, Plus, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { motion } from 'framer-motion';
-import type { Metric, MetricLog } from '@/types/growth-system';
+import type { Metric, MetricLog, GoalLinkSuggestion } from '@/types/growth-system';
 import { EmptyState } from './EmptyState';
+import { GoalLinkSuggestionsPanel } from './GoalLinkSuggestionsPanel';
 import Button from '@/components/atoms/Button';
 
 interface MetricWithLogs {
@@ -16,6 +17,10 @@ interface GoalMetricsSectionProps {
   onLogMetric?: (metricId: string) => void;
   onMetricClick?: (metric: Metric) => void;
   showEmpty?: boolean;
+  linkSuggestions?: GoalLinkSuggestion[];
+  linkSuggestionsLoading?: boolean;
+  attachingSuggestionId?: string | null;
+  onAttachSuggestion?: (suggestion: GoalLinkSuggestion) => void;
 }
 
 export function GoalMetricsSection({
@@ -24,6 +29,10 @@ export function GoalMetricsSection({
   onLogMetric,
   onMetricClick,
   showEmpty = true,
+  linkSuggestions = [],
+  linkSuggestionsLoading = false,
+  attachingSuggestionId = null,
+  onAttachSuggestion,
 }: GoalMetricsSectionProps) {
   if (metrics.length === 0 && showEmpty) {
     return (
@@ -41,6 +50,15 @@ export function GoalMetricsSection({
           actionLabel={onLinkMetric ? 'Link Metric' : undefined}
           onAction={onLinkMetric}
         />
+        {onAttachSuggestion && (
+          <GoalLinkSuggestionsPanel
+            entityType="metric"
+            suggestions={linkSuggestions}
+            isLoading={linkSuggestionsLoading}
+            attachingId={attachingSuggestionId}
+            onAttach={onAttachSuggestion}
+          />
+        )}
       </div>
     );
   }

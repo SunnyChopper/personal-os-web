@@ -1,6 +1,8 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import type { ApiResponse, ApiListResponse, DashboardSummaryResponse } from '@/types/api-contracts';
 import type {
+  CascadedGoalUpdate,
+  CascadedProjectUpdate,
   Goal,
   Habit,
   LogbookEntry,
@@ -351,6 +353,66 @@ export const removeTaskCache = (queryClient: QueryClient, taskId: string): void 
   removeTaskDependenciesFromCache(queryClient, taskId);
 };
 
+export const applyCascadedProjectUpdatesToCache = (
+  queryClient: QueryClient,
+  cascaded: CascadedProjectUpdate[]
+): void => {
+  if (cascaded.length === 0) return;
+  const byId = new Map(cascaded.map((c) => [c.id, c]));
+  updateListQueries<Project>(queryClient, queryKeys.growthSystem.projects.lists(), (items) =>
+    items.map((project) => {
+      const upd = byId.get(project.id);
+      if (!upd) return project;
+      return {
+        ...project,
+        ...(upd.startDate !== undefined ? { startDate: upd.startDate } : {}),
+        ...(upd.targetEndDate !== undefined ? { targetEndDate: upd.targetEndDate } : {}),
+      };
+    })
+  );
+  for (const upd of cascaded) {
+    const key = queryKeys.growthSystem.projects.detail(upd.id);
+    const existing = queryClient.getQueryData<ApiResponse<Project>>(key);
+    if (existing?.data) {
+      updateDetailCache(queryClient, queryKeys.growthSystem.projects.detail, {
+        ...existing.data,
+        ...(upd.startDate !== undefined ? { startDate: upd.startDate } : {}),
+        ...(upd.targetEndDate !== undefined ? { targetEndDate: upd.targetEndDate } : {}),
+      });
+    }
+  }
+};
+
+export const applyCascadedUpdatesToCache = (
+  queryClient: QueryClient,
+  cascaded: CascadedGoalUpdate[]
+): void => {
+  if (cascaded.length === 0) return;
+  const byId = new Map(cascaded.map((c) => [c.id, c]));
+  updateListQueries<Goal>(queryClient, queryKeys.growthSystem.goals.lists(), (items) =>
+    items.map((goal) => {
+      const upd = byId.get(goal.id);
+      if (!upd) return goal;
+      return {
+        ...goal,
+        ...(upd.startDate !== undefined ? { startDate: upd.startDate } : {}),
+        ...(upd.targetDate !== undefined ? { targetDate: upd.targetDate } : {}),
+      };
+    })
+  );
+  for (const upd of cascaded) {
+    const key = queryKeys.growthSystem.goals.detail(upd.id);
+    const existing = queryClient.getQueryData<ApiResponse<Goal>>(key);
+    if (existing?.data) {
+      updateDetailCache(queryClient, queryKeys.growthSystem.goals.detail, {
+        ...existing.data,
+        ...(upd.startDate !== undefined ? { startDate: upd.startDate } : {}),
+        ...(upd.targetDate !== undefined ? { targetDate: upd.targetDate } : {}),
+      });
+    }
+  }
+};
+
 export const upsertGoalCache = (queryClient: QueryClient, goal: Goal): void => {
   updateListQueries<Goal>(queryClient, queryKeys.growthSystem.goals.lists(), (items) =>
     upsertById(items, goal)
@@ -376,6 +438,27 @@ const stripGoalIdFromEntities = <T extends { goalIds?: string[] }>(
       goalIds: nextGoalIds.length > 0 ? nextGoalIds : [],
     };
   });
+
+/** Cancel in-flight list/dashboard fetches, drop a deleted goal locally, then mark caches stale. */
+export async function applyGoalDeletedToCache(
+  queryClient: QueryClient,
+  goalId: string
+): Promise<void> {
+  await queryClient.cancelQueries({ queryKey: queryKeys.growthSystem.goals.all() });
+  await queryClient.cancelQueries({ queryKey: queryKeys.growthSystem.data() });
+  removeGoalCache(queryClient, goalId);
+  void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.goals.all() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+}
+
+/** Cancel in-flight list/dashboard fetches, upsert a goal locally, then mark caches stale. */
+export async function applyGoalUpsertToCache(queryClient: QueryClient, goal: Goal): Promise<void> {
+  await queryClient.cancelQueries({ queryKey: queryKeys.growthSystem.goals.all() });
+  await queryClient.cancelQueries({ queryKey: queryKeys.growthSystem.data() });
+  upsertGoalCache(queryClient, goal);
+  void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.goals.all() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+}
 
 export const removeGoalCache = (queryClient: QueryClient, goalId: string): void => {
   updateListQueries<Goal>(queryClient, queryKeys.growthSystem.goals.lists(), (items) =>
