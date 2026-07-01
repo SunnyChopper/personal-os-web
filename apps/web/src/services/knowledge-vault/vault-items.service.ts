@@ -53,6 +53,7 @@ interface BackendFlashcardCard {
   id: string;
   front: string;
   back: string;
+  sourceItemId?: string | null;
   intervalDays: number;
   easeFactor: number;
   nextReviewAt: string | null;
@@ -66,36 +67,35 @@ interface FlashcardDeckWithCardsResponse extends FlashcardDeck {
 function buildCreateFlashcardDeckBody(input: CreateFlashcardDeckInput): {
   name: string;
   description?: string;
-  topic?: string;
-  flashcards: { front: string; back: string }[];
+  area?: Area;
+  tags?: string[];
+  sourceItemIds?: string[];
+  flashcards: { front: string; back: string; sourceItemId?: string }[];
 } {
-  const topic =
-    input.tags && input.tags.length > 0 ? input.tags.join(', ').slice(0, 100) : undefined;
-  const metaLines: string[] = [`Area: ${input.area}`];
-  if (input.tags?.length) {
-    metaLines.push(`Tags: ${input.tags.join(', ')}`);
-  }
-  const description =
-    [metaLines.join('\n'), input.description?.trim()].filter(Boolean).join('\n\n') || undefined;
-
   return {
     name: input.name.trim(),
-    description,
-    topic,
+    description: input.description?.trim() || undefined,
+    area: input.area,
+    tags: input.tags?.length ? input.tags : undefined,
+    sourceItemIds: input.sourceItemIds?.length ? input.sourceItemIds : undefined,
     flashcards: input.flashcards.map((c) => ({
       front: c.front.trim(),
       back: c.back.trim(),
+      sourceItemId: c.sourceItemId ?? undefined,
     })),
   };
 }
 
 function mapDeckCardToFlashcard(
-  deck: Pick<FlashcardDeck, 'id' | 'name' | 'userId' | 'createdAt' | 'updatedAt'>,
+  deck: Pick<FlashcardDeck, 'id' | 'name' | 'userId' | 'createdAt' | 'updatedAt' | 'area' | 'tags'>,
   card: BackendFlashcardCard,
-  area: Area,
-  tags: string[],
-  sourceItemId?: string | null
+  areaFallback: Area,
+  tagsFallback: string[],
+  sourceItemIdFallback?: string | null
 ): Flashcard {
+  const area = deck.area ?? areaFallback;
+  const tags = deck.tags?.length ? deck.tags : tagsFallback;
+  const sourceItemId = card.sourceItemId ?? sourceItemIdFallback ?? null;
   return {
     id: card.id,
     type: 'flashcard',
@@ -112,7 +112,7 @@ function mapDeckCardToFlashcard(
     deckId: deck.id,
     front: card.front,
     back: card.back,
-    sourceItemId: sourceItemId ?? null,
+    sourceItemId,
     nextReviewDate: card.nextReviewAt || '',
     interval: card.intervalDays,
     easeFactor: card.easeFactor,

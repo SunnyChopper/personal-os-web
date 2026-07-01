@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Sparkles, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
-import { BrainstormModelPicker } from '@/components/assistant/BrainstormModelPicker';
+import { PageContainer } from '@/components/templates/PageContainer';
+import { BrainstormModelPicker } from '@/components/molecules/assistant/BrainstormModelPicker';
 import { useCourseGeneratorAIModelPicker } from '@/hooks/knowledge-vault/useCourseGeneratorAIModelPicker';
 import { aiCourseGeneratorService } from '@/services/knowledge-vault';
 import { vaultPrimitivesService } from '@/services/knowledge-vault/vault-primitives.service';
@@ -211,7 +212,7 @@ export default function CourseGeneratorPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <PageContainer width="narrow" className="space-y-6">
       <div className="flex items-center gap-4 mb-8">
         {showHeaderBack ? (
           <button
@@ -592,6 +593,6 @@ export default function CourseGeneratorPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

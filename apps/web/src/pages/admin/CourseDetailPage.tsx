@@ -7,9 +7,11 @@ import {
   Clock,
   CircleCheck as CheckCircle2,
   Circle,
+  XCircle,
   ChevronRight,
   ChevronDown,
   Sparkles,
+  FileText,
   Play,
   Copy,
   Check,
@@ -18,6 +20,7 @@ import {
   SkipBack,
   SkipForward,
 } from 'lucide-react';
+import { BrainstormModelPicker } from '@/components/molecules/assistant/BrainstormModelPicker';
 import {
   coursesService,
   vaultItemsService,
@@ -26,12 +29,33 @@ import {
 import type { CourseWithDetails } from '@/services/knowledge-vault/courses.service';
 import type { CourseLesson } from '@/types/knowledge-vault';
 import type { LessonGenerationProgress } from '@/services/knowledge-vault/course-generation/types';
+import { useCourseGeneratorAIModelPicker } from '@/hooks/knowledge-vault/useCourseGeneratorAIModelPicker';
+import { useToast } from '@/hooks/use-toast';
+import { llmLogger } from '@/lib/logger';
 import { ROUTES } from '@/routes';
 import MarkdownRenderer from '@/components/molecules/MarkdownRenderer';
+import { CoursePracticeSections } from '@/components/organisms/CoursePracticeSections';
+import {
+  flattenCourseLessons,
+  formatModuleHeading,
+  getLessonGenerationState,
+  getLessonStatusBadge,
+  getLessonTimeLabel,
+  getPrerequisiteGenerationMessage,
+  isLessonGenerated,
+} from '@/lib/knowledge-vault/course-detail-helpers';
 
 export default function CourseDetailPage() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId?: string }>();
   const navigate = useNavigate();
+  const { showToast, ToastContainer } = useToast();
+  const {
+    catalog: modelCatalog,
+    isCatalogLoading: isModelCatalogLoading,
+    picker: modelPicker,
+    setPicker: setModelPicker,
+    resolveApiModel,
+  } = useCourseGeneratorAIModelPicker();
   const [courseData, setCourseData] = useState<CourseWithDetails | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<CourseLesson | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,7 +66,8 @@ export default function CourseDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [preQuizOpen, setPreQuizOpen] = useState(false);
+  const [preQuizOpen, setPreQuizOpen] = useState(true);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   useEffect(() => {
     loadCourseData();
@@ -80,18 +105,33 @@ export default function CourseDetailPage() {
 
   const loadLessonContent = async (lesson: CourseLesson) => {
     setSelectedLesson(lesson);
+    setGenerationError(null);
     await vaultItemsService.markAccessed(lesson.id);
+  };
 
-    if (!lesson.content) {
-      await generateLessonContent(lesson);
-    }
+  const reportLessonGenerationFailure = (message: string) => {
+    setGenerationError(message);
+    showToast({
+      type: 'error',
+      title: 'Lesson could not be generated',
+      message,
+    });
   };
 
   const generateLessonContent = async (lesson: CourseLesson) => {
     if (!courseData) return;
 
+    const allLessons = flattenCourseLessons(courseData);
+    const generationState = getLessonGenerationState(lesson, allLessons);
+    if (generationState.status === 'locked' && generationState.blockedBy) {
+      const message = getPrerequisiteGenerationMessage(generationState.blockedBy);
+      setGenerationError(message);
+      return;
+    }
+
     setGeneratingContent(true);
     setGenerationProgress(null);
+    setGenerationError(null);
 
     const handleProgress = (progress: LessonGenerationProgress) => {
       setGenerationProgress(progress);
@@ -102,9 +142,11 @@ export default function CourseDetailPage() {
 
       if (!module) return;
 
+      const model = resolveApiModel();
       const response = await aiCourseGeneratorService.generateLessonContent({
         courseId: courseId!,
         lessonId: lesson.id,
+        ...(model ? { model } : {}),
         onProgress: handleProgress,
       });
 
@@ -123,9 +165,14 @@ export default function CourseDetailPage() {
         if (updatedCourseData.success && updatedCourseData.data) {
           setCourseData(updatedCourseData.data);
         }
+      } else {
+        reportLessonGenerationFailure(response.error || 'Failed to generate lesson content');
       }
     } catch (err) {
-      console.error('Error generating lesson content:', err);
+      llmLogger.error('Error generating lesson content', err);
+      reportLessonGenerationFailure(
+        err instanceof Error ? err.message : 'Failed to generate lesson content'
+      );
     } finally {
       setGeneratingContent(false);
       setGenerationProgress(null);
@@ -173,9 +220,18 @@ export default function CourseDetailPage() {
     return total > 0 ? Math.round((completed / total) * 100) : 0;
   };
 
+  const getQuizScore = () => {
+    const qs = courseData?.preAssessment?.questions ?? [];
+    const scoreable = qs.filter((q) => q.correctAnswer);
+    const correct = scoreable.filter(
+      (q) => courseData?.preAssessment?.userResponses[q.id] === q.correctAnswer
+    );
+    return scoreable.length > 0 ? { correct: correct.length, total: scoreable.length } : null;
+  };
+
   const getAllLessons = (): CourseLesson[] => {
     if (!courseData) return [];
-    return courseData.modules.flatMap((m) => m.lessons);
+    return flattenCourseLessons(courseData);
   };
 
   const getPreviousLesson = (): CourseLesson | null => {
@@ -197,10 +253,9 @@ export default function CourseDetailPage() {
 
     try {
       // Create a formatted markdown document with lesson metadata
+      const timeLabel = getLessonTimeLabel(selectedLesson);
       const markdown = `# ${selectedLesson.title}\n\n${
-        selectedLesson.estimatedMinutes
-          ? `**Duration:** ${selectedLesson.estimatedMinutes} minutes\n\n`
-          : ''
+        timeLabel.minutes != null ? `**${timeLabel.label}**\n\n` : ''
       }${selectedLesson.content}`;
 
       await navigator.clipboard.writeText(markdown);
@@ -235,12 +290,20 @@ export default function CourseDetailPage() {
 
   const previousLesson = getPreviousLesson();
   const nextLesson = getNextLesson();
+  const quizScore = getQuizScore();
+  const orderedLessons = getAllLessons();
+  const selectedGenerationState = selectedLesson
+    ? getLessonGenerationState(selectedLesson, orderedLessons)
+    : null;
+  const selectedTimeLabel = selectedLesson ? getLessonTimeLabel(selectedLesson) : null;
+  const canGenerateSelectedLesson = selectedGenerationState?.status === 'unlocked';
 
   // Shared animation config for synchronized movement
   const springConfig = { type: 'spring' as const, damping: 30, stiffness: 300, mass: 0.8 };
 
   return (
     <div className="relative pb-20">
+      <ToastContainer />
       {/* iTunes-style Media Player Bar (shown when sidebar is collapsed) */}
       <AnimatePresence mode="sync">
         {sidebarCollapsed && selectedLesson && (
@@ -382,46 +445,88 @@ export default function CourseDetailPage() {
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {getCompletedLessons()} of {getTotalLessons()} lessons completed
                     </p>
+                  </div>
+                </div>
 
-                    {courseData.preAssessment && courseData.preAssessment.questions.length > 0 && (
-                      <div className="mt-4 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setPreQuizOpen((o) => !o)}
-                          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900"
-                          aria-expanded={preQuizOpen}
-                          aria-controls="pre-course-quiz-panel"
-                        >
-                          <span>Pre-course quiz — your starting point</span>
-                          <ChevronDown
-                            size={18}
-                            className={`flex-shrink-0 transition-transform ${preQuizOpen ? 'rotate-180' : ''}`}
-                          />
-                        </button>
-                        {preQuizOpen && (
-                          <div
-                            id="pre-course-quiz-panel"
-                            className="px-3 py-3 space-y-3 text-sm border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800"
-                          >
-                            {courseData.preAssessment.questions.map((q, idx) => (
-                              <div key={q.id}>
-                                <p className="font-medium text-gray-900 dark:text-white">
-                                  {idx + 1}. {q.questionText}
-                                </p>
-                                <p className="text-gray-600 dark:text-gray-400 mt-1">
-                                  <span className="text-gray-500 dark:text-gray-500">
-                                    Your answer:{' '}
-                                  </span>
-                                  {courseData.preAssessment?.userResponses[q.id] ?? '—'}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
+                {courseData.preAssessment && courseData.preAssessment.questions.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setPreQuizOpen((o) => !o)}
+                      className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900"
+                      aria-expanded={preQuizOpen}
+                      aria-controls="pre-course-quiz-panel"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          Pre-course Quiz
+                        </span>
+                        {quizScore && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 whitespace-nowrap">
+                            {quizScore.correct} / {quizScore.total} correct
+                          </span>
                         )}
+                      </div>
+                      <ChevronDown
+                        size={18}
+                        className={`flex-shrink-0 text-gray-500 transition-transform ${preQuizOpen ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    {preQuizOpen && (
+                      <div
+                        id="pre-course-quiz-panel"
+                        className="px-4 py-4 space-y-4 text-sm border-t border-gray-200 dark:border-gray-700"
+                      >
+                        {courseData.preAssessment.questions.map((q, idx) => {
+                          const userAnswer = courseData.preAssessment?.userResponses[q.id];
+                          const hasScoring = Boolean(q.correctAnswer);
+                          const isCorrect =
+                            hasScoring && userAnswer != null && userAnswer === q.correctAnswer;
+                          const isIncorrect =
+                            hasScoring && userAnswer != null && userAnswer !== q.correctAnswer;
+
+                          return (
+                            <div
+                              key={q.id}
+                              className="pb-4 border-b border-gray-100 dark:border-gray-700 last:border-0 last:pb-0"
+                            >
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                {idx + 1}. {q.questionText}
+                              </p>
+                              <div className="flex items-start gap-2 mt-2">
+                                {isCorrect && (
+                                  <CheckCircle2
+                                    size={18}
+                                    className="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5"
+                                  />
+                                )}
+                                {isIncorrect && (
+                                  <XCircle
+                                    size={18}
+                                    className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"
+                                  />
+                                )}
+                                <div className="min-w-0">
+                                  <p className="text-gray-600 dark:text-gray-400">
+                                    <span className="text-gray-500 dark:text-gray-500">
+                                      Your answer:{' '}
+                                    </span>
+                                    {userAnswer ?? '—'}
+                                  </p>
+                                  {isIncorrect && q.correctAnswer && (
+                                    <p className="text-gray-500 dark:text-gray-500 mt-1">
+                                      Correct answer: {q.correctAnswer}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
-                </div>
+                )}
 
                 <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 max-h-[600px] overflow-y-auto">
                   <h2 className="font-semibold text-gray-900 dark:text-white mb-4">
@@ -432,43 +537,71 @@ export default function CourseDetailPage() {
                     {courseData.modules.map((moduleData, moduleIndex) => (
                       <div key={moduleData.module.id}>
                         <h3 className="font-medium text-gray-900 dark:text-white mb-2">
-                          Module {moduleIndex + 1}: {moduleData.module.title}
+                          {formatModuleHeading(moduleIndex, moduleData.module.title)}
                         </h3>
 
                         <div className="space-y-1">
-                          {moduleData.lessons.map((lesson) => (
-                            <button
-                              key={lesson.id}
-                              onClick={() => handleLessonClick(lesson)}
-                              className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition ${
-                                selectedLesson?.id === lesson.id
-                                  ? 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800'
-                                  : 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                              }`}
-                            >
-                              {lesson.completedAt ? (
-                                <CheckCircle2
-                                  size={20}
-                                  className="text-green-600 dark:text-green-400 flex-shrink-0"
-                                />
-                              ) : (
-                                <Circle size={20} className="text-gray-400 flex-shrink-0" />
-                              )}
-
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                  {lesson.title}
-                                </p>
-                                {lesson.estimatedMinutes && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    {lesson.estimatedMinutes} min
-                                  </p>
+                          {moduleData.lessons.map((lesson) => {
+                            const statusBadge = getLessonStatusBadge(lesson);
+                            const timeLabel = getLessonTimeLabel(lesson);
+                            return (
+                              <button
+                                key={lesson.id}
+                                onClick={() => handleLessonClick(lesson)}
+                                className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition ${
+                                  selectedLesson?.id === lesson.id
+                                    ? 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800'
+                                    : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                                }`}
+                              >
+                                {lesson.completedAt ? (
+                                  <CheckCircle2
+                                    size={20}
+                                    className="text-green-600 dark:text-green-400 flex-shrink-0"
+                                    aria-hidden
+                                  />
+                                ) : isLessonGenerated(lesson) ? (
+                                  <FileText
+                                    size={20}
+                                    className="text-blue-600 dark:text-blue-400 flex-shrink-0"
+                                    aria-hidden
+                                  />
+                                ) : (
+                                  <Circle
+                                    size={20}
+                                    className="text-gray-400 flex-shrink-0"
+                                    aria-hidden
+                                  />
                                 )}
-                              </div>
 
-                              <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
-                            </button>
-                          ))}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                    {lesson.title}
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                                    <span
+                                      className={`text-xs font-medium ${
+                                        statusBadge.tone === 'complete'
+                                          ? 'text-green-700 dark:text-green-300'
+                                          : statusBadge.tone === 'generated'
+                                            ? 'text-blue-700 dark:text-blue-300'
+                                            : 'text-gray-500 dark:text-gray-400'
+                                      }`}
+                                    >
+                                      {statusBadge.text}
+                                    </span>
+                                    {timeLabel.minutes != null && (
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {timeLabel.label}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -493,10 +626,10 @@ export default function CourseDetailPage() {
                       <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                         {selectedLesson.title}
                       </h2>
-                      {selectedLesson.estimatedMinutes && (
+                      {selectedTimeLabel && selectedTimeLabel.minutes != null && (
                         <p className="text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                          <Clock size={16} />
-                          {selectedLesson.estimatedMinutes} minutes
+                          <Clock size={16} aria-hidden />
+                          {selectedTimeLabel.label}
                         </p>
                       )}
                     </div>
@@ -660,20 +793,72 @@ export default function CourseDetailPage() {
                         <span>Mark as Complete</span>
                       </button>
                     )}
+
+                    {courseData && (
+                      <CoursePracticeSections
+                        courseId={courseId!}
+                        moduleId={
+                          courseData.modules.find((m) =>
+                            m.lessons.some((l) => l.id === selectedLesson.id)
+                          )?.module.id
+                        }
+                        lessonId={selectedLesson.id}
+                        lessonTitle={selectedLesson.title}
+                        lessonContent={selectedLesson.content}
+                        courseTitle={courseData.course.title}
+                        courseProgress={getProgressPercentage()}
+                        model={resolveApiModel()}
+                      />
+                    )}
                   </>
                 ) : (
                   <div className="text-center py-12">
-                    <Play size={48} className="mx-auto text-gray-400 mb-4" />
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    <Play size={48} className="mx-auto text-gray-400 mb-4" aria-hidden />
+                    <p className="text-gray-600 dark:text-gray-400 mb-2">
                       Content not yet generated
                     </p>
-                    <button
-                      onClick={() => generateLessonContent(selectedLesson)}
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
-                    >
-                      <Sparkles size={20} />
-                      <span>Generate Lesson Content</span>
-                    </button>
+                    {selectedTimeLabel && selectedTimeLabel.minutes != null && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                        {selectedTimeLabel.label}
+                      </p>
+                    )}
+                    {generationError && (
+                      <p className="text-sm text-red-600 dark:text-red-400 mb-4" role="alert">
+                        {generationError}
+                      </p>
+                    )}
+                    {canGenerateSelectedLesson ? (
+                      <div className="max-w-md mx-auto space-y-4 text-left">
+                        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-2">
+                          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            AI model
+                          </h3>
+                          <BrainstormModelPicker
+                            catalog={modelCatalog}
+                            isLoading={isModelCatalogLoading}
+                            value={modelPicker}
+                            onChange={setModelPicker}
+                            disabled={generatingContent}
+                            autoModeDescription="Uses server vault defaults (VAULT_AI_PROVIDER / VAULT_AI_MODEL). Switch to Manual to pick any model from the assistant catalog."
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => generateLessonContent(selectedLesson)}
+                          disabled={generatingContent}
+                          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Sparkles size={20} aria-hidden />
+                          <span>Generate Lesson Content</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-amber-700 dark:text-amber-300 max-w-md mx-auto">
+                        {selectedGenerationState?.blockedBy
+                          ? getPrerequisiteGenerationMessage(selectedGenerationState.blockedBy)
+                          : 'Complete earlier lessons before generating this one.'}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import type { FileTreeNode } from '@/types/markdown-files';
 import { sortFileTreeNodes, type MarkdownFileTreeSortField } from '@/lib/markdown/file-tree-sort';
 import { useMarkdownFileTreeSort } from '@/hooks/useMarkdownFileTreeSort';
+import { Select } from '@/components/atoms/Select';
 
 const SORT_FIELD_OPTIONS: { value: MarkdownFileTreeSortField; label: string }[] = [
   { value: 'updatedAt', label: 'Updated' },
@@ -328,7 +329,7 @@ export default function MarkdownFileTree({
           >
             Sort by
           </label>
-          <select
+          <Select
             id="markdown-tree-sort"
             value={sortField}
             onChange={(e) => setField(e.target.value as MarkdownFileTreeSortField)}
@@ -344,7 +345,7 @@ export default function MarkdownFileTree({
                 {opt.label}
               </option>
             ))}
-          </select>
+          </Select>
           <button
             type="button"
             onClick={toggleDir}

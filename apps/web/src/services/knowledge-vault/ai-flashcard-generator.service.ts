@@ -99,6 +99,46 @@ export const aiFlashcardGeneratorService = {
     }
   },
 
+  async regenerateCard(input: {
+    front: string;
+    back: string;
+    feedback: string;
+    sourceContext?: string;
+  }): Promise<ApiResponse<FlashcardData>> {
+    try {
+      const response = await apiClient.post<{ data: AIResponse<FlashcardData> }>(
+        '/ai/flashcards/regenerate-card',
+        {
+          front: input.front,
+          back: input.back,
+          feedback: input.feedback,
+          sourceContext: input.sourceContext,
+        }
+      );
+
+      if (response.success && response.data?.data?.result) {
+        return {
+          data: response.data.data.result,
+          error: null,
+          success: true,
+        };
+      }
+
+      return {
+        data: null,
+        error: response.error?.message || 'Failed to regenerate flashcard',
+        success: false,
+      };
+    } catch (error) {
+      llmLogger.error('Error regenerating flashcard', error);
+      return {
+        data: null,
+        error: error instanceof Error ? error.message : 'Failed to regenerate flashcard',
+        success: false,
+      };
+    }
+  },
+
   async generateFromText(
     title: string,
     content: string,
