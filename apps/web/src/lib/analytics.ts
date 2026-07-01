@@ -11,6 +11,40 @@ declare global {
 
 export const GA_TRACKING_ID = 'G-XN1LQN7MER';
 
+let analyticsInitScheduled = false;
+
+/** Load Google Analytics after first paint / idle to keep cold start lean. */
+export function initDeferredAnalytics(): void {
+  if (analyticsInitScheduled || typeof window === 'undefined') return;
+  analyticsInitScheduled = true;
+
+  const load = () => {
+    if (document.getElementById('ga-loader')) return;
+    const script = document.createElement('script');
+    script.id = 'ga-loader';
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}`;
+    document.head.appendChild(script);
+
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function gtag(
+      command: 'config' | 'event' | 'js',
+      targetId: string | Date,
+      config?: Record<string, unknown>
+    ) {
+      window.dataLayer?.push([command, targetId, config]);
+    };
+    window.gtag('js', new Date());
+    window.gtag('config', GA_TRACKING_ID);
+  };
+
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(load, { timeout: 3000 });
+  } else {
+    window.setTimeout(load, 1500);
+  }
+}
+
 export const pageview = (url: string) => {
   if (typeof window.gtag !== 'undefined') {
     window.gtag('config', GA_TRACKING_ID, {

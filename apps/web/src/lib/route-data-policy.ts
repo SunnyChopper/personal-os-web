@@ -29,3 +29,21 @@ export function shouldLoadRewards(pathname: string): boolean {
     pathname.startsWith(ROUTES.admin.rewardsStore) || pathname.startsWith(ROUTES.admin.rewardStudio)
   );
 }
+
+/**
+ * Vault task-link nav badge: defer until idle unless the user is on the task-links route.
+ */
+export function shouldLoadVaultTaskLinkBadge(pathname: string, idleReady: boolean): boolean {
+  if (!pathname.startsWith('/admin') || isAdminLoginPath(pathname)) return false;
+  if (pathname.startsWith(ROUTES.admin.knowledgeVaultTaskLinks)) return true;
+  return idleReady;
+}
+
+/**
+ * Weekly review nav badge: defer until idle unless the user is on weekly review.
+ */
+export function shouldLoadWeeklyReviewNavBadge(pathname: string, idleReady: boolean): boolean {
+  if (!pathname.startsWith('/admin') || isAdminLoginPath(pathname)) return false;
+  if (pathname.startsWith(ROUTES.admin.weeklyReview)) return true;
+  return idleReady;
+}

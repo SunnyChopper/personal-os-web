@@ -3,9 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { configureAmplify } from './lib/aws-config';
+import { initDeferredAnalytics } from './lib/analytics';
 import { AuthProvider } from './contexts/Auth';
 import { BackendStatusProvider } from './contexts/BackendStatusContext';
 import { logger, queryLogger } from './lib/logger';
+import { markStartup } from './lib/startup/startup-telemetry';
 import {
   CHATBOT_CACHE_BUSTER,
   chatbotAsyncPersister,
@@ -34,6 +36,8 @@ import App from './App.tsx';
 })();
 
 configureAmplify();
+initDeferredAnalytics();
+markStartup('main_render');
 
 window.addEventListener('error', (event) => {
   logger.error('Unhandled window error', {

@@ -11,6 +11,19 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('framer-motion')) return 'vendor-motion';
+          if (id.includes('aws-amplify')) return 'vendor-amplify';
+          if (id.includes('@excalidraw')) return 'vendor-excalidraw';
+          if (id.includes('@xyflow')) return 'vendor-xyflow';
+          if (id.includes('katex')) return 'vendor-katex';
+          if (id.includes('react-dom') || id.includes('react-router')) return 'vendor-react';
+        },
+      },
+    },
   },
   resolve: {
     alias: {

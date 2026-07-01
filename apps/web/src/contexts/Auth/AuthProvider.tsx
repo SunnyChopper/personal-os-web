@@ -4,6 +4,7 @@ import { AuthContext, type User } from './types';
 import { authService, AUTH_STORAGE_CLEARED_EVENT } from '@/lib/auth/auth.service';
 import { apiClient } from '@/lib/api-client';
 import { authLogger } from '@/lib/logger';
+import { markStartup } from '@/lib/startup/startup-telemetry';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -148,9 +149,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
 
     authLogger.debug('checkUser started');
+    markStartup('auth_check_start');
+    const hydrationUser = authService.getShellHydrationUser();
+
     try {
       setIsChecking(true);
-      setLoading(true);
+      if (hydrationUser) {
+        const token = authService.getAccessToken();
+        if (token) {
+          apiClient.setAuthToken(token);
+        }
+        setUser(hydrationUser);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
 
       // Check if we have stored tokens
       const tokens = authService.getStoredTokens();
@@ -164,11 +177,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         authLogger.debug('checkUser token expiry evaluated', { tokensExpired });
 
         if (tokensExpired) {
+          if (!hydrationUser) {
+            setLoading(true);
+          }
           const refreshSuccess = await handleTokenRefresh();
           if (!refreshSuccess) {
             return;
           }
-        } else {
+        } else if (!hydrationUser) {
           // Tokens are still valid, set them in API client
           authLogger.debug('checkUser using existing token', {
             tokenLength: tokens.accessToken.length,
@@ -190,6 +206,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } finally {
       setLoading(false);
       setIsChecking(false);
+      markStartup('auth_check_end');
     }
   };
 
