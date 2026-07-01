@@ -1,6 +1,6 @@
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { TaskCalendarView } from '@/components/organisms/TaskCalendarView';
 import type { Task } from '@/types/growth-system';
@@ -32,16 +32,9 @@ function makeTask(id: string, title: string, dueDate: string): Task {
   };
 }
 
+const may2026 = new Date('2026-05-01T12:00:00.000Z');
+
 describe('TaskCalendarView overflow popover', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-05-01T12:00:00.000Z'));
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it('opens a popover with all tasks when +more is clicked', async () => {
     const onTaskClick = vi.fn();
     const dueDate = '2026-05-15';
@@ -52,7 +45,14 @@ describe('TaskCalendarView overflow popover', () => {
       makeTask('4', 'Task Four', dueDate),
     ];
 
-    render(<TaskCalendarView tasks={tasks} onTaskClick={onTaskClick} isLoading={false} />);
+    render(
+      <TaskCalendarView
+        tasks={tasks}
+        onTaskClick={onTaskClick}
+        isLoading={false}
+        initialMonth={may2026}
+      />
+    );
 
     const moreButton = screen.getByRole('button', { name: /Show 2 more tasks on/i });
     await userEvent.click(moreButton);
@@ -73,7 +73,7 @@ describe('TaskCalendarView overflow popover', () => {
       makeTask('3', 'Gamma', dueDate),
     ];
 
-    render(<TaskCalendarView tasks={tasks} onTaskClick={vi.fn()} />);
+    render(<TaskCalendarView tasks={tasks} onTaskClick={vi.fn()} initialMonth={may2026} />);
 
     await userEvent.click(screen.getByRole('button', { name: /Show 1 more tasks on/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
