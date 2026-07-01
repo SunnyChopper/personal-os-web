@@ -18,6 +18,7 @@ import {
   Star,
   Link2Off,
 } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import type {
   Project,
   CreateProjectInput,
@@ -43,7 +44,11 @@ import {
   removeTaskDependencyFromCache,
 } from '@/lib/react-query/growth-system-cache';
 import { queryKeys } from '@/lib/react-query/query-keys';
-import { getTasksByProject } from '@/utils/growth-system-filters';
+import {
+  buildLinkedGoalTree,
+  getTasksByProject,
+  type LinkedGoalNode,
+} from '@/utils/growth-system-filters';
 import Button from '@/components/atoms/Button';
 import { ProjectCard } from '@/components/molecules/ProjectCard';
 import { ProjectListItem } from '@/components/molecules/ProjectListItem';
@@ -75,6 +80,7 @@ import { formatDateString } from '@/utils/date-formatters';
 import { cn } from '@/lib/utils';
 import { getGoalCriteriaProgressPercent, getProjectDisplayModel } from '@/utils/project-summary';
 import { useToast } from '@/hooks/use-toast';
+import { Select } from '@/components/atoms/Select';
 
 const STATUSES: ProjectStatus[] = [...PROJECT_STATUSES];
 const AREA_OPTIONS: Area[] = [...AREAS];
@@ -113,6 +119,7 @@ export default function ProjectsPage() {
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [isCompletedTasksModalOpen, setIsCompletedTasksModalOpen] = useState(false);
 
   // Use individual hooks to fetch data from their respective endpoints
   const {
@@ -130,16 +137,18 @@ export default function ProjectsPage() {
   // Convert goals to EntitySummary format
   const allGoals = useMemo<EntitySummary[]>(
     () =>
-      goals.map((g) => ({
-        id: g.id,
-        title: g.title,
-        type: 'goal' as const,
-        area: g.area,
-        status: g.status,
-        parentGoalId: g.parentGoalId,
-        targetDate: g.targetDate,
-        completedDate: g.completedDate,
-      })),
+      goals
+        .filter((g) => g.status !== 'Abandoned' && g.status !== 'Achieved')
+        .map((g) => ({
+          id: g.id,
+          title: g.title,
+          type: 'goal' as const,
+          area: g.area,
+          status: g.status,
+          parentGoalId: g.parentGoalId,
+          targetDate: g.targetDate,
+          completedDate: g.completedDate,
+        })),
     [goals]
   );
 
@@ -322,6 +331,7 @@ export default function ProjectsPage() {
 
   const handleBackToGrid = () => {
     setSelectedProject(null);
+    setIsCompletedTasksModalOpen(false);
   };
 
   const handleClearFilters = () => {
@@ -552,8 +562,10 @@ export default function ProjectsPage() {
   const handleUpdateTask = async (id: string, input: UpdateTaskInput) => {
     setIsTaskSubmitting(true);
     try {
-      await updateTask({ id, input });
-      // Cache is automatically updated by the mutation
+      const response = await updateTask({ id, input });
+      if (response.success && response.data && selectedTask?.id === id) {
+        setSelectedTask(response.data);
+      }
     } finally {
       setIsTaskSubmitting(false);
     }
@@ -604,348 +616,370 @@ export default function ProjectsPage() {
     );
     const progress = detailDisplay.progressPercent;
     const linkedGoals = projectGoals.get(selectedProject.id) || [];
+    const linkedGoalTree = buildLinkedGoalTree(
+      linkedGoals.map((g) => g.id),
+      goals
+    );
+    const rootGoalCount = linkedGoalTree.length;
     const pendingTasks = projectTasks.filter((t) => t.status !== 'Done');
-    const doneTasks = projectTasks.filter((t) => t.status === 'Done');
+    const doneTasks = [...projectTasks.filter((t) => t.status === 'Done')].sort((a, b) => {
+      const dateA = a.completedDate ? new Date(a.completedDate).getTime() : 0;
+      const dateB = b.completedDate ? new Date(b.completedDate).getTime() : 0;
+      return dateB - dateA;
+    });
+    const mostRecentDoneTask = doneTasks[0];
+    const olderDoneTasks = doneTasks.slice(1);
     const getLinkedProjectsForTask = (task: Task) =>
       allProjects.filter((project) => task.projectIds?.includes(project.id));
     const getLinkedGoalsForTask = (task: Task) =>
       allGoals.filter((goal) => task.goalIds?.includes(goal.id));
 
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          <button
-            onClick={handleBackToGrid}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4 sm:mb-6 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Back to Projects
-          </button>
+      <PageContainer className="py-6 sm:py-8">
+        <button
+          onClick={handleBackToGrid}
+          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4 sm:mb-6 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back to Projects
+        </button>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 lg:p-8 mb-6">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-8 mb-6">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4 mb-4">
-                  <PriorityIndicator
-                    priority={selectedProject.priority}
-                    size="lg"
-                    className="shrink-0 sm:mt-1"
-                  />
-                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white leading-tight break-words">
-                    {selectedProject.name}
-                  </h1>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
-                  <AreaBadge area={selectedProject.area} />
-                  {selectedProject.subCategory && (
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                      {SUBCATEGORY_LABELS[selectedProject.subCategory]}
-                    </span>
-                  )}
-                  <StatusBadge status={detailDisplay.effectiveStatus} size="sm" />
-                </div>
-                {selectedProject.description && (
-                  <p className="text-gray-700 dark:text-gray-300 mb-4 text-sm sm:text-base">
-                    {selectedProject.description}
-                  </p>
-                )}
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 lg:p-8 mb-6">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-8 mb-6">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4 mb-4">
+                <PriorityIndicator
+                  priority={selectedProject.priority}
+                  size="lg"
+                  className="shrink-0 sm:mt-1"
+                />
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white leading-tight break-words">
+                  {selectedProject.name}
+                </h1>
               </div>
-
-              <div
-                className={cn(
-                  'flex w-full flex-shrink-0 flex-row flex-wrap items-center justify-between gap-4',
-                  'sm:justify-start lg:w-auto lg:flex-col lg:items-center lg:justify-start'
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
+                <AreaBadge area={selectedProject.area} />
+                {selectedProject.subCategory && (
+                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                    {SUBCATEGORY_LABELS[selectedProject.subCategory]}
+                  </span>
                 )}
-              >
-                <div className="shrink-0 scale-[0.9] sm:scale-100">
-                  <ProgressRing progress={progress} size="lg" showLabel />
-                </div>
-                <div className="flex flex-shrink-0 flex-wrap items-center gap-2 sm:gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => setIsEditDialogOpen(true)}>
-                    <Edit2 className="w-4 h-4 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setProjectToDelete(selectedProject)}
-                    className="hover:!bg-red-50 hover:!text-red-600"
-                  >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    Delete
-                  </Button>
-                </div>
+                <StatusBadge status={detailDisplay.effectiveStatus} size="sm" />
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-              {selectedProject.impact > 0 && (
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Impact Score</div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((starValue) => (
-                        <Star
-                          key={starValue}
-                          className={cn(
-                            'w-5 h-5',
-                            starValue <= selectedProject.impact
-                              ? 'fill-yellow-500 text-yellow-500 dark:fill-yellow-400 dark:text-yellow-400'
-                              : 'fill-none text-gray-300 dark:text-gray-600'
-                          )}
-                        />
-                      ))}
-                      <span className="ml-2 text-2xl font-bold text-gray-900 dark:text-white">
-                        {selectedProject.impact}/5
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {selectedProject.impact === 5
-                          ? 'Very High Impact'
-                          : selectedProject.impact === 4
-                            ? 'High Impact'
-                            : selectedProject.impact === 3
-                              ? 'Medium Impact'
-                              : selectedProject.impact === 2
-                                ? 'Low Impact'
-                                : 'Very Low Impact'}
-                      </span>
-                      {selectedProject.impact === 5 && (
-                        <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                          Max Impact
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {selectedProject.startDate && (
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Start Date</div>
-                  <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {formatDateString(selectedProject.startDate) || '—'}
-                  </div>
-                </div>
-              )}
-              {selectedProject.targetEndDate && (
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Target End</div>
-                  <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {formatDateString(selectedProject.targetEndDate) || '—'}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {selectedProject.notes && (
-              <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                  {selectedProject.notes}
+              {selectedProject.description && (
+                <p className="text-gray-700 dark:text-gray-300 mb-4 text-sm sm:text-base">
+                  {selectedProject.description}
                 </p>
+              )}
+            </div>
+
+            <div
+              className={cn(
+                'flex w-full flex-shrink-0 flex-row flex-wrap items-center justify-between gap-4',
+                'sm:justify-start lg:w-auto lg:flex-col lg:items-center lg:justify-start'
+              )}
+            >
+              <div className="shrink-0 scale-[0.9] sm:scale-100">
+                <ProgressRing progress={progress} size="lg" showLabel />
+              </div>
+              <div className="flex flex-shrink-0 flex-wrap items-center gap-2 sm:gap-2">
+                <Button variant="secondary" size="sm" onClick={() => setIsEditDialogOpen(true)}>
+                  <Edit2 className="w-4 h-4 mr-1" />
+                  Edit
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setProjectToDelete(selectedProject)}
+                  className="hover:!bg-red-50 hover:!text-red-600"
+                >
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            {selectedProject.impact > 0 && (
+              <div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Impact Score</div>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((starValue) => (
+                      <Star
+                        key={starValue}
+                        className={cn(
+                          'w-5 h-5',
+                          starValue <= selectedProject.impact
+                            ? 'fill-yellow-500 text-yellow-500 dark:fill-yellow-400 dark:text-yellow-400'
+                            : 'fill-none text-gray-300 dark:text-gray-600'
+                        )}
+                      />
+                    ))}
+                    <span className="ml-2 text-2xl font-bold text-gray-900 dark:text-white">
+                      {selectedProject.impact}/5
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {selectedProject.impact === 5
+                        ? 'Very High Impact'
+                        : selectedProject.impact === 4
+                          ? 'High Impact'
+                          : selectedProject.impact === 3
+                            ? 'Medium Impact'
+                            : selectedProject.impact === 2
+                              ? 'Low Impact'
+                              : 'Very Low Impact'}
+                    </span>
+                    {selectedProject.impact === 5 && (
+                      <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                        Max Impact
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
+            {selectedProject.startDate && (
+              <div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Start Date</div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {formatDateString(selectedProject.startDate) || '—'}
+                </div>
+              </div>
+            )}
+            {selectedProject.targetEndDate && (
+              <div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Target End</div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {formatDateString(selectedProject.targetEndDate) || '—'}
+                </div>
+              </div>
+            )}
+          </div>
 
-            {isAIConfigured && (
-              <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => setShowAIAssist(!showAIAssist)}
-                  className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+          {selectedProject.notes && (
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+                {selectedProject.notes}
+              </p>
+            </div>
+          )}
+
+          {isAIConfigured && (
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowAIAssist(!showAIAssist)}
+                className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+              >
+                <Sparkles size={18} />
+                <span>AI Project Tools</span>
+                {showAIAssist ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+
+              {showAIAssist && (
+                <div className="mt-4 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setAIMode('health')}
+                      className={`px-3 py-1.5 text-sm rounded-full transition ${
+                        aiMode === 'health'
+                          ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      Health Analysis
+                    </button>
+                    <button
+                      onClick={() => setAIMode('generate')}
+                      className={`px-3 py-1.5 text-sm rounded-full transition ${
+                        aiMode === 'generate'
+                          ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      Generate Tasks
+                    </button>
+                    <button
+                      onClick={() => setAIMode('risks')}
+                      className={`px-3 py-1.5 text-sm rounded-full transition ${
+                        aiMode === 'risks'
+                          ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      Risk Assessment
+                    </button>
+                  </div>
+
+                  <AIProjectAssistPanel
+                    mode={aiMode}
+                    project={selectedProject}
+                    tasks={projectTasks}
+                    onClose={() => setShowAIAssist(false)}
+                    onCreateTasks={handleCreateTasksFromAI}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="min-w-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-5">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">
+                <CheckSquare className="h-5 w-5 shrink-0" />
+                Tasks ({projectTasks.length})
+              </h2>
+              <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
+                <Button
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={() => setIsCreateTaskOpen(true)}
                 >
-                  <Sparkles size={18} />
-                  <span>AI Project Tools</span>
-                  {showAIAssist ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </button>
-
-                {showAIAssist && (
-                  <div className="mt-4 space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => setAIMode('health')}
-                        className={`px-3 py-1.5 text-sm rounded-full transition ${
-                          aiMode === 'health'
-                            ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        Health Analysis
-                      </button>
-                      <button
-                        onClick={() => setAIMode('generate')}
-                        className={`px-3 py-1.5 text-sm rounded-full transition ${
-                          aiMode === 'generate'
-                            ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        Generate Tasks
-                      </button>
-                      <button
-                        onClick={() => setAIMode('risks')}
-                        className={`px-3 py-1.5 text-sm rounded-full transition ${
-                          aiMode === 'risks'
-                            ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        Risk Assessment
-                      </button>
+                  Create Task
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    setSelectedTaskIds(projectTasks.map((t) => t.id));
+                    setIsTaskPickerOpen(true);
+                  }}
+                >
+                  Link Tasks
+                </Button>
+              </div>
+            </div>
+            {projectTasks.length === 0 ? (
+              <EmptyState
+                title="No tasks linked"
+                description="Create a new task linked to this project, or link existing tasks"
+                actionLabel="Create Task"
+                onAction={() => setIsCreateTaskOpen(true)}
+                secondaryActionLabel="Link Tasks"
+                onSecondaryAction={() => {
+                  setSelectedTaskIds([]);
+                  setIsTaskPickerOpen(true);
+                }}
+              />
+            ) : (
+              <div className="min-w-0 space-y-4">
+                {pendingTasks.length > 0 && (
+                  <div className="space-y-3">
+                    {pendingTasks.map((task) => (
+                      <TaskListItem
+                        key={task.id}
+                        task={task}
+                        onEdit={handleEditTask}
+                        onDelete={() => handleUnlinkTaskFromProject(task.id, selectedProject.id)}
+                        deleteLabel="Unlink task"
+                        deleteAriaLabel={`Unlink ${task.title} from ${selectedProject.name}`}
+                        deleteIcon={<Link2Off className="w-4 h-4" />}
+                        deleteButtonClassName="hover:!bg-amber-50 hover:!text-amber-600 dark:hover:!bg-amber-900/20 dark:hover:!text-amber-400"
+                      />
+                    ))}
+                  </div>
+                )}
+                {doneTasks.length > 0 && mostRecentDoneTask && (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Completed ({doneTasks.length})
+                    </h3>
+                    <div className="space-y-3">
+                      <TaskListItem
+                        key={mostRecentDoneTask.id}
+                        task={mostRecentDoneTask}
+                        onEdit={handleEditTask}
+                        onDelete={() =>
+                          handleUnlinkTaskFromProject(mostRecentDoneTask.id, selectedProject.id)
+                        }
+                        deleteLabel="Unlink task"
+                        deleteAriaLabel={`Unlink ${mostRecentDoneTask.title} from ${selectedProject.name}`}
+                        deleteIcon={<Link2Off className="w-4 h-4" />}
+                        deleteButtonClassName="hover:!bg-amber-50 hover:!text-amber-600 dark:hover:!bg-amber-900/20 dark:hover:!text-amber-400"
+                      />
+                      {olderDoneTasks.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCompletedTasksModalOpen(true)}
+                          className="w-full rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50 hover:text-gray-900 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:bg-gray-700/50 dark:hover:text-gray-200"
+                        >
+                          View {olderDoneTasks.length} more completed task
+                          {olderDoneTasks.length === 1 ? '' : 's'}
+                        </button>
+                      )}
                     </div>
-
-                    <AIProjectAssistPanel
-                      mode={aiMode}
-                      project={selectedProject}
-                      tasks={projectTasks}
-                      onClose={() => setShowAIAssist(false)}
-                      onCreateTasks={handleCreateTasksFromAI}
-                    />
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="min-w-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-5">
-              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">
-                  <CheckSquare className="h-5 w-5 shrink-0" />
-                  Tasks ({projectTasks.length})
-                </h2>
-                <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
-                  <Button
-                    size="sm"
-                    className="w-full sm:w-auto"
-                    onClick={() => setIsCreateTaskOpen(true)}
-                  >
-                    Create Task
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="w-full sm:w-auto"
-                    onClick={() => {
-                      setSelectedTaskIds(projectTasks.map((t) => t.id));
-                      setIsTaskPickerOpen(true);
-                    }}
-                  >
-                    Link Tasks
-                  </Button>
-                </div>
-              </div>
-              {projectTasks.length === 0 ? (
-                <EmptyState
-                  title="No tasks linked"
-                  description="Create a new task linked to this project, or link existing tasks"
-                  actionLabel="Create Task"
-                  onAction={() => setIsCreateTaskOpen(true)}
-                  secondaryActionLabel="Link Tasks"
-                  onSecondaryAction={() => {
-                    setSelectedTaskIds([]);
-                    setIsTaskPickerOpen(true);
-                  }}
-                />
-              ) : (
-                <div className="min-w-0 space-y-4">
-                  {pendingTasks.length > 0 && (
-                    <div className="space-y-3">
-                      {pendingTasks.map((task) => (
-                        <TaskListItem
-                          key={task.id}
-                          task={task}
-                          onEdit={handleEditTask}
-                          onDelete={() => handleUnlinkTaskFromProject(task.id, selectedProject.id)}
-                          deleteLabel="Unlink task"
-                          deleteAriaLabel={`Unlink ${task.title} from ${selectedProject.name}`}
-                          deleteIcon={<Link2Off className="w-4 h-4" />}
-                          deleteButtonClassName="hover:!bg-amber-50 hover:!text-amber-600 dark:hover:!bg-amber-900/20 dark:hover:!text-amber-400"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {doneTasks.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Completed ({doneTasks.length})
-                      </h3>
-                      <div className="space-y-3">
-                        {doneTasks.map((task) => (
-                          <TaskListItem
-                            key={task.id}
-                            task={task}
-                            onEdit={handleEditTask}
-                            onDelete={() =>
-                              handleUnlinkTaskFromProject(task.id, selectedProject.id)
-                            }
-                            deleteLabel="Unlink task"
-                            deleteAriaLabel={`Unlink ${task.title} from ${selectedProject.name}`}
-                            deleteIcon={<Link2Off className="w-4 h-4" />}
-                            deleteButtonClassName="hover:!bg-amber-50 hover:!text-amber-600 dark:hover:!bg-amber-900/20 dark:hover:!text-amber-400"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+          <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 sm:p-5 lg:p-6">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">
+                <Target className="h-5 w-5 shrink-0" />
+                Goals ({rootGoalCount})
+              </h2>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full shrink-0 sm:w-auto"
+                onClick={() => {
+                  setSelectedGoalIds(linkedGoals.map((g) => g.id));
+                  setGoalSaveError(null);
+                  setGoalActionError(null);
+                  setIsGoalPickerOpen(true);
+                }}
+              >
+                Link Goals
+              </Button>
             </div>
+            {goalActionError && (
+              <div className="mb-3 text-sm text-red-600 dark:text-red-400">{goalActionError}</div>
+            )}
+            {linkedGoals.length === 0 ? (
+              <EmptyState
+                title="No linked goals"
+                description="Link this project to strategic goals"
+                actionLabel="Link Goals"
+                onAction={() => {
+                  setSelectedGoalIds(linkedGoals.map((g) => g.id));
+                  setGoalSaveError(null);
+                  setGoalActionError(null);
+                  setIsGoalPickerOpen(true);
+                }}
+              />
+            ) : (
+              <div className="space-y-4">
+                {(() => {
+                  const pendingGoalRoots = linkedGoalTree.filter(
+                    (node) => node.goal.status !== 'Achieved'
+                  );
+                  const achievedGoalRoots = linkedGoalTree.filter(
+                    (node) => node.goal.status === 'Achieved'
+                  );
 
-            <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 sm:p-5 lg:p-6">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">
-                  <Target className="h-5 w-5 shrink-0" />
-                  Goals ({linkedGoals.length})
-                </h2>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="w-full shrink-0 sm:w-auto"
-                  onClick={() => {
-                    setSelectedGoalIds(linkedGoals.map((g) => g.id));
-                    setGoalSaveError(null);
-                    setGoalActionError(null);
-                    setIsGoalPickerOpen(true);
-                  }}
-                >
-                  Link Goals
-                </Button>
-              </div>
-              {goalActionError && (
-                <div className="mb-3 text-sm text-red-600 dark:text-red-400">{goalActionError}</div>
-              )}
-              {linkedGoals.length === 0 ? (
-                <EmptyState
-                  title="No linked goals"
-                  description="Link this project to strategic goals"
-                  actionLabel="Link Goals"
-                  onAction={() => {
-                    setSelectedGoalIds(linkedGoals.map((g) => g.id));
-                    setGoalSaveError(null);
-                    setGoalActionError(null);
-                    setIsGoalPickerOpen(true);
-                  }}
-                />
-              ) : (
-                <div className="space-y-4">
-                  {(() => {
-                    const entries = linkedGoals
-                      .map((goalSummary) => {
-                        const fullGoal = goals.find((g) => g.id === goalSummary.id);
-                        return fullGoal ? { fullGoal } : null;
-                      })
-                      .filter((x): x is { fullGoal: Goal } => x != null);
-                    const pendingGoalRows = entries.filter((e) => e.fullGoal.status !== 'Achieved');
-                    const achievedGoalRows = entries.filter(
-                      (e) => e.fullGoal.status === 'Achieved'
-                    );
+                  const renderGoalNode = (node: LinkedGoalNode, depth = 0) => {
+                    const { goal: fullGoal, children } = node;
+                    const criteriaProgress = getGoalCriteriaProgressPercent(fullGoal);
+                    const isEmbedded = depth > 0;
 
-                    const renderGoalRow = (fullGoal: Goal) => {
-                      const criteriaProgress = getGoalCriteriaProgressPercent(fullGoal);
-                      return (
+                    return (
+                      <div key={fullGoal.id} className={cn(isEmbedded && 'ml-3 sm:ml-4')}>
                         <div
-                          key={fullGoal.id}
-                          className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200"
+                          className={cn(
+                            'group rounded-lg border p-4 transition-all duration-200',
+                            isEmbedded
+                              ? 'border-blue-200/80 bg-blue-50/40 hover:border-blue-300 dark:border-blue-800/60 dark:bg-blue-950/20 dark:hover:border-blue-700'
+                              : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600'
+                          )}
                         >
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                             <div className="min-w-0 flex-1">
@@ -963,14 +997,14 @@ export default function ProjectsPage() {
                               </div>
 
                               {fullGoal.description && (
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2 leading-relaxed">
+                                <p className="mb-3 line-clamp-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                                   {fullGoal.description}
                                 </p>
                               )}
 
                               <div className="flex flex-wrap items-center gap-2.5 text-sm">
                                 <AreaBadge area={fullGoal.area} size="sm" />
-                                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                                   {fullGoal.timeHorizon}
                                 </span>
                                 {criteriaProgress > 0 && (
@@ -994,32 +1028,42 @@ export default function ProjectsPage() {
                             </div>
                           </div>
                         </div>
-                      );
-                    };
 
-                    return (
-                      <>
-                        {pendingGoalRows.length > 0 && (
-                          <div className="space-y-3">
-                            {pendingGoalRows.map(({ fullGoal }) => renderGoalRow(fullGoal))}
+                        {children.length > 0 && (
+                          <div
+                            className="mt-2 space-y-2 border-l-2 border-blue-200/70 pl-3 dark:border-blue-800/50"
+                            role="group"
+                            aria-label={`Sub-goals under ${fullGoal.title}`}
+                          >
+                            {children.map((child) => renderGoalNode(child, depth + 1))}
                           </div>
                         )}
-                        {achievedGoalRows.length > 0 && (
-                          <div className="space-y-2">
-                            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                              Completed goals ({achievedGoalRows.length})
-                            </h3>
-                            <div className="space-y-3">
-                              {achievedGoalRows.map(({ fullGoal }) => renderGoalRow(fullGoal))}
-                            </div>
-                          </div>
-                        )}
-                      </>
+                      </div>
                     );
-                  })()}
-                </div>
-              )}
-            </div>
+                  };
+
+                  return (
+                    <>
+                      {pendingGoalRoots.length > 0 && (
+                        <div className="space-y-3">
+                          {pendingGoalRoots.map((node) => renderGoalNode(node))}
+                        </div>
+                      )}
+                      {achievedGoalRoots.length > 0 && (
+                        <div className="space-y-2">
+                          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            Completed goals ({achievedGoalRoots.length})
+                          </h3>
+                          <div className="space-y-3">
+                            {achievedGoalRoots.map((node) => renderGoalNode(node))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1066,6 +1110,32 @@ export default function ProjectsPage() {
         />
 
         <Dialog
+          isOpen={isCompletedTasksModalOpen}
+          onClose={() => setIsCompletedTasksModalOpen(false)}
+          title={`Completed tasks (${doneTasks.length})`}
+          size="lg"
+          className="max-w-2xl"
+        >
+          <div className="space-y-3">
+            {doneTasks.map((task) => (
+              <TaskListItem
+                key={task.id}
+                task={task}
+                onEdit={(t) => {
+                  setIsCompletedTasksModalOpen(false);
+                  handleEditTask(t);
+                }}
+                onDelete={() => handleUnlinkTaskFromProject(task.id, selectedProject.id)}
+                deleteLabel="Unlink task"
+                deleteAriaLabel={`Unlink ${task.title} from ${selectedProject.name}`}
+                deleteIcon={<Link2Off className="w-4 h-4" />}
+                deleteButtonClassName="hover:!bg-amber-50 hover:!text-amber-600 dark:hover:!bg-amber-900/20 dark:hover:!text-amber-400"
+              />
+            ))}
+          </div>
+        </Dialog>
+
+        <Dialog
           isOpen={isCreateTaskOpen}
           onClose={() => setIsCreateTaskOpen(false)}
           title={`Create Task in ${selectedProject.name}`}
@@ -1106,26 +1176,6 @@ export default function ProjectsPage() {
               await tasksService.removeDependency(taskId, dependsOnId);
               removeTaskDependencyFromCache(queryClient, taskId, dependsOnId);
             }}
-            onProjectLink={async (taskId, projectId) => {
-              await tasksService.linkToProject(taskId, projectId);
-              // Invalidate tasks query to refresh data
-              queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
-            }}
-            onProjectUnlink={async (taskId, projectId) => {
-              await tasksService.unlinkFromProject(taskId, projectId);
-              // Invalidate tasks query to refresh data
-              queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
-            }}
-            onGoalLink={async (taskId, goalId) => {
-              await tasksService.linkToGoal(taskId, goalId);
-              // Invalidate tasks query to refresh data
-              queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
-            }}
-            onGoalUnlink={async (taskId, goalId) => {
-              await tasksService.unlinkFromGoal(taskId, goalId);
-              // Invalidate tasks query to refresh data
-              queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
-            }}
           />
         )}
 
@@ -1165,212 +1215,232 @@ export default function ProjectsPage() {
           </div>
         </Dialog>
         <ToastContainer />
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
-              Projects
-            </h1>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 sm:text-base">
-              Manage your projects and track progress
-            </p>
-          </div>
-          <Button
-            variant="primary"
-            onClick={() => setIsCreateDialogOpen(true)}
-            className="w-full shrink-0 sm:w-auto"
-          >
-            <Plus className="mr-2 h-5 w-5" />
-            New Project
-          </Button>
+    <PageContainer className="py-6 sm:py-8">
+      <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">Projects</h1>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 sm:text-base">
+            Manage your projects and track progress
+          </p>
         </div>
+        <Button
+          variant="primary"
+          onClick={() => setIsCreateDialogOpen(true)}
+          className="w-full shrink-0 sm:w-auto"
+        >
+          <Plus className="mr-2 h-5 w-5" />
+          New Project
+        </Button>
+      </div>
 
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="relative min-w-0 flex-1 sm:min-w-[240px]">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search projects..."
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <Button
-            variant="secondary"
-            onClick={() => setShowFilters(!showFilters)}
-            className="relative w-full shrink-0 sm:w-auto"
-          >
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
-
-          <div className="flex w-full items-center justify-between gap-1 rounded-lg border border-gray-300 bg-white p-1 dark:border-gray-600 dark:bg-gray-800 sm:w-auto sm:justify-start">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-2 px-3 py-2 rounded transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-              title="Grid view"
-            >
-              <LayoutGrid className="w-4 h-4" />
-              <span className="text-sm font-medium hidden sm:inline">Grid</span>
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-2 px-3 py-2 rounded transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-              title="List view"
-            >
-              <List className="w-4 h-4" />
-              <span className="text-sm font-medium hidden sm:inline">List</span>
-            </button>
-            <button
-              onClick={() => setViewMode('timeline')}
-              className={`flex items-center gap-2 px-3 py-2 rounded transition-colors ${
-                viewMode === 'timeline'
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-              title="Timeline view"
-            >
-              <CalendarIcon className="w-4 h-4" />
-              <span className="text-sm font-medium hidden sm:inline">Timeline</span>
-            </button>
-          </div>
-        </div>
-
-        {showFilters && (
-          <div className="mb-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Filters</h3>
-              <div className="flex items-center gap-2">
-                {activeFilterCount > 0 && (
-                  <button
-                    onClick={handleClearFilters}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    Clear all
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowFilters(false)}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Area
-                </label>
-                <select
-                  value={filters.area || ''}
-                  onChange={(e) =>
-                    setFilters({ ...filters, area: (e.target.value as Area) || undefined })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">All Areas</option>
-                  {AREA_OPTIONS.map((area) => (
-                    <option key={area} value={area}>
-                      {AREA_LABELS[area]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Status
-                </label>
-                <select
-                  value={filters.status || ''}
-                  onChange={(e) =>
-                    setFilters({
-                      ...filters,
-                      status: (e.target.value as ProjectStatus) || undefined,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">All Statuses</option>
-                  {STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {PROJECT_STATUS_LABELS[status]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Priority
-                </label>
-                <select
-                  value={filters.priority || ''}
-                  onChange={(e) =>
-                    setFilters({
-                      ...filters,
-                      priority: (e.target.value as Priority) || undefined,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">All Priorities</option>
-                  {PRIORITY_OPTIONS.map((priority) => (
-                    <option key={priority} value={priority}>
-                      {priority}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <AISuggestionBanner entityType="project" />
-
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-400">Loading projects...</p>
-            </div>
-          </div>
-        ) : filteredProjects.length === 0 ? (
-          <EmptyState
-            title="No projects found"
-            description={
-              searchQuery || filters.area || filters.status || filters.priority
-                ? 'Try adjusting your filters or search query'
-                : 'Get started by creating your first project'
-            }
-            actionLabel="Create Project"
-            onAction={() => setIsCreateDialogOpen(true)}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative min-w-0 flex-1 sm:min-w-[240px]">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search projects..."
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-        ) : viewMode === 'grid' ? (
-          <div className="space-y-8">
-            {incompleteProjects.length > 0 && (
+        </div>
+
+        <Button
+          variant="secondary"
+          onClick={() => setShowFilters(!showFilters)}
+          className="relative w-full shrink-0 sm:w-auto"
+        >
+          <Filter className="w-4 h-4 mr-2" />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
+
+        <div className="flex w-full items-center justify-between gap-1 rounded-lg border border-gray-300 bg-white p-1 dark:border-gray-600 dark:bg-gray-800 sm:w-auto sm:justify-start">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`flex items-center gap-2 px-3 py-2 rounded transition-colors ${
+              viewMode === 'grid'
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+            title="Grid view"
+          >
+            <LayoutGrid className="w-4 h-4" />
+            <span className="text-sm font-medium hidden sm:inline">Grid</span>
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`flex items-center gap-2 px-3 py-2 rounded transition-colors ${
+              viewMode === 'list'
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+            title="List view"
+          >
+            <List className="w-4 h-4" />
+            <span className="text-sm font-medium hidden sm:inline">List</span>
+          </button>
+          <button
+            onClick={() => setViewMode('timeline')}
+            className={`flex items-center gap-2 px-3 py-2 rounded transition-colors ${
+              viewMode === 'timeline'
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+            title="Timeline view"
+          >
+            <CalendarIcon className="w-4 h-4" />
+            <span className="text-sm font-medium hidden sm:inline">Timeline</span>
+          </button>
+        </div>
+      </div>
+
+      {showFilters && (
+        <div className="mb-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Filters</h3>
+            <div className="flex items-center gap-2">
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={handleClearFilters}
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Clear all
+                </button>
+              )}
+              <button
+                onClick={() => setShowFilters(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Area
+              </label>
+              <Select
+                value={filters.area || ''}
+                onChange={(e) =>
+                  setFilters({ ...filters, area: (e.target.value as Area) || undefined })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Areas</option>
+                {AREA_OPTIONS.map((area) => (
+                  <option key={area} value={area}>
+                    {AREA_LABELS[area]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Status
+              </label>
+              <Select
+                value={filters.status || ''}
+                onChange={(e) =>
+                  setFilters({
+                    ...filters,
+                    status: (e.target.value as ProjectStatus) || undefined,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Statuses</option>
+                {STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {PROJECT_STATUS_LABELS[status]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Priority
+              </label>
+              <Select
+                value={filters.priority || ''}
+                onChange={(e) =>
+                  setFilters({
+                    ...filters,
+                    priority: (e.target.value as Priority) || undefined,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Priorities</option>
+                {PRIORITY_OPTIONS.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priority}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AISuggestionBanner entityType="project" />
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading projects...</p>
+          </div>
+        </div>
+      ) : filteredProjects.length === 0 ? (
+        <EmptyState
+          title="No projects found"
+          description={
+            searchQuery || filters.area || filters.status || filters.priority
+              ? 'Try adjusting your filters or search query'
+              : 'Get started by creating your first project'
+          }
+          actionLabel="Create Project"
+          onAction={() => setIsCreateDialogOpen(true)}
+        />
+      ) : viewMode === 'grid' ? (
+        <div className="space-y-8">
+          {incompleteProjects.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 items-stretch">
+              {incompleteProjects.map((project) => {
+                const stats = getProjectStats(project.id);
+                const display = getProjectDisplay(project);
+                return (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onClick={handleProjectClick}
+                    viewMode="grid"
+                    display={display}
+                    linkedGoalCount={getLinkedGoalsFull(project).length}
+                    {...stats}
+                  />
+                );
+              })}
+            </div>
+          )}
+          {completeProjects.length > 0 && (
+            <div>
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                Completed ({completeProjects.length})
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 items-stretch">
-                {incompleteProjects.map((project) => {
+                {completeProjects.map((project) => {
                   const stats = getProjectStats(project.id);
                   const display = getProjectDisplay(project);
                   return (
@@ -1386,110 +1456,85 @@ export default function ProjectsPage() {
                   );
                 })}
               </div>
-            )}
-            {completeProjects.length > 0 && (
-              <div>
-                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-                  Completed ({completeProjects.length})
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 items-stretch">
-                  {completeProjects.map((project) => {
-                    const stats = getProjectStats(project.id);
-                    const display = getProjectDisplay(project);
-                    return (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        onClick={handleProjectClick}
-                        viewMode="grid"
-                        display={display}
-                        linkedGoalCount={getLinkedGoalsFull(project).length}
-                        {...stats}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : viewMode === 'list' ? (
-          <div className="w-full space-y-2">
-            <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-              Showing {filteredProjects.length}{' '}
-              {filteredProjects.length === 1 ? 'project' : 'projects'}
             </div>
-            {incompleteProjects.length > 0 && (
-              <div className="space-y-2">
-                {incompleteProjects.map((project) => {
-                  const stats = getProjectStats(project.id);
-                  const display = getProjectDisplay(project);
-                  return (
-                    <ProjectListItem
-                      key={project.id}
-                      project={project}
-                      onClick={handleProjectClick}
-                      onEdit={(p) => {
-                        setSelectedProject(p);
-                        setIsEditDialogOpen(true);
-                      }}
-                      onDelete={setProjectToDelete}
-                      display={display}
-                      linkedGoalCount={getLinkedGoalsFull(project).length}
-                      {...stats}
-                    />
-                  );
-                })}
-              </div>
-            )}
-            {completeProjects.length > 0 && (
-              <div className="space-y-2 pt-4">
-                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-                  Completed ({completeProjects.length})
-                </h2>
-                {completeProjects.map((project) => {
-                  const stats = getProjectStats(project.id);
-                  const display = getProjectDisplay(project);
-                  return (
-                    <ProjectListItem
-                      key={project.id}
-                      project={project}
-                      onClick={handleProjectClick}
-                      onEdit={(p) => {
-                        setSelectedProject(p);
-                        setIsEditDialogOpen(true);
-                      }}
-                      onDelete={setProjectToDelete}
-                      display={display}
-                      linkedGoalCount={getLinkedGoalsFull(project).length}
-                      {...stats}
-                    />
-                  );
-                })}
-              </div>
-            )}
+          )}
+        </div>
+      ) : viewMode === 'list' ? (
+        <div className="w-full space-y-2">
+          <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            Showing {filteredProjects.length}{' '}
+            {filteredProjects.length === 1 ? 'project' : 'projects'}
           </div>
-        ) : (
-          <ProjectTimelineView
-            projects={filteredProjects}
-            dependencies={projectDependencies}
-            onProjectClick={handleProjectClick}
-            onProjectDatesChange={async (projectId, dates) => {
-              await projectTimelineUpdate.mutateAsync({
-                id: projectId,
-                startDate: dates.startDate,
-                targetEndDate: dates.targetEndDate,
-              });
-            }}
-            onAddDependency={async (successorProjectId, predecessorProjectId) => {
-              await addProjectDependency({ successorProjectId, predecessorProjectId });
-            }}
-            projectHealthMap={projectHealthMap}
-            isHealthLoading={isHealthLoading}
-            resolveProjectDisplay={getProjectDisplay}
-          />
-        )}
-      </div>
-
+          {incompleteProjects.length > 0 && (
+            <div className="space-y-2">
+              {incompleteProjects.map((project) => {
+                const stats = getProjectStats(project.id);
+                const display = getProjectDisplay(project);
+                return (
+                  <ProjectListItem
+                    key={project.id}
+                    project={project}
+                    onClick={handleProjectClick}
+                    onEdit={(p) => {
+                      setSelectedProject(p);
+                      setIsEditDialogOpen(true);
+                    }}
+                    onDelete={setProjectToDelete}
+                    display={display}
+                    linkedGoalCount={getLinkedGoalsFull(project).length}
+                    {...stats}
+                  />
+                );
+              })}
+            </div>
+          )}
+          {completeProjects.length > 0 && (
+            <div className="space-y-2 pt-4">
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                Completed ({completeProjects.length})
+              </h2>
+              {completeProjects.map((project) => {
+                const stats = getProjectStats(project.id);
+                const display = getProjectDisplay(project);
+                return (
+                  <ProjectListItem
+                    key={project.id}
+                    project={project}
+                    onClick={handleProjectClick}
+                    onEdit={(p) => {
+                      setSelectedProject(p);
+                      setIsEditDialogOpen(true);
+                    }}
+                    onDelete={setProjectToDelete}
+                    display={display}
+                    linkedGoalCount={getLinkedGoalsFull(project).length}
+                    {...stats}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <ProjectTimelineView
+          projects={filteredProjects}
+          dependencies={projectDependencies}
+          onProjectClick={handleProjectClick}
+          onProjectDatesChange={async (projectId, dates) => {
+            await projectTimelineUpdate.mutateAsync({
+              id: projectId,
+              startDate: dates.startDate,
+              targetEndDate: dates.targetEndDate,
+            });
+          }}
+          onAddDependency={async (successorProjectId, predecessorProjectId) => {
+            await addProjectDependency({ successorProjectId, predecessorProjectId });
+          }}
+          projectHealthMap={projectHealthMap}
+          isHealthLoading={isHealthLoading}
+          resolveProjectDisplay={getProjectDisplay}
+        />
+      )}
       <Dialog
         isOpen={isCreateDialogOpen}
         onClose={() => setIsCreateDialogOpen(false)}
@@ -1537,6 +1582,6 @@ export default function ProjectsPage() {
         </div>
       </Dialog>
       <ToastContainer />
-    </div>
+    </PageContainer>
   );
 }

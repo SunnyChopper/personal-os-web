@@ -9,6 +9,7 @@ import { PlannerDayDrawer } from '@/components/organisms/planner/PlannerDayDrawe
 import { PlannerDraftBanner } from '@/components/organisms/planner/PlannerDraftBanner';
 import { PlannerOneThingPanel } from '@/components/organisms/planner/PlannerOneThingPanel';
 import { PlannerWeekBoard } from '@/components/organisms/planner/PlannerWeekBoard';
+import { PlannerWeekBoardSkeleton } from '@/components/organisms/planner/PlannerWeekBoardSkeleton';
 import { useGrowthSystemDashboard } from '@/hooks/useGrowthSystemDashboard';
 import {
   useCreateSchedulingException,
@@ -395,9 +396,7 @@ export default function PlannerPage() {
             <p className="text-xs text-gray-500">Click a day to open planning details</p>
           </div>
 
-          {isLoading && !week ? (
-            <div className="h-48 animate-pulse rounded-2xl bg-white/5" />
-          ) : null}
+          {isLoading && !week ? <PlannerWeekBoardSkeleton /> : null}
 
           {week ? (
             <div className="w-full rounded-2xl border border-white/10 bg-gradient-to-b from-gray-900/50 to-gray-950/80 p-3 shadow-inner">

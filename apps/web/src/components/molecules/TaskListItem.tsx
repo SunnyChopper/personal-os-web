@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Calendar, Clock, GitBranch } from 'lucide-react';
+import { AlignLeft, Pencil, Trash2, Calendar, Clock, GitBranch } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import type { Task } from '@/types/growth-system';
@@ -13,7 +13,6 @@ import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
 import { formatTaskStoryPointsLabel } from '@/constants/growth-system';
 import { differenceInCalendarDaysLocal, formatDateString } from '@/utils/date-formatters';
-import { TaskFieldMarkdown } from '@/components/molecules/TaskFieldMarkdown';
 
 function TaskRewardPointsRow({ task }: { task: Task }) {
   const status = pointBadgeStatusFromTask(task);
@@ -92,6 +91,15 @@ export function TaskListItem({
   const metadata = (
     <>
       <VelocityDragBadge rolloverCount={task.rolloverCount} />
+      {task.description || task.extendedDescription ? (
+        <span
+          className="inline-flex items-center text-gray-400 dark:text-gray-500"
+          title="Has description — open task to view"
+          aria-label="Has description"
+        >
+          <AlignLeft className="h-3.5 w-3.5" aria-hidden />
+        </span>
+      ) : null}
       <AreaBadge area={task.area} size="sm" />
 
       {(projectCount > 0 || goalCount > 0) && (
@@ -287,16 +295,6 @@ export function TaskListItem({
                 </motion.div>
               </div>
             </div>
-            {task.description ? (
-              <div className="line-clamp-2 sm:line-clamp-3">
-                <TaskFieldMarkdown
-                  taskId={task.id}
-                  field="description"
-                  value={task.description}
-                  variant="compact"
-                />
-              </div>
-            ) : null}
           </div>
         </div>
 

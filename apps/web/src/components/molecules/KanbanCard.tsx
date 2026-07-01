@@ -6,8 +6,7 @@ import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { PointBadge } from '@/components/atoms/PointBadge';
 import { pointBadgeStatusFromTask } from '@/lib/point-badge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
-import { Pencil } from 'lucide-react';
-import { TaskFieldMarkdown } from '@/components/molecules/TaskFieldMarkdown';
+import { AlignLeft, Pencil } from 'lucide-react';
 
 const cardVariants = {
   hidden: { opacity: 0, y: 14, scale: 0.97 },
@@ -111,20 +110,17 @@ export function KanbanCard({
         </motion.button>
       </div>
 
-      {task.description ? (
-        <div className="mb-3 line-clamp-2">
-          <TaskFieldMarkdown
-            taskId={task.id}
-            field="description"
-            value={task.description}
-            variant="compact"
-            className="text-xs"
-          />
-        </div>
-      ) : null}
-
       <div className="flex flex-wrap items-center gap-2">
         <VelocityDragBadge rolloverCount={task.rolloverCount} />
+        {task.description || task.extendedDescription ? (
+          <span
+            className="inline-flex items-center text-gray-400 dark:text-gray-500"
+            title="Has description — open task to view"
+            aria-label="Has description"
+          >
+            <AlignLeft className="h-3.5 w-3.5" aria-hidden />
+          </span>
+        ) : null}
         <AreaBadge area={task.area} size="sm" />
         {task.size != null && task.size > 0 ? (
           <span

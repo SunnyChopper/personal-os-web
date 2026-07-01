@@ -14,6 +14,7 @@ import type {
 } from '@/types/weekly-dashboard';
 import { DEFAULT_WEEKLY_DASHBOARD_CONFIG, STAT_TILE_LABELS } from '@/types/weekly-dashboard';
 import { cn } from '@/lib/utils';
+import { Select } from '@/components/atoms/Select';
 
 interface WeeklyDashboardSettingsDrawerProps {
   open: boolean;
@@ -264,7 +265,7 @@ export function WeeklyDashboardSettingsDrawer({
                   <div className="space-y-4">
                     <label className="block text-sm">
                       <span className={FIELD_LABEL_CLASS}>Metric</span>
-                      <select
+                      <Select
                         value={(widget.config as { metricId: string }).metricId}
                         onChange={(e) =>
                           updateWidget(widget.id, {
@@ -279,7 +280,7 @@ export function WeeklyDashboardSettingsDrawer({
                             {m.name}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     <label className="block text-sm">
                       <span className={FIELD_LABEL_CLASS}>Comparison Window (Weeks)</span>
@@ -306,7 +307,7 @@ export function WeeklyDashboardSettingsDrawer({
                   <div className="space-y-4">
                     <label className="block text-sm">
                       <span className={FIELD_LABEL_CLASS}>Habit</span>
-                      <select
+                      <Select
                         value={(widget.config as { habitId: string }).habitId}
                         onChange={(e) =>
                           updateWidget(widget.id, {
@@ -321,7 +322,7 @@ export function WeeklyDashboardSettingsDrawer({
                             {h.name}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     <label className="block text-sm">
                       <span className={FIELD_LABEL_CLASS}>Comparison Window (Weeks)</span>

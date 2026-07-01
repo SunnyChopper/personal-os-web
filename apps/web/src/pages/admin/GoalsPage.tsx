@@ -61,6 +61,7 @@ import {
   getHabitsByGoal,
 } from '@/utils/growth-system-filters';
 import Button from '@/components/atoms/Button';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { GoalCard } from '@/components/molecules/GoalCard';
 import { QuickFilterBar } from '@/components/molecules/QuickFilterBar';
 import { BulkActionsBar } from '@/components/molecules/BulkActionsBar';
@@ -84,6 +85,7 @@ import {
   retainGoalsWithMatchingAncestors,
 } from '@/components/molecules/goal-mindmap-utils';
 import { getStorageAdapter } from '@/lib/storage';
+import { Select } from '@/components/atoms/Select';
 
 const STATUSES: GoalStatus[] = [...GOAL_STATUSES];
 const AREA_OPTIONS: Area[] = [...AREAS];
@@ -1107,7 +1109,7 @@ export default function GoalsPage() {
   }
 
   return (
-    <div className="h-full">
+    <PageContainer className="h-full">
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1277,7 +1279,7 @@ export default function GoalsPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Area
                 </label>
-                <select
+                <Select
                   value={filters.area || ''}
                   onChange={(e) =>
                     setFilters({ ...filters, area: (e.target.value as Area) || undefined })
@@ -1290,13 +1292,13 @@ export default function GoalsPage() {
                       {AREA_LABELS[area]}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Status
                 </label>
-                <select
+                <Select
                   value={filters.status || ''}
                   onChange={(e) => setFilters({ ...filters, status: e.target.value || undefined })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1307,13 +1309,13 @@ export default function GoalsPage() {
                       {status}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Priority
                 </label>
-                <select
+                <Select
                   value={filters.priority || ''}
                   onChange={(e) =>
                     setFilters({ ...filters, priority: (e.target.value as Priority) || undefined })
@@ -1326,13 +1328,13 @@ export default function GoalsPage() {
                       {priority}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Activity Level
                 </label>
-                <select
+                <Select
                   value={filters.momentum || ''}
                   onChange={(e) =>
                     setFilters({ ...filters, momentum: e.target.value || undefined })
@@ -1343,7 +1345,7 @@ export default function GoalsPage() {
                   <option value="active">Active</option>
                   <option value="stagnant">Stagnant (health)</option>
                   <option value="dormant">Dormant</option>
-                </select>
+                </Select>
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1382,7 +1384,7 @@ export default function GoalsPage() {
                   >
                     Focus Pipeline
                   </label>
-                  <select
+                  <Select
                     id="mindmap-focus-pipeline"
                     value={filters.focusGoalId ?? ''}
                     onChange={(e) =>
@@ -1399,7 +1401,7 @@ export default function GoalsPage() {
                         {goal.timeHorizon} · {goal.title}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               ) : null}
             </div>
@@ -1699,6 +1701,6 @@ export default function GoalsPage() {
           </div>
         </div>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 }

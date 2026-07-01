@@ -19,6 +19,8 @@ export interface TaskContextVibePillsProps {
   onEnergyChange?: (value: TaskEnergyLevel | null | undefined) => void;
   onExecutionWindowChange?: (value: TaskExecutionWindow | null | undefined) => void;
   readOnly?: boolean;
+  /** Inline pills without section heading (e.g. task detail header). */
+  compact?: boolean;
   className?: string;
 }
 
@@ -78,17 +80,37 @@ export function TaskContextVibePills({
   onEnergyChange,
   onExecutionWindowChange,
   readOnly = false,
+  compact = false,
   className = '',
 }: TaskContextVibePillsProps) {
   if (readOnly && !energyLevel && !executionWindow) {
     return null;
   }
 
+  if (compact && readOnly) {
+    return (
+      <div className={`flex flex-wrap items-center gap-1.5 ${className}`.trim()}>
+        {energyLevel ? (
+          <span className={`px-2 py-0.5 text-xs rounded-full ${selectedEnergyClass}`}>
+            {TASK_ENERGY_LEVEL_LABELS[energyLevel]}
+          </span>
+        ) : null}
+        {executionWindow ? (
+          <span className={`px-2 py-0.5 text-xs rounded-full ${selectedWindowClass}`}>
+            {TASK_EXECUTION_WINDOW_LABELS[executionWindow]}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className={`space-y-3 ${className}`.trim()}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-        Context & vibe
-      </p>
+      {!compact ? (
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Context & vibe
+        </p>
+      ) : null}
       {(readOnly ? !!energyLevel : true) && (
         <PillRow
           label="Energy"

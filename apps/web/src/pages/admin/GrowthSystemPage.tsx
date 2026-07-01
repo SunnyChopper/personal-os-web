@@ -8,6 +8,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { PageContainer } from '@/components/templates/PageContainer';
 
 interface FeatureCardProps {
   title: string;
@@ -76,7 +77,7 @@ export default function GrowthSystemPage() {
   ];
 
   return (
-    <div>
+    <PageContainer>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Growth System</h1>
         <p className="text-gray-600 dark:text-gray-400">
@@ -229,6 +230,6 @@ export default function GrowthSystemPage() {
           <FeatureCard key={feature.title} {...feature} />
         ))}
       </div>
-    </div>
+    </PageContainer>
   );
 }

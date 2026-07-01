@@ -12,6 +12,7 @@ import { motion } from 'framer-motion';
 import type { Goal, EntitySummary, ProjectStatus, GoalDependency } from '@/types/growth-system';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
+import { Select } from '@/components/atoms/Select';
 
 interface GoalRelationshipsPanelProps {
   goal: Goal;
@@ -173,7 +174,7 @@ export function GoalRelationshipsPanel({
             )}
             {onAddScheduleDependency && (
               <div className="flex gap-2 mt-2">
-                <select
+                <Select
                   value={predecessorPick}
                   onChange={(e) => setPredecessorPick(e.target.value)}
                   className="flex-1 text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
@@ -184,7 +185,7 @@ export function GoalRelationshipsPanel({
                       {g.title}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <button
                   type="button"
                   disabled={!predecessorPick || scheduleBusy}

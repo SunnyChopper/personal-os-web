@@ -15,6 +15,7 @@ export function useWeeklyReviewCurrent(options?: {
   weeks?: number;
   rollingWindow?: number;
   refetchInterval?: number | false;
+  enabled?: boolean;
 }) {
   const weeks = options?.weeks ?? 5;
   const rollingWindow = options?.rollingWindow ?? 4;
@@ -30,6 +31,7 @@ export function useWeeklyReviewCurrent(options?: {
     staleTime: 60_000,
     refetchInterval: options?.refetchInterval ?? false,
     refetchOnWindowFocus: true,
+    enabled: options?.enabled ?? true,
   });
 }
 
