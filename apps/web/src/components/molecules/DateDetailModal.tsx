@@ -4,6 +4,7 @@ import type { Habit, HabitLog } from '@/types/growth-system';
 import Dialog from '@/components/molecules/Dialog';
 import Button from '@/components/atoms/Button';
 import { formatCompletionDate, toLocalDateKey } from '@/utils/date-formatters';
+import { Textarea } from '@/components/atoms/Textarea';
 
 interface DateDetailModalProps {
   isOpen: boolean;
@@ -161,7 +162,7 @@ export function DateDetailModal({
                             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
                               Completion note
                             </label>
-                            <textarea
+                            <Textarea
                               value={draftNote}
                               onChange={(e) => setDraftNote(e.target.value)}
                               rows={3}

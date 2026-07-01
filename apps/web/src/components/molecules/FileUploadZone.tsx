@@ -94,7 +94,7 @@ export default function FileUploadZone({
   };
 
   return (
-    <div className={cn('space-y-4', className)}>
+    <div className={cn('min-w-0 space-y-4', className)}>
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -133,27 +133,26 @@ export default function FileUploadZone({
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Selected files ({selectedFiles.length}):
           </p>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             {selectedFiles.map((file, index) => (
               <div
                 key={`${file.name}-${index}`}
-                className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                className="flex min-w-0 items-center gap-2 rounded-lg bg-gray-50 p-2 dark:bg-gray-800"
               >
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <File size={16} className="text-gray-400 flex-shrink-0" />
-                  <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                    {file.name}
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                    ({(file.size / 1024).toFixed(1)} KB)
-                  </span>
-                </div>
+                <File size={16} className="flex-shrink-0 text-gray-400" />
+                <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
+                  {file.name}
+                </span>
+                <span className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                  ({(file.size / 1024).toFixed(1)} KB)
+                </span>
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     removeFile(index);
                   }}
-                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition"
+                  className="flex-shrink-0 rounded p-1 transition hover:bg-gray-200 dark:hover:bg-gray-700"
                   aria-label={`Remove ${file.name}`}
                 >
                   <X size={14} className="text-gray-500" />

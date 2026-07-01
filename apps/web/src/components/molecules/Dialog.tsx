@@ -81,7 +81,7 @@ export default function Dialog({
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', duration: 0.5 }}
               className={cn(
-                'bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full pointer-events-auto relative my-4 flex flex-col',
+                'bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full min-w-0 pointer-events-auto relative my-4 flex flex-col',
                 sizeClasses[size],
                 size === 'full' && 'h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)]',
                 size === 'xl' && 'md:max-w-4xl max-h-[calc(100vh-4rem)]',
@@ -109,7 +109,7 @@ export default function Dialog({
                 )}
               </div>
 
-              <div className="flex-1 overflow-y-auto px-6 py-4 text-gray-700 dark:text-gray-300">
+              <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-4 text-gray-700 dark:text-gray-300">
                 {children}
               </div>
             </motion.div>

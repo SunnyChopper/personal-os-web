@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import Dialog from '@/components/molecules/Dialog';
+import { FormField } from '@/components/molecules/FormField';
+import { FormInput } from '@/components/atoms/FormInput';
 import Button from '@/components/atoms/Button';
+import { Card, CardBody } from '@/components/atoms/Card';
 
 interface RenameFileModalProps {
   isOpen: boolean;
@@ -10,9 +12,7 @@ interface RenameFileModalProps {
   currentPath: string;
   currentName: string;
   isRenaming?: boolean;
-  /** When `saveAs`, same path is allowed (first save of untitled file). */
   mode?: 'rename' | 'saveAs';
-  /** Primary action button label; defaults by mode. */
   primaryLabel?: string;
 }
 
@@ -30,14 +30,11 @@ export default function RenameFileModal({
   const [folderPath, setFolderPath] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize form when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Extract folder path and file name from current path
       const pathParts = currentPath.split('/');
       const fileName = pathParts.pop() || currentName;
       const folder = pathParts.join('/');
-
       setNewFileName(fileName);
       setFolderPath(folder);
       setError(null);
@@ -45,9 +42,7 @@ export default function RenameFileModal({
   }, [isOpen, currentPath, currentName]);
 
   const validateFileName = (name: string): string | null => {
-    if (!name.trim()) {
-      return 'File name is required';
-    }
+    if (!name.trim()) return 'File name is required';
     if (!name.endsWith('.md') && !name.endsWith('.markdown')) {
       return 'File must have .md or .markdown extension';
     }
@@ -61,7 +56,7 @@ export default function RenameFileModal({
   };
 
   const validateFolderPath = (path: string): string | null => {
-    if (!path.trim()) return null; // Empty is valid (root)
+    if (!path.trim()) return null;
     if (path.startsWith('/') || path.endsWith('/')) {
       return 'Path should not start or end with /';
     }
@@ -91,7 +86,6 @@ export default function RenameFileModal({
       ? `${folderPath.trim()}/${newFileName.trim()}`
       : newFileName.trim();
 
-    // In rename mode, require a different path; saveAs allows keeping Untitled-N.md
     if (mode !== 'saveAs' && fullPath === currentPath) {
       setError('New path must be different from current path');
       return;
@@ -99,7 +93,6 @@ export default function RenameFileModal({
 
     try {
       await onRename(fullPath);
-      // Reset form
       setNewFileName('');
       setFolderPath('');
       setError(null);
@@ -117,54 +110,30 @@ export default function RenameFileModal({
     onClose();
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={handleClose} aria-hidden="true" />
-
-      {/* Dialog */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="rename-modal-title"
-        className="relative z-10 bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2
-            id="rename-modal-title"
-            className="text-lg font-semibold text-gray-900 dark:text-white"
-          >
-            {mode === 'saveAs' ? 'Save File As' : 'Rename File'}
-          </h2>
-          <button
-            onClick={handleClose}
-            disabled={isRenaming}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-          {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+    <Dialog
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={mode === 'saveAs' ? 'Save File As' : 'Rename File'}
+      size="sm"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <fieldset
+          disabled={isRenaming}
+          className="min-w-0 space-y-4 border-0 p-0 m-0 disabled:opacity-60"
+        >
+          {error ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/30">
               <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
             </div>
-          )}
+          ) : null}
 
-          <div>
-            <label
-              htmlFor="folder-path"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Folder Path (optional)
-            </label>
-            <input
+          <FormField
+            label="Folder Path (optional)"
+            htmlFor="folder-path"
+            hint="Leave empty to move to root directory"
+          >
+            <FormInput
               id="folder-path"
               type="text"
               value={folderPath}
@@ -173,30 +142,17 @@ export default function RenameFileModal({
                 setError(null);
               }}
               placeholder="e.g., docs/guides"
-              disabled={isRenaming}
-              className={cn(
-                'w-full px-3 py-2 rounded-lg border',
-                'bg-white dark:bg-gray-900',
-                'text-gray-900 dark:text-white',
-                'border-gray-300 dark:border-gray-600',
-                'focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                'disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed',
-                'transition'
-              )}
+              className="w-full"
             />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Leave empty to move to root directory
-            </p>
-          </div>
+          </FormField>
 
-          <div>
-            <label
-              htmlFor="file-name"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              File Name <span className="text-red-500">*</span>
-            </label>
-            <input
+          <FormField
+            label="File Name"
+            htmlFor="file-name"
+            required
+            hint="Must end with .md or .markdown"
+          >
+            <FormInput
               id="file-name"
               type="text"
               value={newFileName}
@@ -205,50 +161,40 @@ export default function RenameFileModal({
                 setError(null);
               }}
               placeholder="e.g., getting-started.md"
-              disabled={isRenaming}
               required
-              className={cn(
-                'w-full px-3 py-2 rounded-lg border',
-                'bg-white dark:bg-gray-900',
-                'text-gray-900 dark:text-white',
-                'border-gray-300 dark:border-gray-600',
-                'focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                'disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed',
-                'transition'
-              )}
+              className="w-full"
             />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Must end with .md or .markdown
-            </p>
-          </div>
+          </FormField>
 
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current path:</p>
-            <p className="text-sm font-mono text-gray-700 dark:text-gray-300 truncate">
-              {currentPath}
-            </p>
-          </div>
-        </form>
+          <Card>
+            <CardBody className="py-2">
+              <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">Current path:</p>
+              <p className="truncate font-mono text-sm text-gray-700 dark:text-gray-300">
+                {currentPath}
+              </p>
+            </CardBody>
+          </Card>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
-          <Button variant="secondary" onClick={handleClose} disabled={isRenaming} size="sm">
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            onClick={handleSubmit}
-            disabled={isRenaming || !newFileName.trim()}
-            size="sm"
-          >
-            {isRenaming
-              ? mode === 'saveAs'
-                ? 'Saving...'
-                : 'Renaming...'
-              : (primaryLabel ?? (mode === 'saveAs' ? 'Save with this name' : 'Rename File'))}
-          </Button>
-        </div>
-      </div>
-    </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleClose}
+              disabled={isRenaming}
+              size="sm"
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isRenaming || !newFileName.trim()} size="sm">
+              {isRenaming
+                ? mode === 'saveAs'
+                  ? 'Saving…'
+                  : 'Renaming…'
+                : (primaryLabel ?? (mode === 'saveAs' ? 'Save with this name' : 'Rename File'))}
+            </Button>
+          </div>
+        </fieldset>
+      </form>
+    </Dialog>
   );
 }

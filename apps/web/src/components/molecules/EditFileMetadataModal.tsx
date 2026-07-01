@@ -4,6 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { markdownFilesService } from '@/services/markdown-files.service';
 import type { MarkdownFile } from '@/types/markdown-files';
 import CategoryCombobox from '@/components/molecules/CategoryCombobox';
+import Dialog from '@/components/molecules/Dialog';
+import { FormField } from '@/components/molecules/FormField';
+import { FormInput } from '@/components/atoms/FormInput';
+import Button from '@/components/atoms/Button';
 
 interface EditFileMetadataModalProps {
   isOpen: boolean;
@@ -24,7 +28,6 @@ export default function EditFileMetadataModal({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch available tags and categories for suggestions (only while modal is open)
   const { data: availableTagsResponse, isFetching: tagsSuggestionsLoading } = useQuery({
     queryKey: ['markdown-tags'],
     queryFn: () => markdownFilesService.getTags(),
@@ -74,7 +77,7 @@ export default function EditFileMetadataModal({
     }
   };
 
-  if (!isOpen || !file) return null;
+  if (!file) return null;
 
   const tagSuggestions =
     availableTagsResponse?.success && Array.isArray(availableTagsResponse.data)
@@ -89,37 +92,26 @@ export default function EditFileMetadataModal({
       : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Edit Tags & Category
-          </h2>
-          <button
-            onClick={onClose}
-            disabled={isSaving}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition disabled:opacity-50"
-            aria-label="Close"
+    <Dialog isOpen={isOpen} onClose={onClose} title="Edit Tags & Category" size="sm">
+      <form onSubmit={handleSubmit}>
+        <fieldset
+          disabled={isSaving}
+          className="min-w-0 space-y-6 border-0 p-0 m-0 disabled:opacity-60"
+        >
+          <FormField
+            label={
+              <span className="inline-flex items-center gap-1">
+                <Tag size={14} />
+                Tags
+              </span>
+            }
+            htmlFor="tag-input"
+            hint={tagsSuggestionsLoading ? 'Loading tag suggestions…' : undefined}
           >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              <Tag size={14} className="inline mr-1" />
-              Tags
-            </label>
-            {tagsSuggestionsLoading && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                Loading tag suggestions…
-              </p>
-            )}
-            <div className="flex gap-2 mb-3">
-              <div className="flex-1 relative">
-                <input
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <FormInput
+                  id="tag-input"
                   type="text"
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
@@ -129,12 +121,11 @@ export default function EditFileMetadataModal({
                       handleAddTag();
                     }
                   }}
-                  className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Add a tag"
-                  disabled={isSaving}
+                  className="w-full"
                 />
-                {tagInput && tagSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                {tagInput && tagSuggestions.length > 0 ? (
+                  <div className="absolute z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
                     {tagSuggestions.slice(0, 5).map((tag) => (
                       <button
                         key={tag}
@@ -143,29 +134,30 @@ export default function EditFileMetadataModal({
                           setTags([...tags, tag]);
                           setTagInput('');
                         }}
-                        className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         {tag}
                       </button>
                     ))}
                   </div>
-                )}
+                ) : null}
               </div>
-              <button
+              <Button
                 type="button"
                 onClick={handleAddTag}
                 disabled={isSaving}
-                className="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition disabled:opacity-50"
+                size="sm"
+                variant="secondary"
               >
                 Add
-              </button>
+              </Button>
             </div>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
+            {tags.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs"
+                    className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
                   >
                     {tag}
                     <button
@@ -180,14 +172,18 @@ export default function EditFileMetadataModal({
                   </span>
                 ))}
               </div>
-            )}
-          </div>
+            ) : null}
+          </FormField>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              <FolderKanban size={14} className="inline mr-1" />
-              Category
-            </label>
+          <FormField
+            label={
+              <span className="inline-flex items-center gap-1">
+                <FolderKanban size={14} />
+                Category
+              </span>
+            }
+            hint="Categories group files in the sidebar. Existing values appear in the dropdown; anything you type is saved as a new category."
+          >
             <CategoryCombobox
               value={category}
               onChange={setCategory}
@@ -196,37 +192,30 @@ export default function EditFileMetadataModal({
               isLoadingOptions={categoriesSuggestionsLoading}
               placeholder="Type a new category or pick from your library"
             />
-            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              Categories group files in the sidebar. Existing values appear in the dropdown;
-              anything you type is saved as a new category.
-            </p>
-          </div>
+          </FormField>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          {error ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
               <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
             </div>
-          )}
+          ) : null}
 
-          <div className="flex items-center justify-end gap-3">
-            <button
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
               type="button"
+              variant="secondary"
               onClick={onClose}
               disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition disabled:opacity-50"
+              size="sm"
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSaving ? 'Saving...' : 'Save'}
-            </button>
+            </Button>
+            <Button type="submit" disabled={isSaving} size="sm">
+              {isSaving ? 'Saving…' : 'Save'}
+            </Button>
           </div>
-        </form>
-      </div>
-    </div>
+        </fieldset>
+      </form>
+    </Dialog>
   );
 }
