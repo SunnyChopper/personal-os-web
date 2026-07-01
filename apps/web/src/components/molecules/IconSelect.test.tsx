@@ -29,7 +29,7 @@ describe('IconSelect', () => {
 
     expect(screen.getByTestId('linkedin-icon')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Platform' }));
-    await user.click(screen.getByRole('option', { name: 'X (Twitter)' }));
+    await user.click(screen.getByRole('option', { name: /X \(Twitter\)/ }));
     expect(onChange).toHaveBeenCalledWith('x');
   });
 });
