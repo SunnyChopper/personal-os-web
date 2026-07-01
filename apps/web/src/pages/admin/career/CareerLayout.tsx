@@ -1,13 +1,22 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Briefcase } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { ROUTES } from '@/routes';
 
 export default function CareerLayout() {
   const location = useLocation();
   const onResumeBuilder = location.pathname.startsWith(ROUTES.admin.careerResume);
+  const onJobSources = location.pathname.startsWith(ROUTES.admin.careerJobSources);
+
+  const title = onJobSources ? 'Job Sources' : onResumeBuilder ? 'Resume Builder' : 'Career';
+  const subtitle = onJobSources
+    ? 'Ingest job postings, detect ATS boards, and manage saved openings for tailoring.'
+    : onResumeBuilder
+      ? 'Profile bank, ATS-aware drafting, and AI-assisted tailoring.'
+      : 'Hub for career tooling—starting with the résumé builder and room to grow.';
 
   return (
-    <div className="max-w-6xl mx-auto px-4 pb-12">
+    <PageContainer className="pb-12">
       <header className="pt-2 pb-6">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 rounded-xl bg-blue-100/80 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200">
@@ -15,18 +24,14 @@ export default function CareerLayout() {
           </div>
           <div>
             <h1 className="text-3xl font-serif font-light text-gray-900 dark:text-white">
-              {onResumeBuilder ? 'Resume Builder' : 'Career'}
+              {title}
             </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 font-light">
-              {onResumeBuilder
-                ? 'Profile bank, ATS-aware drafting, and AI-assisted tailoring.'
-                : 'Hub for career tooling—starting with the résumé builder and room to grow.'}
-            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 font-light">{subtitle}</p>
           </div>
         </div>
       </header>
 
       <Outlet />
-    </div>
+    </PageContainer>
   );
 }

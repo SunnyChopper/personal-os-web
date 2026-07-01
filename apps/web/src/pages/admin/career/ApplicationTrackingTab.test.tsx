@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { applicationStatusLabel, rejectionTriageBucketLabel } from './application-tracking-labels';
+import {
+  applicationStatusLabel,
+  reachClassificationLabel,
+  rejectionTriageBucketLabel,
+} from './application-tracking-labels';
 
 describe('ApplicationTrackingTab', () => {
   it('maps API status enums to labels', () => {
@@ -16,6 +20,13 @@ describe('ApplicationTrackingTab', () => {
     expect(rejectionTriageBucketLabel('HUMAN_REVIEW')).toBe('Recruiter pass');
     expect(rejectionTriageBucketLabel('UNKNOWN')).toBe('Unknown');
     expect(rejectionTriageBucketLabel(null)).toBe('Unknown');
+  });
+
+  it('maps reach classification to UI labels', () => {
+    expect(reachClassificationLabel('strongFit')).toBe('Strong fit');
+    expect(reachClassificationLabel('stretch')).toBe('Stretch');
+    expect(reachClassificationLabel('outOfReach')).toBe('Out of reach');
+    expect(reachClassificationLabel(null)).toBe('Stretch');
   });
 
   it('formats zero rejection rate for analytics banner', () => {

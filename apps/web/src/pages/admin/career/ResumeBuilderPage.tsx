@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Loader2, Sparkles } from 'lucide-react';
 import { FormCheckbox } from '@/components/atoms/FormCheckbox';
 import { FormInput } from '@/components/atoms/FormInput';
+import { CareerFitIntelligencePanel } from '@/components/molecules/CareerFitIntelligencePanel';
 import { KeywordCoverageMatrix } from '@/components/molecules/KeywordCoverageMatrix';
 import MarkdownRenderer from '@/components/molecules/MarkdownRenderer';
 import { useCareerResume } from '@/hooks/useCareerResume';
 import { useCareerApplications } from '@/hooks/useCareerApplications';
 import { sortJobsByRecency } from '@/lib/career-job-sort';
+import { queryKeys } from '@/lib/react-query/query-keys';
+import { ROUTES } from '@/routes';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import ApplicationTrackingTab from '@/pages/admin/career/ApplicationTrackingTab';
@@ -15,12 +20,22 @@ import type {
   CareerApplicationRecommendation,
   CareerEducation,
   CareerGeneratedResume,
+  CareerGeneratedResumeSortBy,
   CareerJob,
   CareerJobPosting,
+  CareerResumeAtsScorePreview,
   CareerResumeBulletRationale,
+  CareerResumeExportFormat,
 } from '@/types/api/career.types';
-import { fitRecommendationLabel } from './application-tracking-labels';
 import { getCareerResumeMarkdownComponents } from './careerResumeMarkdown';
+import { CareerResumeAtsScoreCard } from './CareerResumeAtsScoreCard';
+import { CareerResumeDraftEditor } from './CareerResumeDraftEditor';
+import { CareerResumeProvenancePanel } from './CareerResumeProvenancePanel';
+import { previewKeywordDiffFromDraft, previewMetaFromDraft } from './careerResumeDraftSync';
+import { ResumeExportButtons } from './ResumeExportButtons';
+import { ResumeTemplateGallery } from './ResumeTemplateGallery';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const BUILDER_TABS = [
   { id: 'profile', label: 'Profile & education' },
@@ -31,11 +46,6 @@ const BUILDER_TABS = [
 ] as const;
 
 type BuilderTabId = (typeof BUILDER_TABS)[number]['id'];
-
-const RESUME_TEMPLATES = [
-  { id: 'standard_professional', label: 'Standard professional' },
-  { id: 'modern_ats', label: 'Modern ATS' },
-] as const;
 
 const AI_PROVIDER_PRESETS = [
   { id: 'openai', label: 'OpenAI' },
@@ -181,48 +191,25 @@ function CollapsibleAiBucket({
   );
 }
 
-function FitChipList({
-  title,
-  items,
-  tone,
-}: {
-  title: string;
-  items: string[];
-  tone: 'blue' | 'amber' | 'rose' | 'emerald';
-}) {
-  const tones = {
-    blue: 'bg-blue-100/80 dark:bg-blue-900/40',
-    amber: 'bg-amber-100/80 dark:bg-amber-900/40',
-    rose: 'bg-rose-100/80 dark:bg-rose-900/40',
-    emerald: 'bg-emerald-100/80 dark:bg-emerald-900/40',
-  };
-  return (
-    <div>
-      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{title}</p>
-      <div className="flex flex-wrap gap-1">
-        {items?.length ? (
-          items.map((k, i) => (
-            <span
-              key={`${title}-${i}-${k}`}
-              className={cn(
-                'rounded-full px-2 py-0.5 text-xs text-gray-900 dark:text-gray-100',
-                tones[tone]
-              )}
-            >
-              {k}
-            </span>
-          ))
-        ) : (
-          <span className="text-xs text-gray-400">None</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function ResumeBuilderPage() {
-  const cr = useCareerResume();
+  const [generatedSearch, setGeneratedSearch] = useState('');
+  const [generatedSortBy, setGeneratedSortBy] = useState<CareerGeneratedResumeSortBy>('createdAt');
+  const [generatedSortOrder, setGeneratedSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [generatedPage, setGeneratedPage] = useState(1);
+  const generatedPageSize = 20;
+  const generatedParams = useMemo(
+    () => ({
+      page: generatedPage,
+      pageSize: generatedPageSize,
+      search: generatedSearch.trim() || null,
+      sortBy: generatedSortBy,
+      sortOrder: generatedSortOrder,
+    }),
+    [generatedPage, generatedSearch, generatedSortBy, generatedSortOrder]
+  );
+  const cr = useCareerResume({ generated: generatedParams });
   const appsFit = useCareerApplications({ listEnabled: false });
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<BuilderTabId>('profile');
 
   const [pf, setPf] = useState({
@@ -312,10 +299,24 @@ export default function ResumeBuilderPage() {
   });
   const [aiOpenForjob, setAiOpenForJob] = useState<string | null>(null);
 
-  const [postUrl, setPostUrl] = useState('');
-  const [postRaw, setPostRaw] = useState('');
+  const [selectedPostingId, setSelectedPostingId] = useState('');
   const [lastPosting, setLastPosting] = useState<CareerJobPosting | null>(null);
-  const [postingExtractedOpen, setPostingExtractedOpen] = useState(false);
+
+  const savedPostingsQ = useQuery({
+    queryKey: queryKeys.careerResume.jobPostingsList({
+      page: 1,
+      pageSize: 100,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    }),
+    queryFn: () =>
+      careerService.listJobPostings({
+        page: 1,
+        pageSize: 100,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      }),
+  });
 
   const [genRawPosting, setGenRawPosting] = useState('');
   const [tone, setTone] = useState('professional ATS-friendly');
@@ -330,12 +331,19 @@ export default function ResumeBuilderPage() {
   const [fitGenResumeId, setFitGenResumeId] = useState<string | null>(null);
   const [fitPdfBusy, setFitPdfBusy] = useState(false);
 
+  const [previewGeneratedId, setPreviewGeneratedId] = useState<string | null>(null);
+  const [activeDraft, setActiveDraft] = useState<CareerGeneratedResume | null>(null);
+  const [atsPreview, setAtsPreview] = useState<CareerResumeAtsScorePreview | null>(null);
+  const [busySectionId, setBusySectionId] = useState<string | null>(null);
+  const [templateImportWarnings, setTemplateImportWarnings] = useState<string[]>([]);
+  const [exportBusyFormat, setExportBusyFormat] = useState<CareerResumeExportFormat | null>(null);
   const [previewMarkdown, setPreviewMarkdown] = useState('');
   const [previewMeta, setPreviewMeta] = useState<{
     atsKeywordsUsed: string[];
     biasStrategyNotes?: string | null;
     atsScore?: number | null;
     humanScore?: number | null;
+    llmAtsScore?: number | null;
     bulletRationales?: CareerResumeBulletRationale[];
   } | null>(null);
   const [previewKeywordDiff, setPreviewKeywordDiff] = useState<{
@@ -344,11 +352,116 @@ export default function ResumeBuilderPage() {
     missing: string[];
   } | null>(null);
 
+  const applyActiveDraft = (draft: CareerGeneratedResume) => {
+    setActiveDraft(draft);
+    setPreviewGeneratedId(draft.id);
+    setPreviewMarkdown(draft.resumeMarkdown);
+    setPreviewMeta(previewMetaFromDraft(draft));
+    setPreviewKeywordDiff(previewKeywordDiffFromDraft(draft));
+    setGenTargetCompany(draft.companyName ?? '');
+    setGenTargetRole(draft.jobTitle ?? '');
+  };
+
+  const openGeneratedDraft = async (resumeId: string) => {
+    const full = await careerService.getGenerated(resumeId);
+    applyActiveDraft(full);
+    setActiveTab('generate');
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', 'generate');
+      next.set('draftId', full.id);
+      if (full.jobPostingId) next.set('postingId', full.jobPostingId);
+      else next.delete('postingId');
+      next.delete('applicationId');
+      return next;
+    });
+  };
+
+  const openJobPosting = async (postingId: string) => {
+    const posting = await careerService.getJobPosting(postingId);
+    setLastPosting(posting);
+    setSelectedPostingId(posting.id);
+    setGenTargetCompany(posting.company ?? posting.companyGuess ?? '');
+    setGenTargetRole(posting.title ?? posting.roleGuess ?? '');
+    setGenRawPosting(posting.rawText ?? posting.fetchedText ?? '');
+    setActiveTab('generate');
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', 'generate');
+      next.set('postingId', posting.id);
+      return next;
+    });
+  };
+
   useEffect(() => {
-    if (!lastPosting) return;
-    setGenTargetCompany(lastPosting.companyGuess ?? '');
-    setGenTargetRole(lastPosting.roleGuess ?? '');
-  }, [lastPosting?.id, lastPosting?.companyGuess, lastPosting?.roleGuess]);
+    const tab = searchParams.get('tab') as BuilderTabId | null;
+    if (tab && BUILDER_TABS.some((t) => t.id === tab)) {
+      setActiveTab(tab);
+    }
+    if (searchParams.get('applicationId')) {
+      setActiveTab('applications');
+    }
+    const draftId = searchParams.get('draftId');
+    if (draftId && draftId !== previewGeneratedId) {
+      void openGeneratedDraft(draftId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const selectedAchievementIdsForTailor = useMemo(() => {
+    if (achievementSelection.size > 0) return [...achievementSelection];
+    return undefined;
+  }, [achievementSelection]);
+
+  const handleSaveResumeSection = async (sectionId: string, contentMarkdown: string) => {
+    if (!previewGeneratedId || !activeDraft) return;
+    setBusySectionId(sectionId);
+    try {
+      const res = await cr.editGeneratedResumeSections.mutateAsync({
+        resumeId: previewGeneratedId,
+        body: {
+          edits: [{ sectionId, contentMarkdown }],
+          revision: activeDraft.draftRevision ?? 1,
+        },
+      });
+      applyActiveDraft(res);
+    } finally {
+      setBusySectionId(null);
+    }
+  };
+
+  const handleRegenerateResumeSection = async (sectionId: string, instructions?: string) => {
+    if (!previewGeneratedId) return;
+    setBusySectionId(sectionId);
+    try {
+      const res = await cr.regenerateGeneratedResumeSection.mutateAsync({
+        resumeId: previewGeneratedId,
+        body: {
+          sectionId,
+          instructions: instructions ?? null,
+          provider: aiOpts.provider || null,
+          model: aiOpts.model.trim() || null,
+          allowedAchievementIds: selectedAchievementIdsForTailor ?? null,
+        },
+      });
+      applyActiveDraft(res);
+    } finally {
+      setBusySectionId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedPostingId) {
+      setLastPosting(null);
+      return;
+    }
+    const found = savedPostingsQ.data?.items.find((p) => p.id === selectedPostingId);
+    if (found) {
+      setLastPosting(found);
+      setGenTargetCompany(found.company ?? found.companyGuess ?? '');
+      setGenTargetRole(found.title ?? found.roleGuess ?? '');
+    }
+  }, [selectedPostingId, savedPostingsQ.data]);
 
   const apiErr = useMemo(() => {
     const cands = [
@@ -580,7 +693,7 @@ export default function ResumeBuilderPage() {
               ))}
               <label className="md:col-span-2 flex flex-col gap-1 text-sm">
                 <span className="text-gray-700 dark:text-gray-300">Summary</span>
-                <textarea
+                <Textarea
                   className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 min-h-[100px]"
                   value={pf.summary}
                   onChange={(ev) => setPf((s) => ({ ...s, summary: ev.target.value }))}
@@ -631,7 +744,7 @@ export default function ResumeBuilderPage() {
                       ))}
                       <label className="md:col-span-2 flex flex-col gap-1">
                         Courses
-                        <textarea
+                        <Textarea
                           className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900 min-h-[60px]"
                           value={editEduDraft.courses}
                           onChange={(ev) =>
@@ -810,7 +923,7 @@ export default function ResumeBuilderPage() {
               </label>
               <label className="md:col-span-2 flex flex-col gap-1">
                 Notable courses
-                <textarea
+                <Textarea
                   className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 min-h-[70px]"
                   value={eduDraft.courses}
                   onChange={(ev) => setEduDraft((s) => ({ ...s, courses: ev.target.value }))}
@@ -1065,7 +1178,7 @@ export default function ResumeBuilderPage() {
                               <div className="grid grid-cols-2 gap-2">
                                 <label className="flex flex-col gap-1">
                                   Provider
-                                  <select
+                                  <Select
                                     className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900"
                                     value={aiOpts.provider}
                                     onChange={(ev) =>
@@ -1077,7 +1190,7 @@ export default function ResumeBuilderPage() {
                                         {p.label}
                                       </option>
                                     ))}
-                                  </select>
+                                  </Select>
                                 </label>
                                 <label className="flex flex-col gap-1">
                                   Model (optional)
@@ -1139,7 +1252,7 @@ export default function ResumeBuilderPage() {
                               >
                                 {editingAch?.jobId === job.id && editingAch.id === a.id ? (
                                   <div className="space-y-2">
-                                    <textarea
+                                    <Textarea
                                       className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-2 text-sm bg-white dark:bg-gray-900 min-h-[80px]"
                                       value={achEditText}
                                       onChange={(ev) => setAchEditText(ev.target.value)}
@@ -1201,7 +1314,7 @@ export default function ResumeBuilderPage() {
                             ))}
                           </ul>
                           <div className="flex flex-col sm:flex-row gap-2 w-full">
-                            <textarea
+                            <Textarea
                               placeholder="New achievement bullet…"
                               className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-900 min-h-[72px]"
                               value={draftText}
@@ -1303,7 +1416,7 @@ export default function ResumeBuilderPage() {
                           ) : (
                             <label className="flex flex-col gap-1 text-xs">
                               Bullet text
-                              <textarea
+                              <Textarea
                                 className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-900 min-h-[72px]"
                                 value={suggestionEditText}
                                 onChange={(ev) => setSuggestionEditText(ev.target.value)}
@@ -1312,7 +1425,7 @@ export default function ResumeBuilderPage() {
                           )}
                           <label className="flex flex-col gap-1 text-xs">
                             Rationale (optional)
-                            <textarea
+                            <Textarea
                               className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-900 min-h-[48px]"
                               value={suggestionEditRationale}
                               onChange={(ev) => setSuggestionEditRationale(ev.target.value)}
@@ -1376,7 +1489,7 @@ export default function ResumeBuilderPage() {
                         </>
                       )}
 
-                      <textarea
+                      <Textarea
                         className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs bg-white dark:bg-gray-900 mt-2"
                         placeholder="Rejection feedback (guides next brainstorm)…"
                         value={rejectFeedback[s.id] ?? ''}
@@ -1389,7 +1502,7 @@ export default function ResumeBuilderPage() {
                         <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-3 space-y-2 text-xs">
                           <label className="flex flex-col gap-1">
                             Feedback for AI revise
-                            <textarea
+                            <Textarea
                               className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900 min-h-[56px]"
                               value={reviseFeedback[s.id] ?? ''}
                               onChange={(ev) =>
@@ -1401,7 +1514,7 @@ export default function ResumeBuilderPage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <label className="flex flex-col gap-1">
                               Provider
-                              <select
+                              <Select
                                 className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900"
                                 value={reviseAiOpts.provider}
                                 onChange={(ev) =>
@@ -1413,7 +1526,7 @@ export default function ResumeBuilderPage() {
                                     {p.label}
                                   </option>
                                 ))}
-                              </select>
+                              </Select>
                             </label>
                             <label className="flex flex-col gap-1">
                               Model override
@@ -1585,96 +1698,69 @@ export default function ResumeBuilderPage() {
         <div className="space-y-10">
           <Section
             title="Job posting"
-            subtitle="Paste a description or job-board URL, analyze to extract structure and keywords, then generate a tailored resume below. Greenhouse, Lever, Ashby, Workable, and SmartRecruiters URLs record board IDs when recognized."
+            subtitle="Choose a posting ingested in Job Sources. Ingest new URLs there (preview, dedupe, snapshots)."
           >
             <div className="space-y-4">
-              <label className="flex flex-col text-sm gap-1">
-                Source URL (optional — fetches when raw text empty)
-                <input
-                  className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
-                  value={postUrl}
-                  onChange={(ev) => setPostUrl(ev.target.value)}
-                  placeholder="https://…"
-                />
-              </label>
-              <label className="flex flex-col text-sm gap-1">
-                Raw job description (optional — overrides fetch)
-                <textarea
-                  className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 min-h-[120px]"
-                  value={postRaw}
-                  onChange={(ev) => setPostRaw(ev.target.value)}
-                />
-              </label>
-              <div className="flex flex-wrap items-center gap-3">
-                <Btn
-                  type="button"
-                  loading={cr.analyzePosting.isPending}
-                  onClick={async () => {
-                    try {
-                      const posting = await cr.analyzePosting.mutateAsync({
-                        sourceUrl: postUrl.trim() || null,
-                        rawText: postRaw.trim() || null,
-                      });
-                      setLastPosting(posting);
-                      setPostingExtractedOpen(false);
-                    } catch {
-                      /* toast via inline error */
-                    }
-                  }}
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <Link
+                  to={ROUTES.admin.careerJobSources}
+                  className="text-blue-600 dark:text-blue-400 underline font-medium"
                 >
-                  Analyze posting
-                </Btn>
-                {cr.analyzePosting.error ? (
-                  <span className="text-xs text-red-600 dark:text-red-400">
-                    {cr.analyzePosting.error instanceof Error
-                      ? cr.analyzePosting.error.message
-                      : String(cr.analyzePosting.error)}
-                  </span>
-                ) : null}
-              </div>
+                  Open Job Sources
+                </Link>{' '}
+                to add or refresh postings.
+              </p>
+              <label className="flex flex-col text-sm gap-1 max-w-xl">
+                Saved posting
+                <Select
+                  className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
+                  value={selectedPostingId}
+                  onChange={(ev) => setSelectedPostingId(ev.target.value)}
+                  disabled={savedPostingsQ.isLoading}
+                >
+                  <option value="">Select a posting…</option>
+                  {(savedPostingsQ.data?.items ?? []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {(p.title || p.roleGuess || 'Role') +
+                        ' · ' +
+                        (p.company || p.companyGuess || 'Company')}
+                      {p.provider || p.jobBoard ? ` (${p.provider || p.jobBoard})` : ''}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              {savedPostingsQ.error ? (
+                <span className="text-xs text-red-600 dark:text-red-400">
+                  {savedPostingsQ.error instanceof Error
+                    ? savedPostingsQ.error.message
+                    : String(savedPostingsQ.error)}
+                </span>
+              ) : null}
 
               {lastPosting ? (
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 text-sm bg-gray-50/50 dark:bg-gray-900/40">
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Parsed posting</h3>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    This context is used when you click{' '}
-                    <span className="font-medium">Generate resume</span> below.
-                  </p>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Selected posting</h3>
                   <div>
-                    <span className="text-gray-500">Role:</span> {lastPosting.roleGuess ?? '—'}
+                    <span className="text-gray-500">Role:</span>{' '}
+                    {lastPosting.title || lastPosting.roleGuess || '—'}
                   </div>
                   <div>
                     <span className="text-gray-500">Company:</span>{' '}
-                    {lastPosting.companyGuess ?? '—'}
+                    {lastPosting.company || lastPosting.companyGuess || '—'}
                   </div>
-                  {lastPosting.jobBoard ? (
+                  {(lastPosting.provider || lastPosting.jobBoard) && (
                     <div className="text-xs font-mono text-gray-600 dark:text-gray-400">
-                      Tracked board: {lastPosting.jobBoard}
-                      {lastPosting.jobBoardCompanyId
-                        ? ` · company key: ${lastPosting.jobBoardCompanyId}`
+                      {lastPosting.provider || lastPosting.jobBoard}
+                      {lastPosting.companySlug || lastPosting.jobBoardCompanyId
+                        ? ` · ${lastPosting.companySlug || lastPosting.jobBoardCompanyId}`
                         : ''}
                     </div>
-                  ) : null}
+                  )}
                   <div>
-                    <span className="text-gray-500 block mb-1">ATS keywords</span>
+                    <span className="text-gray-500 block mb-1">Mandatory keywords</span>
                     <div className="flex flex-wrap gap-1">
-                      {lastPosting.atsKeywords?.length
-                        ? lastPosting.atsKeywords.map((k) => (
-                            <span
-                              key={k}
-                              className="rounded-full bg-blue-100/80 dark:bg-blue-900/40 px-2 py-0.5 text-xs"
-                            >
-                              {k}
-                            </span>
-                          ))
-                        : '—'}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block mb-1">Must-have skills</span>
-                    <div className="flex flex-wrap gap-1">
-                      {lastPosting.requirements?.mustHaveSkills?.length
-                        ? lastPosting.requirements.mustHaveSkills.map((k) => (
+                      {lastPosting.mandatoryKeywords?.length
+                        ? lastPosting.mandatoryKeywords.map((k) => (
                             <span
                               key={k}
                               className="rounded-full bg-emerald-100/80 dark:bg-emerald-900/40 px-2 py-0.5 text-xs"
@@ -1684,44 +1770,6 @@ export default function ResumeBuilderPage() {
                           ))
                         : '—'}
                     </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block mb-1">Nice-to-have skills</span>
-                    <div className="flex flex-wrap gap-1">
-                      {lastPosting.requirements?.niceToHaveSkills?.length
-                        ? lastPosting.requirements.niceToHaveSkills.map((k) => (
-                            <span
-                              key={k}
-                              className="rounded-full bg-slate-100/80 dark:bg-slate-800/60 px-2 py-0.5 text-xs"
-                            >
-                              {k}
-                            </span>
-                          ))
-                        : '—'}
-                    </div>
-                  </div>
-                  {lastPosting.requirements?.responsibilitiesSummary ? (
-                    <div>
-                      <span className="text-gray-500 block mb-1">Responsibilities (summary)</span>
-                      <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                        {lastPosting.requirements.responsibilitiesSummary}
-                      </p>
-                    </div>
-                  ) : null}
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => setPostingExtractedOpen((v) => !v)}
-                      className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline mb-1"
-                    >
-                      {postingExtractedOpen ? 'Hide' : 'Show'} extracted job text
-                    </button>
-                    {postingExtractedOpen ? (
-                      <pre className="whitespace-pre-wrap text-xs max-h-48 overflow-auto bg-white dark:bg-gray-950 p-2 rounded border border-gray-200 dark:border-gray-700 mt-1">
-                        {(lastPosting.rawText || '').slice(0, 12000)}
-                        {(lastPosting.rawText || '').length > 12000 ? '…' : ''}
-                      </pre>
-                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -1738,7 +1786,7 @@ export default function ResumeBuilderPage() {
                   <span className="text-gray-700 dark:text-gray-300">
                     Tailored draft (optional)
                   </span>
-                  <select
+                  <Select
                     className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
                     value={fitGenResumeId ?? ''}
                     onChange={(ev) =>
@@ -1751,7 +1799,7 @@ export default function ResumeBuilderPage() {
                         {formatGeneratedDraftLabel(g)}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <label className="flex flex-col gap-1 text-sm">
                   <span className="text-gray-700 dark:text-gray-300">
@@ -1790,15 +1838,15 @@ export default function ResumeBuilderPage() {
                   type="button"
                   loading={appsFit.recommendApplications.isPending}
                   onClick={async () => {
-                    if (!postUrl.trim() && !postRaw.trim() && !lastPosting?.id) {
-                      alert('Analyze a posting first, or enter a URL / description.');
+                    if (!lastPosting?.id) {
+                      alert('Select a saved job posting from Job Sources first.');
                       return;
                     }
                     try {
                       const res = await appsFit.recommendApplications.mutateAsync({
-                        sourceUrl: postUrl.trim() || null,
-                        rawText: postRaw.trim() || null,
-                        jobPostingId: lastPosting?.id ?? null,
+                        sourceUrl: lastPosting.sourceUrl ?? null,
+                        rawText: null,
+                        jobPostingId: lastPosting.id,
                         generatedResumeId: fitGenResumeId,
                         resumeSnapshotName: fitResumeSnapName.trim() || null,
                         resumeSnapshotText: fitResumeSnapText.trim() || null,
@@ -1823,44 +1871,11 @@ export default function ResumeBuilderPage() {
                 ) : null}
               </div>
               {fitRec ? (
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 text-sm bg-gray-50/50 dark:bg-gray-900/40">
-                  <div className="flex flex-wrap gap-2 justify-between items-start">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">
-                        {fitRecommendationLabel(fitRec.recommendation ?? 'maybe')}
-                        {typeof fitRec.fitScore === 'number'
-                          ? ` · score ${fitRec.fitScore}`
-                          : ''}{' '}
-                        {typeof fitRec.confidence === 'number'
-                          ? ` · confidence ${(fitRec.confidence * 100).toFixed(0)}%`
-                          : ''}
-                      </p>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {(lastPosting?.roleGuess || genTargetRole || 'Role') + ' · '}
-                        {lastPosting?.companyGuess || genTargetCompany || 'Company'}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-700 dark:text-gray-200">{fitRec.rationale}</p>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <FitChipList
-                      title="Strengths"
-                      items={fitRec.matchedSignals ?? []}
-                      tone="emerald"
-                    />
-                    <FitChipList title="Gaps" items={fitRec.gapSignals ?? []} tone="amber" />
-                    <FitChipList
-                      title="Rejection-risk signals"
-                      items={fitRec.rejectionRiskSignals ?? []}
-                      tone="rose"
-                    />
-                    <FitChipList
-                      title="Resume tweaks"
-                      items={fitRec.resumeAdjustments ?? []}
-                      tone="blue"
-                    />
-                  </div>
-                </div>
+                <CareerFitIntelligencePanel
+                  fit={fitRec}
+                  roleLabel={lastPosting?.roleGuess || genTargetRole || 'Role'}
+                  companyLabel={lastPosting?.companyGuess || genTargetCompany || 'Company'}
+                />
               ) : null}
             </div>
           </Section>
@@ -1890,24 +1905,26 @@ export default function ResumeBuilderPage() {
                   />
                 </label>
               </div>
-              <label className="flex flex-col text-sm gap-1">
-                Resume template
-                <select
-                  className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
-                  value={resumeTemplate}
-                  onChange={(ev) => setResumeTemplate(ev.target.value)}
-                >
-                  {RESUME_TEMPLATES.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <ResumeTemplateGallery
+                templates={cr.resumeTemplates.data?.items ?? []}
+                selectedId={resumeTemplate}
+                onSelect={setResumeTemplate}
+                importBusy={cr.importResumeTemplate.isPending}
+                importWarnings={templateImportWarnings}
+                onImport={async (file) => {
+                  try {
+                    const res = await cr.importResumeTemplate.mutateAsync({ file });
+                    setTemplateImportWarnings(res.parseWarnings ?? []);
+                    setResumeTemplate(res.template.templateId);
+                  } catch {
+                    setTemplateImportWarnings([]);
+                  }
+                }}
+              />
               <label className="flex flex-col text-sm gap-1">
                 Extra job text (optional — added on top of analyzed posting, or use alone without
                 Analyze)
-                <textarea
+                <Textarea
                   className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 min-h-[100px]"
                   value={genRawPosting}
                   onChange={(ev) => setGenRawPosting(ev.target.value)}
@@ -1925,7 +1942,7 @@ export default function ResumeBuilderPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1 text-sm">
                   AI provider (generation)
-                  <select
+                  <Select
                     className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
                     value={aiOpts.provider}
                     onChange={(ev) => setAiOpts((o) => ({ ...o, provider: ev.target.value }))}
@@ -1935,7 +1952,7 @@ export default function ResumeBuilderPage() {
                         {p.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <label className="flex flex-col gap-1 text-sm">
                   Model override
@@ -1974,44 +1991,80 @@ export default function ResumeBuilderPage() {
                 </div>
               </div>
 
-              <Btn
-                type="button"
-                loading={cr.generateResume.isPending}
-                onClick={async () => {
-                  try {
-                    const sel =
-                      achievementSelection.size > 0 ? [...achievementSelection] : undefined;
-                    const res = await cr.generateResume.mutateAsync({
-                      jobPostingId: lastPosting?.id ?? null,
-                      rawJobPostingText: genRawPosting.trim() ? genRawPosting : null,
-                      selectedAchievementIds: sel,
-                      tone,
-                      resumeTemplate,
-                      provider: aiOpts.provider || null,
-                      model: aiOpts.model.trim() || null,
-                      companyName: genTargetCompany.trim() || null,
-                      jobTitle: genTargetRole.trim() || null,
-                    });
-                    setPreviewMarkdown(res.resumeMarkdown);
-                    setPreviewMeta({
-                      atsKeywordsUsed: res.atsKeywordsUsed ?? [],
-                      biasStrategyNotes: res.biasStrategyNotes,
-                      atsScore: res.atsScore,
-                      humanScore: res.humanScore,
-                      bulletRationales: res.bulletRationales ?? [],
-                    });
-                    setPreviewKeywordDiff({
-                      mandatory: res.mandatoryKeywords ?? [],
-                      matched: res.matchedKeywords ?? [],
-                      missing: res.missingKeywords ?? [],
-                    });
-                  } catch {
-                    /* error below */
+              <div className="flex flex-wrap gap-2 items-center">
+                <OutlineBtn
+                  type="button"
+                  disabled={
+                    cr.previewAtsScore.isPending ||
+                    (!lastPosting?.id &&
+                      !genRawPosting.trim() &&
+                      !selectedAchievementIdsForTailor?.length)
                   }
-                }}
-              >
-                Generate resume
-              </Btn>
+                  onClick={async () => {
+                    try {
+                      const res = await cr.previewAtsScore.mutateAsync({
+                        jobPostingId: lastPosting?.id ?? null,
+                        rawJobPostingText: genRawPosting.trim() ? genRawPosting : null,
+                        selectedAchievementIds: selectedAchievementIdsForTailor,
+                      });
+                      setAtsPreview(res);
+                      setPreviewKeywordDiff({
+                        mandatory: res.mandatoryKeywords ?? [],
+                        matched: res.matchedKeywords ?? [],
+                        missing: res.missingKeywords ?? [],
+                      });
+                    } catch {
+                      /* error below */
+                    }
+                  }}
+                >
+                  {cr.previewAtsScore.isPending ? (
+                    <Loader2 className="size-4 animate-spin inline" aria-hidden />
+                  ) : null}
+                  Preview ATS score
+                </OutlineBtn>
+                <Btn
+                  type="button"
+                  loading={cr.generateResume.isPending}
+                  onClick={async () => {
+                    try {
+                      const res = await cr.generateResume.mutateAsync({
+                        jobPostingId: lastPosting?.id ?? null,
+                        rawJobPostingText: genRawPosting.trim() ? genRawPosting : null,
+                        selectedAchievementIds: selectedAchievementIdsForTailor,
+                        tone,
+                        resumeTemplate,
+                        provider: aiOpts.provider || null,
+                        model: aiOpts.model.trim() || null,
+                        companyName: genTargetCompany.trim() || null,
+                        jobTitle: genTargetRole.trim() || null,
+                      });
+                      applyActiveDraft(res);
+                      setAtsPreview(null);
+                    } catch {
+                      /* error below */
+                    }
+                  }}
+                >
+                  Generate resume
+                </Btn>
+              </div>
+
+              {cr.previewAtsScore.error ? (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {cr.previewAtsScore.error instanceof Error
+                    ? cr.previewAtsScore.error.message
+                    : String(cr.previewAtsScore.error)}
+                </p>
+              ) : null}
+
+              {atsPreview ? (
+                <CareerResumeAtsScoreCard
+                  mode="preview"
+                  atsScore={atsPreview.atsScore}
+                  breakdown={atsPreview.atsScoreBreakdown}
+                />
+              ) : null}
 
               {cr.generateResume.error ? (
                 <p className="text-sm text-red-600 dark:text-red-400">
@@ -2023,6 +2076,52 @@ export default function ResumeBuilderPage() {
 
               {previewMarkdown ? (
                 <div className="mt-8 space-y-4 border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-gray-50/60 dark:bg-gray-900/40">
+                  {activeDraft ? (
+                    <>
+                      <CareerResumeProvenancePanel
+                        exportReady={activeDraft.exportReady}
+                        qualityStatus={activeDraft.qualityStatus}
+                        provenance={activeDraft.provenance}
+                        qualityWarnings={activeDraft.qualityWarnings}
+                      />
+                      <CareerResumeAtsScoreCard
+                        atsScore={activeDraft.atsScore}
+                        atsScoreBefore={activeDraft.atsScoreBefore}
+                        atsScoreDelta={activeDraft.atsScoreDelta}
+                        llmAtsScore={activeDraft.llmAtsScore}
+                        breakdown={activeDraft.atsScoreBreakdown}
+                      />
+                    </>
+                  ) : null}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <h4 className="text-sm font-semibold">Download</h4>
+                    <ResumeExportButtons
+                      resumeId={previewGeneratedId}
+                      templateId={resumeTemplate}
+                      exportReady={activeDraft?.exportReady !== false}
+                      busyFormat={exportBusyFormat}
+                      onExport={async (format) => {
+                        if (!previewGeneratedId) return;
+                        setExportBusyFormat(format);
+                        try {
+                          const exp = await cr.exportGeneratedResume.mutateAsync({
+                            resumeId: previewGeneratedId,
+                            format,
+                            templateId: resumeTemplate,
+                          });
+                          const a = document.createElement('a');
+                          a.href = exp.downloadUrl;
+                          a.download = exp.fileName || `resume.${format}`;
+                          a.rel = 'noopener';
+                          document.body.appendChild(a);
+                          a.click();
+                          a.remove();
+                        } finally {
+                          setExportBusyFormat(null);
+                        }
+                      }}
+                    />
+                  </div>
                   {previewKeywordDiff ? (
                     <KeywordCoverageMatrix
                       mandatory={previewKeywordDiff.mandatory}
@@ -2041,8 +2140,11 @@ export default function ResumeBuilderPage() {
                           Resume scores (heuristic)
                         </div>
                         <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          ATS: {previewMeta.atsScore ?? '—'} / 100 · Reader:{' '}
+                          Deterministic ATS (display): {previewMeta.atsScore ?? '—'} / 100 · Reader:{' '}
                           {previewMeta.humanScore ?? '—'} / 100
+                          {previewMeta.llmAtsScore != null
+                            ? ` · LLM ATS: ${previewMeta.llmAtsScore}`
+                            : ''}
                         </div>
                       </div>
                       <div className="rounded-lg bg-white dark:bg-gray-950 p-3 border border-gray-200 dark:border-gray-700">
@@ -2104,14 +2206,23 @@ export default function ResumeBuilderPage() {
                     </div>
                   ) : null}
                   <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-semibold mb-2">Preview</h4>
-                      <MarkdownRenderer
-                        content={previewMarkdown}
-                        components={getCareerResumeMarkdownComponents(
-                          previewMeta?.atsKeywordsUsed ?? []
-                        )}
-                      />
+                    <div className="min-w-0 space-y-4">
+                      <h4 className="text-sm font-semibold">Preview</h4>
+                      {activeDraft?.resumeSections?.length ? (
+                        <CareerResumeDraftEditor
+                          draft={activeDraft}
+                          busySectionId={busySectionId}
+                          onSaveSection={handleSaveResumeSection}
+                          onRegenerateSection={handleRegenerateResumeSection}
+                        />
+                      ) : (
+                        <MarkdownRenderer
+                          content={previewMarkdown}
+                          components={getCareerResumeMarkdownComponents(
+                            previewMeta?.atsKeywordsUsed ?? []
+                          )}
+                        />
+                      )}
                     </div>
                     {previewKeywordDiff ? (
                       <div className="lg:sticky lg:top-4 lg:self-start">
@@ -2129,7 +2240,48 @@ export default function ResumeBuilderPage() {
             </div>
           </Section>
 
-          <Section title="Generated history" subtitle="Recent drafts — open to load into preview.">
+          <Section
+            title="Generated history"
+            subtitle="Search and sort saved drafts by target, score, model, and outcome."
+          >
+            <div className="mb-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_120px]">
+              <input
+                type="search"
+                className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 text-sm"
+                placeholder="Search company, role, template, provider…"
+                value={generatedSearch}
+                onChange={(ev) => {
+                  setGeneratedSearch(ev.target.value);
+                  setGeneratedPage(1);
+                }}
+              />
+              <Select
+                className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 text-sm"
+                value={generatedSortBy}
+                onChange={(ev) => {
+                  setGeneratedSortBy(ev.target.value as CareerGeneratedResumeSortBy);
+                  setGeneratedPage(1);
+                }}
+              >
+                <option value="createdAt">Date</option>
+                <option value="companyName">Company</option>
+                <option value="jobTitle">Role</option>
+                <option value="atsScore">ATS score</option>
+                <option value="resumeTemplate">Template</option>
+                <option value="provider">Provider</option>
+              </Select>
+              <Select
+                className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 text-sm"
+                value={generatedSortOrder}
+                onChange={(ev) => {
+                  setGeneratedSortOrder(ev.target.value as 'asc' | 'desc');
+                  setGeneratedPage(1);
+                }}
+              >
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </Select>
+            </div>
             <ul className="space-y-3">
               {(cr.generated.data?.items ?? []).map((g: CareerGeneratedResume) => {
                 const targetLine = [g.companyName, g.jobTitle].filter(Boolean).join(' — ');
@@ -2143,32 +2295,65 @@ export default function ResumeBuilderPage() {
                     <button
                       type="button"
                       className="text-left w-full rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400/60 px-4 py-3 text-sm bg-white dark:bg-gray-900"
-                      onClick={() => {
-                        setPreviewMarkdown(g.resumeMarkdown);
-                        setPreviewMeta({
-                          atsKeywordsUsed: g.atsKeywordsUsed ?? [],
-                          biasStrategyNotes: g.biasStrategyNotes,
-                          atsScore: g.atsScore,
-                          humanScore: g.humanScore,
-                          bulletRationales: g.bulletRationales ?? [],
-                        });
-                        setPreviewKeywordDiff({
-                          mandatory: g.mandatoryKeywords ?? [],
-                          matched: g.matchedKeywords ?? [],
-                          missing: g.missingKeywords ?? [],
-                        });
-                        setGenTargetCompany(g.companyName ?? '');
-                        setGenTargetRole(g.jobTitle ?? '');
-                        setActiveTab('generate');
-                      }}
+                      onClick={() => void openGeneratedDraft(g.id)}
                     >
-                      <div className="font-medium text-gray-900 dark:text-white">
-                        {targetLine || formatGeneratedDraftLabel(g)}
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="font-medium text-gray-900 dark:text-white">
+                          {targetLine || formatGeneratedDraftLabel(g)}
+                        </div>
+                        {g.application ? (
+                          <span className="rounded-full bg-emerald-100/80 dark:bg-emerald-950/50 px-2 py-0.5 text-[11px] text-emerald-900 dark:text-emerald-100">
+                            {g.application.status}
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                         {scoreParts.length ? `${scoreParts.join(' · ')} · ` : ''}
                         {formatResumeHistoryWhen(g.createdAt)}
                         {g.model ? ` · ${g.provider ?? ''} ${g.model}`.trim() : ''}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-blue-700 dark:text-blue-300">
+                        {g.jobPostingId ? <span>Posting {g.jobPostingId.slice(0, 8)}…</span> : null}
+                        {g.application ? (
+                          <span>Application {g.application.id.slice(0, 8)}…</span>
+                        ) : null}
+                      </div>
+                      <div
+                        className="mt-2"
+                        onClick={(ev) => ev.stopPropagation()}
+                        onKeyDown={(ev) => ev.stopPropagation()}
+                        role="presentation"
+                      >
+                        <ResumeExportButtons
+                          resumeId={g.id}
+                          templateId={g.resumeTemplate ?? resumeTemplate}
+                          exportReady={g.exportReady !== false}
+                          busyFormat={
+                            exportBusyFormat && previewGeneratedId === g.id
+                              ? exportBusyFormat
+                              : null
+                          }
+                          onExport={async (format) => {
+                            setPreviewGeneratedId(g.id);
+                            setExportBusyFormat(format);
+                            try {
+                              const exp = await cr.exportGeneratedResume.mutateAsync({
+                                resumeId: g.id,
+                                format,
+                                templateId: g.resumeTemplate ?? resumeTemplate,
+                              });
+                              const a = document.createElement('a');
+                              a.href = exp.downloadUrl;
+                              a.download = exp.fileName || `resume.${format}`;
+                              a.rel = 'noopener';
+                              document.body.appendChild(a);
+                              a.click();
+                              a.remove();
+                            } finally {
+                              setExportBusyFormat(null);
+                            }
+                          }}
+                        />
                       </div>
                     </button>
                   </li>
@@ -2178,11 +2363,44 @@ export default function ResumeBuilderPage() {
                 <li className="text-sm text-gray-500">No drafts yet.</li>
               ) : null}
             </ul>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
+              <span>
+                Page {cr.generated.data?.page ?? generatedPage}
+                {typeof cr.generated.data?.total === 'number'
+                  ? ` · ${cr.generated.data.total} drafts`
+                  : ''}
+              </span>
+              <span className="flex gap-2">
+                <OutlineBtn
+                  type="button"
+                  disabled={generatedPage <= 1 || cr.generated.isFetching}
+                  onClick={() => setGeneratedPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </OutlineBtn>
+                <OutlineBtn
+                  type="button"
+                  disabled={!cr.generated.data?.hasMore || cr.generated.isFetching}
+                  onClick={() => setGeneratedPage((p) => p + 1)}
+                >
+                  Next
+                </OutlineBtn>
+              </span>
+            </div>
           </Section>
         </div>
       ) : null}
 
-      {activeTab === 'applications' ? <ApplicationTrackingTab cr={cr} /> : null}
+      {activeTab === 'applications' ? (
+        <ApplicationTrackingTab
+          cr={cr}
+          selectedApplicationId={searchParams.get('applicationId')}
+          filterGeneratedResumeId={searchParams.get('draftId')}
+          filterJobPostingId={searchParams.get('postingId')}
+          onOpenGeneratedDraft={(resumeId) => void openGeneratedDraft(resumeId)}
+          onOpenJobPosting={(postingId) => void openJobPosting(postingId)}
+        />
+      ) : null}
     </div>
   );
 }

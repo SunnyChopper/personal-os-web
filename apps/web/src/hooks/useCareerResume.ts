@@ -2,12 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sortJobsByRecency } from '@/lib/career-job-sort';
 import { careerService } from '@/services/career.service';
 import { queryKeys } from '@/lib/react-query/query-keys';
-import type { CareerJob } from '@/types/api/career.types';
+import type { CareerGeneratedResumeListParams, CareerJob } from '@/types/api/career.types';
 
 /**
  * React Query bundle for Career / Resume Builder MVP (Postgres-backed `/career/resume/*`).
  */
-export function useCareerResume() {
+export function useCareerResume(options?: { generated?: CareerGeneratedResumeListParams }) {
   const qc = useQueryClient();
 
   const invalidateJobs = () => qc.invalidateQueries({ queryKey: queryKeys.careerResume.jobs() });
@@ -17,6 +17,8 @@ export function useCareerResume() {
     qc.invalidateQueries({ queryKey: queryKeys.careerResume.suggestionsPrefix() });
   const invalidateGenerated = () =>
     qc.invalidateQueries({ queryKey: queryKeys.careerResume.generatedPrefix() });
+  const invalidateTemplates = () =>
+    qc.invalidateQueries({ queryKey: queryKeys.careerResume.templatesPrefix() });
 
   const profile = useQuery({
     queryKey: queryKeys.careerResume.profile(),
@@ -39,8 +41,8 @@ export function useCareerResume() {
   });
 
   const generated = useQuery({
-    queryKey: queryKeys.careerResume.generated(50),
-    queryFn: () => careerService.listGenerated(50),
+    queryKey: queryKeys.careerResume.generated(options?.generated ?? {}),
+    queryFn: () => careerService.listGenerated(options?.generated),
   });
 
   const patchProfile = useMutation({
@@ -186,7 +188,87 @@ export function useCareerResume() {
 
   const generateResume = useMutation({
     mutationFn: careerService.generateResume,
-    onSuccess: invalidateGenerated,
+    onSuccess: (data) => {
+      void invalidateGenerated();
+      if (data?.id) {
+        qc.setQueryData(queryKeys.careerResume.generatedDetail(data.id), data);
+      }
+    },
+  });
+
+  const previewAtsScore = useMutation({
+    mutationFn: careerService.previewAtsScore,
+  });
+
+  const editGeneratedResumeSections = useMutation({
+    mutationFn: ({
+      resumeId,
+      body,
+    }: {
+      resumeId: string;
+      body: {
+        edits: { sectionId: string; contentMarkdown: string }[];
+        revision?: number | null;
+      };
+    }) => careerService.editGeneratedResumeSections(resumeId, body),
+    onSuccess: (data) => {
+      void invalidateGenerated();
+      if (data?.id) {
+        qc.setQueryData(queryKeys.careerResume.generatedDetail(data.id), data);
+      }
+    },
+  });
+
+  const regenerateGeneratedResumeSection = useMutation({
+    mutationFn: ({
+      resumeId,
+      body,
+    }: {
+      resumeId: string;
+      body: {
+        sectionId: string;
+        instructions?: string | null;
+        provider?: string | null;
+        model?: string | null;
+        allowedAchievementIds?: string[] | null;
+      };
+    }) => careerService.regenerateGeneratedResumeSection(resumeId, body),
+    onSuccess: (data) => {
+      void invalidateGenerated();
+      if (data?.id) {
+        qc.setQueryData(queryKeys.careerResume.generatedDetail(data.id), data);
+      }
+    },
+  });
+
+  const resumeTemplates = useQuery({
+    queryKey: queryKeys.careerResume.templates(),
+    queryFn: () => careerService.listResumeTemplates(),
+  });
+
+  const importResumeTemplate = useMutation({
+    mutationFn: ({
+      file,
+      sourceFormat,
+      description,
+    }: {
+      file: File;
+      sourceFormat?: string | null;
+      description?: string | null;
+    }) => careerService.importResumeTemplate(file, { sourceFormat, description }),
+    onSuccess: invalidateTemplates,
+  });
+
+  const exportGeneratedResume = useMutation({
+    mutationFn: ({
+      resumeId,
+      format,
+      templateId,
+    }: {
+      resumeId: string;
+      format: import('@/types/api/career.types').CareerResumeExportFormat;
+      templateId?: string | null;
+    }) => careerService.exportGeneratedResume(resumeId, { format, templateId }),
   });
 
   /** Flat achievements for tailoring checkboxes — excludes archived; jobs newest-first. */
@@ -221,5 +303,11 @@ export function useCareerResume() {
     reviseSuggestion,
     analyzePosting,
     generateResume,
+    previewAtsScore,
+    editGeneratedResumeSections,
+    regenerateGeneratedResumeSection,
+    resumeTemplates,
+    importResumeTemplate,
+    exportGeneratedResume,
   };
 }
