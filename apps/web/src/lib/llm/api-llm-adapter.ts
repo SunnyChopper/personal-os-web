@@ -1,4 +1,7 @@
 import { apiClient } from '@/lib/api-client';
+import { getFeatureConfig } from '@/lib/llm/config/feature-config-store';
+import type { AIFeature } from '@/lib/llm/config/feature-types';
+import { parseModelNotFoundError } from '@/lib/llm/model-not-found';
 import type { Task } from '@/types/growth-system';
 import type {
   ILLMAdapter,
@@ -83,21 +86,46 @@ interface AIResponse<T> {
   cached?: boolean;
 }
 
+async function withFeatureAi<T extends Record<string, unknown>>(
+  feature: AIFeature,
+  body: T
+): Promise<T & { provider: string; model: string }> {
+  const cfg = await getFeatureConfig(feature);
+  return { ...body, provider: cfg.provider, model: cfg.model };
+}
+
+function enrichFailure<T>(
+  feature: AIFeature,
+  message: string | null,
+  base: LLMResponse<T | null>
+): LLMResponse<T | null> {
+  const parsed = parseModelNotFoundError(message, feature);
+  if (!parsed) {
+    return base;
+  }
+  return {
+    ...base,
+    errorCode: 'MODEL_NOT_FOUND',
+    errorFeature: parsed.feature,
+    errorModel: parsed.model,
+  };
+}
+
 export class APILLMAdapter implements ILLMAdapter {
   isConfigured(): boolean {
-    // Backend handles API key configuration
     return true;
   }
 
   private async callAIEndpoint<TInput, TOutput>(
+    feature: AIFeature,
     endpoint: string,
     input: TInput
   ): Promise<LLMResponse<TOutput>> {
     try {
-      const response = await apiClient.post<{ data: AIResponse<TOutput> }>(endpoint, input);
+      const body = await withFeatureAi(feature, input as Record<string, unknown>);
+      const response = await apiClient.post<{ data: AIResponse<TOutput> }>(endpoint, body);
 
       if (response.success && response.data) {
-        // Backend wraps response in { success, data: { result, confidence, ... } }
         const aiResponse = response.data.data;
         return {
           data: aiResponse.result,
@@ -107,36 +135,51 @@ export class APILLMAdapter implements ILLMAdapter {
         };
       }
 
-      return {
+      const errMsg = response.error?.message || 'AI request failed';
+      return enrichFailure(feature, errMsg, {
         data: null,
-        error: response.error?.message || 'AI request failed',
+        error: errMsg,
         success: false,
-      };
+      }) as LLMResponse<TOutput>;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      return { data: null, error: message, success: false };
+      return enrichFailure(feature, message, {
+        data: null,
+        error: message,
+        success: false,
+      }) as LLMResponse<TOutput>;
     }
   }
 
-  private async postStandardEnvelope<T>(endpoint: string, body: unknown): Promise<LLMResponse<T>> {
+  private async postStandardEnvelope<T>(
+    feature: AIFeature,
+    endpoint: string,
+    body: Record<string, unknown>
+  ): Promise<LLMResponse<T>> {
     try {
-      const response = await apiClient.post<T>(endpoint, body);
+      const payload = await withFeatureAi(feature, body);
+      const response = await apiClient.post<T>(endpoint, payload);
       if (response.success && response.data !== undefined && response.data !== null) {
         return { success: true, data: response.data, error: null };
       }
-      return {
+      const errMsg = response.error?.message ?? 'AI request failed';
+      return enrichFailure(feature, errMsg, {
         success: false,
         data: null,
-        error: response.error?.message ?? 'AI request failed',
-      };
+        error: errMsg,
+      }) as LLMResponse<T>;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      return { data: null, error: message, success: false };
+      return enrichFailure(feature, message, {
+        data: null,
+        error: message,
+        success: false,
+      }) as LLMResponse<T>;
     }
   }
 
   async parseNaturalLanguageTask(input: ParseTaskInput): Promise<LLMResponse<ParseTaskOutput>> {
-    return this.callAIEndpoint<{ input: string }, ParseTaskOutput>('/ai/tasks/parse', {
+    return this.callAIEndpoint('parseTask', '/ai/tasks/parse', {
       input: input.text,
     });
   }
@@ -156,19 +199,19 @@ export class APILLMAdapter implements ILLMAdapter {
       parallelPossible?: boolean;
     };
 
-    const res = await this.postStandardEnvelope<ApiBreakdown>('/ai/tasks/breakdown', {
-      taskId: task.id,
-      title: task.title,
-      description: task.description ?? undefined,
-      area: task.area,
-    });
+    const res = await this.postStandardEnvelope<ApiBreakdown>(
+      'breakdownTask',
+      '/ai/tasks/breakdown',
+      {
+        taskId: task.id,
+        title: task.title,
+        description: task.description ?? undefined,
+        area: task.area,
+      }
+    );
 
     if (!res.success || !res.data) {
-      return {
-        success: false,
-        data: null,
-        error: res.error ?? 'AI breakdown failed',
-      };
+      return res as unknown as LLMResponse<TaskBreakdownOutput>;
     }
 
     const subtasks = res.data.subtasks.map((st) => ({
@@ -195,14 +238,13 @@ export class APILLMAdapter implements ILLMAdapter {
   async resolveBlockers(
     input: BlockerResolutionInput
   ): Promise<LLMResponse<BlockerResolutionOutput>> {
-    // Backend may not have this exact endpoint - using breakdown as fallback
-    return this.callAIEndpoint<{ taskId: string }, BlockerResolutionOutput>('/ai/tasks/breakdown', {
+    return this.callAIEndpoint('breakdownTask', '/ai/tasks/breakdown', {
       taskId: input.task.id,
     });
   }
 
   async advisePriority(input: PriorityAdvisorInput): Promise<LLMResponse<PriorityAdvisorOutput>> {
-    return this.callAIEndpoint<{ taskId: string }, PriorityAdvisorOutput>('/ai/tasks/prioritize', {
+    return this.callAIEndpoint('priorityAdvisor', '/ai/tasks/prioritize', {
       taskId: input.task.id,
     });
   }
@@ -219,12 +261,13 @@ export class APILLMAdapter implements ILLMAdapter {
         complexityFactors: string[];
         assumptions: string[];
       };
-      const response = await apiClient.post<EffortPayload>('/ai/tasks/estimate-effort', {
+      const payload = await withFeatureAi('effortEstimation', {
         taskId: input.task.id ?? 'new',
         title: input.task.title ?? '',
         description: input.task.description ?? undefined,
         similarTasks: similarTasks.length ? similarTasks : undefined,
       });
+      const response = await apiClient.post<EffortPayload>('/ai/tasks/estimate-effort', payload);
       if (response.success && response.data) {
         const d = response.data;
         return {
@@ -238,35 +281,34 @@ export class APILLMAdapter implements ILLMAdapter {
           },
         };
       }
-      return {
+      const errMsg = response.error?.message ?? 'Failed to estimate story points';
+      return enrichFailure('effortEstimation', errMsg, {
         success: false,
         data: null,
-        error: response.error?.message ?? 'Failed to estimate story points',
-      };
+        error: errMsg,
+      }) as unknown as LLMResponse<EffortEstimationOutput>;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      return { data: null, error: message, success: false };
+      return enrichFailure('effortEstimation', message, {
+        data: null,
+        error: message,
+        success: false,
+      }) as unknown as LLMResponse<EffortEstimationOutput>;
     }
   }
 
   async categorizeTask(
     input: TaskCategorizationInput
   ): Promise<LLMResponse<TaskCategorizationOutput>> {
-    return this.callAIEndpoint<{ input: string }, TaskCategorizationOutput>(
-      '/ai/tasks/categorize',
-      {
-        input: `${input.title} ${input.description || ''}`.trim(),
-      }
-    );
+    return this.callAIEndpoint('taskCategorization', '/ai/tasks/categorize', {
+      input: `${input.title} ${input.description || ''}`.trim(),
+    });
   }
 
   async detectDependencies(
     input: DependencyDetectionInput
   ): Promise<LLMResponse<DependencyDetectionOutput>> {
-    return this.callAIEndpoint<
-      { taskId?: string; title: string; description?: string },
-      DependencyDetectionOutput
-    >('/ai/tasks/dependencies', {
+    return this.callAIEndpoint('dependencyDetection', '/ai/tasks/dependencies', {
       taskId: input.task.id,
       title: input.task.title || '',
       description: input.task.description || undefined,
@@ -275,7 +317,7 @@ export class APILLMAdapter implements ILLMAdapter {
 
   async analyzeProjectHealth(input: ProjectHealthInput): Promise<LLMResponse<ProjectHealthOutput>> {
     const { project, tasks } = input;
-    return this.postStandardEnvelope<ProjectHealthOutput>('/ai/projects/health', {
+    return this.postStandardEnvelope('projectHealth', '/ai/projects/health', {
       projectId: project.id,
       name: project.name,
       description: project.description ?? undefined,
@@ -292,7 +334,7 @@ export class APILLMAdapter implements ILLMAdapter {
     input: ProjectTaskGenInput
   ): Promise<LLMResponse<ProjectTaskGenOutput>> {
     const { project, existingTasks } = input;
-    return this.postStandardEnvelope<ProjectTaskGenOutput>('/ai/projects/generate-tasks', {
+    return this.postStandardEnvelope('projectTaskGen', '/ai/projects/generate-tasks', {
       projectId: project.id,
       name: project.name,
       description: project.description ?? undefined,
@@ -304,7 +346,7 @@ export class APILLMAdapter implements ILLMAdapter {
 
   async identifyProjectRisks(input: ProjectRiskInput): Promise<LLMResponse<ProjectRiskOutput>> {
     const { project, tasks } = input;
-    return this.postStandardEnvelope<ProjectRiskOutput>('/ai/projects/risks', {
+    return this.postStandardEnvelope('projectRisk', '/ai/projects/risks', {
       projectId: project.id,
       name: project.name,
       description: project.description ?? undefined,

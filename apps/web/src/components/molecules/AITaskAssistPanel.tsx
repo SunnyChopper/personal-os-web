@@ -15,8 +15,21 @@ import Button from '@/components/atoms/Button';
 import { nearestTaskStoryPoints } from '@/constants/growth-system';
 import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
 import { AIConfidenceIndicator } from '@/components/atoms/AIConfidenceIndicator';
+import { AIFeatureModelRecovery } from '@/components/molecules/AIFeatureModelRecovery';
+import type { AIFeature } from '@/lib/llm/config/feature-types';
+import { useAiFeatureToolError } from '@/hooks/useAiFeatureToolError';
+import { Textarea } from '@/components/atoms/Textarea';
 
 type AssistMode = 'parse' | 'categorize' | 'estimate' | 'priority' | 'breakdown' | 'dependencies';
+
+const MODE_FEATURE: Record<AssistMode, AIFeature> = {
+  parse: 'parseTask',
+  categorize: 'taskCategorization',
+  estimate: 'effortEstimation',
+  priority: 'priorityAdvisor',
+  breakdown: 'breakdownTask',
+  dependencies: 'dependencyDetection',
+};
 
 function effortConfidenceToPercent(c: EffortEstimationOutput['confidence']): number {
   const map = { low: 45, medium: 68, high: 88 } as const;
@@ -54,7 +67,8 @@ export function AITaskAssistPanel({
 }: AITaskAssistPanelProps) {
   const [naturalInput, setNaturalInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { error, modelNotFound, applyResponseError, clearErrors, setModelNotFound } =
+    useAiFeatureToolError(MODE_FEATURE[mode]);
 
   const [parseResult, setParseResult] = useState<ParseTaskOutput | null>(null);
   const [categoryResult, setCategoryResult] = useState<TaskCategorizationOutput | null>(null);
@@ -68,14 +82,14 @@ export function AITaskAssistPanel({
   const handleParse = async () => {
     if (!naturalInput.trim()) return;
     setIsLoading(true);
-    setError(null);
+    clearErrors();
 
     const response = await llmService.parseNaturalLanguageTask(naturalInput);
 
     if (response.success && response.data) {
       setParseResult(response.data);
     } else {
-      setError(response.error || 'Failed to parse task');
+      applyResponseError(response, 'Failed to parse task');
     }
     setIsLoading(false);
   };
@@ -83,7 +97,7 @@ export function AITaskAssistPanel({
   const handleCategorize = async () => {
     if (!title && !currentTask?.title) return;
     setIsLoading(true);
-    setError(null);
+    clearErrors();
 
     const taskTitle = title || currentTask?.title || '';
     const taskDesc = description || currentTask?.description || undefined;
@@ -92,7 +106,7 @@ export function AITaskAssistPanel({
     if (response.success && response.data) {
       setCategoryResult(response.data);
     } else {
-      setError(response.error || 'Failed to categorize task');
+      applyResponseError(response, 'Failed to categorize task');
     }
     setIsLoading(false);
   };
@@ -100,7 +114,7 @@ export function AITaskAssistPanel({
   const handleEstimate = async () => {
     if (!currentTask?.title && !title) return;
     setIsLoading(true);
-    setError(null);
+    clearErrors();
 
     const task = currentTask || { title, description };
     const similarTasks = allTasks.filter((t) => t.status === 'Done' && t.size !== null);
@@ -109,7 +123,7 @@ export function AITaskAssistPanel({
     if (response.success && response.data) {
       setEffortResult(response.data);
     } else {
-      setError(response.error || 'Failed to estimate effort');
+      applyResponseError(response, 'Failed to estimate effort');
     }
     setIsLoading(false);
   };
@@ -117,14 +131,14 @@ export function AITaskAssistPanel({
   const handlePriority = async () => {
     if (!currentTask) return;
     setIsLoading(true);
-    setError(null);
+    clearErrors();
 
     const response = await llmService.advisePriority(currentTask as Task, allTasks);
 
     if (response.success && response.data) {
       setPriorityResult(response.data);
     } else {
-      setError(response.error || 'Failed to get priority advice');
+      applyResponseError(response, 'Failed to get priority advice');
     }
     setIsLoading(false);
   };
@@ -132,14 +146,14 @@ export function AITaskAssistPanel({
   const handleBreakdown = async () => {
     if (!currentTask) return;
     setIsLoading(true);
-    setError(null);
+    clearErrors();
 
     const response = await llmService.breakdownTask(currentTask as Task);
 
     if (response.success && response.data) {
       setBreakdownResult(response.data);
     } else {
-      setError(response.error || 'Failed to break down task');
+      applyResponseError(response, 'Failed to break down task');
     }
     setIsLoading(false);
   };
@@ -147,7 +161,7 @@ export function AITaskAssistPanel({
   const handleDetectDependencies = async () => {
     if (!currentTask?.title && !title) return;
     setIsLoading(true);
-    setError(null);
+    clearErrors();
 
     const task = currentTask || { title, description };
     const response = await llmService.detectDependencies(task as Partial<Task>, allTasks);
@@ -155,7 +169,7 @@ export function AITaskAssistPanel({
     if (response.success && response.data) {
       setDependencyResult(response.data);
     } else {
-      setError(response.error || 'Failed to detect dependencies');
+      applyResponseError(response, 'Failed to detect dependencies');
     }
     setIsLoading(false);
   };
@@ -260,7 +274,7 @@ export function AITaskAssistPanel({
 
       {mode === 'parse' && (
         <div className="space-y-3">
-          <textarea
+          <Textarea
             value={naturalInput}
             onChange={(e) => setNaturalInput(e.target.value)}
             placeholder="e.g., Schedule a dentist appointment next Friday, high priority health task"
@@ -283,6 +297,7 @@ export function AITaskAssistPanel({
       {mode !== 'parse' &&
         !isLoading &&
         !error &&
+        !modelNotFound &&
         !categoryResult &&
         !effortResult &&
         !priorityResult &&
@@ -305,11 +320,22 @@ export function AITaskAssistPanel({
         </div>
       )}
 
-      {error && (
+      {modelNotFound ? (
+        <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <AIFeatureModelRecovery
+            feature={modelNotFound.feature}
+            failedModel={modelNotFound.model}
+            onRetry={handleInvoke}
+            onDismiss={() => setModelNotFound(null)}
+          />
+        </div>
+      ) : null}
+
+      {error && !modelNotFound ? (
         <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
         </div>
-      )}
+      ) : null}
 
       {parseResult && (
         <div className="mt-4 p-3 bg-white dark:bg-gray-800 rounded-lg border border-amber-200 dark:border-amber-700">

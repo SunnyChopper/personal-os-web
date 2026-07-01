@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { llmConfig } from '@/lib/llm';
 import type { Goal, GoalProgressBreakdown, Task } from '@/types/growth-system';
-import type { ApiError } from '@/types/api-contracts';
 import type {
   ProgressCoachingOutput,
   GoalHealthScoreOutput,
@@ -24,6 +23,9 @@ import type {
 import Button from '@/components/atoms/Button';
 import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
 import { AIConfidenceIndicator } from '@/components/atoms/AIConfidenceIndicator';
+import { AIFeatureModelRecovery } from '@/components/molecules/AIFeatureModelRecovery';
+import { useAiFeatureToolError } from '@/hooks/useAiFeatureToolError';
+import type { AIFeature } from '@/lib/llm/config/feature-types';
 import { goalAIService } from '@/services/growth-system/goal-ai.service';
 
 type AssistMode =
@@ -37,6 +39,13 @@ type AssistMode =
   | 'coaching'
   | 'health'
   | 'decompose';
+
+const AI_MODE_FEATURE: Partial<Record<AssistMode, AIFeature>> = {
+  coaching: 'goalProgress',
+  health: 'goalProgress',
+  decompose: 'goalCascade',
+  conflicts: 'goalConflict',
+};
 
 interface RefineResult {
   refinedTitle: string;
@@ -122,15 +131,13 @@ export function AIGoalAssistPanel({
   onApplyTasks,
 }: AIGoalAssistPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
 
-  const isConfigured = llmConfig.isConfigured();
+  const activeFeature = AI_MODE_FEATURE[mode] ?? 'goalProgress';
+  const { error, modelNotFound, applyApiResponseError, clearErrors } =
+    useAiFeatureToolError(activeFeature);
 
-  const getErrorMessage = (error: ApiError | undefined, defaultMessage: string): string => {
-    if (!error) return defaultMessage;
-    return typeof error === 'string' ? error : error.message || defaultMessage;
-  };
+  const isConfigured = llmConfig.isConfigured();
 
   const handleCoaching = async (): Promise<void> => {
     if (!progress) return;
@@ -138,7 +145,7 @@ export function AIGoalAssistPanel({
     if (response.success && response.data) {
       setResult(response.data);
     } else {
-      setError(getErrorMessage(response.error, 'Failed to get coaching'));
+      applyApiResponseError(response, 'Failed to get coaching');
     }
   };
 
@@ -148,7 +155,7 @@ export function AIGoalAssistPanel({
     if (response.success && response.data) {
       setResult(response.data);
     } else {
-      setError(getErrorMessage(response.error, 'Failed to calculate health score'));
+      applyApiResponseError(response, 'Failed to calculate health score');
     }
   };
 
@@ -157,7 +164,7 @@ export function AIGoalAssistPanel({
     if (response.success && response.data) {
       setResult(response.data);
     } else {
-      setError(getErrorMessage(response.error, 'Failed to decompose goal'));
+      applyApiResponseError(response, 'Failed to decompose goal');
     }
   };
 
@@ -166,7 +173,7 @@ export function AIGoalAssistPanel({
     if (response.success && response.data) {
       setResult(response.data);
     } else {
-      setError(getErrorMessage(response.error, 'Failed to detect conflicts'));
+      applyApiResponseError(response, 'Failed to detect conflicts');
     }
   };
 
@@ -277,7 +284,7 @@ export function AIGoalAssistPanel({
 
   const handleAnalyze = async () => {
     setIsLoading(true);
-    setError(null);
+    clearErrors();
 
     try {
       const aiModes: AssistMode[] = ['coaching', 'health', 'decompose', 'conflicts'];
@@ -287,7 +294,16 @@ export function AIGoalAssistPanel({
         await handleLegacyMode();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      applyApiResponseError(
+        {
+          success: false,
+          error: {
+            message: err instanceof Error ? err.message : 'An error occurred',
+            code: 'GOAL_AI_ERROR',
+          },
+        },
+        'An error occurred'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -394,7 +410,7 @@ export function AIGoalAssistPanel({
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Goal: <span className="font-medium text-gray-900 dark:text-gray-100">{goal.title}</span>
         </p>
-        {!result && (
+        {!result && !modelNotFound && (
           <Button onClick={handleAnalyze} disabled={isLoading} className="w-full">
             {isLoading ? 'Analyzing...' : 'Analyze with AI'}
           </Button>
@@ -408,14 +424,24 @@ export function AIGoalAssistPanel({
         </div>
       )}
 
-      {error && (
+      {modelNotFound && activeFeature ? (
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <AIFeatureModelRecovery
+            feature={activeFeature}
+            failedModel={modelNotFound.model}
+            onRetry={handleAnalyze}
+          />
+        </div>
+      ) : null}
+
+      {error && !modelNotFound ? (
         <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
           </div>
         </div>
-      )}
+      ) : null}
 
       {result && mode === 'refine' && 'refinedTitle' in result && (
         <div className="space-y-4">

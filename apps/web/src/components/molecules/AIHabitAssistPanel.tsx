@@ -7,6 +7,9 @@ import type {
   EstablishedHabitAiEnvelope,
   EstablishedHabitSuggestedPatch,
 } from '@/types/habit-ai';
+import { AIFeatureModelRecovery } from '@/components/molecules/AIFeatureModelRecovery';
+import { useAiFeatureToolError } from '@/hooks/useAiFeatureToolError';
+import type { AIFeature } from '@/lib/llm/config/feature-types';
 import { habitAIService } from '@/services/growth-system/habit-ai.service';
 import { computeHabitReadiness } from '@/utils/habit-analytics';
 import Button from '@/components/atoms/Button';
@@ -36,6 +39,13 @@ const ACTION_META = {
   },
 } as const;
 
+const ACTION_FEATURE: Record<EstablishedHabitActionType, AIFeature> = {
+  patternInsight: 'habitPatterns',
+  routineTuneUp: 'triggerOptimization',
+  recoveryPlan: 'streakRecovery',
+  sevenDayExperiment: 'habitDesign',
+};
+
 interface AIHabitAssistPanelProps {
   habit: Habit;
   logs: HabitLog[];
@@ -45,9 +55,12 @@ interface AIHabitAssistPanelProps {
 export function AIHabitAssistPanel({ habit, logs, onApplyPatch }: AIHabitAssistPanelProps) {
   const [selectedAction, setSelectedAction] = useState<EstablishedHabitActionType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [envelope, setEnvelope] = useState<EstablishedHabitAiEnvelope | null>(null);
   const [isApplying, setIsApplying] = useState(false);
+
+  const activeFeature = selectedAction ? ACTION_FEATURE[selectedAction] : 'habitPatterns';
+  const { error, modelNotFound, applyApiResponseError, clearErrors, setError } =
+    useAiFeatureToolError(activeFeature);
 
   const isConfigured = llmConfig.isConfigured();
   const readiness = computeHabitReadiness(habit, logs);
@@ -56,7 +69,7 @@ export function AIHabitAssistPanel({ habit, logs, onApplyPatch }: AIHabitAssistP
   const runAction = async (actionType: EstablishedHabitActionType) => {
     setSelectedAction(actionType);
     setIsLoading(true);
-    setError(null);
+    clearErrors();
     setEnvelope(null);
 
     const response = await habitAIService.establishedActions({
@@ -68,7 +81,7 @@ export function AIHabitAssistPanel({ habit, logs, onApplyPatch }: AIHabitAssistP
     if (response.success && response.data) {
       setEnvelope(response.data);
     } else {
-      setError(response.error?.message ?? 'Failed to run AI action');
+      applyApiResponseError(response, 'Failed to run AI action');
     }
     setIsLoading(false);
   };
@@ -160,11 +173,21 @@ export function AIHabitAssistPanel({ habit, logs, onApplyPatch }: AIHabitAssistP
         </div>
       )}
 
-      {error && (
+      {modelNotFound && selectedAction ? (
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <AIFeatureModelRecovery
+            feature={ACTION_FEATURE[selectedAction]}
+            failedModel={modelNotFound.model}
+            onRetry={() => void runAction(selectedAction)}
+          />
+        </div>
+      ) : null}
+
+      {error && !modelNotFound ? (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-200">
           {error}
         </div>
-      )}
+      ) : null}
 
       {envelope && !isLoading && (
         <div className="space-y-4 border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-gray-50/80 dark:bg-gray-700/30">
