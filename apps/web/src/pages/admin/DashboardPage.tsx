@@ -13,6 +13,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { AIInsightsWidget } from '@/components/organisms/AIInsightsWidget';
 import { HealthActionWidget } from '@/components/organisms/HealthActionWidget';
 import { StaleVelocityAdvisoryCard } from '@/components/molecules/StaleVelocityAdvisoryCard';
@@ -130,7 +131,7 @@ export default function DashboardPage() {
   }, [goals]);
 
   return (
-    <div>
+    <PageContainer>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
           {isLeisureMode ? 'Leisure Dashboard' : 'Personal OS Dashboard'}
@@ -345,6 +346,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

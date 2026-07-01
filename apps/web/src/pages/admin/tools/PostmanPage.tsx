@@ -6,6 +6,8 @@ import { authService } from '@/lib/auth/auth.service';
 import { postmanService } from '@/services/tools/postman.service';
 import { cn } from '@/lib/utils';
 import { getResolvedApiBaseUrl } from '@/lib/vite-public-env';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const API_BASE = getResolvedApiBaseUrl();
 
@@ -93,7 +95,7 @@ export default function PostmanPage() {
           onChange={(e) => setTitle(e.target.value)}
         />
         <div className="flex gap-2">
-          <select
+          <Select
             className="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900"
             value={method}
             onChange={(e) => setMethod(e.target.value)}
@@ -103,20 +105,20 @@ export default function PostmanPage() {
                 {m}
               </option>
             ))}
-          </select>
+          </Select>
           <input
             className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-xs dark:border-gray-600 dark:bg-gray-900"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />
         </div>
-        <textarea
+        <Textarea
           className="h-24 w-full rounded border border-gray-300 p-2 font-mono text-xs dark:border-gray-600 dark:bg-gray-950"
           placeholder='Headers JSON e.g. {"Authorization":"Bearer ..."}'
           value={headersText}
           onChange={(e) => setHeadersText(e.target.value)}
         />
-        <textarea
+        <Textarea
           className="h-32 w-full rounded border border-gray-300 p-2 font-mono text-xs dark:border-gray-600 dark:bg-gray-950"
           placeholder="Body (JSON)"
           value={bodyText}

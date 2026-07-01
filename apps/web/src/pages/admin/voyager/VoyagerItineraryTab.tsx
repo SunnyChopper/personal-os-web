@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileUp, Loader2, Wand2 } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { voyagerService } from '@/services/voyager.service';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const qk = {
   trips: ['voyager', 'trips'] as const,
@@ -74,7 +76,7 @@ export default function VoyagerItineraryTab() {
 
       <section className="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white/60 dark:bg-gray-900/40 p-6 shadow-sm">
         <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Filter by trip</h2>
-        <select
+        <Select
           className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm max-w-md"
           value={tripFilter}
           onChange={(e) => setTripFilter(e.target.value)}
@@ -85,7 +87,7 @@ export default function VoyagerItineraryTab() {
               {t.title || t.id}
             </option>
           ))}
-        </select>
+        </Select>
       </section>
 
       <section
@@ -133,7 +135,7 @@ export default function VoyagerItineraryTab() {
         <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
           Or paste raw confirmation text
         </h2>
-        <textarea
+        <Textarea
           className="w-full min-h-[140px] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm"
           placeholder="Flight confirmations, hotel emails…"
           value={paste}

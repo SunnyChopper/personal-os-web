@@ -6,6 +6,9 @@ import {
   FileCheck,
   BookOpen,
   CreditCard,
+  HelpCircle,
+  ClipboardList,
+  BookMarked,
   Link as LinkIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -19,18 +22,24 @@ interface LinkedItemsPickerProps {
   className?: string;
 }
 
-const typeIcons = {
+const typeIcons: Record<VaultItemType, typeof FileText> = {
   note: FileText,
   document: FileCheck,
   course_lesson: BookOpen,
   flashcard: CreditCard,
+  practice_question_set: HelpCircle,
+  quiz: ClipboardList,
+  homework_assignment: BookMarked,
 };
 
-const typeColors = {
+const typeColors: Record<VaultItemType, string> = {
   note: 'text-blue-600 dark:text-blue-400',
   document: 'text-purple-600 dark:text-purple-400',
   course_lesson: 'text-green-600 dark:text-green-400',
   flashcard: 'text-amber-600 dark:text-amber-400',
+  practice_question_set: 'text-sky-600 dark:text-sky-400',
+  quiz: 'text-amber-600 dark:text-amber-400',
+  homework_assignment: 'text-violet-600 dark:text-violet-400',
 };
 
 export default function LinkedItemsPicker({
@@ -47,6 +56,14 @@ export default function LinkedItemsPicker({
   // Filter available items
   const availableItems = useMemo(() => {
     return vaultItems.filter((item) => {
+      if (
+        item.type === 'practice_question_set' ||
+        item.type === 'quiz' ||
+        item.type === 'homework_assignment'
+      ) {
+        return false;
+      }
+      if (item.status === 'archived') return false;
       if (excludeItemId && item.id === excludeItemId) return false;
       if (selectedType !== 'all' && item.type !== selectedType) return false;
       if (searchQuery.trim()) {

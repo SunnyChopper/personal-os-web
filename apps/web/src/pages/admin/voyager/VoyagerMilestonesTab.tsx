@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { voyagerService } from '@/services/voyager.service';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const qk = {
   restaurants: ['voyager', 'restaurants'] as const,
@@ -149,7 +151,7 @@ export default function VoyagerMilestonesTab() {
                       patchDraft.mutate({ id: d.id, body: { emailSubject: v } });
                   }}
                 />
-                <textarea
+                <Textarea
                   className="w-full min-h-[100px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
                   defaultValue={d.emailBody}
                   onBlur={(e) => {
@@ -272,7 +274,7 @@ function MilestoneQuickAdd({
           value={tz}
           onChange={(e) => setTz(e.target.value)}
         />
-        <select
+        <Select
           className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
           value={restId}
           onChange={(e) => setRestId(e.target.value)}
@@ -283,7 +285,7 @@ function MilestoneQuickAdd({
               {r.name}
             </option>
           ))}
-        </select>
+        </Select>
         <Button type="submit" size="sm" disabled={busy}>
           {busy ? <Loader2 className="animate-spin size-4" /> : 'Add'}
         </Button>

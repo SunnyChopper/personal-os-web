@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Dumbbell } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import Button from '@/components/atoms/Button';
 import { FormCheckbox } from '@/components/atoms/FormCheckbox';
 import { FormInput, formFieldClassName } from '@/components/atoms/FormInput';
@@ -20,6 +21,7 @@ import { localCalendarDate, addCalendarDays } from '@/lib/date/local-calendar';
 import { cn } from '@/lib/utils';
 import WorkoutSchedulePanel from '@/components/organisms/fitness/WorkoutSchedulePanel';
 import type { FitnessExercise, WorkoutSession, WorkoutSet, WorkoutTemplate } from '@/types/fitness';
+import { Select } from '@/components/atoms/Select';
 
 const selectClassName = cn(formFieldClassName, 'block w-full min-w-0');
 
@@ -151,7 +153,7 @@ export default function HealthFitnessWorkoutsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 p-6">
+    <PageContainer className="space-y-8">
       <div>
         <div className="mb-2 flex items-center gap-2 text-violet-600 dark:text-violet-400">
           <Dumbbell className="h-6 w-6" />
@@ -264,7 +266,7 @@ export default function HealthFitnessWorkoutsPage() {
               Optionally pick a template, then create today&apos;s session ({today}).
             </p>
             <FieldLabel htmlFor="start-template">Template (optional)</FieldLabel>
-            <select
+            <Select
               id="start-template"
               className={selectClassName}
               value={startTemplateId}
@@ -276,7 +278,7 @@ export default function HealthFitnessWorkoutsPage() {
                   {t.name}
                 </option>
               ))}
-            </select>
+            </Select>
             <Button
               type="button"
               size="sm"
@@ -293,7 +295,7 @@ export default function HealthFitnessWorkoutsPage() {
               Switch between recent sessions or mark the current one complete.
             </p>
             <FieldLabel htmlFor="active-session">Session</FieldLabel>
-            <select
+            <Select
               id="active-session"
               className={selectClassName}
               value={sessionId ?? ''}
@@ -306,7 +308,7 @@ export default function HealthFitnessWorkoutsPage() {
                   {s.templateId ? ` · tpl` : ''}
                 </option>
               ))}
-            </select>
+            </Select>
             {sessionId && (
               <Button
                 type="button"
@@ -341,7 +343,7 @@ export default function HealthFitnessWorkoutsPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,14rem)_1fr_auto] sm:items-end">
               <div>
                 <FieldLabel htmlFor="log-exercise">Exercise</FieldLabel>
-                <select
+                <Select
                   id="log-exercise"
                   className={selectClassName}
                   value={addExerciseId}
@@ -353,7 +355,7 @@ export default function HealthFitnessWorkoutsPage() {
                       {e.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {overload && addExerciseId && (
@@ -419,7 +421,7 @@ export default function HealthFitnessWorkoutsPage() {
           Create a session to start logging sets.
         </p>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

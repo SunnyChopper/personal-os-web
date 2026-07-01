@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { LayoutGrid, Coffee, Dumbbell, Sparkles, Gift, ExternalLink } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { ROUTES } from '@/routes';
 import { DailyRecoveryCard } from '@/components/organisms/fitness/DailyRecoveryCard';
 
@@ -32,7 +33,7 @@ export default function HealthFitnessOverviewPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 p-6">
+    <PageContainer className="space-y-8">
       <div>
         <div className="mb-2 flex items-center gap-2 text-blue-600 dark:text-blue-400">
           <LayoutGrid className="h-6 w-6" />
@@ -74,6 +75,6 @@ export default function HealthFitnessOverviewPage() {
           </Link>
         ))}
       </div>
-    </div>
+    </PageContainer>
   );
 }

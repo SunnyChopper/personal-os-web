@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { MealType, NutritionParseAiData, ParsedNutritionResult } from '@/types/fitness';
 import { useCreateNutritionMutation, useParseNutritionMutation } from '@/hooks/useFitness';
 import { cn } from '@/lib/utils';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack', 'other'];
 
@@ -98,7 +100,7 @@ export function NutritionQuickAdd({ plannerQueryExample, className }: NutritionQ
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm text-gray-600 dark:text-gray-300">
           Meal
-          <select
+          <Select
             className="ml-2 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900"
             value={mealType}
             onChange={(e) => setMealType(e.target.value as MealType)}
@@ -108,7 +110,7 @@ export function NutritionQuickAdd({ plannerQueryExample, className }: NutritionQ
                 {m}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <button
           type="button"
@@ -122,7 +124,7 @@ export function NutritionQuickAdd({ plannerQueryExample, className }: NutritionQ
         </button>
       </div>
 
-      <textarea
+      <Textarea
         className="min-h-[100px] w-full rounded-xl border border-gray-300 bg-white p-3 text-sm dark:border-gray-600 dark:bg-gray-900"
         placeholder="e.g. 8 oz chicken breast, rice, broccoli, olive oil"
         value={text}

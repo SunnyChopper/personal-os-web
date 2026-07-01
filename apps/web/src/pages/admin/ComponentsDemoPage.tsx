@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Package } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { AIConfidenceIndicator } from '@/components/atoms/AIConfidenceIndicator';
 import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
@@ -34,7 +35,7 @@ export default function ComponentsDemoPage() {
   });
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-12">
+    <PageContainer className="py-6 space-y-12">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Components Demo</h1>
         <p className="text-gray-600 dark:text-gray-400">
@@ -362,6 +363,6 @@ export default function ComponentsDemoPage() {
           </div>
         </div>
       </section>
-    </div>
+    </PageContainer>
   );
 }

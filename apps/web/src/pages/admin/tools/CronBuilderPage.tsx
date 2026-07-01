@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CronExpressionParser } from 'cron-parser/dist/CronExpressionParser.js';
 import { ROUTES } from '@/routes';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { cronFromPreset, describeCron, type CronQuickPreset } from '@/lib/tools/cron-builder';
+import { Select } from '@/components/atoms/Select';
 
 type FieldMode = 'every' | 'n';
 
@@ -69,7 +71,7 @@ export default function CronBuilderPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <PageContainer width="narrow" className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Cron Builder</h1>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
@@ -93,14 +95,14 @@ export default function CronBuilderPage() {
       <div className="grid gap-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900 sm:grid-cols-2">
         <label className="text-xs">
           <span className="text-gray-500">Minute</span>
-          <select
+          <Select
             className="mt-1 w-full rounded border border-gray-300 bg-white p-2 dark:border-gray-600 dark:bg-gray-950"
             value={minute}
             onChange={(e) => setMinute(e.target.value as FieldMode)}
           >
             <option value="every">Every (*)</option>
             <option value="n">Custom</option>
-          </select>
+          </Select>
           {minute === 'n' && (
             <input
               className="mt-1 w-full rounded border border-gray-300 p-2 font-mono text-xs dark:border-gray-600"
@@ -112,14 +114,14 @@ export default function CronBuilderPage() {
         </label>
         <label className="text-xs">
           <span className="text-gray-500">Hour</span>
-          <select
+          <Select
             className="mt-1 w-full rounded border border-gray-300 bg-white p-2 dark:border-gray-600 dark:bg-gray-950"
             value={hour}
             onChange={(e) => setHour(e.target.value as FieldMode)}
           >
             <option value="every">Every (*)</option>
             <option value="n">Custom</option>
-          </select>
+          </Select>
           {hour === 'n' && (
             <input
               className="mt-1 w-full rounded border border-gray-300 p-2 font-mono text-xs dark:border-gray-600"
@@ -189,6 +191,6 @@ export default function CronBuilderPage() {
       >
         Use in workflow
       </button>
-    </div>
+    </PageContainer>
   );
 }

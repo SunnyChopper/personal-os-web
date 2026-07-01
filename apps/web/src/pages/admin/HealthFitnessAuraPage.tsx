@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Sparkles } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { AuraScatterChart } from '@/components/molecules/AuraScatterChart';
 import { useAuraSeries } from '@/hooks/useFitness';
 import type { AuraXMetric } from '@/types/fitness';
 import { localCalendarDate, addCalendarDays } from '@/lib/date/local-calendar';
+import { Select } from '@/components/atoms/Select';
 
 type Preset = '7d' | '30d' | '90d' | 'all';
 
@@ -34,7 +36,7 @@ export default function HealthFitnessAuraPage() {
   const r = series?.correlationCoefficient;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 p-6">
+    <PageContainer className="space-y-8">
       <div>
         <div className="mb-2 flex items-center gap-2 text-cyan-600 dark:text-cyan-400">
           <Sparkles className="h-6 w-6" />
@@ -67,7 +69,7 @@ export default function HealthFitnessAuraPage() {
         ))}
         <label className="ml-4 text-sm text-gray-600 dark:text-gray-300">
           X axis
-          <select
+          <Select
             className="ml-2 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900"
             value={xMetric}
             onChange={(e) => setXMetric(e.target.value as AuraXMetric)}
@@ -77,7 +79,7 @@ export default function HealthFitnessAuraPage() {
                 {o.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
 
@@ -99,6 +101,6 @@ export default function HealthFitnessAuraPage() {
           <AuraScatterChart points={series.points} xMetric={xMetric} />
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

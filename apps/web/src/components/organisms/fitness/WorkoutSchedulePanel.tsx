@@ -21,6 +21,8 @@ import type {
   WorkoutScheduleWeekdayEntry,
   WorkoutTemplate,
 } from '@/types/fitness';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const selectClassName = cn(formFieldClassName, 'block w-full min-w-0');
 
@@ -169,7 +171,7 @@ export default function WorkoutSchedulePanel() {
       {skipDate ? (
         <div className="space-y-2 rounded border border-gray-200 p-3 dark:border-gray-600">
           <p className="text-sm font-medium">Skip reason for {skipDate}</p>
-          <textarea
+          <Textarea
             className={cn(formFieldClassName, 'min-h-[80px] w-full')}
             value={skipReasonText}
             onChange={(e) => setSkipReasonText(e.target.value)}
@@ -204,7 +206,7 @@ export default function WorkoutSchedulePanel() {
             return (
               <div key={label} className="rounded border border-gray-100 p-2 dark:border-gray-700">
                 <span className="text-xs font-semibold uppercase text-gray-500">{label}</span>
-                <select
+                <Select
                   className={cn(selectClassName, 'mt-1 text-sm')}
                   value={entry.dayType}
                   onChange={(e) =>
@@ -213,9 +215,9 @@ export default function WorkoutSchedulePanel() {
                 >
                   <option value="rest">Rest</option>
                   <option value="workout">Workout</option>
-                </select>
+                </Select>
                 {entry.dayType === 'workout' ? (
-                  <select
+                  <Select
                     className={cn(selectClassName, 'mt-1 text-sm')}
                     value={entry.templateId ?? ''}
                     onChange={(e) =>
@@ -230,7 +232,7 @@ export default function WorkoutSchedulePanel() {
                         {t.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 ) : null}
               </div>
             );
@@ -316,7 +318,7 @@ export default function WorkoutSchedulePanel() {
       {selectedDate ? (
         <div className="space-y-2 rounded border border-gray-200 p-3 dark:border-gray-600">
           <p className="text-sm font-medium">Override {selectedDate}</p>
-          <select
+          <Select
             className={selectClassName}
             value={overrideType}
             onChange={(e) => setOverrideType(e.target.value as ScheduleDayType)}
@@ -324,7 +326,7 @@ export default function WorkoutSchedulePanel() {
             <option value="day_off">Day off (excused)</option>
             <option value="rest">Rest</option>
             <option value="workout">Workout</option>
-          </select>
+          </Select>
           {overrideType === 'day_off' ? (
             <FormInput
               placeholder="Reason (trip, illness, …)"

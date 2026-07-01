@@ -3,6 +3,7 @@ import { Link2, Unlink } from 'lucide-react';
 import type { Metric } from '@/types/growth-system';
 import type { RecoveryLinkableField } from '@/types/fitness';
 import { cn } from '@/lib/utils';
+import { Select } from '@/components/atoms/Select';
 
 type Props = {
   field: RecoveryLinkableField;
@@ -85,7 +86,7 @@ export function RecoveryMetricLinkControl({
           <label className="sr-only" htmlFor={`metric-link-${field}`}>
             Select metric for {field}
           </label>
-          <select
+          <Select
             id={`metric-link-${field}`}
             value={selectedMetricId}
             onChange={(e) => setSelectedMetricId(e.target.value)}
@@ -101,7 +102,7 @@ export function RecoveryMetricLinkControl({
                 {m.unit ? ` (${m.unit})` : ''}
               </option>
             ))}
-          </select>
+          </Select>
           <button
             type="button"
             disabled={disabled || busy || !selectedMetricId}
