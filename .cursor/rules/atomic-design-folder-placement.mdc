@@ -1,0 +1,28 @@
+---
+description: "Where to place new frontend components under Atomic Design folders."
+globs: "personal-os-web/apps/web/src/components/**/*"
+alwaysApply: false
+---
+
+# Atomic Design folder placement
+
+Before adding or moving a component under `apps/web/src/components/`:
+
+1. Read `docs/contracts/frontend-atomic-design-placement-contract-spec.md`.
+2. Run `bun run --filter web validate-architecture` after structural changes.
+
+## Decision tree
+
+| Question | Place in |
+|----------|----------|
+| Route guard or app shell wrapper? | `templates/{auth\|routing\|shared}/` |
+| Single primitive, no composition? | `atoms/` |
+| One functional unit (dialog, listbox, trace row)? | `molecules/{feature}/` |
+| Multi-part section (form, card grid, dashboard tile)? | `organisms/{feature}/` |
+| Plain TypeScript helper (no JSX)? | `lib/{feature}/` |
+| Full admin screen? | `pages/admin/` |
+
+## Forbidden
+
+- Top-level `components/assistant/`, `proactive/`, `settings/`, `widgets/`, etc.
+- Atoms importing from `components/{feature}/` helper modules — use `@/lib/...` instead.

@@ -148,6 +148,11 @@ const [sortBy, setSortBy] = useState<SortKey>('createdAt');
 const { data, isLoading } = useQuery(...); // From parent or hook
 ```
 
+## Where to put this
+
+- App-wide organisms: `components/organisms/` root (`TaskEditPanel`, `ChatComposer`).
+- Domain organisms: `components/organisms/{feature}/` (e.g. `organisms/proactive/AutomationCard.tsx`, `organisms/settings/AISettingsPanel.tsx`, `organisms/widgets/weekly/VelocityWidget.tsx`, `organisms/planner/`).
+
 ## Do Not
 
 - Make organisms too large (>300 lines - split it)

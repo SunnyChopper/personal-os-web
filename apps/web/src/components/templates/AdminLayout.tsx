@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/query-keys';
 import { useAuth } from '@/contexts/Auth';
 import { useMode } from '@/contexts/Mode';
 import { AdminShellProvider, useAdminShell } from '@/contexts/AdminShellContext';
@@ -50,15 +51,29 @@ import {
   Dumbbell,
   Gift,
   Briefcase,
+  Megaphone,
+  User,
+  PenLine,
+  Share2,
+  Radio,
+  Users,
 } from 'lucide-react';
 import LeisureModeToggle from '@/components/atoms/LeisureModeToggle';
-import { CommandPalette } from '@/components/organisms/CommandPalette';
 import { WalletWidget } from '@/components/molecules/WalletWidget';
 import { BackendStatusBanner } from '@/components/molecules/BackendStatusBanner';
 import { ROUTES } from '@/routes';
 import { cn } from '@/lib/utils';
 import { taskLinksService } from '@/services/knowledge-vault/task-links.service';
 import { useWeeklyReviewCurrent } from '@/hooks/useWeeklyReview';
+import { useDeferredIdleReady } from '@/lib/startup/use-deferred-idle';
+import {
+  shouldLoadVaultTaskLinkBadge,
+  shouldLoadWeeklyReviewNavBadge,
+} from '@/lib/route-data-policy';
+
+const CommandPalette = lazy(() =>
+  import('@/components/organisms/CommandPalette').then((m) => ({ default: m.CommandPalette }))
+);
 
 const DebugInspector = lazy(() =>
   import('@/components/organisms/DebugInspector').then((m) => ({ default: m.DebugInspector }))
@@ -156,6 +171,32 @@ const workNavigation: NavItem[] = [
     ],
   },
   {
+    name: 'Personal Branding',
+    href: ROUTES.admin.personalBranding,
+    icon: Megaphone,
+    children: [
+      {
+        name: 'Overview',
+        href: ROUTES.admin.personalBranding,
+        icon: LayoutGrid,
+        exact: true,
+      },
+      { name: 'Brand Identity', href: ROUTES.admin.personalBrandingBrandIdentity, icon: User },
+      {
+        name: 'Content Workbench',
+        href: ROUTES.admin.personalBrandingWorkbench,
+        icon: PenLine,
+      },
+      {
+        name: 'Content Pipeline',
+        href: ROUTES.admin.personalBrandingPipeline,
+        icon: Share2,
+      },
+      { name: 'Signal Radar', href: ROUTES.admin.personalBrandingRadar, icon: Radio },
+      { name: 'Rolodex', href: ROUTES.admin.personalBrandingRolodex, icon: Users },
+    ],
+  },
+  {
     name: 'Health & Fitness',
     href: ROUTES.admin.healthFitness,
     icon: Dumbbell,
@@ -196,6 +237,7 @@ const workNavigation: NavItem[] = [
         exact: true,
       },
       { name: 'Resume Builder', href: ROUTES.admin.careerResume, icon: FileText },
+      { name: 'Job Sources', href: ROUTES.admin.careerJobSources, icon: Link2 },
     ],
   },
   {
@@ -293,21 +335,25 @@ function AdminLayoutContent() {
 
   const navigation = isLeisureMode ? leisureNavigation : workNavigation;
   const prevNavPathRef = useRef(location.pathname);
+  const idleReady = useDeferredIdleReady();
+  const loadVaultBadge = shouldLoadVaultTaskLinkBadge(location.pathname, idleReady);
+  const loadWeeklyReviewBadge = shouldLoadWeeklyReviewNavBadge(location.pathname, idleReady);
 
   const vaultTaskLinkBadgeQuery = useQuery({
-    queryKey: ['vault-task-links-unack-count'],
+    queryKey: queryKeys.knowledgeVault.vaultTaskLinksUnackCount(),
     queryFn: async () => {
       const d = await taskLinksService.listUnacknowledged();
       return d?.items?.length ?? 0;
     },
     refetchInterval: 60_000,
-    enabled: !isLeisureMode,
+    enabled: !isLeisureMode && loadVaultBadge,
   });
   const vaultLinkBadge = vaultTaskLinkBadgeQuery.data ?? 0;
 
   const { data: weeklyReviewCurrent } = useWeeklyReviewCurrent({
     weeks: 5,
     refetchInterval: 120_000,
+    enabled: loadWeeklyReviewBadge,
   });
   const weeklyReviewPending = weeklyReviewCurrent?.pendingReview ?? false;
 
@@ -567,7 +613,9 @@ function AdminLayoutContent() {
           : 'min-h-screen min-h-[100dvh]'
       )}
     >
-      <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+      <Suspense fallback={null}>
+        <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+      </Suspense>
       <Suspense fallback={null}>
         <DebugInspector />
       </Suspense>
