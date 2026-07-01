@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AssistantRunConfigPickerForm } from '@/components/assistant/AssistantRunConfigPickerForm';
-import { AssistantMemoryIngestionForm } from '@/components/settings/AssistantMemoryIngestionForm';
+import { PageContainer } from '@/components/templates/PageContainer';
+import { AssistantRunConfigPickerForm } from '@/components/organisms/assistant/AssistantRunConfigPickerForm';
+import { AssistantMemoryIngestionForm } from '@/components/organisms/settings/AssistantMemoryIngestionForm';
 import {
   emptyFactCriteria,
   normalizeFactCriteria,
   withFactCriteriaFromApi,
-} from '@/components/settings/assistantMemoryIngestionFactCriteria';
-import { AssistantToolApprovalForm } from '@/components/settings/AssistantToolApprovalForm';
+} from '@/lib/settings/assistantMemoryIngestionFactCriteria';
+import { AssistantToolApprovalForm } from '@/components/organisms/settings/AssistantToolApprovalForm';
 import {
   defaultModelsFromDraft,
   draftFromDefaultModels,
@@ -184,16 +185,16 @@ export default function AssistantSettingsPage() {
   if (loading) {
     return (
       <div className="h-full min-h-0 overflow-y-auto overscroll-contain">
-        <div className="max-w-3xl mx-auto px-4 pt-16 pb-12 lg:pt-8">
+        <PageContainer width="narrow" className="pt-16 pb-12 lg:pt-8">
           <p className="text-sm text-gray-600 dark:text-gray-400">Loading assistant settings…</p>
-        </div>
+        </PageContainer>
       </div>
     );
   }
 
   return (
     <div className="h-full min-h-0 overflow-y-auto overscroll-contain">
-      <div className="max-w-3xl mx-auto px-4 pt-16 pb-12 lg:pt-8">
+      <PageContainer width="narrow" className="pt-16 pb-12 lg:pt-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Assistant Settings
@@ -313,7 +314,7 @@ export default function AssistantSettingsPage() {
             {saving ? 'Saving…' : 'Save all settings'}
           </button>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

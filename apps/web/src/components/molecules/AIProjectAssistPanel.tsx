@@ -11,6 +11,8 @@ import type {
 } from '@/types/llm';
 import Button from '@/components/atoms/Button';
 import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
+import { AIFeatureModelRecovery } from '@/components/molecules/AIFeatureModelRecovery';
+import type { AIFeature } from '@/lib/llm/config/feature-types';
 
 function riskSeverityFromScore(score: number): 'low' | 'medium' | 'high' {
   if (score <= 3) return 'low';
@@ -54,6 +56,12 @@ function overallHealthBadgeClass(overallHealth: ProjectHealthOutput['overallHeal
 
 type AssistMode = 'health' | 'generate' | 'risks';
 
+const MODE_FEATURE: Record<AssistMode, AIFeature> = {
+  health: 'projectHealth',
+  generate: 'projectTaskGen',
+  risks: 'projectRisk',
+};
+
 interface AIProjectAssistPanelProps {
   mode: AssistMode;
   project: Project;
@@ -75,8 +83,36 @@ export function AIProjectAssistPanel({
   const [healthResult, setHealthResult] = useState<ProjectHealthOutput | null>(null);
   const [tasksResult, setTasksResult] = useState<ProjectTaskGenOutput | null>(null);
   const [risksResult, setRisksResult] = useState<ProjectRiskOutput | null>(null);
+  const [modelNotFound, setModelNotFound] = useState<{
+    feature: AIFeature;
+    model?: string;
+  } | null>(null);
 
   const isConfigured = llmConfig.isConfigured();
+  const activeFeature = MODE_FEATURE[mode];
+
+  const applyResponseError = (response: {
+    success: boolean;
+    error: string | null;
+    errorCode?: string;
+    errorModel?: string;
+  }) => {
+    if (response.success) {
+      setModelNotFound(null);
+      return false;
+    }
+    if (response.errorCode === 'MODEL_NOT_FOUND') {
+      setModelNotFound({
+        feature: activeFeature,
+        model: response.errorModel,
+      });
+      setError(null);
+      return true;
+    }
+    setModelNotFound(null);
+    setError(response.error || 'Request failed');
+    return true;
+  };
 
   const handleAnalyzeHealth = async () => {
     setIsLoading(true);
@@ -86,7 +122,8 @@ export function AIProjectAssistPanel({
 
     if (response.success && response.data) {
       setHealthResult(response.data);
-    } else {
+      setModelNotFound(null);
+    } else if (!applyResponseError(response)) {
       setError(response.error || 'Failed to analyze project health');
     }
     setIsLoading(false);
@@ -100,7 +137,8 @@ export function AIProjectAssistPanel({
 
     if (response.success && response.data) {
       setTasksResult(response.data);
-    } else {
+      setModelNotFound(null);
+    } else if (!applyResponseError(response)) {
       setError(response.error || 'Failed to generate tasks');
     }
     setIsLoading(false);
@@ -114,7 +152,8 @@ export function AIProjectAssistPanel({
 
     if (response.success && response.data) {
       setRisksResult(response.data);
-    } else {
+      setModelNotFound(null);
+    } else if (!applyResponseError(response)) {
       setError(response.error || 'Failed to identify risks');
     }
     setIsLoading(false);
@@ -227,7 +266,7 @@ export function AIProjectAssistPanel({
 
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{getModeDescription()}</p>
 
-      {!isLoading && !error && !healthResult && !tasksResult && !risksResult && (
+      {!isLoading && !error && !modelNotFound && !healthResult && !tasksResult && !risksResult && (
         <Button
           onClick={handleInvoke}
           variant="primary"
@@ -245,11 +284,22 @@ export function AIProjectAssistPanel({
         </div>
       )}
 
-      {error && (
+      {modelNotFound ? (
+        <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <AIFeatureModelRecovery
+            feature={modelNotFound.feature}
+            failedModel={modelNotFound.model}
+            onRetry={handleInvoke}
+            onDismiss={() => setModelNotFound(null)}
+          />
+        </div>
+      ) : null}
+
+      {error && !modelNotFound ? (
         <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
         </div>
-      )}
+      ) : null}
 
       {healthResult && (
         <div className="mt-4 space-y-4">

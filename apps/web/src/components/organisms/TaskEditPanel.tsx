@@ -36,6 +36,8 @@ import {
   TASK_STATUS_LABELS,
   TASK_STORY_POINTS_FIBONACCI,
 } from '@/constants/growth-system';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 interface TaskEditPanelProps {
   task: Task;
@@ -52,10 +54,6 @@ interface TaskEditPanelProps {
   availableGoals: EntitySummary[];
   onDependencyAdd: (taskId: string, dependsOnId: string) => Promise<void>;
   onDependencyRemove: (taskId: string, dependsOnId: string) => Promise<void>;
-  onProjectLink: (taskId: string, projectId: string) => Promise<void>;
-  onProjectUnlink: (taskId: string, projectId: string) => Promise<void>;
-  onGoalLink: (taskId: string, goalId: string) => Promise<void>;
-  onGoalUnlink: (taskId: string, goalId: string) => Promise<void>;
   onCreateSubtasks?: (subtasks: CreateTaskInput[]) => void;
 }
 
@@ -74,10 +72,6 @@ export function TaskEditPanel({
   availableGoals,
   onDependencyAdd,
   onDependencyRemove,
-  onProjectLink,
-  onProjectUnlink,
-  onGoalLink,
-  onGoalUnlink,
   onCreateSubtasks,
 }: TaskEditPanelProps) {
   const [formData, setFormData] = useState<UpdateTaskInput>({
@@ -150,6 +144,8 @@ export function TaskEditPanel({
         dueDate: formData.dueDate || null,
         scheduledDate: formData.scheduledDate || null,
         size: formData.size || undefined,
+        projectIds: selectedProjects,
+        goalIds: selectedGoals,
         ...(formData.energyLevel !== undefined ? { energyLevel: formData.energyLevel } : {}),
         ...(formData.executionWindow !== undefined
           ? { executionWindow: formData.executionWindow }
@@ -169,39 +165,7 @@ export function TaskEditPanel({
         .filter((id) => !currentDepIds.has(id))
         .map((id) => onDependencyAdd(task.id, id));
 
-      // Apply pending project link changes
-      const currentProjectIds = new Set(linkedProjects.map((p) => p.id));
-      const newProjectIds = new Set(selectedProjects);
-
-      const projectUnlinks = Array.from(currentProjectIds)
-        .filter((id) => !newProjectIds.has(id))
-        .map((id) => onProjectUnlink(task.id, id));
-
-      const projectLinks = Array.from(newProjectIds)
-        .filter((id) => !currentProjectIds.has(id))
-        .map((id) => onProjectLink(task.id, id));
-
-      // Apply pending goal link changes
-      const currentGoalIds = new Set(linkedGoals.map((g) => g.id));
-      const newGoalIds = new Set(selectedGoals);
-
-      const goalUnlinks = Array.from(currentGoalIds)
-        .filter((id) => !newGoalIds.has(id))
-        .map((id) => onGoalUnlink(task.id, id));
-
-      const goalLinks = Array.from(newGoalIds)
-        .filter((id) => !currentGoalIds.has(id))
-        .map((id) => onGoalLink(task.id, id));
-
-      // Wait for all linking operations to complete
-      await Promise.all([
-        ...dependencyRemovals,
-        ...dependencyAdditions,
-        ...projectUnlinks,
-        ...projectLinks,
-        ...goalUnlinks,
-        ...goalLinks,
-      ]);
+      await Promise.all([...dependencyRemovals, ...dependencyAdditions]);
 
       // Success: show toast and close modal
       showToast({
@@ -347,442 +311,443 @@ export function TaskEditPanel({
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            <form
-              onSubmit={handleSubmit}
-              className={`p-6 space-y-6 ${isLoading || isSaving ? 'pointer-events-none opacity-60' : ''}`}
-              aria-busy={isLoading || isSaving}
-            >
-              {/* Error Message */}
-              {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-red-800 dark:text-red-200 text-sm font-medium">Error</p>
-                      <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
+            <form onSubmit={handleSubmit} aria-busy={isLoading || isSaving}>
+              <fieldset
+                disabled={isLoading || isSaving}
+                className="min-w-0 p-6 space-y-6 border-0 m-0 disabled:opacity-60"
+              >
+                {/* Error Message */}
+                {error && (
+                  <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-red-800 dark:text-red-200 text-sm font-medium">Error</p>
+                        <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setError(null)}
+                        className="p-1 hover:bg-red-100 dark:hover:bg-red-900/50 rounded transition-colors"
+                        aria-label="Dismiss error"
+                      >
+                        <X className="w-4 h-4 text-red-600 dark:text-red-400" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setError(null)}
-                      className="p-1 hover:bg-red-100 dark:hover:bg-red-900/50 rounded transition-colors"
-                      aria-label="Dismiss error"
-                    >
-                      <X className="w-4 h-4 text-red-600 dark:text-red-400" />
-                    </button>
                   </div>
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Area *
-                  </label>
-                  <select
-                    required
-                    value={formData.area}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        area: e.target.value as Area,
-                        subCategory: undefined,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {AREAS.map((area) => (
-                      <option key={area} value={area}>
-                        {AREA_LABELS[area]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Sub-Category
-                  </label>
-                  <select
-                    value={formData.subCategory || ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        subCategory: (e.target.value as SubCategory) || undefined,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">None</option>
-                    {availableSubCategories.map((sub) => (
-                      <option key={sub} value={sub}>
-                        {sub}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Priority
-                  </label>
-                  <select
-                    value={formData.priority}
-                    onChange={(e) =>
-                      setFormData({ ...formData, priority: e.target.value as Priority })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {PRIORITIES.map((priority) => (
-                      <option key={priority} value={priority}>
-                        {priority}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) =>
-                      setFormData({ ...formData, status: e.target.value as TaskStatus })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {TASK_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {TASK_STATUS_LABELS[status]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <TaskContextVibePills
-                energyLevel={formData.energyLevel}
-                executionWindow={formData.executionWindow}
-                onEnergyChange={(value) =>
-                  setFormData({
-                    ...formData,
-                    energyLevel: value === null ? null : value,
-                  })
-                }
-                onExecutionWindowChange={(value) =>
-                  setFormData({
-                    ...formData,
-                    executionWindow: value === null ? null : value,
-                  })
-                }
-              />
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Due Date
+                    Title *
                   </label>
                   <input
-                    type="date"
-                    value={formData.dueDate ?? ''}
-                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                    type="text"
+                    required
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Story points (Fibonacci)
+                    Description
                   </label>
-                  <select
-                    value={formData.size ?? ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        size: e.target.value === '' ? undefined : parseInt(e.target.value, 10),
-                      })
-                    }
+                  <Textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={3}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Not set</option>
-                    {TASK_STORY_POINTS_FIBONACCI.map((n) => (
-                      <option key={n} value={n}>
-                        {n} pts
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Not a time estimate — use 1, 2, 3, 5, 8, 13, or 21 only.
-                  </p>
+                  />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Point Value
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.pointValue || ''}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Area *
+                    </label>
+                    <Select
+                      required
+                      value={formData.area}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          pointValue: e.target.value ? parseFloat(e.target.value) : undefined,
+                          area: e.target.value as Area,
+                          subCategory: undefined,
                         })
                       }
-                      placeholder="AI-calculated"
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {isAIConfigured && (
-                      <button
-                        type="button"
-                        onClick={() => setAIMode('estimate')}
-                        className="px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
-                        title="Calculate with AI"
-                      >
-                        <Sparkles size={18} />
-                      </button>
-                    )}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {AREAS.map((area) => (
+                        <option key={area} value={area}>
+                          {AREA_LABELS[area]}
+                        </option>
+                      ))}
+                    </Select>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Reward points earned for completing this task
-                  </p>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Sub-Category
+                    </label>
+                    <Select
+                      value={formData.subCategory || ''}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          subCategory: (e.target.value as SubCategory) || undefined,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">None</option>
+                      {availableSubCategories.map((sub) => (
+                        <option key={sub} value={sub}>
+                          {sub}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
                 </div>
-              </div>
 
-              {isAIConfigured && (
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowAIAssist(!showAIAssist)}
-                    className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
-                  >
-                    <Sparkles size={18} />
-                    <span>AI Tools</span>
-                    {showAIAssist ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </button>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Priority
+                    </label>
+                    <Select
+                      value={formData.priority}
+                      onChange={(e) =>
+                        setFormData({ ...formData, priority: e.target.value as Priority })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {PRIORITIES.map((priority) => (
+                        <option key={priority} value={priority}>
+                          {priority}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
 
-                  {showAIAssist && (
-                    <div className="mt-4 space-y-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAIMode('breakdown')}
-                          className={`px-3 py-1.5 text-sm rounded-full transition ${
-                            aiMode === 'breakdown'
-                              ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          Break Down
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAIMode('priority')}
-                          className={`px-3 py-1.5 text-sm rounded-full transition ${
-                            aiMode === 'priority'
-                              ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          Priority Advisor
-                        </button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Status
+                    </label>
+                    <Select
+                      value={formData.status}
+                      onChange={(e) =>
+                        setFormData({ ...formData, status: e.target.value as TaskStatus })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {TASK_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {TASK_STATUS_LABELS[status]}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
+
+                <TaskContextVibePills
+                  energyLevel={formData.energyLevel}
+                  executionWindow={formData.executionWindow}
+                  onEnergyChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      energyLevel: value === null ? null : value,
+                    })
+                  }
+                  onExecutionWindowChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      executionWindow: value === null ? null : value,
+                    })
+                  }
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.dueDate ?? ''}
+                      onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Story points (Fibonacci)
+                    </label>
+                    <Select
+                      value={formData.size ?? ''}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          size: e.target.value === '' ? undefined : parseInt(e.target.value, 10),
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Not set</option>
+                      {TASK_STORY_POINTS_FIBONACCI.map((n) => (
+                        <option key={n} value={n}>
+                          {n} pts
+                        </option>
+                      ))}
+                    </Select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Not a time estimate — use 1, 2, 3, 5, 8, 13, or 21 only.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Point Value
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.pointValue || ''}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            pointValue: e.target.value ? parseFloat(e.target.value) : undefined,
+                          })
+                        }
+                        placeholder="AI-calculated"
+                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      {isAIConfigured && (
                         <button
                           type="button"
                           onClick={() => setAIMode('estimate')}
-                          className={`px-3 py-1.5 text-sm rounded-full transition ${
-                            aiMode === 'estimate'
-                              ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
+                          className="px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+                          title="Calculate with AI"
                         >
-                          Estimate story points
+                          <Sparkles size={18} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setAIMode('dependencies')}
-                          className={`px-3 py-1.5 text-sm rounded-full transition ${
-                            aiMode === 'dependencies'
-                              ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          Find Dependencies
-                        </button>
-                      </div>
-
-                      <AITaskAssistPanel
-                        mode={aiMode}
-                        onClose={() => setShowAIAssist(false)}
-                        onApplyPriority={handleApplyPriority}
-                        onApplyEffort={handleApplyEffort}
-                        onApplyBreakdown={handleApplyBreakdown}
-                        onApplyDependencies={handleApplyDependencies}
-                        currentTask={task}
-                        allTasks={availableTasks}
-                      />
+                      )}
                     </div>
-                  )}
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Reward points earned for completing this task
+                    </p>
+                  </div>
                 </div>
-              )}
 
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <GitBranch className="w-5 h-5" />
-                  Dependencies
-                </h3>
+                {isAIConfigured && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <button
+                      type="button"
+                      onClick={() => setShowAIAssist(!showAIAssist)}
+                      className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+                    >
+                      <Sparkles size={18} />
+                      <span>AI Tools</span>
+                      {showAIAssist ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
 
-                <div className="space-y-3">
-                  {blockedBy.length > 0 && (
+                    {showAIAssist && (
+                      <div className="mt-4 space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setAIMode('breakdown')}
+                            className={`px-3 py-1.5 text-sm rounded-full transition ${
+                              aiMode === 'breakdown'
+                                ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            Break Down
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAIMode('priority')}
+                            className={`px-3 py-1.5 text-sm rounded-full transition ${
+                              aiMode === 'priority'
+                                ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            Priority Advisor
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAIMode('estimate')}
+                            className={`px-3 py-1.5 text-sm rounded-full transition ${
+                              aiMode === 'estimate'
+                                ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            Estimate story points
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAIMode('dependencies')}
+                            className={`px-3 py-1.5 text-sm rounded-full transition ${
+                              aiMode === 'dependencies'
+                                ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            Find Dependencies
+                          </button>
+                        </div>
+
+                        <AITaskAssistPanel
+                          mode={aiMode}
+                          onClose={() => setShowAIAssist(false)}
+                          onApplyPriority={handleApplyPriority}
+                          onApplyEffort={handleApplyEffort}
+                          onApplyBreakdown={handleApplyBreakdown}
+                          onApplyDependencies={handleApplyDependencies}
+                          currentTask={task}
+                          allTasks={availableTasks}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <GitBranch className="w-5 h-5" />
+                    Dependencies
+                  </h3>
+
+                  <div className="space-y-3">
+                    {blockedBy.length > 0 && (
+                      <div>
+                        <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Blocked By ({blockedBy.length})
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {blockedBy.map((dep) => (
+                            <DependencyBadge key={dep.id} type="blocked" count={1} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div>
-                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Blocked By ({blockedBy.length})
+                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center justify-between">
+                        <span>Depends On ({displayDependencies.length})</span>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setIsDependencyPickerOpen(true)}
+                        >
+                          Manage Dependencies
+                        </Button>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {blockedBy.map((dep) => (
-                          <DependencyBadge key={dep.id} type="blocked" count={1} />
-                        ))}
-                      </div>
+                      {displayDependencies.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {displayDependencies.map((dep) => (
+                            <EntityLinkChip
+                              key={dep.id}
+                              id={dep.id}
+                              label={dep.title}
+                              type="task"
+                              area={dep.area}
+                              size="sm"
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                  <div>
-                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center justify-between">
-                      <span>Depends On ({displayDependencies.length})</span>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setIsDependencyPickerOpen(true)}
-                      >
-                        Manage Dependencies
-                      </Button>
-                    </div>
-                    {displayDependencies.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {displayDependencies.map((dep) => (
-                          <EntityLinkChip
-                            key={dep.id}
-                            id={dep.id}
-                            label={dep.title}
-                            type="task"
-                            area={dep.area}
-                            size="sm"
-                          />
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
-              </div>
 
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Link2 className="w-5 h-5" />
-                  Relationships
-                </h3>
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Link2 className="w-5 h-5" />
+                    Relationships
+                  </h3>
 
-                <div className="space-y-4">
-                  <div>
-                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center justify-between">
-                      <span>Projects ({displayProjects.length})</span>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setIsProjectPickerOpen(true)}
-                      >
-                        Link Projects
-                      </Button>
-                    </div>
-                    {displayProjects.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {displayProjects.map((project) => (
-                          <EntityLinkChip
-                            key={project.id}
-                            id={project.id}
-                            label={project.title}
-                            type="project"
-                            area={project.area}
-                            size="sm"
-                          />
-                        ))}
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center justify-between">
+                        <span>Projects ({displayProjects.length})</span>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setIsProjectPickerOpen(true)}
+                        >
+                          Link Projects
+                        </Button>
                       </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center justify-between">
-                      <span>Goals ({displayGoals.length})</span>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setIsGoalPickerOpen(true)}
-                      >
-                        Link Goals
-                      </Button>
+                      {displayProjects.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {displayProjects.map((project) => (
+                            <EntityLinkChip
+                              key={project.id}
+                              id={project.id}
+                              label={project.title}
+                              type="project"
+                              area={project.area}
+                              size="sm"
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {displayGoals.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {displayGoals.map((goal) => (
-                          <EntityLinkChip
-                            key={goal.id}
-                            id={goal.id}
-                            label={goal.title}
-                            type="goal"
-                            area={goal.area}
-                            size="sm"
-                          />
-                        ))}
+
+                    <div>
+                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center justify-between">
+                        <span>Goals ({displayGoals.length})</span>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setIsGoalPickerOpen(true)}
+                        >
+                          Link Goals
+                        </Button>
                       </div>
-                    )}
+                      {displayGoals.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {displayGoals.map((goal) => (
+                            <EntityLinkChip
+                              key={goal.id}
+                              id={goal.id}
+                              label={goal.title}
+                              type="goal"
+                              area={goal.area}
+                              size="sm"
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={onClose}
-                  disabled={isLoading || isSaving}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" disabled={isLoading || isSaving}>
-                  {isLoading || isSaving ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </div>
+                <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={onClose}
+                    disabled={isLoading || isSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" disabled={isLoading || isSaving}>
+                    {isLoading || isSaving ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </fieldset>
             </form>
           </div>
         </div>

@@ -6,6 +6,12 @@ export function fitRecommendationLabel(v: string): string {
   return 'Maybe';
 }
 
+export function reachClassificationLabel(v: string | null | undefined): string {
+  if (v === 'strongFit') return 'Strong fit';
+  if (v === 'outOfReach') return 'Out of reach';
+  return 'Stretch';
+}
+
 export function rejectionTriageBucketLabel(bucket: string | null | undefined): string {
   if (bucket === 'AUTOMATED_FAST') return 'ATS filter';
   if (bucket === 'HUMAN_REVIEW') return 'Recruiter pass';

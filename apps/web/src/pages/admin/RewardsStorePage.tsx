@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Store, Coins } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { useRewards } from '@/contexts/Rewards';
 import { useWallet } from '@/contexts/Wallet';
 import { RewardCard } from '@/components/molecules/RewardCard';
@@ -39,7 +40,7 @@ const RewardsStorePage = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <PageContainer className="py-6">
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -135,7 +136,7 @@ const RewardsStorePage = () => {
           })}
         </>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

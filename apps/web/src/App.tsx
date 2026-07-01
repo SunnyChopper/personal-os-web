@@ -1,12 +1,14 @@
-﻿import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+﻿import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 
-import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { RoleRoute } from './components/auth/RoleRoute';
-import LeisureOnlyRoute from './components/routing/LeisureOnlyRoute';
-import Loader from './components/molecules/Loader';
-import DashboardRedirect from './components/routing/DashboardRedirect';
-import ErrorBoundary from './components/shared/ErrorBoundary';
+import { ProtectedRoute } from './components/templates/auth/ProtectedRoute';
+import { RoleRoute } from './components/templates/auth/RoleRoute';
+import LeisureOnlyRoute from './components/templates/routing/LeisureOnlyRoute';
+import StartupLoader from './components/molecules/StartupLoader';
+import AdminShellSkeleton from './components/templates/AdminShellSkeleton';
+import { AdminRouteSuspense } from './components/molecules/AdminRouteSuspense';
+import DashboardRedirect from './components/templates/routing/DashboardRedirect';
+import ErrorBoundary from './components/templates/shared/ErrorBoundary';
 import AdminLayout from './components/templates/AdminLayout';
 import SidecarLayout from './components/templates/SidecarLayout';
 import MainLayout from './components/templates/MainLayout';
@@ -17,96 +19,102 @@ import { RewardsProvider } from './contexts/Rewards';
 import { useAuth } from './contexts/Auth';
 import { usePageTracking } from './hooks/usePageTracking';
 import { useThemeInitializer } from './hooks/useTheme';
-import ChatbotPage from './pages/admin/ChatbotPage';
-import ComponentsDemoPage from './pages/admin/ComponentsDemoPage';
-import ConceptColliderPage from './pages/admin/ConceptColliderPage';
-import DailyLearningPage from './pages/admin/DailyLearningPage';
-import InboxPage from './pages/admin/InboxPage';
-import CheatSheetPage from './pages/admin/CheatSheetPage';
-import SyntopicPage from './pages/admin/SyntopicPage';
-import TaskLinksPage from './pages/admin/TaskLinksPage';
-import FeynmanStudyPage from './pages/admin/FeynmanStudyPage';
-import CourseDetailPage from './pages/admin/CourseDetailPage';
-import CourseGeneratorPage from './pages/admin/CourseGeneratorPage';
-import CoursesPage from './pages/admin/CoursesPage';
-import DashboardPage from './pages/admin/DashboardPage';
-import FlashcardsPage from './pages/admin/FlashcardsPage';
-import FocusModePage from './pages/admin/FocusModePage';
-import GoalsPage from './pages/admin/GoalsPage';
-import GrowthSystemPage from './pages/admin/GrowthSystemPage';
-import HabitsPage from './pages/admin/HabitsPage';
-import HobbyQuestsPage from './pages/admin/HobbyQuestsPage';
-import KnowledgeVaultPage from './pages/admin/KnowledgeVaultPage';
-import LogbookPage from './pages/admin/LogbookPage';
 import LoginPage from './pages/admin/LoginPage';
-import MediaBacklogPage from './pages/admin/MediaBacklogPage';
-import MetricsPage from './pages/admin/MetricsPage';
-import ProjectsPage from './pages/admin/ProjectsPage';
-import RewardsStorePage from './pages/admin/RewardsStorePage';
-import RewardStudioPage from './pages/admin/RewardStudioPage';
-import SettingsPage from './pages/admin/SettingsPage';
-import SkillTreePage from './pages/admin/SkillTreePage';
-import StudySessionPage from './pages/admin/StudySessionPage';
-import StudyStatisticsPage from './pages/admin/StudyStatisticsPage';
-import TasksPage from './pages/admin/TasksPage';
-import WeeklyReviewPage from './pages/admin/WeeklyReviewPage';
-import PlannerPage from './pages/admin/PlannerPage';
-import HealthFitnessOverviewPage from './pages/admin/HealthFitnessOverviewPage';
-import HealthFitnessNutritionPage from './pages/admin/HealthFitnessNutritionPage';
-import HealthFitnessWorkoutsPage from './pages/admin/HealthFitnessWorkoutsPage';
-import HealthFitnessAuraPage from './pages/admin/HealthFitnessAuraPage';
-import HealthFitnessRewardsPage from './pages/admin/HealthFitnessRewardsPage';
-import ZenDashboardPage from './pages/admin/ZenDashboardPage';
-import MarkdownViewerPage from './pages/admin/MarkdownViewerPage';
-import VoyagerLayout from './pages/admin/voyager/VoyagerLayout';
-import VoyagerTripsTab from './pages/admin/voyager/VoyagerTripsTab';
-import VoyagerMilestonesTab from './pages/admin/voyager/VoyagerMilestonesTab';
-import VoyagerItineraryTab from './pages/admin/voyager/VoyagerItineraryTab';
-import CareerLayout from './pages/admin/career/CareerLayout';
-import CareerDevelopmentOverviewPage from './pages/admin/career/CareerDevelopmentOverviewPage';
-import ResumeBuilderPage from './pages/admin/career/ResumeBuilderPage';
-import MemoryAuditPage from './pages/admin/MemoryAuditPage';
-import AssistantSettingsPage from './pages/admin/AssistantSettingsPage';
-import ProactiveAutomationsPage from './pages/admin/ProactiveAutomationsPage';
-import ObservabilityPage from './pages/admin/ObservabilityPage';
-import AssistantSandboxPage from './pages/admin/AssistantSandboxPage';
-import ToolsSkeleton from './components/molecules/ToolsSkeleton';
-import ToolsOverviewPage from './pages/admin/tools/ToolsOverviewPage';
 import HomePage from './pages/HomePage';
 import NotFoundPage from './pages/NotFoundPage';
 import ProductsPage from './pages/ProductsPage';
-import HouseholdHomePage from './pages/sidecar/HouseholdHomePage';
-import DropzonePage from './pages/sidecar/DropzonePage';
-import MealsPage from './pages/sidecar/MealsPage';
-import PetsPage from './pages/sidecar/PetsPage';
-import SidecarProfilePage from './pages/sidecar/SidecarProfilePage';
+import { authService } from './lib/auth/auth.service';
+import { markStartup } from './lib/startup/startup-telemetry';
+import {
+  AssistantSandboxPage,
+  AssistantSettingsPage,
+  Base64Page,
+  BrandIdentityPage,
+  CareerDevelopmentOverviewPage,
+  CareerLayout,
+  ChatbotPage,
+  CheatSheetPage,
+  ComponentsDemoPage,
+  ConceptColliderPage,
+  ContentPipelinePage,
+  ContentWorkbenchPage,
+  CourseDetailPage,
+  CourseGeneratorPage,
+  CoursesPage,
+  CronBuilderPage,
+  DailyLearningPage,
+  DashboardPage,
+  DockerPage,
+  DocumentDetailPage,
+  DropzonePage,
+  EslintPage,
+  FeynmanStudyPage,
+  FlashcardsPage,
+  FocusModePage,
+  FormattersPage,
+  GoalsPage,
+  GrowthSystemPage,
+  HabitsPage,
+  HealthFitnessAuraPage,
+  HealthFitnessNutritionPage,
+  HealthFitnessOverviewPage,
+  HealthFitnessRewardsPage,
+  HealthFitnessWorkoutsPage,
+  HobbyQuestsPage,
+  HouseholdHomePage,
+  InboxPage,
+  JobSourcesPage,
+  JwtPage,
+  KnowledgeVaultPage,
+  LogbookPage,
+  MarkdownViewerPage,
+  MediaBacklogPage,
+  MemoryAuditPage,
+  MetricsPage,
+  ObservabilityPage,
+  PersonalBrandingLayout,
+  PersonalBrandingOverviewPage,
+  PetsPage,
+  PlannerPage,
+  PostmanPage,
+  ProactiveAutomationsPage,
+  ProjectsPage,
+  RegexPage,
+  ResumeBuilderPage,
+  RewardStudioPage,
+  RewardsStorePage,
+  RolodexPage,
+  SettingsPage,
+  SidecarProfilePage,
+  SignalRadarPage,
+  SkillTreePage,
+  StudySessionPage,
+  StudyStatisticsPage,
+  SyntopicPage,
+  TaskLinksPage,
+  TasksPage,
+  ToolsOverviewPage,
+  VoyagerItineraryTab,
+  VoyagerLayout,
+  VoyagerMilestonesTab,
+  VoyagerTripsTab,
+  WebhookDetailPage,
+  WebhooksListPage,
+  WeeklyReviewPage,
+  WhiteboardPage,
+  WhiteboardsListPage,
+  WorkflowEditorPage,
+  WorkflowsListPage,
+  ZenDashboardPage,
+  MealsPage,
+} from './routes/lazy-admin-pages';
 import { ADMIN_CHILD_ROUTES, ROUTES } from './routes';
-
-const WorkflowsListPage = lazy(() => import('./pages/admin/tools/WorkflowsListPage'));
-const WorkflowEditorPage = lazy(() => import('./pages/admin/tools/WorkflowEditorPage'));
-const CronBuilderPage = lazy(() => import('./pages/admin/tools/CronBuilderPage'));
-const PostmanPage = lazy(() => import('./pages/admin/tools/PostmanPage'));
-const WebhooksListPage = lazy(() => import('./pages/admin/tools/WebhooksListPage'));
-const WebhookDetailPage = lazy(() => import('./pages/admin/tools/WebhookDetailPage'));
-const WhiteboardsListPage = lazy(() => import('./pages/admin/tools/WhiteboardsListPage'));
-const WhiteboardPage = lazy(() => import('./pages/admin/tools/WhiteboardPage'));
-const FormattersPage = lazy(() => import('./pages/admin/tools/FormattersPage'));
-const JwtPage = lazy(() => import('./pages/admin/tools/JwtPage'));
-const Base64Page = lazy(() => import('./pages/admin/tools/Base64Page'));
-const RegexPage = lazy(() => import('./pages/admin/tools/RegexPage'));
-const DockerPage = lazy(() => import('./pages/admin/tools/DockerPage'));
-const EslintPage = lazy(() => import('./pages/admin/tools/EslintPage'));
-
-function ToolSuspense({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<ToolsSkeleton />}>{children}</Suspense>;
-}
 
 function AppContent() {
   usePageTracking();
   useThemeInitializer();
   const navigate = useNavigate();
 
-  // Handle GitHub Pages 404 redirect
   useEffect(() => {
     const redirectPath = sessionStorage.getItem('redirectPath');
     if (redirectPath) {
@@ -130,7 +138,9 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <RoleRoute allowRole="owner" redirectTo={ROUTES.sidecar.home}>
-                <FocusModePage />
+                <AdminRouteSuspense>
+                  <FocusModePage />
+                </AdminRouteSuspense>
               </RoleRoute>
             </ProtectedRoute>
           }
@@ -147,11 +157,46 @@ function AppContent() {
           }
         >
           <Route index element={<Navigate to="home" replace />} />
-          <Route path="home" element={<HouseholdHomePage />} />
-          <Route path="dropzone" element={<DropzonePage />} />
-          <Route path="meals" element={<MealsPage />} />
-          <Route path="pets" element={<PetsPage />} />
-          <Route path="profile" element={<SidecarProfilePage />} />
+          <Route
+            path="home"
+            element={
+              <AdminRouteSuspense>
+                <HouseholdHomePage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path="dropzone"
+            element={
+              <AdminRouteSuspense>
+                <DropzonePage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path="meals"
+            element={
+              <AdminRouteSuspense>
+                <MealsPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path="pets"
+            element={
+              <AdminRouteSuspense>
+                <PetsPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path="profile"
+            element={
+              <AdminRouteSuspense>
+                <SidecarProfilePage />
+              </AdminRouteSuspense>
+            }
+          />
         </Route>
 
         <Route
@@ -166,212 +211,649 @@ function AppContent() {
         >
           <Route index element={<DashboardRedirect />} />
           <Route path={ADMIN_CHILD_ROUTES.dashboard} element={<DashboardPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.zenDashboard} element={<ZenDashboardPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.zenDashboard}
+            element={
+              <AdminRouteSuspense>
+                <ZenDashboardPage />
+              </AdminRouteSuspense>
+            }
+          />
           <Route path={ADMIN_CHILD_ROUTES.voyager} element={<LeisureOnlyRoute />}>
-            <Route element={<VoyagerLayout />}>
+            <Route
+              element={
+                <AdminRouteSuspense>
+                  <VoyagerLayout />
+                </AdminRouteSuspense>
+              }
+            >
               <Route index element={<Navigate to="trips" replace />} />
-              <Route path="trips" element={<VoyagerTripsTab />} />
-              <Route path="milestones" element={<VoyagerMilestonesTab />} />
-              <Route path="itinerary" element={<VoyagerItineraryTab />} />
+              <Route
+                path="trips"
+                element={
+                  <AdminRouteSuspense>
+                    <VoyagerTripsTab />
+                  </AdminRouteSuspense>
+                }
+              />
+              <Route
+                path="milestones"
+                element={
+                  <AdminRouteSuspense>
+                    <VoyagerMilestonesTab />
+                  </AdminRouteSuspense>
+                }
+              />
+              <Route
+                path="itinerary"
+                element={
+                  <AdminRouteSuspense>
+                    <VoyagerItineraryTab />
+                  </AdminRouteSuspense>
+                }
+              />
             </Route>
           </Route>
-          <Route path={ADMIN_CHILD_ROUTES.career} element={<CareerLayout />}>
-            <Route index element={<CareerDevelopmentOverviewPage />} />
-            <Route path="resume" element={<ResumeBuilderPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.career}
+            element={
+              <AdminRouteSuspense>
+                <CareerLayout />
+              </AdminRouteSuspense>
+            }
+          >
+            <Route
+              index
+              element={
+                <AdminRouteSuspense>
+                  <CareerDevelopmentOverviewPage />
+                </AdminRouteSuspense>
+              }
+            />
+            <Route
+              path="resume"
+              element={
+                <AdminRouteSuspense>
+                  <ResumeBuilderPage />
+                </AdminRouteSuspense>
+              }
+            />
+            <Route
+              path="job-sources"
+              element={
+                <AdminRouteSuspense>
+                  <JobSourcesPage />
+                </AdminRouteSuspense>
+              }
+            />
           </Route>
-          <Route path={ADMIN_CHILD_ROUTES.growthSystem} element={<GrowthSystemPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.tasks} element={<TasksPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.habits} element={<HabitsPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.metrics} element={<MetricsPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.goals} element={<GoalsPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.projects} element={<ProjectsPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.logbook} element={<LogbookPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.weeklyReview} element={<WeeklyReviewPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.plannerWeek} element={<PlannerPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.planner} element={<PlannerPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.personalBranding}
+            element={
+              <AdminRouteSuspense>
+                <PersonalBrandingLayout />
+              </AdminRouteSuspense>
+            }
+          >
+            <Route
+              index
+              element={
+                <AdminRouteSuspense>
+                  <PersonalBrandingOverviewPage />
+                </AdminRouteSuspense>
+              }
+            />
+            <Route
+              path="brand-identity"
+              element={
+                <AdminRouteSuspense>
+                  <BrandIdentityPage />
+                </AdminRouteSuspense>
+              }
+            />
+            <Route
+              path="workbench"
+              element={
+                <AdminRouteSuspense>
+                  <ContentWorkbenchPage />
+                </AdminRouteSuspense>
+              }
+            />
+            <Route
+              path="pipeline"
+              element={
+                <AdminRouteSuspense>
+                  <ContentPipelinePage />
+                </AdminRouteSuspense>
+              }
+            />
+            <Route
+              path="radar"
+              element={
+                <AdminRouteSuspense>
+                  <SignalRadarPage />
+                </AdminRouteSuspense>
+              }
+            />
+            <Route
+              path="rolodex"
+              element={
+                <AdminRouteSuspense>
+                  <RolodexPage />
+                </AdminRouteSuspense>
+              }
+            />
+          </Route>
+          <Route
+            path={ADMIN_CHILD_ROUTES.growthSystem}
+            element={
+              <AdminRouteSuspense>
+                <GrowthSystemPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.tasks}
+            element={
+              <AdminRouteSuspense>
+                <TasksPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.habits}
+            element={
+              <AdminRouteSuspense>
+                <HabitsPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.metrics}
+            element={
+              <AdminRouteSuspense>
+                <MetricsPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.goals}
+            element={
+              <AdminRouteSuspense>
+                <GoalsPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.projects}
+            element={
+              <AdminRouteSuspense>
+                <ProjectsPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.logbook}
+            element={
+              <AdminRouteSuspense>
+                <LogbookPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.weeklyReview}
+            element={
+              <AdminRouteSuspense>
+                <WeeklyReviewPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.plannerWeek}
+            element={
+              <AdminRouteSuspense>
+                <PlannerPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.planner}
+            element={
+              <AdminRouteSuspense>
+                <PlannerPage />
+              </AdminRouteSuspense>
+            }
+          />
           <Route
             path={ADMIN_CHILD_ROUTES.plannerNightly}
             element={<Navigate to={ROUTES.admin.planner} replace />}
           />
-          <Route path={ADMIN_CHILD_ROUTES.healthFitness} element={<HealthFitnessOverviewPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.healthFitness}
+            element={
+              <AdminRouteSuspense>
+                <HealthFitnessOverviewPage />
+              </AdminRouteSuspense>
+            }
+          />
           <Route
             path={ADMIN_CHILD_ROUTES.healthFitnessNutrition}
-            element={<HealthFitnessNutritionPage />}
+            element={
+              <AdminRouteSuspense>
+                <HealthFitnessNutritionPage />
+              </AdminRouteSuspense>
+            }
           />
           <Route
             path={ADMIN_CHILD_ROUTES.healthFitnessWorkouts}
-            element={<HealthFitnessWorkoutsPage />}
+            element={
+              <AdminRouteSuspense>
+                <HealthFitnessWorkoutsPage />
+              </AdminRouteSuspense>
+            }
           />
-          <Route path={ADMIN_CHILD_ROUTES.healthFitnessAura} element={<HealthFitnessAuraPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.healthFitnessAura}
+            element={
+              <AdminRouteSuspense>
+                <HealthFitnessAuraPage />
+              </AdminRouteSuspense>
+            }
+          />
           <Route
             path={ADMIN_CHILD_ROUTES.healthFitnessRewards}
-            element={<HealthFitnessRewardsPage />}
+            element={
+              <AdminRouteSuspense>
+                <HealthFitnessRewardsPage />
+              </AdminRouteSuspense>
+            }
           />
-          <Route path={ADMIN_CHILD_ROUTES.assistant} element={<ChatbotPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.assistant}
+            element={
+              <AdminRouteSuspense>
+                <ChatbotPage />
+              </AdminRouteSuspense>
+            }
+          />
           <Route
             path={ADMIN_CHILD_ROUTES.assistantToolSafety}
-            element={<AssistantSettingsPage />}
+            element={
+              <AdminRouteSuspense>
+                <AssistantSettingsPage />
+              </AdminRouteSuspense>
+            }
           />
           <Route
             path={ADMIN_CHILD_ROUTES.assistantProactive}
-            element={<ProactiveAutomationsPage />}
+            element={
+              <AdminRouteSuspense>
+                <ProactiveAutomationsPage />
+              </AdminRouteSuspense>
+            }
           />
-          <Route path={ADMIN_CHILD_ROUTES.assistantObservability} element={<ObservabilityPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.assistantSandbox} element={<AssistantSandboxPage />} />
-          <Route path={`${ADMIN_CHILD_ROUTES.assistant}/:threadId`} element={<ChatbotPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.memoryAudit} element={<MemoryAuditPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.componentsDemo} element={<ComponentsDemoPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.settings} element={<SettingsPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.mediaBacklog} element={<MediaBacklogPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.hobbyQuests} element={<HobbyQuestsPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.rewardsStore} element={<RewardsStorePage />} />
-          <Route path={ADMIN_CHILD_ROUTES.rewardStudio} element={<RewardStudioPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.knowledgeVault} element={<KnowledgeVaultPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.knowledgeVaultLibrary} element={<KnowledgeVaultPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.knowledgeVaultCourses} element={<CoursesPage />} />
-          <Route path="knowledge-vault/courses/new" element={<CourseGeneratorPage />} />
-          <Route path="knowledge-vault/courses/:courseId" element={<CourseDetailPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.assistantObservability}
+            element={
+              <AdminRouteSuspense>
+                <ObservabilityPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.assistantSandbox}
+            element={
+              <AdminRouteSuspense>
+                <AssistantSandboxPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={`${ADMIN_CHILD_ROUTES.assistant}/:threadId`}
+            element={
+              <AdminRouteSuspense>
+                <ChatbotPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.memoryAudit}
+            element={
+              <AdminRouteSuspense>
+                <MemoryAuditPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.componentsDemo}
+            element={
+              <AdminRouteSuspense>
+                <ComponentsDemoPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.settings}
+            element={
+              <AdminRouteSuspense>
+                <SettingsPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.mediaBacklog}
+            element={
+              <AdminRouteSuspense>
+                <MediaBacklogPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.hobbyQuests}
+            element={
+              <AdminRouteSuspense>
+                <HobbyQuestsPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.rewardsStore}
+            element={
+              <AdminRouteSuspense>
+                <RewardsStorePage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.rewardStudio}
+            element={
+              <AdminRouteSuspense>
+                <RewardStudioPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVault}
+            element={
+              <AdminRouteSuspense>
+                <KnowledgeVaultPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVaultLibrary}
+            element={
+              <AdminRouteSuspense>
+                <KnowledgeVaultPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVaultDocument}
+            element={
+              <AdminRouteSuspense>
+                <DocumentDetailPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVaultCourses}
+            element={
+              <AdminRouteSuspense>
+                <CoursesPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path="knowledge-vault/courses/new"
+            element={
+              <AdminRouteSuspense>
+                <CourseGeneratorPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path="knowledge-vault/courses/:courseId"
+            element={
+              <AdminRouteSuspense>
+                <CourseDetailPage />
+              </AdminRouteSuspense>
+            }
+          />
           <Route
             path="knowledge-vault/courses/:courseId/:lessonId"
-            element={<CourseDetailPage />}
+            element={
+              <AdminRouteSuspense>
+                <CourseDetailPage />
+              </AdminRouteSuspense>
+            }
           />
-          <Route path={ADMIN_CHILD_ROUTES.knowledgeVaultSkillTree} element={<SkillTreePage />} />
-          <Route path={ADMIN_CHILD_ROUTES.knowledgeVaultFlashcards} element={<FlashcardsPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVaultSkillTree}
+            element={
+              <AdminRouteSuspense>
+                <SkillTreePage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVaultFlashcards}
+            element={
+              <AdminRouteSuspense>
+                <FlashcardsPage />
+              </AdminRouteSuspense>
+            }
+          />
           <Route
             path={ADMIN_CHILD_ROUTES.knowledgeVaultCollider}
-            element={<ConceptColliderPage />}
+            element={
+              <AdminRouteSuspense>
+                <ConceptColliderPage />
+              </AdminRouteSuspense>
+            }
           />
-          <Route path={ADMIN_CHILD_ROUTES.knowledgeVaultInbox} element={<InboxPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.knowledgeVaultCheatSheet} element={<CheatSheetPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.knowledgeVaultSyntopic} element={<SyntopicPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.knowledgeVaultTaskLinks} element={<TaskLinksPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVaultInbox}
+            element={
+              <AdminRouteSuspense>
+                <InboxPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVaultCheatSheet}
+            element={
+              <AdminRouteSuspense>
+                <CheatSheetPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVaultSyntopic}
+            element={
+              <AdminRouteSuspense>
+                <SyntopicPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVaultTaskLinks}
+            element={
+              <AdminRouteSuspense>
+                <TaskLinksPage />
+              </AdminRouteSuspense>
+            }
+          />
           <Route
             path={ADMIN_CHILD_ROUTES.knowledgeVaultDailyLearning}
-            element={<DailyLearningPage />}
+            element={
+              <AdminRouteSuspense>
+                <DailyLearningPage />
+              </AdminRouteSuspense>
+            }
           />
           <Route
             path={`${ADMIN_CHILD_ROUTES.knowledgeVaultFeynmanStudy}/:itemId`}
-            element={<FeynmanStudyPage />}
+            element={
+              <AdminRouteSuspense>
+                <FeynmanStudyPage />
+              </AdminRouteSuspense>
+            }
           />
-          <Route path="knowledge-vault/study" element={<StudySessionPage />} />
-          <Route path="knowledge-vault/statistics" element={<StudyStatisticsPage />} />
+          <Route
+            path="knowledge-vault/study"
+            element={
+              <AdminRouteSuspense>
+                <StudySessionPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path="knowledge-vault/statistics"
+            element={
+              <AdminRouteSuspense>
+                <StudyStatisticsPage />
+              </AdminRouteSuspense>
+            }
+          />
           <Route path="tools">
-            <Route index element={<ToolsOverviewPage />} />
+            <Route
+              index
+              element={
+                <AdminRouteSuspense>
+                  <ToolsOverviewPage />
+                </AdminRouteSuspense>
+              }
+            />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsWorkflows}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <WorkflowsListPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsWorkflowEditor}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <WorkflowEditorPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsCronBuilder}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <CronBuilderPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsPostman}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <PostmanPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsWebhooks}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <WebhooksListPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsWebhookDetail}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <WebhookDetailPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsWhiteboardFile}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <WhiteboardPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsWhiteboard}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <WhiteboardsListPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsFormatters}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <FormattersPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsJwt}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <JwtPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsBase64}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <Base64Page />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsRegex}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <RegexPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsDocker}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <DockerPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
             <Route
               path={ADMIN_CHILD_ROUTES.toolsEslint}
               element={
-                <ToolSuspense>
+                <AdminRouteSuspense>
                   <EslintPage />
-                </ToolSuspense>
+                </AdminRouteSuspense>
               }
             />
           </Route>
-          <Route path={ADMIN_CHILD_ROUTES.markdownViewer} element={<MarkdownViewerPage />} />
-          <Route path={ADMIN_CHILD_ROUTES.markdownViewerFile} element={<MarkdownViewerPage />} />
+          <Route
+            path={ADMIN_CHILD_ROUTES.markdownViewer}
+            element={
+              <AdminRouteSuspense>
+                <MarkdownViewerPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.markdownViewerFile}
+            element={
+              <AdminRouteSuspense>
+                <MarkdownViewerPage />
+              </AdminRouteSuspense>
+            }
+          />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
@@ -382,22 +864,20 @@ function AppContent() {
 
 function AppInitializer() {
   const { loading: authLoading } = useAuth();
-  const [minDisplayTimeElapsed, setMinDisplayTimeElapsed] = useState(false);
+  const hasStoredSession = authService.isAuthenticated();
+  const showStartupLoader = authLoading && !hasStoredSession;
+  const showShellSkeleton = authLoading && hasStoredSession;
 
-  // Ensure loader shows for at least 800ms to be clearly visible
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMinDisplayTimeElapsed(true);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Show loader while auth is loading OR until minimum time has passed
-  const isLoading = authLoading || !minDisplayTimeElapsed;
+    if (!authLoading) {
+      markStartup('app_shell_visible');
+    }
+  }, [authLoading]);
 
   return (
     <>
-      <Loader isLoading={isLoading} />
+      <StartupLoader isLoading={showStartupLoader} />
+      {showShellSkeleton ? <AdminShellSkeleton /> : null}
       <ModeProvider>
         <BrowserRouter>
           <WalletProvider>

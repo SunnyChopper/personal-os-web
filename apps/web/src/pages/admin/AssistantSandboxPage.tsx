@@ -13,6 +13,8 @@ import { assistantSandboxService } from '@/services/assistant-sandbox.service';
 import type { SandboxMessageRow, SandboxSession } from '@/types/assistant-sandbox';
 import type { AssistantRunConfig, StatusEntry, WsToolCallCompletePayload } from '@/types/chatbot';
 import { cn } from '@/lib/utils';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 type SandboxRunHistoryItem = {
   id: string;
@@ -259,7 +261,7 @@ export default function AssistantSandboxPage() {
               <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
                 System prompt
               </label>
-              <textarea
+              <Textarea
                 className="mt-1 w-full min-h-[120px] font-mono text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 p-2"
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
@@ -283,7 +285,7 @@ export default function AssistantSandboxPage() {
               </div>
               {messages.map((row, index) => (
                 <div key={index} className="flex gap-2 items-start">
-                  <select
+                  <Select
                     className="text-xs rounded border border-gray-300 dark:border-gray-600 px-1 py-1"
                     value={row.role}
                     onChange={(e) => updateMessage(index, { role: e.target.value })}
@@ -291,8 +293,8 @@ export default function AssistantSandboxPage() {
                     <option value="user">user</option>
                     <option value="assistant">assistant</option>
                     <option value="system">system</option>
-                  </select>
-                  <textarea
+                  </Select>
+                  <Textarea
                     className="flex-1 min-h-[48px] font-mono text-xs rounded border border-gray-300 dark:border-gray-600 p-1"
                     value={row.text}
                     onChange={(e) => updateMessage(index, { text: e.target.value })}
@@ -348,7 +350,7 @@ export default function AssistantSandboxPage() {
               <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
                 New user turn (this run)
               </label>
-              <textarea
+              <Textarea
                 className="mt-1 w-full min-h-[72px] text-sm rounded border border-gray-300 dark:border-gray-600 p-2"
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}

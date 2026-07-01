@@ -59,6 +59,8 @@ export interface GenerateCourseSkeletonInput {
 interface GenerateLessonContentInput {
   courseId: string;
   lessonId: string;
+  /** Catalog model id when manual; omit for server vault defaults. */
+  model?: string;
   onProgress?: (progress: LessonGenerationProgress) => void;
 }
 
@@ -225,10 +227,16 @@ export const aiCourseGeneratorService = {
         });
       }
 
-      const response = await apiClient.post<{ data: AIResponse<string> }>('/ai/courses/lesson', {
-        courseId: input.courseId,
-        lessonId: input.lessonId,
-      });
+      const response = await apiClient.post<{ data: AIResponse<string> }>(
+        '/ai/courses/lesson',
+        withNoteAIModel(
+          {
+            courseId: input.courseId,
+            lessonId: input.lessonId,
+          },
+          { model: input.model }
+        )
+      );
 
       if (response.success && response.data) {
         if (input.onProgress) {

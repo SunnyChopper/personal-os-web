@@ -1,8 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/query-keys';
 import { listAgencyArtifacts } from '@/services/agency/agency-artifacts.service';
 
 export default function AgencyArtifactsPage() {
-  const q = useQuery({ queryKey: ['agency-artifacts'], queryFn: listAgencyArtifacts });
+  const q = useQuery({
+    queryKey: queryKeys.knowledgeVault.agencyArtifacts(),
+    queryFn: listAgencyArtifacts,
+  });
   if (q.isLoading) return <div className="p-6">Loading…</div>;
   if (q.isError) return <div className="p-6 text-red-400">Failed to load artifacts</div>;
   return (

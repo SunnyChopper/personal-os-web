@@ -5,7 +5,6 @@ import type {
   AssistantReasoningPhase,
   AssistantRunUsageTokens,
   ChatMessage,
-  MessageTreeResponse,
   StatusEntry,
   WsAssistantModelResolvedPayload,
   WsAssistantContentReplacePayload,
@@ -25,11 +24,13 @@ import { authService } from '@/lib/auth/auth.service';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import {
   preferRicherTraceArray,
+  readMergedMessageTreeFromCache,
   reconcileOptimisticUserMessageId,
   removeChatMessageCache,
   removeNodeFromTree,
+  replaceMessageTreeCache,
   upsertMessageTreeNodeCache,
-  upsertThreadTitleFromWs,
+  upsertThreadMetadataFromWs,
 } from '@/lib/react-query/chatbot-cache';
 import { soundEffects } from '@/lib/sound-effects';
 import { wsLogger } from '@/lib/logger';
@@ -729,19 +730,16 @@ export function useAssistantStreaming(threadId: string | undefined) {
         setRuns((current) => {
           const run = current[payload.runId];
           if (run && run.assistantMessageId !== payload.message.id) {
-            const tree = queryClient.getQueryData<MessageTreeResponse>(
-              queryKeys.chatbot.messages.tree(payload.threadId)
-            );
+            const tree = readMergedMessageTreeFromCache(queryClient, payload.threadId);
             if (tree) {
-              queryClient.setQueryData(
-                queryKeys.chatbot.messages.tree(payload.threadId),
+              replaceMessageTreeCache(
+                queryClient,
+                payload.threadId,
                 removeNodeFromTree(tree, run.assistantMessageId)
               );
             }
           }
-          const existingTree = queryClient.getQueryData<MessageTreeResponse>(
-            queryKeys.chatbot.messages.tree(payload.threadId)
-          );
+          const existingTree = readMergedMessageTreeFromCache(queryClient, payload.threadId);
           const existingMessage = existingTree?.nodes.find(
             (node) => node.id === payload.message.id
           );
@@ -782,7 +780,12 @@ export function useAssistantStreaming(threadId: string | undefined) {
         if (!payload.threadId) {
           return;
         }
-        upsertThreadTitleFromWs(queryClient, payload.threadId, payload.title, payload.updatedAt);
+        upsertThreadMetadataFromWs(queryClient, payload.threadId, {
+          title: payload.title,
+          updatedAt: payload.updatedAt,
+          lastMessageAt: payload.lastMessageAt,
+          activeLeafMessageId: payload.activeLeafMessageId,
+        });
       },
       onRunError: (payload) => {
         const streamedSnapshot = streamedAssistantByRunIdRef.current[payload.runId] ?? '';
@@ -967,9 +970,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
         return;
       }
 
-      const tree = queryClient.getQueryData<MessageTreeResponse>(
-        queryKeys.chatbot.messages.tree(threadId)
-      );
+      const tree = readMergedMessageTreeFromCache(queryClient, threadId);
       if (tree) {
         const assistantChildIds = tree.nodes
           .filter((node) => node.role === 'assistant' && node.parentId === userMessageId)
@@ -979,7 +980,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
             (currentTree, nodeId) => removeNodeFromTree(currentTree, nodeId),
             tree
           );
-          queryClient.setQueryData(queryKeys.chatbot.messages.tree(threadId), nextTree);
+          replaceMessageTreeCache(queryClient, threadId, nextTree);
           assistantChildIds.forEach((id) => {
             removeChatMessageCache(queryClient, threadId, id);
           });
@@ -1097,9 +1098,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
         return;
       }
 
-      const tree = queryClient.getQueryData<MessageTreeResponse>(
-        queryKeys.chatbot.messages.tree(threadId)
-      );
+      const tree = readMergedMessageTreeFromCache(queryClient, threadId);
       if (tree) {
         const failedAssistantNodeIds = tree.nodes
           .filter(
@@ -1116,7 +1115,7 @@ export function useAssistantStreaming(threadId: string | undefined) {
           (currentTree, nodeId) => removeNodeFromTree(currentTree, nodeId),
           tree
         );
-        queryClient.setQueryData(queryKeys.chatbot.messages.tree(threadId), nextTree);
+        replaceMessageTreeCache(queryClient, threadId, nextTree);
       }
 
       setError(null);

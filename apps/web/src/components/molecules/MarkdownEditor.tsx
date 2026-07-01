@@ -25,6 +25,7 @@ import {
   syncTextareaScrollToPreview,
   type PreviewBlock,
 } from '@/components/molecules/markdown-follow-scroll';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const FOLLOW_STORAGE_KEY = 'markdown-editor-follow-mode';
 
@@ -537,7 +538,7 @@ export default function MarkdownEditor({
             )}
           >
             {MirrorLayer}
-            <textarea
+            <Textarea
               ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}

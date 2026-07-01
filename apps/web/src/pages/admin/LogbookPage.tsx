@@ -17,6 +17,7 @@ import { DeleteEntryDialog } from '@/components/molecules/DeleteEntryDialog';
 import BottomSheet from '@/components/molecules/BottomSheet';
 import { filterLogbookEntries, sortLogbookEntriesByDate } from '@/utils/logbook-filters';
 import { formatApiError } from '@/utils/api-error-formatter';
+import { PageContainer } from '@/components/templates/PageContainer';
 
 type ViewMode = 'list' | 'calendar';
 type AIMode = 'prompts' | 'digest' | 'patterns' | 'sentiment' | 'review' | 'connections';
@@ -184,7 +185,7 @@ export default function LogbookPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-safe pb-safe">
+    <div className="pt-safe pb-safe">
       <AnimatePresence mode="wait">
         {selectedEntry ? (
           <LogbookDetailView
@@ -214,7 +215,7 @@ export default function LogbookPage() {
             transition={{ duration: 0.2 }}
             className="min-h-screen"
           >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
+            <PageContainer className="py-4 md:py-8">
               <LogbookHeader onNewEntry={() => setIsCreateDialogOpen(true)} />
 
               <div className="mb-4 md:mb-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
@@ -233,7 +234,7 @@ export default function LogbookPage() {
                 onDateClick={handleDateClick}
                 onCreateEntry={() => setIsCreateDialogOpen(true)}
               />
-            </div>
+            </PageContainer>
           </motion.div>
         )}
       </AnimatePresence>

@@ -106,6 +106,12 @@ isSelected?: boolean;
 className?: string;
 ```
 
+## Where to put this
+
+- Default: `components/atoms/` root for app-wide primitives (`Button`, `Select`, `Card`).
+- Domain-specific atoms are rare; prefer molecules when composition is needed.
+- Never import from `components/settings/` or other legacy feature paths — use `@/lib/{domain}/` for display helpers.
+
 ## Do Not
 
 - Include data fetching in atoms

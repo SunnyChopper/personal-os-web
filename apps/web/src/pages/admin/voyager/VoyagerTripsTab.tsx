@@ -4,6 +4,7 @@ import { CloudSun, Loader2, Plus } from 'lucide-react';
 import { voyagerService } from '@/services/voyager.service';
 import type { VoyagerArbitrageTarget, VoyagerBooking } from '@/types/api/voyager.types';
 import Button from '@/components/atoms/Button';
+import { Select } from '@/components/atoms/Select';
 
 const qk = {
   trips: ['voyager', 'trips'] as const,
@@ -307,7 +308,7 @@ function BookingQuickAdd({
     >
       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Add booking</p>
       <div className="flex flex-wrap gap-2">
-        <select
+        <Select
           className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
           value={bookingType}
           onChange={(e) => setBookingType(e.target.value)}
@@ -317,7 +318,7 @@ function BookingQuickAdd({
               {t}
             </option>
           ))}
-        </select>
+        </Select>
         <input
           className="flex-1 min-w-[120px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
           placeholder="Provider"

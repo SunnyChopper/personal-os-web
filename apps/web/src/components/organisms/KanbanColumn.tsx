@@ -1,14 +1,13 @@
-import { useState, useRef, useEffect } from 'react';
+import { Fragment, useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Task, TaskStatus, UpdateTaskInput } from '@/types/growth-system';
+import type { Project, Task, TaskStatus, UpdateTaskInput } from '@/types/growth-system';
 import { KanbanCard } from '@/components/molecules/KanbanCard';
 import { KanbanCompactRow } from '@/components/molecules/KanbanCompactRow';
+import { KanbanProjectRollup } from '@/components/molecules/KanbanProjectRollup';
+import { buildKanbanColumnItems } from '@/components/organisms/kanban/build-kanban-column-items';
 import { Plus, MoreVertical, ArrowRight, ArrowUpDown } from 'lucide-react';
 import { TASK_STATUS_LABELS } from '@/constants/growth-system';
-import {
-  KANBAN_STATUSES,
-  type KanbanCardDensity,
-} from '@/components/organisms/kanban/kanban-constants';
+import { KANBAN_STATUSES, type KanbanCardDensity } from '@/lib/growth-system/kanban-constants';
 
 const COLUMN_DROP_SPRING = {
   type: 'spring' as const,
@@ -39,6 +38,7 @@ export function KanbanCardSkeleton({ index }: { index: number }) {
 
 export interface KanbanColumnProps {
   status: TaskStatus;
+  projects?: Project[];
   cardDensity: KanbanCardDensity;
   /** Tailwind classes for the status accent dot (e.g. bg-blue-500) */
   accentClassName: string;
@@ -59,8 +59,66 @@ export interface KanbanColumnProps {
   onDragEnd: () => void;
 }
 
+function renderStandaloneTaskCard(options: {
+  task: Task;
+  taskIndex: number;
+  useCompactRows: boolean;
+  isBacklogColumn: boolean;
+  draggedTask: Task | null;
+  onDragStart: (e: React.DragEvent, task: Task) => void;
+  onDragEnd: () => void;
+  onTaskEdit: (task: Task) => void;
+  onTaskClick?: (task: Task) => void;
+  onTaskUpdate: (id: string, input: UpdateTaskInput) => void;
+}) {
+  const {
+    task,
+    taskIndex,
+    useCompactRows,
+    isBacklogColumn,
+    draggedTask,
+    onDragStart,
+    onDragEnd,
+    onTaskEdit,
+    onTaskClick,
+    onTaskUpdate,
+  } = options;
+
+  if (useCompactRows) {
+    return (
+      <KanbanCompactRow
+        key={task.id}
+        task={task}
+        taskIndex={taskIndex}
+        isBeingDragged={draggedTask?.id === task.id}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onEdit={onTaskEdit}
+        onOpen={onTaskClick}
+        onPromote={
+          isBacklogColumn ? (t) => onTaskUpdate(t.id, { status: 'Not Started' }) : undefined
+        }
+      />
+    );
+  }
+
+  return (
+    <KanbanCard
+      key={task.id}
+      task={task}
+      taskIndex={taskIndex}
+      isBeingDragged={draggedTask?.id === task.id}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onEdit={onTaskEdit}
+      onOpen={onTaskClick}
+    />
+  );
+}
+
 export function KanbanColumn({
   status,
+  projects = [],
   cardDensity,
   accentClassName,
   statusTasks,
@@ -83,6 +141,11 @@ export function KanbanColumn({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const useCompactRows = cardDensity === 'compact';
+  const columnItems = useMemo(() => buildKanbanColumnItems(statusTasks), [statusTasks]);
+  const projectById = useMemo(
+    () => new Map(projects.map((project) => [project.id, project])),
+    [projects]
+  );
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -282,36 +345,61 @@ export function KanbanColumn({
               </div>
             ) : (
               <AnimatePresence mode="popLayout">
-                {statusTasks.map((task, taskIndex) =>
-                  useCompactRows ? (
-                    <KanbanCompactRow
-                      key={task.id}
-                      task={task}
-                      taskIndex={taskIndex}
-                      isBeingDragged={draggedTask?.id === task.id}
-                      onDragStart={onDragStart}
-                      onDragEnd={onDragEnd}
-                      onEdit={onTaskEdit}
-                      onOpen={onTaskClick}
-                      onPromote={
-                        isBacklogColumn
-                          ? (t) => onTaskUpdate(t.id, { status: 'Not Started' })
-                          : undefined
-                      }
-                    />
-                  ) : (
-                    <KanbanCard
-                      key={task.id}
-                      task={task}
-                      taskIndex={taskIndex}
-                      isBeingDragged={draggedTask?.id === task.id}
-                      onDragStart={onDragStart}
-                      onDragEnd={onDragEnd}
-                      onEdit={onTaskEdit}
-                      onOpen={onTaskClick}
-                    />
-                  )
-                )}
+                {columnItems.map((item, itemIndex) => {
+                  if (item.kind === 'rollup') {
+                    const project = projectById.get(item.projectId);
+                    if (!project) {
+                      return (
+                        <Fragment key={`rollup-fallback-${item.projectId}`}>
+                          {item.tasks.map((task, taskIndex) =>
+                            renderStandaloneTaskCard({
+                              task,
+                              taskIndex,
+                              useCompactRows,
+                              isBacklogColumn,
+                              draggedTask,
+                              onDragStart,
+                              onDragEnd,
+                              onTaskEdit,
+                              onTaskClick,
+                              onTaskUpdate,
+                            })
+                          )}
+                        </Fragment>
+                      );
+                    }
+
+                    return (
+                      <KanbanProjectRollup
+                        key={`rollup-${item.projectId}`}
+                        project={project}
+                        tasks={item.tasks}
+                        cardDensity={cardDensity}
+                        columnStatus={status}
+                        itemIndex={itemIndex}
+                        draggedTask={draggedTask}
+                        onDragStart={onDragStart}
+                        onDragEnd={onDragEnd}
+                        onTaskEdit={onTaskEdit}
+                        onTaskClick={onTaskClick}
+                        onTaskUpdate={onTaskUpdate}
+                      />
+                    );
+                  }
+
+                  return renderStandaloneTaskCard({
+                    task: item.task,
+                    taskIndex: itemIndex,
+                    useCompactRows,
+                    isBacklogColumn,
+                    draggedTask,
+                    onDragStart,
+                    onDragEnd,
+                    onTaskEdit,
+                    onTaskClick,
+                    onTaskUpdate,
+                  });
+                })}
               </AnimatePresence>
             )}
           </div>

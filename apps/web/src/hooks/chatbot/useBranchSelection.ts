@@ -15,11 +15,14 @@ export function useBranchSelection({
   tree,
   nodeById,
   activeLeafMessageId,
+  threadLastMessageAt,
 }: {
   threadId: string | undefined;
   tree: MessageTreeResponse | null;
   nodeById: Map<string, ChatMessage>;
   activeLeafMessageId?: ChatThread['activeLeafMessageId'] | null;
+  /** Thread-level latest message time; used to detect stale server active leaf pointers. */
+  threadLastMessageAt?: string | null;
 }): BranchSelectionState {
   const [selectedLeafByThreadId, setSelectedLeafByThreadId] = useState<Record<string, string>>({});
   const leafIds = useMemo(() => tree?.leafIds ?? [], [tree]);
@@ -48,11 +51,29 @@ export function useBranchSelection({
     if (rawSelectedLeafId && leafIds.includes(rawSelectedLeafId)) {
       return rawSelectedLeafId;
     }
+    const latestLeafId = findLatestLeaf();
     if (activeLeafMessageId && leafIds.includes(activeLeafMessageId)) {
-      return activeLeafMessageId;
+      const activeMs = new Date(nodeById.get(activeLeafMessageId)?.createdAt ?? 0).getTime();
+      const latestMs = latestLeafId
+        ? new Date(nodeById.get(latestLeafId)?.createdAt ?? 0).getTime()
+        : 0;
+      const lastMessageMs = threadLastMessageAt ? new Date(threadLastMessageAt).getTime() : 0;
+      const serverLeafStaleVsLatest = Boolean(latestLeafId && latestMs > activeMs);
+      const serverLeafStaleVsThread = lastMessageMs > activeMs;
+      if (!serverLeafStaleVsLatest && !serverLeafStaleVsThread) {
+        return activeLeafMessageId;
+      }
     }
-    return findLatestLeaf();
-  }, [activeLeafMessageId, findLatestLeaf, leafIds, rawSelectedLeafId, tree]);
+    return latestLeafId;
+  }, [
+    activeLeafMessageId,
+    findLatestLeaf,
+    leafIds,
+    nodeById,
+    rawSelectedLeafId,
+    threadLastMessageAt,
+    tree,
+  ]);
 
   const buildTranscript = useCallback(
     (leafId: string | null): ChatMessage[] => {

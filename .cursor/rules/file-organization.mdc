@@ -14,11 +14,11 @@ Standards for organizing React project files and folders.
 src/
   components/
     atoms/           # Basic UI elements (Button, Input, Badge)
-    molecules/       # Combinations of atoms (SearchInput, UserCard)
-    organisms/       # Complex components (Header, TaskList, Form)
-    templates/       # Page layouts (MainLayout, AdminLayout)
-    shared/          # Cross-cutting components (ErrorBoundary)
+    molecules/       # Combinations of atoms; domain subfolders (molecules/assistant/, molecules/proactive/)
+    organisms/       # Complex sections; domain subfolders (organisms/planner/, organisms/settings/)
+    templates/       # Layout shells + route guards (templates/auth/, templates/routing/, templates/shared/)
 
+  lib/               # Non-UI helpers (lib/settings/, lib/proactive/)
   pages/             # Route-level components
     HomePage.tsx
     admin/
@@ -80,7 +80,17 @@ components/
       TaskList.tsx       # Main component
       TaskListItem.tsx   # Sub-component (if complex)
       useTaskList.ts     # Hook (if needed)
+    proactive/
+      AutomationCard.tsx # Domain organism
+  molecules/
+    proactive/
+      RejectSuggestionDialog.tsx
+  templates/
+    auth/
+      ProtectedRoute.tsx
 ```
+
+**Do not** create top-level feature folders (`assistant/`, `proactive/`, `settings/`, etc.) as siblings of `atoms/`, `molecules/`, `organisms/`, `templates/`. See `docs/contracts/frontend-atomic-design-placement-contract-spec.md`.
 
 ## Naming Conventions
 

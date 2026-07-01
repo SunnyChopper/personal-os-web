@@ -121,6 +121,10 @@ export default defineConfig([
       'custom/service-returns-api-response': 'warn',
       'custom/no-inline-styles': 'warn',
       'custom/component-has-state-handling': 'warn',
+      'custom/no-raw-form-control': 'error',
+      // Raw text <input> → FormInput: warn until batch-3 input migration completes
+      'custom/no-adhoc-modal': 'warn',
+      'custom/prefer-card-primitive': 'warn',
     },
   },
 ]);

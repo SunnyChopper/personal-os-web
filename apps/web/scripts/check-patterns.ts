@@ -11,6 +11,16 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
+interface UiDuplicationBaseline {
+  rawSelect: number;
+  rawTextarea: number;
+  adhocModal: number;
+  cardSurface: number;
+}
+
+const CARD_SURFACE_NEEDLE =
+  'rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800';
+
 interface PatternViolation {
   file: string;
   rule: string;
@@ -301,12 +311,97 @@ function checkTailwindUsage(): void {
   }
 }
 
+/**
+ * UI duplication budget ratchet (full src scan, not sampled).
+ */
+function checkUiDuplicationRatchet(): boolean {
+  const baselinePath = join(process.cwd(), 'scripts/ui-duplication-baseline.json');
+  if (!existsSync(baselinePath)) {
+    console.error('❌ Missing scripts/ui-duplication-baseline.json');
+    return false;
+  }
+
+  const baseline = JSON.parse(readFileSync(baselinePath, 'utf-8')) as UiDuplicationBaseline;
+  const counts = {
+    rawSelect: 0,
+    rawTextarea: 0,
+    adhocModal: 0,
+    cardSurface: 0,
+  };
+
+  const allTsx = readdirSync(srcPath, { recursive: true }).filter(
+    (f): f is string =>
+      typeof f === 'string' &&
+      f.endsWith('.tsx') &&
+      !f.includes('.test.') &&
+      !f.includes('.stories.')
+  );
+
+  for (const file of allTsx) {
+    const filePath = join(srcPath, file);
+    const content = readFileSync(filePath, 'utf-8');
+    const normalized = file.replace(/\\/g, '/');
+
+    if (!normalized.includes('/components/atoms/Select.')) {
+      counts.rawSelect += (content.match(/<select\b/g) || []).length;
+    }
+    if (!normalized.includes('/components/atoms/Textarea.')) {
+      counts.rawTextarea += (content.match(/<textarea\b/g) || []).length;
+    }
+    if (
+      !normalized.includes('/molecules/Dialog.') &&
+      !normalized.includes('/molecules/BottomSheet.') &&
+      !normalized.includes('/molecules/ConfirmDialog.') &&
+      !normalized.includes('/molecules/Loader.')
+    ) {
+      if (content.includes('fixed') && content.includes('inset-0')) {
+        counts.adhocModal += (
+          content.match(/fixed[^"'\n]*inset-0|inset-0[^"'\n]*fixed/g) || []
+        ).length;
+      }
+    }
+    if (!normalized.includes('/components/atoms/Card.')) {
+      counts.cardSurface += (
+        content.match(
+          new RegExp(CARD_SURFACE_NEEDLE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+        ) || []
+      ).length;
+    }
+  }
+
+  console.log('\n📊 UI duplication ratchet (baseline caps):');
+  let ratchetOk = true;
+  const rows: Array<[keyof UiDuplicationBaseline, string]> = [
+    ['rawSelect', 'raw <select>'],
+    ['rawTextarea', 'raw <textarea>'],
+    ['adhocModal', 'fixed inset-0 overlays'],
+    ['cardSurface', 'duplicated card surface class'],
+  ];
+
+  for (const [key, label] of rows) {
+    const count = counts[key];
+    const cap = baseline[key];
+    const ok = count <= cap;
+    if (!ok) ratchetOk = false;
+    console.log(`   ${ok ? '✅' : '❌'} ${label}: ${count} (max ${cap})`);
+  }
+
+  if (!ratchetOk) {
+    console.error(
+      '\n❌ UI duplication budget exceeded. Migrate to primitives or lower baseline after cleanup.\n'
+    );
+  }
+
+  return ratchetOk;
+}
+
 // Run all checks
 console.log('🔍 Checking Code Patterns...\n');
 
 checkComponentPatterns();
 checkForbiddenPatterns();
 checkTailwindUsage();
+const ratchetOk = checkUiDuplicationRatchet();
 
 // Group violations by rule
 const violationsByRule = violations.reduce(
@@ -336,7 +431,7 @@ for (const [rule, ruleViolations] of Object.entries(violationsByRule)) {
 
 console.log('');
 
-if (!hasErrors) {
+if (!hasErrors && ratchetOk) {
   console.log('✅ All pattern checks passed!\n');
   process.exit(0);
 } else {

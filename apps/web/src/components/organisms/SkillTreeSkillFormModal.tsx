@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import type { SkillLevelApi, SkillTreeSkill } from '@/types/knowledge-vault';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const LEVELS: SkillLevelApi[] = ['Beginner', 'Intermediate', 'Advanced', 'Expert', 'Master'];
 
@@ -78,101 +80,106 @@ export function SkillTreeSkillFormModal({
           </button>
         </div>
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
-          <div>
-            <label
-              htmlFor="skill-name"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Name
-            </label>
-            <input
-              id="skill-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              minLength={2}
-              required
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="skill-desc"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Description
-            </label>
-            <textarea
-              id="skill-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="skill-cat"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Category
-            </label>
-            <input
-              id="skill-cat"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              placeholder="e.g. frontend"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="skill-level"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Level
-            </label>
-            <select
-              id="skill-level"
-              value={level}
-              onChange={(e) => setLevel(e.target.value as SkillLevelApi)}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-            >
-              {LEVELS.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </div>
-          {mode === 'edit' && (
+        <form onSubmit={(e) => void handleSubmit(e)}>
+          <fieldset
+            disabled={busy}
+            className="min-w-0 space-y-3 border-0 p-0 m-0 disabled:opacity-60"
+          >
             <div>
               <label
-                htmlFor="skill-progress"
+                htmlFor="skill-name"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
               >
-                Progress: {Math.round(progress)}%
+                Name
               </label>
               <input
-                id="skill-progress"
-                type="range"
-                min={0}
-                max={100}
-                value={progress}
-                onChange={(e) => setProgress(Number(e.target.value))}
-                className="w-full"
+                id="skill-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                minLength={2}
+                required
               />
             </div>
-          )}
+            <div>
+              <label
+                htmlFor="skill-desc"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                Description
+              </label>
+              <Textarea
+                id="skill-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="skill-cat"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                Category
+              </label>
+              <input
+                id="skill-cat"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                placeholder="e.g. frontend"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="skill-level"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                Level
+              </label>
+              <Select
+                id="skill-level"
+                value={level}
+                onChange={(e) => setLevel(e.target.value as SkillLevelApi)}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              >
+                {LEVELS.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {mode === 'edit' && (
+              <div>
+                <label
+                  htmlFor="skill-progress"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  Progress: {Math.round(progress)}%
+                </label>
+                <input
+                  id="skill-progress"
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={progress}
+                  onChange={(e) => setProgress(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+            )}
 
-          <div className="flex flex-wrap gap-2 pt-2">
-            <Button type="submit" disabled={busy || name.trim().length < 2}>
-              {busy ? 'Saving…' : mode === 'create' ? 'Create' : 'Save'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
-              Cancel
-            </Button>
-          </div>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button type="submit" disabled={busy || name.trim().length < 2}>
+                {busy ? 'Saving…' : mode === 'create' ? 'Create' : 'Save'}
+              </Button>
+              <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+                Cancel
+              </Button>
+            </div>
+          </fieldset>
         </form>
       </div>
     </div>

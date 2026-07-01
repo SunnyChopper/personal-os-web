@@ -1,24 +1,14 @@
 import { useState } from 'react';
 import { Plus, X, AlertCircle, Loader2 } from 'lucide-react';
-import type {
-  CreateGoalInput,
-  Area,
-  SubCategory,
-  TimeHorizon,
-  SuccessCriterion,
-  Goal,
-} from '@/types/growth-system';
+import type { CreateGoalInput, TimeHorizon, SuccessCriterion, Goal } from '@/types/growth-system';
 import type { ApiError } from '@/types/api-contracts';
 import Button from '@/components/atoms/Button';
 import { GoalProgressWeightsFields } from '@/components/molecules/GoalProgressWeightsFields';
+import { GoalCoreFormFields } from '@/components/molecules/GoalCoreFormFields';
 import { DEFAULT_GOAL_PROGRESS_WEIGHTS } from '@/utils/goal-progress-weights';
 import type { GoalProgressConfig } from '@/types/growth-system';
-import {
-  AREAS,
-  AREA_LABELS,
-  SUBCATEGORIES_BY_AREA,
-  SUBCATEGORY_LABELS,
-} from '@/constants/growth-system';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 interface GoalCreateFormProps {
   onSubmit: (input: CreateGoalInput) => void;
@@ -315,338 +305,219 @@ export function GoalCreateForm({
         </div>
       )}
 
-      <form
-        onSubmit={handleSubmit}
-        className={`space-y-6 ${isLoading ? 'pointer-events-none opacity-60' : ''}`}
-        aria-busy={isLoading}
-      >
-        {parsedError && (
-          <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-red-800 dark:text-red-200 text-sm font-medium">
-                  {parsedError.details.length > 0 ? 'Validation Error' : 'Error'}
-                </p>
-                <p className="text-red-700 dark:text-red-300 text-sm mt-1">{parsedError.message}</p>
-                {parsedError.details.length > 0 && (
-                  <ul className="mt-3 space-y-1.5 list-disc list-inside">
-                    {parsedError.details.map((detail, index) => (
-                      <li key={index} className="text-sm text-red-700 dark:text-red-300">
-                        <span className="font-medium">{detail.field}:</span> {detail.message}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+      <form onSubmit={handleSubmit} aria-busy={isLoading}>
+        <fieldset
+          disabled={isLoading}
+          className="min-w-0 space-y-6 border-0 p-0 m-0 disabled:opacity-60"
+        >
+          {parsedError && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-red-800 dark:text-red-200 text-sm font-medium">
+                    {parsedError.details.length > 0 ? 'Validation Error' : 'Error'}
+                  </p>
+                  <p className="text-red-700 dark:text-red-300 text-sm mt-1">
+                    {parsedError.message}
+                  </p>
+                  {parsedError.details.length > 0 && (
+                    <ul className="mt-3 space-y-1.5 list-disc list-inside">
+                      {parsedError.details.map((detail, index) => (
+                        <li key={index} className="text-sm text-red-700 dark:text-red-300">
+                          <span className="font-medium">{detail.field}:</span> {detail.message}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {parentGoal && isValidParent(parentGoal, formData.timeHorizon) && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                Parent goal:
-              </span>
-              <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200">
-                {parentGoal.timeHorizon}
-              </span>
-              <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                {parentGoal.title}
-              </span>
-            </div>
-          </div>
-        )}
-        {parentGoal && !isValidParent(parentGoal, formData.timeHorizon) && (
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-              <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                The suggested parent goal ({parentGoal.timeHorizon} - {parentGoal.title}) is not
-                compatible with the selected time horizon ({formData.timeHorizon}). A{' '}
-                {formData.timeHorizon} goal can only have a{' '}
-                {getValidParentTimeHorizon(formData.timeHorizon) || 'none'} parent.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Parent Goal Selector - Explicit linking */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Link to Parent Goal (Optional)
-          </label>
-          <select
-            value={formData.parentGoalId || ''}
-            onChange={(e) =>
-              handleChange('parentGoalId', (e.target.value || undefined) as string | undefined)
-            }
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">No parent goal (standalone goal)</option>
-            {(() => {
-              const validParentGoals = allGoals.filter((goal) =>
-                isValidParent(goal, formData.timeHorizon)
-              );
-
-              // Show suggested parent if it's valid
-              if (parentGoal && isValidParent(parentGoal, formData.timeHorizon)) {
-                return (
-                  <>
-                    <option value={parentGoal.id}>
-                      [{parentGoal.timeHorizon}] {parentGoal.title} (suggested)
-                    </option>
-                    {validParentGoals
-                      .filter((g) => g.id !== parentGoal.id)
-                      .map((goal) => (
-                        <option key={goal.id} value={goal.id}>
-                          [{goal.timeHorizon}] {goal.title}
-                        </option>
-                      ))}
-                  </>
-                );
-              }
-
-              // Show all valid parent goals
-              return validParentGoals.map((goal) => (
-                <option key={goal.id} value={goal.id}>
-                  [{goal.timeHorizon}] {goal.title}
-                </option>
-              ));
-            })()}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Title *
-          </label>
-          <input
-            type="text"
-            value={formData.title}
-            onChange={(e) => handleChange('title', e.target.value)}
-            onBlur={() => handleBlur('title')}
-            className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              fieldErrors.title && touched.title
-                ? 'border-red-500 dark:border-red-500'
-                : 'border-gray-300 dark:border-gray-600'
-            }`}
-            placeholder="e.g., Run a marathon"
-            required
-            aria-invalid={!!(fieldErrors.title && touched.title)}
-            aria-describedby={fieldErrors.title && touched.title ? 'title-error' : undefined}
-          />
-          {fieldErrors.title && touched.title && (
-            <p
-              id="title-error"
-              className="mt-1 text-sm text-red-600 dark:text-red-400"
-              role="alert"
-            >
-              {fieldErrors.title}
-            </p>
           )}
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Description
-          </label>
-          <textarea
-            value={formData.description || ''}
-            onChange={(e) => handleChange('description', e.target.value || undefined)}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Describe your goal..."
-          />
-        </div>
+          {parentGoal && isValidParent(parentGoal, formData.timeHorizon) && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                  Parent goal:
+                </span>
+                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200">
+                  {parentGoal.timeHorizon}
+                </span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {parentGoal.title}
+                </span>
+              </div>
+            </div>
+          )}
+          {parentGoal && !isValidParent(parentGoal, formData.timeHorizon) && (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                  The suggested parent goal ({parentGoal.timeHorizon} - {parentGoal.title}) is not
+                  compatible with the selected time horizon ({formData.timeHorizon}). A{' '}
+                  {formData.timeHorizon} goal can only have a{' '}
+                  {getValidParentTimeHorizon(formData.timeHorizon) || 'none'} parent.
+                </p>
+              </div>
+            </div>
+          )}
 
-        <div className="grid grid-cols-2 gap-4">
+          {/* Parent Goal Selector - Explicit linking */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Area *
+              Link to Parent Goal (Optional)
             </label>
-            <select
-              value={formData.area}
-              onChange={(e) => handleChange('area', e.target.value as Area)}
-              onBlur={() => handleBlur('area')}
-              className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                fieldErrors.area && touched.area
-                  ? 'border-red-500 dark:border-red-500'
-                  : 'border-gray-300 dark:border-gray-600'
-              }`}
-              required
-              aria-invalid={!!(fieldErrors.area && touched.area)}
-              aria-describedby={fieldErrors.area && touched.area ? 'area-error' : undefined}
-            >
-              {AREAS.map((area) => (
-                <option key={area} value={area}>
-                  {AREA_LABELS[area]}
-                </option>
-              ))}
-            </select>
-            {fieldErrors.area && touched.area && (
-              <p
-                id="area-error"
-                className="mt-1 text-sm text-red-600 dark:text-red-400"
-                role="alert"
-              >
-                {fieldErrors.area}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Sub-Category
-            </label>
-            <select
-              value={formData.subCategory || ''}
+            <Select
+              value={formData.parentGoalId || ''}
               onChange={(e) =>
-                handleChange(
-                  'subCategory',
-                  (e.target.value || undefined) as SubCategory | undefined
-                )
+                handleChange('parentGoalId', (e.target.value || undefined) as string | undefined)
               }
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Optional</option>
-              {SUBCATEGORIES_BY_AREA[formData.area].map((subCategory) => (
-                <option key={subCategory} value={subCategory}>
-                  {SUBCATEGORY_LABELS[subCategory]}
-                </option>
-              ))}
-            </select>
+              <option value="">No parent goal (standalone goal)</option>
+              {(() => {
+                const validParentGoals = allGoals.filter((goal) =>
+                  isValidParent(goal, formData.timeHorizon)
+                );
+
+                // Show suggested parent if it's valid
+                if (parentGoal && isValidParent(parentGoal, formData.timeHorizon)) {
+                  return (
+                    <>
+                      <option value={parentGoal.id}>
+                        [{parentGoal.timeHorizon}] {parentGoal.title} (suggested)
+                      </option>
+                      {validParentGoals
+                        .filter((g) => g.id !== parentGoal.id)
+                        .map((goal) => (
+                          <option key={goal.id} value={goal.id}>
+                            [{goal.timeHorizon}] {goal.title}
+                          </option>
+                        ))}
+                    </>
+                  );
+                }
+
+                // Show all valid parent goals
+                return validParentGoals.map((goal) => (
+                  <option key={goal.id} value={goal.id}>
+                    [{goal.timeHorizon}] {goal.title}
+                  </option>
+                ));
+              })()}
+            </Select>
           </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Time Horizon *
-          </label>
-          <select
-            value={formData.timeHorizon}
-            onChange={(e) => handleChange('timeHorizon', e.target.value as TimeHorizon)}
-            onBlur={() => handleBlur('timeHorizon')}
-            className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              fieldErrors.timeHorizon && touched.timeHorizon
-                ? 'border-red-500 dark:border-red-500'
-                : 'border-gray-300 dark:border-gray-600'
-            }`}
-            required
-            aria-invalid={!!(fieldErrors.timeHorizon && touched.timeHorizon)}
-            aria-describedby={
-              fieldErrors.timeHorizon && touched.timeHorizon ? 'timeHorizon-error' : undefined
-            }
-          >
-            {CREATABLE_TIME_HORIZONS.map((horizon) => (
-              <option key={horizon} value={horizon}>
-                {horizon}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.timeHorizon && touched.timeHorizon && (
-            <p
-              id="timeHorizon-error"
-              className="mt-1 text-sm text-red-600 dark:text-red-400"
-              role="alert"
-            >
-              {fieldErrors.timeHorizon}
-            </p>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Start Date
-          </label>
-          <input
-            type="date"
-            value={formData.startDate || ''}
-            onChange={(e) => handleChange('startDate', e.target.value || undefined)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <GoalCoreFormFields
+            values={{
+              title: formData.title,
+              description: formData.description,
+              area: formData.area,
+              subCategory: formData.subCategory,
+              timeHorizon: formData.timeHorizon,
+            }}
+            onChange={handleChange}
+            fieldErrors={fieldErrors}
+            touched={touched}
+            onBlur={handleBlur}
+            creatableTimeHorizons={CREATABLE_TIME_HORIZONS}
+            disabled={isLoading}
           />
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Target Date
-          </label>
-          <input
-            type="date"
-            value={formData.targetDate || ''}
-            onChange={(e) => handleChange('targetDate', e.target.value || undefined)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Success Criteria
-          </label>
-          <div className="flex gap-2 mb-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Start Date
+            </label>
             <input
-              type="text"
-              value={criterionInput}
-              onChange={(e) => setCriterionInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCriterion())}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Add a success criterion..."
+              type="date"
+              value={formData.startDate || ''}
+              onChange={(e) => handleChange('startDate', e.target.value || undefined)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <Button type="button" variant="secondary" size="sm" onClick={addCriterion}>
-              <Plus className="w-4 h-4" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Target Date
+            </label>
+            <input
+              type="date"
+              value={formData.targetDate || ''}
+              onChange={(e) => handleChange('targetDate', e.target.value || undefined)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Success Criteria
+            </label>
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={criterionInput}
+                onChange={(e) => setCriterionInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCriterion())}
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Add a success criterion..."
+              />
+              <Button type="button" variant="secondary" size="sm" onClick={addCriterion}>
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+            {formData.successCriteria && formData.successCriteria.length > 0 && (
+              <div className="space-y-2">
+                {formData.successCriteria.map((criterion, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded-lg"
+                  >
+                    <span className="text-sm text-gray-900 dark:text-white">
+                      {typeof criterion === 'string' ? criterion : criterion.description}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeCriterion(index)}
+                      className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <GoalProgressWeightsFields
+            value={progressWeights}
+            onChange={setProgressWeights}
+            showAdvanced={showProgressWeights}
+            onToggleAdvanced={() => setShowProgressWeights((v) => !v)}
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Notes
+            </label>
+            <Textarea
+              value={formData.notes || ''}
+              onChange={(e) => handleChange('notes', e.target.value || undefined)}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Additional notes..."
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button type="button" variant="secondary" onClick={onCancel} disabled={isLoading}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={isLoading}>
+              {isLoading ? 'Creating...' : 'Create Goal'}
             </Button>
           </div>
-          {formData.successCriteria && formData.successCriteria.length > 0 && (
-            <div className="space-y-2">
-              {formData.successCriteria.map((criterion, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded-lg"
-                >
-                  <span className="text-sm text-gray-900 dark:text-white">
-                    {typeof criterion === 'string' ? criterion : criterion.description}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeCriterion(index)}
-                    className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <GoalProgressWeightsFields
-          value={progressWeights}
-          onChange={setProgressWeights}
-          showAdvanced={showProgressWeights}
-          onToggleAdvanced={() => setShowProgressWeights((v) => !v)}
-        />
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Notes
-          </label>
-          <textarea
-            value={formData.notes || ''}
-            onChange={(e) => handleChange('notes', e.target.value || undefined)}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Additional notes..."
-          />
-        </div>
-
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <Button type="button" variant="secondary" onClick={onCancel} disabled={isLoading}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" disabled={isLoading}>
-            {isLoading ? 'Creating...' : 'Create Goal'}
-          </Button>
-        </div>
+        </fieldset>
       </form>
     </div>
   );

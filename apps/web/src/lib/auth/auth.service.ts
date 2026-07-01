@@ -1162,6 +1162,17 @@ export const authService = {
   },
 
   /**
+   * Stored user + non-expired access token suitable for optimistic shell render.
+   */
+  getShellHydrationUser(): User | null {
+    const storedUser = getStoredUser();
+    if (!storedUser || !validateStoredUser(storedUser)) {
+      return null;
+    }
+    return storedUser;
+  },
+
+  /**
    * Get stored tokens
    */
   getStoredTokens,

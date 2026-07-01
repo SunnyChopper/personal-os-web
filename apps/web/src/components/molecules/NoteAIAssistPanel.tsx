@@ -15,7 +15,7 @@ import { noteAIService } from '@/services/knowledge-vault/note-ai.service';
 import type { NoteAIOptions } from '@/services/knowledge-vault/note-ai-options';
 import type { Area } from '@/types/growth-system';
 import { cn } from '@/lib/utils';
-import { BrainstormModelPicker } from '@/components/assistant/BrainstormModelPicker';
+import { BrainstormModelPicker } from '@/components/molecules/assistant/BrainstormModelPicker';
 import { useVaultNoteAIModelPicker } from '@/hooks/knowledge-vault/useVaultNoteAIModelPicker';
 
 interface NoteAIAssistPanelProps {

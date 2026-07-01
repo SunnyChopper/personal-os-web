@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Palette, Plus, Trash2, Sparkles, Lightbulb } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { useRewards } from '@/contexts/Rewards';
 import { RewardCard } from '@/components/molecules/RewardCard';
 import Dialog from '@/components/molecules/Dialog';
@@ -13,6 +14,8 @@ import type {
   RewardSuggestionItem,
   RewardSuggestionPayload,
 } from '@/types/rewards';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const categories: RewardCategory[] = ['Quick Treat', 'Daily Delight', 'Big Unlock', 'Custom'];
 
@@ -288,7 +291,7 @@ const RewardStudioPage = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <PageContainer className="py-6">
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -402,7 +405,7 @@ const RewardStudioPage = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Description
             </label>
-            <textarea
+            <Textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={2}
@@ -415,7 +418,7 @@ const RewardStudioPage = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Category
               </label>
-              <select
+              <Select
                 value={formData.category}
                 onChange={(e) =>
                   setFormData({ ...formData, category: e.target.value as RewardCategory })
@@ -427,7 +430,7 @@ const RewardStudioPage = () => {
                     {cat}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div>
@@ -593,7 +596,7 @@ const RewardStudioPage = () => {
                           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Description
                           </label>
-                          <textarea
+                          <Textarea
                             value={String(d.description ?? '')}
                             onChange={(e) => patchDraft(item.id, { description: e.target.value })}
                             rows={2}
@@ -604,7 +607,7 @@ const RewardStudioPage = () => {
                           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Category
                           </label>
-                          <select
+                          <Select
                             value={d.category}
                             onChange={(e) =>
                               patchDraft(item.id, {
@@ -618,7 +621,7 @@ const RewardStudioPage = () => {
                                 {cat}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -713,7 +716,7 @@ const RewardStudioPage = () => {
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           Rejection feedback (required to reject)
                         </label>
-                        <textarea
+                        <Textarea
                           value={rejectTextById[item.id] ?? ''}
                           onChange={(e) =>
                             setRejectTextById((prev) => ({
@@ -752,7 +755,7 @@ const RewardStudioPage = () => {
           </div>
         )}
       </Dialog>
-    </div>
+    </PageContainer>
   );
 };
 

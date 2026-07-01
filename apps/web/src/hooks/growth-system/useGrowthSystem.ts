@@ -1,0 +1,792 @@
+﻿import { useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { QueryKey } from '@tanstack/react-query';
+import {
+  tasksService,
+  habitsService,
+  metricsService,
+  goalsService,
+  projectsService,
+  logbookService,
+} from '@/services/growth-system';
+import type { ApiResponse, DashboardSummaryResponse } from '@/types/api-contracts';
+import type {
+  Task,
+  CreateTaskInput,
+  UpdateTaskInput,
+  CreateHabitInput,
+  UpdateHabitInput,
+  CreateMetricInput,
+  UpdateMetricInput,
+  CreateMetricLogInput,
+  CreateGoalInput,
+  UpdateGoalInput,
+  CreateProjectInput,
+  UpdateProjectInput,
+  CreateLogbookEntryInput,
+  UpdateLogbookEntryInput,
+  LogbookEntry,
+  FilterOptions,
+  TaskDependency,
+} from '@/types/growth-system';
+import { useBackendStatus } from '@/contexts/BackendStatusContext';
+import { queryKeys } from '@/lib/react-query/query-keys';
+import { extractApiError, isNetworkError } from '@/lib/react-query/error-utils';
+import {
+  applyGoalDeletedToCache,
+  applyCascadedUpdatesToCache,
+  applyGoalUpsertToCache,
+  removeHabitCache,
+  removeLogbookEntryCache,
+  removeMetricCache,
+  upsertMetricCache,
+  addMetricLogToCache,
+  removeMetricLogFromCache,
+  removeProjectCache,
+  removeTaskCache,
+  upsertHabitCache,
+  upsertLogbookEntryCache,
+  upsertProjectCache,
+  upsertTaskCache,
+  mergeTaskWithUpdate,
+  findTaskInClientCache,
+} from '@/lib/react-query/growth-system-cache';
+
+// TODO: These hooks use React Query to fetch data from backend API
+// Currently will fail until backend is implemented or mock data is provided
+// Auth requirement is temporarily bypassed (see ProtectedRoute component)
+
+export const useTasks = (filters?: FilterOptions) => {
+  // TODO: Temporarily not checking user authentication (bypassed in ProtectedRoute)
+  const queryClient = useQueryClient();
+  const { recordError, recordSuccess } = useBackendStatus();
+
+  const listFilters = useMemo<FilterOptions>(
+    () => ({
+      sortBy: 'priority',
+      sortOrder: 'asc',
+      pageSize: 100,
+      ...(filters ?? {}),
+    }),
+    [filters]
+  );
+
+  // Block list fetches while the dashboard query is pending/successful
+  const dashboardQueryState = queryClient.getQueryState(queryKeys.growthSystem.data());
+  const dashboardControlsLoading = !!dashboardQueryState && dashboardQueryState.status !== 'error';
+  const dashboardSummary = queryClient.getQueryData<ApiResponse<DashboardSummaryResponse>>(
+    queryKeys.growthSystem.data()
+  );
+  const dashboardTasks =
+    dashboardQueryState?.status === 'success' ? (dashboardSummary?.data?.tasks ?? []) : undefined;
+
+  // TODO: Temporarily allowing queries without user authentication
+  const { data, isLoading, error, isError } = useQuery({
+    queryKey: queryKeys.growthSystem.tasks.list(listFilters as Record<string, unknown>),
+    queryFn: async () => {
+      try {
+        const result = await tasksService.getAll(listFilters);
+        // Record success if we got data
+        if (result.data) {
+          recordSuccess();
+        }
+        return result;
+      } catch (err: unknown) {
+        const apiError = extractApiError(err);
+        if (apiError && isNetworkError(apiError)) {
+          recordError(apiError);
+        }
+        throw err;
+      }
+    },
+    enabled: !dashboardControlsLoading, // Only fetch if dashboard isn't controlling data
+    staleTime: 10 * 60 * 1000, // 10 minutes - goals don't change frequently
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (input: CreateTaskInput) => tasksService.create(input),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertTaskCache(queryClient, response.data);
+      }
+    },
+  });
+
+  type TaskUpdateContext = {
+    previousLists: [QueryKey, unknown][];
+    previousDashboards: [QueryKey, unknown][];
+    detailKey: ReturnType<typeof queryKeys.growthSystem.tasks.detail>;
+    previousDetail: unknown;
+  };
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: UpdateTaskInput }) => {
+      const response = await tasksService.update(id, input);
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || 'Failed to update task');
+      }
+      return response;
+    },
+    onMutate: async ({ id, input }): Promise<TaskUpdateContext> => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.growthSystem.tasks.all() });
+      await queryClient.cancelQueries({ queryKey: queryKeys.growthSystem.data() });
+
+      const previousLists = queryClient.getQueriesData({
+        queryKey: queryKeys.growthSystem.tasks.lists(),
+      });
+      const previousDashboards = queryClient.getQueriesData({
+        queryKey: queryKeys.growthSystem.data(),
+      });
+      const detailKey = queryKeys.growthSystem.tasks.detail(id);
+      const previousDetail = queryClient.getQueryData(detailKey);
+
+      const existing = findTaskInClientCache(queryClient, id);
+      if (existing) {
+        upsertTaskCache(queryClient, mergeTaskWithUpdate(existing, input));
+      }
+
+      return { previousLists, previousDashboards, detailKey, previousDetail };
+    },
+    onError: (_err, _variables, context) => {
+      if (!context) return;
+      context.previousLists.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
+      context.previousDashboards.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
+      queryClient.setQueryData(context.detailKey, context.previousDetail);
+    },
+    onSuccess: (response, variables) => {
+      if (response.success && response.data) {
+        upsertTaskCache(queryClient, response.data);
+        if (variables.input.status !== undefined) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.wallet.all });
+        }
+      }
+    },
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await tasksService.complete(id);
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || 'Failed to complete task');
+      }
+      return response;
+    },
+    onMutate: async (id): Promise<TaskUpdateContext> => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.growthSystem.tasks.all() });
+      await queryClient.cancelQueries({ queryKey: queryKeys.growthSystem.data() });
+
+      const previousLists = queryClient.getQueriesData({
+        queryKey: queryKeys.growthSystem.tasks.lists(),
+      });
+      const previousDashboards = queryClient.getQueriesData({
+        queryKey: queryKeys.growthSystem.data(),
+      });
+      const detailKey = queryKeys.growthSystem.tasks.detail(id);
+      const previousDetail = queryClient.getQueryData(detailKey);
+
+      const existing = findTaskInClientCache(queryClient, id);
+      if (existing) {
+        const now = new Date().toISOString();
+        const optimisticPointsAwarded =
+          existing.pointValue != null && existing.pointValue > 0
+            ? true
+            : (existing.pointsAwarded ?? false);
+        upsertTaskCache(queryClient, {
+          ...existing,
+          status: 'Done',
+          completedDate: now,
+          pointsAwarded: optimisticPointsAwarded,
+          rewardLedgerStatus: optimisticPointsAwarded
+            ? 'awarded'
+            : (existing.rewardLedgerStatus ?? 'none'),
+        });
+      }
+
+      return { previousLists, previousDashboards, detailKey, previousDetail };
+    },
+    onError: (_err, _id, context) => {
+      if (!context) return;
+      context.previousLists.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
+      context.previousDashboards.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
+      queryClient.setQueryData(context.detailKey, context.previousDetail);
+    },
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertTaskCache(queryClient, response.data);
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wallet.all });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => tasksService.delete(id),
+    onSuccess: (_response, taskId) => {
+      removeTaskCache(queryClient, taskId);
+    },
+  });
+
+  const apiError = error ? extractApiError(error) : null;
+  const isNetworkErr = apiError ? isNetworkError(apiError) : false;
+
+  const isWaitingForDashboard =
+    dashboardControlsLoading && !data?.data && dashboardTasks === undefined;
+
+  const splitDraggedTaskMutation = useMutation({
+    mutationFn: (parent: Task) => tasksService.createVelocityDragSplit(parent),
+    onSuccess: (_result, parent) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.tasks.lists() });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.growthSystem.tasks.detail(parent.id),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.planner.all() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthSystem.data() });
+    },
+  });
+
+  return {
+    tasks: isError && isNetworkErr ? [] : (data?.data ?? dashboardTasks ?? []),
+    isLoading: (isWaitingForDashboard || isLoading) && !isError,
+    isError,
+    error: apiError || error,
+    createTask: createMutation.mutateAsync,
+    updateTask: updateMutation.mutateAsync,
+    completeTask: completeMutation.mutateAsync,
+    deleteTask: deleteMutation.mutateAsync,
+    splitDraggedTask: splitDraggedTaskMutation.mutateAsync,
+    isSplittingDraggedTask: splitDraggedTaskMutation.isPending,
+  };
+};
+
+export const useHabits = () => {
+  // TODO: Temporarily not checking user authentication (bypassed in ProtectedRoute)
+  const queryClient = useQueryClient();
+  const { recordError, recordSuccess } = useBackendStatus();
+
+  // Block list fetches while the dashboard query is pending/successful
+  const dashboardQueryState = queryClient.getQueryState(queryKeys.growthSystem.data());
+  const dashboardControlsLoading = !!dashboardQueryState && dashboardQueryState.status !== 'error';
+
+  // TODO: Temporarily allowing queries without user authentication
+  const { data, isLoading, error, isError } = useQuery({
+    queryKey: queryKeys.growthSystem.habits.lists(),
+    queryFn: async () => {
+      try {
+        const result = await habitsService.getAll();
+        if (result.success || result.data) {
+          recordSuccess();
+        }
+        return result;
+      } catch (err: unknown) {
+        const apiError = extractApiError(err);
+        if (apiError && isNetworkError(apiError)) {
+          recordError(apiError);
+        }
+        throw err;
+      }
+    },
+    enabled: !dashboardControlsLoading, // Only fetch if dashboard isn't controlling data
+    staleTime: 5 * 60 * 1000, // 5 minutes - habits change moderately
+    gcTime: 15 * 60 * 1000, // Keep in cache for 15 minutes
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (input: CreateHabitInput) => habitsService.create(input),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertHabitCache(queryClient, response.data);
+      }
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateHabitInput }) =>
+      habitsService.update(id, input),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertHabitCache(queryClient, response.data);
+      }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => habitsService.delete(id),
+    onSuccess: (_response, habitId) => {
+      removeHabitCache(queryClient, habitId);
+    },
+  });
+
+  const logCompletionMutation = useMutation({
+    mutationFn: habitsService.logCompletion,
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertHabitCache(queryClient, response.data);
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.wallet.detail() });
+    },
+  });
+
+  const updateCompletionNoteMutation = useMutation({
+    mutationFn: ({
+      habitId,
+      completionDate,
+      note,
+    }: {
+      habitId: string;
+      completionDate: string;
+      note: string | null;
+    }) => habitsService.updateLog(habitId, completionDate, { note }),
+    onSuccess: () => {},
+  });
+
+  const apiError = error ? extractApiError(error) : null;
+  const isNetworkErr = apiError ? isNetworkError(apiError) : false;
+
+  const isWaitingForDashboard = dashboardControlsLoading && !data?.data;
+
+  return {
+    habits: isError && isNetworkErr ? [] : data?.data || [],
+    isLoading: (isWaitingForDashboard || isLoading) && !isError,
+    isError,
+    error: apiError || error || data?.error,
+    createHabit: createMutation.mutateAsync,
+    updateHabit: updateMutation.mutateAsync,
+    deleteHabit: deleteMutation.mutateAsync,
+    logCompletion: logCompletionMutation.mutateAsync,
+    updateCompletionNote: updateCompletionNoteMutation.mutateAsync,
+  };
+};
+
+export const useMetrics = () => {
+  // TODO: Temporarily not checking user authentication (bypassed in ProtectedRoute)
+  const queryClient = useQueryClient();
+  const { recordError, recordSuccess } = useBackendStatus();
+
+  // Block list fetches while the dashboard query is pending/successful
+  const dashboardQueryState = queryClient.getQueryState(queryKeys.growthSystem.data());
+  const dashboardControlsLoading = !!dashboardQueryState && dashboardQueryState.status !== 'error';
+
+  // TODO: Temporarily allowing queries without user authentication
+  const { data, isLoading, error, isError } = useQuery({
+    queryKey: queryKeys.growthSystem.metrics.lists(),
+    queryFn: async () => {
+      try {
+        const result = await metricsService.getAll();
+        if (result.success || result.data) {
+          recordSuccess();
+        }
+        return result;
+      } catch (err: unknown) {
+        const apiError = extractApiError(err);
+        if (apiError && isNetworkError(apiError)) {
+          recordError(apiError);
+        }
+        throw err;
+      }
+    },
+    enabled: !dashboardControlsLoading, // Only fetch if dashboard isn't controlling data
+    staleTime: 5 * 60 * 1000, // 5 minutes - metrics change moderately
+    gcTime: 15 * 60 * 1000, // Keep in cache for 15 minutes
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (input: CreateMetricInput) => metricsService.create(input),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertMetricCache(queryClient, response.data);
+      }
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateMetricInput }) =>
+      metricsService.update(id, input),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertMetricCache(queryClient, response.data);
+      }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => metricsService.delete(id),
+    onSuccess: (_response, metricId) => {
+      removeMetricCache(queryClient, metricId);
+    },
+  });
+
+  const logValueMutation = useMutation({
+    mutationFn: (input: CreateMetricLogInput) => metricsService.logValue(input),
+    onSuccess: (response, input) => {
+      if (response.success && response.data) {
+        // Add the log to the metric's logs array in cache
+        addMetricLogToCache(queryClient, input.metricId, response.data);
+        // Also update the metric itself (in case the backend returns updated metric data)
+        // We'll refetch the metric to get the updated logs array
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.growthSystem.metrics.detail(input.metricId),
+        });
+      }
+    },
+  });
+
+  const deleteLogMutation = useMutation({
+    mutationFn: ({ metricId, logId }: { metricId: string; logId: string }) =>
+      metricsService.deleteLog(metricId, logId),
+    onSuccess: (_response, { metricId, logId }) => {
+      // Remove the log from the metric's logs array in cache
+      removeMetricLogFromCache(queryClient, metricId, logId);
+    },
+  });
+
+  const apiError = error ? extractApiError(error) : null;
+  const isNetworkErr = apiError ? isNetworkError(apiError) : false;
+
+  const isWaitingForDashboard = dashboardControlsLoading && !data?.data;
+
+  return {
+    metrics: isError && isNetworkErr ? [] : data?.data || [],
+    isLoading: (isWaitingForDashboard || isLoading) && !isError,
+    isError,
+    error: apiError || error || data?.error,
+    createMetric: createMutation.mutateAsync,
+    updateMetric: updateMutation.mutateAsync,
+    deleteMetric: deleteMutation.mutateAsync,
+    logValue: logValueMutation.mutateAsync,
+    deleteLog: deleteLogMutation.mutateAsync,
+  };
+};
+
+export const useGoals = () => {
+  // TODO: Temporarily not checking user authentication (bypassed in ProtectedRoute)
+  const queryClient = useQueryClient();
+  const { recordError, recordSuccess } = useBackendStatus();
+
+  // Block list fetches while the dashboard query is pending/successful
+  const dashboardQueryState = queryClient.getQueryState(queryKeys.growthSystem.data());
+  const dashboardControlsLoading = !!dashboardQueryState && dashboardQueryState.status !== 'error';
+
+  // TODO: Temporarily allowing queries without user authentication
+  const { data, isLoading, error, isError } = useQuery({
+    queryKey: queryKeys.growthSystem.goals.lists(),
+    queryFn: async () => {
+      try {
+        const result = await goalsService.getAll();
+        if (result.success || result.data) {
+          recordSuccess();
+        }
+        return result;
+      } catch (err: unknown) {
+        const apiError = extractApiError(err);
+        if (apiError && isNetworkError(apiError)) {
+          recordError(apiError);
+        }
+        throw err;
+      }
+    },
+    enabled: !dashboardControlsLoading, // Only fetch if dashboard isn't controlling data
+    staleTime: 10 * 60 * 1000, // 10 minutes - goals don't change frequently
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (input: CreateGoalInput) => {
+      const response = await goalsService.create(input);
+      if (response.success && response.data) {
+        await applyGoalUpsertToCache(queryClient, response.data);
+      }
+      return response;
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: UpdateGoalInput }) => {
+      const response = await goalsService.update(id, input);
+      if (response.success && response.data) {
+        if ('goal' in response.data) {
+          await applyGoalUpsertToCache(queryClient, response.data.goal);
+          applyCascadedUpdatesToCache(queryClient, response.data.cascaded);
+        } else {
+          await applyGoalUpsertToCache(queryClient, response.data);
+        }
+      }
+      return response;
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await goalsService.delete(id);
+      if (response.success) {
+        await applyGoalDeletedToCache(queryClient, id);
+      }
+      return response;
+    },
+  });
+
+  const apiError = error ? extractApiError(error) : null;
+  const isNetworkErr = apiError ? isNetworkError(apiError) : false;
+
+  const isWaitingForDashboard = dashboardControlsLoading && !data?.data;
+
+  return {
+    goals: isError && isNetworkErr ? [] : data?.data || [],
+    isLoading: (isWaitingForDashboard || isLoading) && !isError,
+    isError,
+    error: apiError || error || data?.error,
+    createGoal: createMutation.mutateAsync,
+    updateGoal: updateMutation.mutateAsync,
+    deleteGoal: deleteMutation.mutateAsync,
+  };
+};
+
+export const useProjects = () => {
+  // TODO: Temporarily not checking user authentication (bypassed in ProtectedRoute)
+  const queryClient = useQueryClient();
+  const { recordError, recordSuccess } = useBackendStatus();
+
+  // Block list fetches while the dashboard query is pending/successful
+  const dashboardQueryState = queryClient.getQueryState(queryKeys.growthSystem.data());
+  const dashboardControlsLoading = !!dashboardQueryState && dashboardQueryState.status !== 'error';
+
+  // TODO: Temporarily allowing queries without user authentication
+  const { data, isLoading, error, isError } = useQuery({
+    queryKey: queryKeys.growthSystem.projects.lists(),
+    queryFn: async () => {
+      try {
+        const result = await projectsService.getAll();
+        if (result.success || result.data) {
+          recordSuccess();
+        }
+        return result;
+      } catch (err: unknown) {
+        const apiError = extractApiError(err);
+        if (apiError && isNetworkError(apiError)) {
+          recordError(apiError);
+        }
+        throw err;
+      }
+    },
+    enabled: !dashboardControlsLoading, // Only fetch if dashboard isn't controlling data
+    staleTime: 10 * 60 * 1000, // 10 minutes - projects don't change frequently
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (input: CreateProjectInput) => projectsService.create(input),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertProjectCache(queryClient, response.data);
+      }
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateProjectInput }) =>
+      projectsService.update(id, input),
+    onSuccess: (response) => {
+      if (!response.success || !response.data) return;
+      if ('project' in response.data) {
+        upsertProjectCache(queryClient, response.data.project);
+      } else {
+        upsertProjectCache(queryClient, response.data);
+      }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => projectsService.delete(id),
+    onSuccess: (_response, projectId) => {
+      removeProjectCache(queryClient, projectId);
+    },
+  });
+
+  const apiError = error ? extractApiError(error) : null;
+  const isNetworkErr = apiError ? isNetworkError(apiError) : false;
+
+  const isWaitingForDashboard = dashboardControlsLoading && !data?.data;
+
+  return {
+    projects: isError && isNetworkErr ? [] : data?.data || [],
+    isLoading: (isWaitingForDashboard || isLoading) && !isError,
+    isError,
+    error: apiError || error || data?.error,
+    createProject: createMutation.mutateAsync,
+    updateProject: updateMutation.mutateAsync,
+    deleteProject: deleteMutation.mutateAsync,
+  };
+};
+
+export const useLogbook = () => {
+  // TODO: Temporarily not checking user authentication (bypassed in ProtectedRoute)
+  const queryClient = useQueryClient();
+  const { recordError, recordSuccess } = useBackendStatus();
+
+  // Check if dashboard query is running and if logbook cache has data
+  const dashboardQueryState = queryClient.getQueryState(queryKeys.growthSystem.data());
+  const dashboardControlsLoading = !!dashboardQueryState && dashboardQueryState.status !== 'error';
+  const logbookCacheData = queryClient.getQueryData<{ success: boolean; data?: LogbookEntry[] }>(
+    queryKeys.growthSystem.logbook.lists()
+  );
+  const hasCachedLogbookData = !!logbookCacheData?.data && logbookCacheData.data.length > 0;
+
+  // Allow query to run if:
+  // 1. Dashboard is not controlling (error or not running), OR
+  // 2. Dashboard is pending but we have no cached data (fallback to ensure data loads)
+  const shouldFetch = !dashboardControlsLoading || !hasCachedLogbookData;
+
+  // TODO: Temporarily allowing queries without user authentication
+  const { data, isLoading, error, isError } = useQuery({
+    queryKey: queryKeys.growthSystem.logbook.lists(),
+    queryFn: async () => {
+      try {
+        const result = await logbookService.getAll();
+        if (result.success || result.data) {
+          recordSuccess();
+        }
+        return result;
+      } catch (err: unknown) {
+        const apiError = extractApiError(err);
+        if (apiError && isNetworkError(apiError)) {
+          recordError(apiError);
+        }
+        throw err;
+      }
+    },
+    enabled: shouldFetch, // Fetch if dashboard isn't controlling OR we have no cached data
+    staleTime: 2 * 60 * 1000, // 2 minutes - logbook entries change frequently
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    // Use cached data immediately if available, even if query is disabled
+    placeholderData: (previousData) => previousData,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (input: CreateLogbookEntryInput) => logbookService.create(input),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertLogbookEntryCache(queryClient, response.data);
+      }
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateLogbookEntryInput }) =>
+      logbookService.update(id, input),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        upsertLogbookEntryCache(queryClient, response.data);
+      }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => logbookService.delete(id),
+    onSuccess: (_response, entryId) => {
+      removeLogbookEntryCache(queryClient, entryId);
+    },
+  });
+
+  const apiError = error ? extractApiError(error) : null;
+  const isNetworkErr = apiError ? isNetworkError(apiError) : false;
+
+  // Always read from the query result, which React Query updates when we call setQueryData
+  // This ensures cache updates are reflected immediately
+  const entriesData = isError && isNetworkErr ? [] : (data?.data ?? []);
+
+  // Only show loading if we don't have cached data and query is actually loading
+  const isActuallyLoading = !hasCachedLogbookData && isLoading && !isError;
+
+  return {
+    entries: entriesData,
+    isLoading: isActuallyLoading,
+    isError,
+    error: apiError || error || data?.error,
+    createEntry: createMutation.mutateAsync,
+    updateEntry: updateMutation.mutateAsync,
+    deleteEntry: deleteMutation.mutateAsync,
+  };
+};
+
+/**
+ * Hook to fetch task dependencies for multiple tasks via POST /tasks/dependencies/batch.
+ */
+export const useTaskDependencies = (taskIds: string[], options?: { enabled?: boolean }) => {
+  const { recordError, recordSuccess } = useBackendStatus();
+
+  const { stableOrdered, sortedKey } = useMemo(() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const id of taskIds) {
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+    return {
+      stableOrdered: out,
+      sortedKey: [...out].sort((a, b) => a.localeCompare(b)).join(','),
+    };
+  }, [taskIds]);
+
+  const depsEnabled = (options?.enabled ?? true) && stableOrdered.length > 0;
+
+  const { data, isLoading, error, isError } = useQuery({
+    queryKey: [...queryKeys.growthSystem.tasks.all(), 'dependencies', 'batch', sortedKey],
+    queryFn: async () => {
+      try {
+        const { tasksService } = await import('@/services/growth-system/tasks.service');
+        const batch = await tasksService.getDependenciesBatch(stableOrdered);
+        if (!batch.success || !batch.data?.items) {
+          throw new Error(batch.error?.message || 'Failed to batch-load task dependencies');
+        }
+
+        const dependencyMap = new Map<string, TaskDependency[]>();
+        const allDependencies: TaskDependency[] = [];
+        const depSeen = new Set<string>();
+
+        for (const row of batch.data.items) {
+          dependencyMap.set(row.taskId, row.dependencies);
+          for (const dep of row.dependencies) {
+            if (depSeen.has(dep.id)) continue;
+            depSeen.add(dep.id);
+            allDependencies.push(dep);
+          }
+        }
+
+        if (batch.data.items.length > 0) {
+          recordSuccess();
+        }
+
+        return {
+          dependencyMap,
+          allDependencies,
+        };
+      } catch (err: unknown) {
+        const apiError = extractApiError(err);
+        if (apiError && isNetworkError(apiError)) {
+          recordError(apiError);
+        }
+        throw err;
+      }
+    },
+    enabled: depsEnabled,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const apiError = error ? extractApiError(error) : null;
+
+  return {
+    dependencyMap: data?.dependencyMap || new Map(),
+    allDependencies: data?.allDependencies || [],
+    isLoading: depsEnabled && isLoading && !isError,
+    isError,
+    error: apiError || error,
+  };
+};

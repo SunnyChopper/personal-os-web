@@ -5,6 +5,8 @@ import { useKnowledgeVault } from '@/contexts/KnowledgeVault';
 import { documentUploadService } from '@/services/knowledge-vault/document-upload.service';
 import type { Document, CreateDocumentInput, UpdateDocumentInput } from '@/types/knowledge-vault';
 import type { Area } from '@/types/growth-system';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const AREAS: Area[] = ['Health', 'Wealth', 'Love', 'Happiness', 'Operations', 'Day Job'];
 
@@ -173,127 +175,148 @@ export default function DocumentForm({ document, onSuccess, onCancel }: Document
   const isCreate = !document;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {error && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
-        </div>
-      )}
+    <form onSubmit={handleSubmit}>
+      <fieldset
+        disabled={loading}
+        className="min-w-0 space-y-6 border-0 p-0 m-0 disabled:opacity-60"
+      >
+        {error && (
+          <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
+          </div>
+        )}
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Title *
-        </label>
-        <input
-          type="text"
-          value={formData.title}
-          onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
-          placeholder="Enter document title"
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Summary/Notes
-        </label>
-        <textarea
-          value={formData.content}
-          onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
-          rows={6}
-          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
-          placeholder="Add notes or summary about this document"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            File Type
+            Title *
           </label>
           <input
             type="text"
-            value={formData.fileType}
-            onChange={(e) => setFormData((prev) => ({ ...prev, fileType: e.target.value }))}
+            value={formData.title}
+            onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
             className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
-            placeholder="PDF, DOCX, etc."
+            placeholder="Enter document title"
+            required
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Page Count
+            Summary/Notes
           </label>
-          <input
-            type="number"
-            value={formData.pageCount || ''}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                pageCount: e.target.value ? parseInt(e.target.value, 10) : null,
-              }))
-            }
+          <Textarea
+            value={formData.content}
+            onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
+            rows={6}
             className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
-            placeholder="Number of pages"
-            min="1"
+            placeholder="Add notes or summary about this document"
           />
         </div>
-      </div>
 
-      {isCreate && (
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Upload file
-          </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            PDF, DOCX, PPTX, PNG, JPG, TXT, Markdown (max 50 MB). Optional if you use a link below.
-          </p>
-          {pendingFile ? (
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <span className="text-sm text-gray-800 dark:text-gray-200 truncate pr-2">
-                {pendingFile.name}
-              </span>
-              <button
-                type="button"
-                onClick={clearPendingFile}
-                className="text-sm text-red-600 dark:text-red-400 hover:underline shrink-0"
-              >
-                Remove
-              </button>
-            </div>
-          ) : (
-            <FileUploadZone
-              onFilesSelected={onFilesSelected}
-              accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,.txt,.md,.markdown"
-              extensions={DOC_UPLOAD_EXTENSIONS}
-              multiple={false}
-              maxSizeMB={50}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              File Type
+            </label>
+            <input
+              type="text"
+              value={formData.fileType}
+              onChange={(e) => setFormData((prev) => ({ ...prev, fileType: e.target.value }))}
+              className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
+              placeholder="PDF, DOCX, etc."
             />
-          )}
-          {uploadProgress !== null && uploadProgress < 100 && (
-            <div className="space-y-1">
-              <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-purple-600 transition-all duration-150"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Uploading… {uploadProgress}%
-              </p>
-            </div>
-          )}
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setShowAdvancedUrl((v) => !v)}
-            className="flex items-center gap-1 text-sm text-purple-600 dark:text-purple-400 hover:underline"
-          >
-            {showAdvancedUrl ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            Or paste a file URL
-          </button>
-          {showAdvancedUrl && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Page Count
+            </label>
+            <input
+              type="number"
+              value={formData.pageCount || ''}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  pageCount: e.target.value ? parseInt(e.target.value, 10) : null,
+                }))
+              }
+              className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
+              placeholder="Number of pages"
+              min="1"
+            />
+          </div>
+        </div>
+
+        {isCreate && (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Upload file
+            </label>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              PDF, DOCX, PPTX, PNG, JPG, TXT, Markdown (max 50 MB). Optional if you use a link
+              below.
+            </p>
+            {pendingFile ? (
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <span className="text-sm text-gray-800 dark:text-gray-200 truncate pr-2">
+                  {pendingFile.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={clearPendingFile}
+                  className="text-sm text-red-600 dark:text-red-400 hover:underline shrink-0"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <FileUploadZone
+                onFilesSelected={onFilesSelected}
+                accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,.txt,.md,.markdown"
+                extensions={DOC_UPLOAD_EXTENSIONS}
+                multiple={false}
+                maxSizeMB={50}
+              />
+            )}
+            {uploadProgress !== null && uploadProgress < 100 && (
+              <div className="space-y-1">
+                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-purple-600 transition-all duration-150"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Uploading… {uploadProgress}%
+                </p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowAdvancedUrl((v) => !v)}
+              className="flex items-center gap-1 text-sm text-purple-600 dark:text-purple-400 hover:underline"
+            >
+              {showAdvancedUrl ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              Or paste a file URL
+            </button>
+            {showAdvancedUrl && (
+              <input
+                type="url"
+                value={formData.fileUrl}
+                onChange={(e) => setFormData((prev) => ({ ...prev, fileUrl: e.target.value }))}
+                className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
+                placeholder="https://example.com/document.pdf"
+              />
+            )}
+          </div>
+        )}
+
+        {!isCreate && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              File URL
+            </label>
             <input
               type="url"
               value={formData.fileUrl}
@@ -301,109 +324,94 @@ export default function DocumentForm({ document, onSuccess, onCancel }: Document
               className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
               placeholder="https://example.com/document.pdf"
             />
-          )}
-        </div>
-      )}
-
-      {!isCreate && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            File URL
-          </label>
-          <input
-            type="url"
-            value={formData.fileUrl}
-            onChange={(e) => setFormData((prev) => ({ ...prev, fileUrl: e.target.value }))}
-            className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
-            placeholder="https://example.com/document.pdf"
-          />
-        </div>
-      )}
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Area *
-        </label>
-        <select
-          value={formData.area}
-          onChange={(e) => setFormData((prev) => ({ ...prev, area: e.target.value as Area }))}
-          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
-          required
-        >
-          {AREAS.map((area) => (
-            <option key={area} value={area}>
-              {area}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Tags
-        </label>
-        <div className="flex gap-2 mb-3">
-          <input
-            type="text"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleAddTag();
-              }
-            }}
-            className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
-            placeholder="Add a tag"
-          />
-          <button
-            type="button"
-            onClick={handleAddTag}
-            className="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition"
-          >
-            Add
-          </button>
-        </div>
-
-        {formData.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {formData.tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm text-gray-700 dark:text-gray-300"
-              >
-                <TagIcon size={12} />
-                {tag}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveTag(tag)}
-                  className="ml-1 hover:text-red-600 dark:hover:text-red-400"
-                >
-                  <X size={14} />
-                </button>
-              </span>
-            ))}
           </div>
         )}
-      </div>
 
-      <div className="flex gap-3 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-          disabled={loading}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={loading}
-        >
-          {loading ? 'Saving...' : document ? 'Update Document' : 'Create Document'}
-        </button>
-      </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Area *
+          </label>
+          <Select
+            value={formData.area}
+            onChange={(e) => setFormData((prev) => ({ ...prev, area: e.target.value as Area }))}
+            className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
+            required
+          >
+            {AREAS.map((area) => (
+              <option key={area} value={area}>
+                {area}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Tags
+          </label>
+          <div className="flex gap-2 mb-3">
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddTag();
+                }
+              }}
+              className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600"
+              placeholder="Add a tag"
+            />
+            <button
+              type="button"
+              onClick={handleAddTag}
+              className="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition"
+            >
+              Add
+            </button>
+          </div>
+
+          {formData.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {formData.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm text-gray-700 dark:text-gray-300"
+                >
+                  <TagIcon size={12} />
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTag(tag)}
+                    className="ml-1 hover:text-red-600 dark:hover:text-red-400"
+                  >
+                    <X size={14} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading}
+          >
+            {loading ? 'Saving...' : document ? 'Update Document' : 'Create Document'}
+          </button>
+        </div>
+      </fieldset>
     </form>
   );
 }

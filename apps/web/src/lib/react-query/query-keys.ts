@@ -313,6 +313,22 @@ export const queryKeys = {
     vaultItems: () => [...queryKeys.knowledgeVault.all, 'vault-items'] as const,
     courses: () => [...queryKeys.knowledgeVault.all, 'courses'] as const,
     flashcardDecks: () => [...queryKeys.knowledgeVault.all, 'flashcard-decks'] as const,
+    documentDetail: (documentId: string) =>
+      [...queryKeys.knowledgeVault.all, 'document-detail', documentId] as const,
+    documentChunks: (documentId: string) =>
+      [...queryKeys.knowledgeVault.all, 'document-chunks', documentId] as const,
+    practiceArtifacts: (filters?: Record<string, unknown>) =>
+      filters
+        ? ([...queryKeys.knowledgeVault.all, 'practice-artifacts', filters] as const)
+        : ([...queryKeys.knowledgeVault.all, 'practice-artifacts'] as const),
+    skillTree: () => [...queryKeys.knowledgeVault.all, 'skill-tree'] as const,
+    inbox: () => [...queryKeys.knowledgeVault.all, 'inbox'] as const,
+    cheatSheet: () => [...queryKeys.knowledgeVault.all, 'cheat-sheet'] as const,
+    syntopic: () => [...queryKeys.knowledgeVault.all, 'syntopic'] as const,
+    agencyArtifacts: () => [...queryKeys.knowledgeVault.all, 'agency-artifacts'] as const,
+    vaultTaskLinksUnack: () => [...queryKeys.knowledgeVault.all, 'vault-task-links-unack'] as const,
+    vaultTaskLinksUnackCount: () =>
+      [...queryKeys.knowledgeVault.all, 'vault-task-links-unack-count'] as const,
   },
 
   // Daily Learning
@@ -368,8 +384,8 @@ export const queryKeys = {
         filters?.status ?? 'all',
       ] as const,
     generatedPrefix: () => [...queryKeys.careerResume.all, 'generated-list'] as const,
-    generated: (limit?: number) =>
-      [...queryKeys.careerResume.generatedPrefix(), limit ?? 'default'] as const,
+    generated: (filters?: unknown) =>
+      [...queryKeys.careerResume.generatedPrefix(), filters ?? {}] as const,
     generatedDetail: (resumeId: string) =>
       [...queryKeys.careerResume.all, 'generated-detail', resumeId] as const,
     applicationsPrefix: () => [...queryKeys.careerResume.all, 'applications'] as const,
@@ -379,6 +395,20 @@ export const queryKeys = {
       [...queryKeys.careerResume.applicationsPrefix(), 'detail', id] as const,
     applicationsAnalytics: () =>
       [...queryKeys.careerResume.applicationsPrefix(), 'analytics'] as const,
+    jobPostingsPrefix: () => [...queryKeys.careerResume.all, 'job-postings'] as const,
+    jobPostingsList: (filters?: Record<string, unknown>) =>
+      [...queryKeys.careerResume.jobPostingsPrefix(), 'list', filters ?? {}] as const,
+    jobPostingDetail: (postingId: string) =>
+      [...queryKeys.careerResume.jobPostingsPrefix(), 'detail', postingId] as const,
+    jobScrapeRunsPrefix: () => [...queryKeys.careerResume.all, 'job-scrape-runs'] as const,
+    jobScrapeRunsList: (filters?: Record<string, unknown>) =>
+      [...queryKeys.careerResume.jobScrapeRunsPrefix(), 'list', filters ?? {}] as const,
+    jobScrapeRunDetail: (runId: string) =>
+      [...queryKeys.careerResume.jobScrapeRunsPrefix(), 'detail', runId] as const,
+    templatesPrefix: () => [...queryKeys.careerResume.all, 'templates'] as const,
+    templates: () => [...queryKeys.careerResume.templatesPrefix(), 'list'] as const,
+    templateDetail: (templateId: string) =>
+      [...queryKeys.careerResume.templatesPrefix(), 'detail', templateId] as const,
   },
 
   // Proactive Assistant (`/proactive/*`) + related preferences keys
@@ -397,6 +427,125 @@ export const queryKeys = {
     recoveryNotifications: () => [...queryKeys.preferences.all, 'recovery-notifications'] as const,
     weeklyDashboard: () => [...queryKeys.preferences.all, 'weekly-dashboard'] as const,
     marginOfSafetyBuffer: () => [...queryKeys.preferences.all, 'margin-of-safety-buffer'] as const,
+  },
+
+  personalBranding: {
+    all: ['personal-branding'] as const,
+    brandConfig: () => [...queryKeys.personalBranding.all, 'brand-config'] as const,
+    profiles: {
+      all: () => [...queryKeys.personalBranding.all, 'profiles'] as const,
+      list: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.profiles.all(), 'list', page, pageSize] as const,
+      detail: (profileId: string) =>
+        [...queryKeys.personalBranding.profiles.all(), 'detail', profileId] as const,
+      versions: (profileId: string) =>
+        [...queryKeys.personalBranding.profiles.all(), 'versions', profileId] as const,
+    },
+    extractions: {
+      all: () => [...queryKeys.personalBranding.all, 'extractions'] as const,
+      detail: (jobId: string) =>
+        [...queryKeys.personalBranding.extractions.all(), 'detail', jobId] as const,
+    },
+    platformRules: {
+      all: () => [...queryKeys.personalBranding.all, 'platform-rules'] as const,
+      list: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.platformRules.all(), 'list', page, pageSize] as const,
+      detail: (ruleId: string) =>
+        [...queryKeys.personalBranding.platformRules.all(), 'detail', ruleId] as const,
+      effective: (platform: string, profileId?: string) =>
+        [
+          ...queryKeys.personalBranding.platformRules.all(),
+          'effective',
+          platform,
+          profileId ?? '',
+        ] as const,
+    },
+    content: {
+      all: () => [...queryKeys.personalBranding.all, 'content'] as const,
+      list: (page = 1, pageSize = 50, status?: string) =>
+        [
+          ...queryKeys.personalBranding.content.all(),
+          'list',
+          page,
+          pageSize,
+          status ?? 'all',
+        ] as const,
+      detail: (contentId: string) =>
+        [...queryKeys.personalBranding.content.all(), 'detail', contentId] as const,
+      variants: (contentId: string) =>
+        [...queryKeys.personalBranding.content.all(), 'variants', contentId] as const,
+      repurposeJob: (contentId: string, jobId: string) =>
+        [...queryKeys.personalBranding.content.all(), 'repurpose-job', contentId, jobId] as const,
+    },
+    ideas: {
+      all: () => [...queryKeys.personalBranding.all, 'content-ideas'] as const,
+      list: (page = 1, pageSize = 50, status?: string) =>
+        [
+          ...queryKeys.personalBranding.ideas.all(),
+          'list',
+          page,
+          pageSize,
+          status ?? 'GENERATED',
+        ] as const,
+    },
+    rejectedFeedback: {
+      all: () => [...queryKeys.personalBranding.all, 'rejected-ideas-feedback'] as const,
+      list: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.rejectedFeedback.all(), 'list', page, pageSize] as const,
+    },
+    radarSources: {
+      all: () => [...queryKeys.personalBranding.all, 'radar-sources'] as const,
+      list: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.radarSources.all(), 'list', page, pageSize] as const,
+      detail: (sourceId: string) =>
+        [...queryKeys.personalBranding.radarSources.all(), 'detail', sourceId] as const,
+    },
+    radarSettings: () => [...queryKeys.personalBranding.all, 'radar-settings'] as const,
+    radarItems: {
+      all: () => [...queryKeys.personalBranding.all, 'radar-items'] as const,
+      list: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.radarItems.all(), 'list', page, pageSize] as const,
+    },
+    radarRuns: {
+      all: () => [...queryKeys.personalBranding.all, 'radar-runs'] as const,
+      list: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.radarRuns.all(), 'list', page, pageSize] as const,
+      detail: (runId: string) =>
+        [...queryKeys.personalBranding.radarRuns.all(), 'detail', runId] as const,
+    },
+    radarDiscovery: {
+      all: () => [...queryKeys.personalBranding.all, 'radar-discovery'] as const,
+      detail: (runId: string) =>
+        [...queryKeys.personalBranding.radarDiscovery.all(), 'detail', runId] as const,
+    },
+    connections: {
+      all: () => [...queryKeys.personalBranding.all, 'connections'] as const,
+      list: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.connections.all(), 'list', page, pageSize] as const,
+      detail: (connectionId: string) =>
+        [...queryKeys.personalBranding.connections.all(), 'detail', connectionId] as const,
+    },
+    interactions: {
+      all: () => [...queryKeys.personalBranding.all, 'interactions'] as const,
+      board: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.interactions.all(), 'board', page, pageSize] as const,
+      byConnection: (connectionId: string, page = 1, pageSize = 50) =>
+        [
+          ...queryKeys.personalBranding.interactions.all(),
+          'connection',
+          connectionId,
+          page,
+          pageSize,
+        ] as const,
+    },
+    trackingMetrics: {
+      all: () => [...queryKeys.personalBranding.all, 'tracking-metrics'] as const,
+      list: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.trackingMetrics.all(), 'list', page, pageSize] as const,
+    },
+    rolodexMetricLinks: () => [...queryKeys.personalBranding.all, 'rolodex-metric-links'] as const,
+    connectionMetricLinks: (connectionId: string) =>
+      [...queryKeys.personalBranding.all, 'connection-metric-links', connectionId] as const,
   },
 
   // Rewards

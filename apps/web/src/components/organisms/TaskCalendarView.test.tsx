@@ -32,6 +32,8 @@ function makeTask(id: string, title: string, dueDate: string): Task {
   };
 }
 
+const may2026 = new Date('2026-05-01T12:00:00.000Z');
+
 describe('TaskCalendarView overflow popover', () => {
   it('opens a popover with all tasks when +more is clicked', async () => {
     const onTaskClick = vi.fn();
@@ -43,9 +45,16 @@ describe('TaskCalendarView overflow popover', () => {
       makeTask('4', 'Task Four', dueDate),
     ];
 
-    render(<TaskCalendarView tasks={tasks} onTaskClick={onTaskClick} isLoading={false} />);
+    render(
+      <TaskCalendarView
+        tasks={tasks}
+        onTaskClick={onTaskClick}
+        isLoading={false}
+        initialMonth={may2026}
+      />
+    );
 
-    const moreButton = screen.getByRole('button', { name: /Show 2 more tasks/i });
+    const moreButton = screen.getByRole('button', { name: /Show 2 more tasks on/i });
     await userEvent.click(moreButton);
 
     const dialog = screen.getByRole('dialog', { name: /Tasks on/i });
@@ -64,9 +73,9 @@ describe('TaskCalendarView overflow popover', () => {
       makeTask('3', 'Gamma', dueDate),
     ];
 
-    render(<TaskCalendarView tasks={tasks} onTaskClick={vi.fn()} />);
+    render(<TaskCalendarView tasks={tasks} onTaskClick={vi.fn()} initialMonth={may2026} />);
 
-    await userEvent.click(screen.getByRole('button', { name: /Show 1 more tasks/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Show 1 more tasks on/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('calendar-overflow-backdrop'));

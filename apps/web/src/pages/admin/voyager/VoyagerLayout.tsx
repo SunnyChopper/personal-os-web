@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { Ship } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { ROUTES } from '@/routes';
 import { cn } from '@/lib/utils';
 
@@ -11,7 +12,7 @@ const tabs = [
 
 export default function VoyagerLayout() {
   return (
-    <div className="max-w-6xl mx-auto px-4 pb-12">
+    <PageContainer className="pb-12">
       <header className="pt-2 pb-8">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 rounded-xl bg-teal-100/80 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200">
@@ -48,6 +49,6 @@ export default function VoyagerLayout() {
       </header>
 
       <Outlet />
-    </div>
+    </PageContainer>
   );
 }

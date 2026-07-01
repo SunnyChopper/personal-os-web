@@ -6,8 +6,21 @@ import {
   Tag,
   Calendar,
   CheckCircle2,
+  Trash2,
+  HelpCircle,
+  ClipboardList,
+  BookMarked,
 } from 'lucide-react';
-import type { VaultItem, Note, Document, CourseLesson, Flashcard } from '@/types/knowledge-vault';
+import type {
+  VaultItem,
+  Note,
+  Document,
+  CourseLesson,
+  Flashcard,
+  PracticeQuestionSetItem,
+  QuizVaultItem,
+  HomeworkVaultItem,
+} from '@/types/knowledge-vault';
 
 interface VaultItemCardProps {
   item: VaultItem;
@@ -201,7 +214,67 @@ function FlashcardCardContent({ flashcard }: { flashcard: Flashcard }) {
   );
 }
 
-export default function VaultItemCard({ item, onClick, highlighted }: VaultItemCardProps) {
+function PracticeSetCardContent({ item }: { item: PracticeQuestionSetItem }) {
+  return (
+    <>
+      <div className="flex items-start gap-3 mb-2">
+        <div className="p-2 bg-sky-100 dark:bg-sky-900/30 rounded-lg">
+          <HelpCircle size={20} className="text-sky-600 dark:text-sky-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-gray-900 dark:text-white truncate">{item.title}</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Practice Questions</p>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500">{item.questionCount} questions</p>
+    </>
+  );
+}
+
+function QuizCardContent({ item }: { item: QuizVaultItem }) {
+  return (
+    <>
+      <div className="flex items-start gap-3 mb-2">
+        <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+          <ClipboardList size={20} className="text-amber-600 dark:text-amber-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-gray-900 dark:text-white truncate">{item.title}</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Quiz</p>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500">
+        {item.questionCount} questions
+        {item.bestScorePercent != null ? ` · Best ${item.bestScorePercent}%` : ''}
+      </p>
+    </>
+  );
+}
+
+function HomeworkCardContent({ item }: { item: HomeworkVaultItem }) {
+  return (
+    <>
+      <div className="flex items-start gap-3 mb-2">
+        <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
+          <BookMarked size={20} className="text-violet-600 dark:text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-gray-900 dark:text-white truncate">{item.title}</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Homework</p>
+        </div>
+      </div>
+      {item.dueDate && <p className="text-xs text-gray-500">Due {formatDate(item.dueDate)}</p>}
+      {item.linkedTaskId && <p className="text-xs text-green-600">Linked to task</p>}
+    </>
+  );
+}
+
+export default function VaultItemCard({
+  item,
+  onClick,
+  onDelete,
+  highlighted,
+}: VaultItemCardProps) {
   const handleClick = () => {
     if (onClick) {
       onClick();
@@ -225,16 +298,38 @@ export default function VaultItemCard({ item, onClick, highlighted }: VaultItemC
           ? `View ${item.type}: ${item.type === 'note' ? (item as Note).title : item.type === 'document' ? (item as Document).title : 'item'}`
           : undefined
       }
-      className={`rounded-lg p-4 transition-all cursor-pointer ${
+      className={`group relative flex flex-col h-full rounded-lg p-4 transition-all cursor-pointer ${
         highlighted
           ? 'bg-white dark:bg-gray-800 border-2 border-violet-500 ring-2 ring-violet-500/20 shadow-lg dark:shadow-violet-900/20'
           : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-lg'
       }`}
     >
-      {item.type === 'note' && <NoteCardContent note={item as Note} />}
-      {item.type === 'document' && <DocumentCardContent document={item as Document} />}
-      {item.type === 'course_lesson' && <LessonCardContent lesson={item as CourseLesson} />}
-      {item.type === 'flashcard' && <FlashcardCardContent flashcard={item as Flashcard} />}
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="absolute top-2 right-2 p-1.5 rounded-full text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+          aria-label={`Archive ${item.type}`}
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
+      <div className="flex-1">
+        {item.type === 'note' && <NoteCardContent note={item as Note} />}
+        {item.type === 'document' && <DocumentCardContent document={item as Document} />}
+        {item.type === 'course_lesson' && <LessonCardContent lesson={item as CourseLesson} />}
+        {item.type === 'flashcard' && <FlashcardCardContent flashcard={item as Flashcard} />}
+        {item.type === 'practice_question_set' && (
+          <PracticeSetCardContent item={item as PracticeQuestionSetItem} />
+        )}
+        {item.type === 'quiz' && <QuizCardContent item={item as QuizVaultItem} />}
+        {item.type === 'homework_assignment' && (
+          <HomeworkCardContent item={item as HomeworkVaultItem} />
+        )}
+      </div>
 
       <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
         <span>Updated {formatDate(item.updatedAt)}</span>

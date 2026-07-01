@@ -3,6 +3,7 @@ import { X, BookOpen, Calendar, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Goal } from '@/types/growth-system';
 import Button from '@/components/atoms/Button';
+import { Textarea } from '@/components/atoms/Textarea';
 
 type ReviewType = 'weekly' | 'monthly' | 'quarterly';
 
@@ -193,7 +194,7 @@ export function GoalReviewPrompt({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {prompts.wins}
                 </label>
-                <textarea
+                <Textarea
                   value={wins}
                   onChange={(e) => setWins(e.target.value)}
                   rows={3}
@@ -206,7 +207,7 @@ export function GoalReviewPrompt({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {prompts.challenges}
                 </label>
-                <textarea
+                <Textarea
                   value={challenges}
                   onChange={(e) => setChallenges(e.target.value)}
                   rows={3}
@@ -219,7 +220,7 @@ export function GoalReviewPrompt({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {prompts.adjustments}
                 </label>
-                <textarea
+                <Textarea
                   value={adjustments}
                   onChange={(e) => setAdjustments(e.target.value)}
                   rows={2}
@@ -232,7 +233,7 @@ export function GoalReviewPrompt({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {prompts.nextFocus}
                 </label>
-                <textarea
+                <Textarea
                   value={nextFocus}
                   onChange={(e) => setNextFocus(e.target.value)}
                   rows={2}

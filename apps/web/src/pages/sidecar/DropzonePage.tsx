@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Button from '@/components/atoms/Button';
 import { householdService } from '@/services/household/household.service';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const PRESETS = [
   { id: 'honey-do', label: 'Honey-Do' },
@@ -60,7 +61,7 @@ export default function DropzonePage() {
         ))}
       </div>
 
-      <textarea
+      <Textarea
         className="w-full min-h-[140px] rounded-xl border border-slate-800 bg-slate-900/80 p-3 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-600"
         placeholder="What do we need? (e.g. cat food, print silk filament, trash night)"
         value={text}

@@ -142,6 +142,11 @@ actions?: React.ReactNode;
 </Card>
 ```
 
+## Where to put this
+
+- App-wide molecules: `components/molecules/` root (`FormField`, `Dialog`, `Combobox`).
+- Domain molecules: `components/molecules/{feature}/` (e.g. `molecules/proactive/RejectSuggestionDialog.tsx`, `molecules/observability/LinkedStackTrace.tsx`, `molecules/assistant/ManualModelListbox.tsx`).
+
 ## Do Not
 
 - Fetch data inside molecules

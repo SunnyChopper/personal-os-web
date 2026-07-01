@@ -189,6 +189,10 @@ export interface LLMResponse<T> {
   data: T | null;
   error: string | null;
   success: boolean;
+  /** Set when provider returns model not found (retired model id). */
+  errorCode?: 'MODEL_NOT_FOUND';
+  errorFeature?: string;
+  errorModel?: string;
   usage?: {
     promptTokens: number;
     completionTokens: number;

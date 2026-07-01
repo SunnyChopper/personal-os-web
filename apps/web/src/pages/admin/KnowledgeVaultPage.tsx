@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { PageContainer } from '@/components/templates/PageContainer';
 import {
   Search,
   Plus,
@@ -10,6 +11,9 @@ import {
   BookOpen,
   CreditCard,
   ChevronDown,
+  HelpCircle,
+  ClipboardList,
+  BookMarked,
 } from 'lucide-react';
 import { useKnowledgeVault } from '@/contexts/KnowledgeVault';
 import { ROUTES } from '@/routes';
@@ -19,9 +23,20 @@ import FlashcardDeckCard from '@/components/organisms/FlashcardDeckCard';
 import Dialog from '@/components/molecules/Dialog';
 import NoteForm from '@/components/organisms/NoteForm';
 import DocumentForm from '@/components/organisms/DocumentForm';
-import FlashcardForm from '@/components/organisms/FlashcardForm';
-import type { VaultItemType, Note, CourseLesson, Course } from '@/types/knowledge-vault';
+import FlashcardDeckCreateDialog from '@/components/organisms/FlashcardDeckCreateDialog';
+import { PracticeArtifactCreateDialog } from '@/components/organisms/PracticeArtifactCreateDialog';
+import type {
+  VaultItemType,
+  VaultItem,
+  Note,
+  CourseLesson,
+  Course,
+  HomeworkVaultItem,
+  PracticeQuestionSetItem,
+  QuizVaultItem,
+} from '@/types/knowledge-vault';
 import type { Area } from '@/types/growth-system';
+import { Select } from '@/components/atoms/Select';
 
 const AREAS: Area[] = ['Health', 'Wealth', 'Love', 'Happiness', 'Operations', 'Day Job'];
 
@@ -38,13 +53,17 @@ export default function KnowledgeVaultPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightId = searchParams.get('highlight');
   const editNoteId = searchParams.get('editNote');
-  const { vaultItems, courses, flashcardDecks, loading, refreshVaultItems } = useKnowledgeVault();
+  const { vaultItems, courses, flashcardDecks, loading, refreshVaultItems, deleteItem } =
+    useKnowledgeVault();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [selectedArea, setSelectedArea] = useState<Area | 'all'>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [createDialogType, setCreateDialogType] = useState<VaultItemType | null>(null);
+  const [itemToArchive, setItemToArchive] = useState<VaultItem | null>(null);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   const editingNote = useMemo(() => {
     if (!editNoteId) return null;
@@ -195,6 +214,9 @@ export default function KnowledgeVaultPage() {
       document: 0,
       course_lesson: 0,
       flashcard: 0,
+      practice_question_set: 0,
+      quiz: 0,
+      homework_assignment: 0,
     };
 
     vaultItems.forEach((item) => {
@@ -234,16 +256,47 @@ export default function KnowledgeVaultPage() {
     setCreateDialogType(type);
   };
 
+  const handleConfirmArchive = async () => {
+    if (!itemToArchive) return;
+    setArchiving(true);
+    setArchiveError(null);
+    try {
+      await deleteItem(itemToArchive.id);
+      if (editingNote?.id === itemToArchive.id) {
+        setEditingNote(null);
+      }
+      setItemToArchive(null);
+      await refreshVaultItems();
+    } catch (err) {
+      setArchiveError(err instanceof Error ? err.message : 'Failed to archive item');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
   const tabs: Array<{ id: FilterType; label: string; icon: typeof FileText; count?: number }> = [
     { id: 'all', label: 'All Items', icon: Grid3x3 },
     { id: 'note', label: 'Notes', icon: FileText, count: typeCounts.note },
     { id: 'document', label: 'Documents', icon: FileCheck, count: typeCounts.document },
     { id: 'course_lesson', label: 'Lessons', icon: BookOpen, count: typeCounts.course_lesson },
     { id: 'flashcard', label: 'Flashcards', icon: CreditCard, count: typeCounts.flashcard },
+    {
+      id: 'practice_question_set',
+      label: 'Practice',
+      icon: HelpCircle,
+      count: typeCounts.practice_question_set,
+    },
+    { id: 'quiz', label: 'Quizzes', icon: ClipboardList, count: typeCounts.quiz },
+    {
+      id: 'homework_assignment',
+      label: 'Homework',
+      icon: BookMarked,
+      count: typeCounts.homework_assignment,
+    },
   ];
 
   return (
-    <div className="space-y-6">
+    <PageContainer className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Knowledge Vault</h1>
@@ -287,6 +340,27 @@ export default function KnowledgeVaultPage() {
                   <CreditCard size={18} className="text-amber-600" />
                   <span className="text-gray-900 dark:text-white">Flashcard deck</span>
                 </button>
+                <button
+                  onClick={() => handleCreateClick('practice_question_set')}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition text-left"
+                >
+                  <HelpCircle size={18} className="text-sky-600" />
+                  <span className="text-gray-900 dark:text-white">Practice questions</span>
+                </button>
+                <button
+                  onClick={() => handleCreateClick('quiz')}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition text-left"
+                >
+                  <ClipboardList size={18} className="text-amber-600" />
+                  <span className="text-gray-900 dark:text-white">Quiz</span>
+                </button>
+                <button
+                  onClick={() => handleCreateClick('homework_assignment')}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition text-left"
+                >
+                  <BookMarked size={18} className="text-violet-600" />
+                  <span className="text-gray-900 dark:text-white">Homework</span>
+                </button>
               </div>
             </>
           )}
@@ -308,7 +382,7 @@ export default function KnowledgeVaultPage() {
           />
         </div>
 
-        <select
+        <Select
           value={selectedArea}
           onChange={(e) => setSelectedArea(e.target.value as Area | 'all')}
           className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 dark:focus:ring-green-600"
@@ -319,7 +393,7 @@ export default function KnowledgeVaultPage() {
               {area}
             </option>
           ))}
-        </select>
+        </Select>
 
         <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg p-1">
           <button
@@ -440,10 +514,29 @@ export default function KnowledgeVaultPage() {
               onClick={() => {
                 if (item.type === 'note') {
                   setEditingNote(item as Note);
-                } else {
-                  console.log('View item:', item.id);
+                } else if (item.type === 'document') {
+                  navigate(`/admin/knowledge-vault/documents/${encodeURIComponent(item.id)}`);
+                } else if (
+                  item.type === 'practice_question_set' ||
+                  item.type === 'quiz' ||
+                  item.type === 'homework_assignment'
+                ) {
+                  const linked = item as
+                    | PracticeQuestionSetItem
+                    | QuizVaultItem
+                    | HomeworkVaultItem;
+                  if (linked.courseId) {
+                    navigate(
+                      `${ROUTES.admin.knowledgeVaultCourses}/${encodeURIComponent(linked.courseId)}`
+                    );
+                  }
                 }
               }}
+              onDelete={
+                item.type === 'note' || item.type === 'document'
+                  ? () => setItemToArchive(item)
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -453,10 +546,22 @@ export default function KnowledgeVaultPage() {
       <Dialog
         isOpen={createDialogType !== null}
         onClose={() => setCreateDialogType(null)}
-        title={`Create ${createDialogType === 'note' ? 'Note' : createDialogType === 'document' ? 'Document' : 'Flashcard deck'}`}
-        size={
-          createDialogType === 'note' ? 'full' : createDialogType === 'flashcard' ? 'full' : 'md'
-        }
+        title={`Create ${
+          createDialogType === 'note'
+            ? 'Note'
+            : createDialogType === 'document'
+              ? 'Document'
+              : createDialogType === 'flashcard'
+                ? 'Flashcard deck'
+                : createDialogType === 'practice_question_set'
+                  ? 'Practice questions'
+                  : createDialogType === 'quiz'
+                    ? 'Quiz'
+                    : createDialogType === 'homework_assignment'
+                      ? 'Homework'
+                      : 'Item'
+        }`}
+        size={createDialogType === 'note' || createDialogType === 'flashcard' ? 'full' : 'md'}
       >
         <div className="p-6">
           {createDialogType === 'note' && (
@@ -478,7 +583,7 @@ export default function KnowledgeVaultPage() {
             />
           )}
           {createDialogType === 'flashcard' && (
-            <FlashcardForm
+            <FlashcardDeckCreateDialog
               onSuccess={() => {
                 setCreateDialogType(null);
                 refreshVaultItems();
@@ -486,6 +591,70 @@ export default function KnowledgeVaultPage() {
               onCancel={() => setCreateDialogType(null)}
             />
           )}
+          {(createDialogType === 'practice_question_set' ||
+            createDialogType === 'quiz' ||
+            createDialogType === 'homework_assignment') && (
+            <PracticeArtifactCreateDialog
+              kind={createDialogType}
+              onSuccess={() => {
+                setCreateDialogType(null);
+                refreshVaultItems();
+              }}
+              onCancel={() => setCreateDialogType(null)}
+            />
+          )}
+        </div>
+      </Dialog>
+
+      {/* Archive Confirmation Dialog */}
+      <Dialog
+        isOpen={itemToArchive !== null}
+        onClose={() => {
+          if (!archiving) {
+            setItemToArchive(null);
+            setArchiveError(null);
+          }
+        }}
+        title="Archive item?"
+        size="sm"
+      >
+        <div className="p-6 space-y-4">
+          <p className="text-gray-600 dark:text-gray-300">
+            Are you sure you want to archive{' '}
+            <span className="font-medium text-gray-900 dark:text-white">
+              {itemToArchive?.title}
+            </span>
+            ? It will be hidden from your vault but can be restored later.
+          </p>
+          {archiveError && <p className="text-sm text-red-600 dark:text-red-400">{archiveError}</p>}
+          <div className="flex gap-3 justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setItemToArchive(null);
+                setArchiveError(null);
+              }}
+              disabled={archiving}
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmArchive}
+              disabled={archiving}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition disabled:opacity-50 flex items-center gap-2"
+            >
+              {archiving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  <span>Archiving...</span>
+                </>
+              ) : (
+                <span>Archive</span>
+              )}
+            </button>
+          </div>
         </div>
       </Dialog>
 
@@ -509,6 +678,6 @@ export default function KnowledgeVaultPage() {
           )}
         </div>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 }

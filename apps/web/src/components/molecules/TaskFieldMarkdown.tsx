@@ -3,6 +3,7 @@ import MarkdownRenderer from '@/components/molecules/MarkdownRenderer';
 import { TaskListToggleProvider } from '@/lib/markdown/task-list-context';
 import { toggleTaskListItemAt } from '@/lib/markdown/task-list-toggle';
 import { useTasks } from '@/hooks/useGrowthSystem';
+import { pushToastNotification } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { UpdateTaskInput } from '@/types/growth-system';
 
@@ -42,7 +43,12 @@ export function TaskFieldMarkdown({
         return;
       }
       const input = { [field]: next } as UpdateTaskInput;
-      void updateTask({ id: taskId, input });
+      void updateTask({ id: taskId, input }).catch(() => {
+        pushToastNotification({
+          type: 'error',
+          title: 'Failed to update task description',
+        });
+      });
     },
     [field, taskId, updateTask, value]
   );

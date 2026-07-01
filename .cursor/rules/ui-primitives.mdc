@@ -1,0 +1,43 @@
+---
+description: Use canonical UI primitives; avoid hand-rolled form controls, modals, and card surfaces.
+globs:
+  - personal-os-web/apps/web/src/components/**/*
+  - personal-os-web/apps/web/src/pages/**/*
+---
+
+# UI primitives (admin SPA)
+
+Before adding or editing form controls, modals, or card layouts in `apps/web`:
+
+1. Read [`docs/frontend/component-inventory.md`](../../../docs/frontend/component-inventory.md).
+2. Run or browse Storybook: `bun run --filter web storybook` from `personal-os-web/`.
+
+## Use these primitives
+
+| Need | Use |
+|------|-----|
+| Text input | `FormInput` from `@/components/atoms/FormInput` |
+| Select | `Select` from `@/components/atoms/Select` |
+| Textarea | `Textarea` from `@/components/atoms/Textarea` |
+| Checkbox | `FormCheckbox` |
+| Button | `Button` |
+| Card panel | `Card` (+ `CardHeader` / `CardBody` / `CardFooter`) |
+| Label + error | `FormField` |
+| Modal | `Dialog` or `ConfirmDialog` |
+| Mobile sheet | `BottomSheet` |
+| Searchable select | `Combobox` / `MultiCombobox` |
+
+Barrel imports: `@/components/atoms`, `@/components/molecules`.
+
+## Do not
+
+- Hand-roll raw `<select>`, `<textarea>`, or styled text `<input>` outside `components/atoms/` primitives.
+- Hand-roll `fixed inset-0` modal overlays — use `Dialog`, `ConfirmDialog`, or `BottomSheet`.
+- Copy the repeated card border class string — use `Card` or `cardSurfaceClassName`.
+- Add a new one-off combobox — extend `Combobox` / `MultiCombobox` or wrap them.
+
+ESLint (`custom/no-raw-form-control`, `custom/no-adhoc-modal`, `custom/prefer-card-primitive`) and `check-patterns` duplication ratchet enforce this. Ratchet baselines in `scripts/ui-duplication-baseline.json`.
+
+## Create/Edit forms
+
+When both `XCreateForm` and `XEditForm` exist for an entity, extract shared fields into `XFormFields` (see `BrandIdentityFormFields`, `GoalProgressWeightsFields`).

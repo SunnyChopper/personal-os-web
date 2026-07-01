@@ -15,12 +15,15 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { ArrowLeft, Loader2, Play, ShieldCheck, ToggleLeft } from 'lucide-react';
-import WorkflowRfNode, { type WorkflowRfData } from '@/components/tools/workflow/WorkflowRfNode';
+import WorkflowRfNode, {
+  type WorkflowRfData,
+} from '@/components/molecules/tools/workflow/WorkflowRfNode';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { ROUTES } from '@/routes';
 import { workflowsService } from '@/services/tools/workflows.service';
 import type { WorkflowDefinition } from '@/types/api/tools';
 import { cn } from '@/lib/utils';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const nodeTypes = { workflowNode: WorkflowRfNode };
 
@@ -290,7 +293,7 @@ export default function WorkflowEditorPage() {
       <label className="block text-xs" key={key}>
         <span className="text-gray-600 dark:text-gray-400">{label}</span>
         {multiline ? (
-          <textarea
+          <Textarea
             className="mt-1 w-full rounded border border-gray-300 bg-white p-2 font-mono text-xs dark:border-gray-600 dark:bg-gray-900"
             rows={4}
             value={String(c[key] ?? '')}

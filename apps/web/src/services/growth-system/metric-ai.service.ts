@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import { apiFailure, withFeatureLlm } from '@/lib/llm/feature-ai-request';
 import { llmLogger } from '@/lib/logger';
 import type { Metric, MetricLog, Goal } from '@/types/growth-system';
 import type { ApiResponse } from '@/types/api-contracts';
@@ -105,11 +106,10 @@ export const metricAIService = {
   ): Promise<ApiResponse<z.infer<typeof PatternsResponseSchema>>> {
     try {
       // Try backend endpoint first
+      const body = await withFeatureLlm('metricPatterns', { metricId: metric.id });
       const backendResponse = await apiClient.post<{
         data: AIResponse<z.infer<typeof PatternsResponseSchema>>;
-      }>('/ai/metrics/patterns', {
-        metricId: metric.id,
-      });
+      }>('/ai/metrics/patterns', body);
 
       if (backendResponse.success && backendResponse.data) {
         return {
@@ -117,24 +117,20 @@ export const metricAIService = {
           success: true,
         };
       }
-      return {
-        data: undefined,
-        error: {
-          message: backendResponse.error?.message || 'Failed to analyze patterns',
-          code: 'PATTERN_ANALYSIS_ERROR',
-        },
-        success: false,
-      };
+      const message = backendResponse.error?.message || 'Failed to analyze patterns';
+      return apiFailure<z.infer<typeof PatternsResponseSchema>>(
+        'metricPatterns',
+        message,
+        'PATTERN_ANALYSIS_ERROR'
+      );
     } catch (error) {
       llmLogger.error('Error analyzing patterns', error);
-      return {
-        data: undefined,
-        error: {
-          message: error instanceof Error ? error.message : 'Failed to analyze patterns',
-          code: 'PATTERN_ANALYSIS_ERROR',
-        },
-        success: false,
-      };
+      const message = error instanceof Error ? error.message : 'Failed to analyze patterns';
+      return apiFailure<z.infer<typeof PatternsResponseSchema>>(
+        'metricPatterns',
+        message,
+        'PATTERN_ANALYSIS_ERROR'
+      );
     }
   },
 
@@ -147,11 +143,10 @@ export const metricAIService = {
   ): Promise<ApiResponse<z.infer<typeof AnomalyResponseSchema>>> {
     try {
       // Try backend endpoint first
+      const body = await withFeatureLlm('metricAnomalies', { metricId: metric.id });
       const backendResponse = await apiClient.post<{
         data: AIResponse<z.infer<typeof AnomalyResponseSchema>>;
-      }>('/ai/metrics/anomalies', {
-        metricId: metric.id,
-      });
+      }>('/ai/metrics/anomalies', body);
 
       if (backendResponse.success && backendResponse.data) {
         return {
@@ -159,24 +154,20 @@ export const metricAIService = {
           success: true,
         };
       }
-      return {
-        data: undefined,
-        error: {
-          message: backendResponse.error?.message || 'Failed to detect anomalies',
-          code: 'ANOMALY_DETECTION_ERROR',
-        },
-        success: false,
-      };
+      const message = backendResponse.error?.message || 'Failed to detect anomalies';
+      return apiFailure<z.infer<typeof AnomalyResponseSchema>>(
+        'metricAnomalies',
+        message,
+        'ANOMALY_DETECTION_ERROR'
+      );
     } catch (error) {
       llmLogger.error('Error detecting anomalies', error);
-      return {
-        data: undefined,
-        error: {
-          message: error instanceof Error ? error.message : 'Failed to detect anomalies',
-          code: 'ANOMALY_DETECTION_ERROR',
-        },
-        success: false,
-      };
+      const message = error instanceof Error ? error.message : 'Failed to detect anomalies';
+      return apiFailure<z.infer<typeof AnomalyResponseSchema>>(
+        'metricAnomalies',
+        message,
+        'ANOMALY_DETECTION_ERROR'
+      );
     }
   },
 

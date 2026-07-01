@@ -3,6 +3,8 @@ import { TrendingUp, TrendingDown, Minus, Camera, Mic } from 'lucide-react';
 import type { Metric, MetricLog, CreateMetricLogInput } from '@/types/growth-system';
 import Button from '@/components/atoms/Button';
 import { predictTrajectory, getTrendData } from '@/utils/metric-analytics';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 interface MetricLogFormProps {
   metric: Metric;
@@ -91,174 +93,180 @@ export function MetricLogForm({
   const unit = metric.unit === 'custom' ? metric.customUnit || '' : metric.unit;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Value Input */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Value ({unit})
-        </label>
-        <input
-          type="number"
-          step="any"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={latestLog ? latestLog.value.toString() : 'Enter value'}
-          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-          autoFocus
-        />
+    <form onSubmit={handleSubmit}>
+      <fieldset
+        disabled={isLoading}
+        className="min-w-0 space-y-6 border-0 p-0 m-0 disabled:opacity-60"
+      >
+        {/* Value Input */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Value ({unit})
+          </label>
+          <input
+            type="number"
+            step="any"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={latestLog ? latestLog.value.toString() : 'Enter value'}
+            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+            autoFocus
+          />
 
-        {/* Smart Suggestions */}
-        {suggestions.length > 0 && (
-          <div className="mt-3">
-            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Quick suggestions:</p>
-            <div className="flex flex-wrap gap-2">
-              {suggestions.map((suggestion, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() =>
-                    setValue(suggestion.value.toFixed(metric.unit === 'dollars' ? 0 : 1))
-                  }
-                  className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"
-                >
-                  <suggestion.icon className="w-3 h-3" />
-                  {suggestion.label}: {suggestion.value.toFixed(metric.unit === 'dollars' ? 0 : 1)}
-                </button>
-              ))}
+          {/* Smart Suggestions */}
+          {suggestions.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Quick suggestions:</p>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() =>
+                      setValue(suggestion.value.toFixed(metric.unit === 'dollars' ? 0 : 1))
+                    }
+                    className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"
+                  >
+                    <suggestion.icon className="w-3 h-3" />
+                    {suggestion.label}:{' '}
+                    {suggestion.value.toFixed(metric.unit === 'dollars' ? 0 : 1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* AI Prediction */}
+          {prediction && (
+            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">
+                AI Prediction
+              </p>
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                Predicted next value:{' '}
+                {prediction.futureValue.toFixed(metric.unit === 'dollars' ? 0 : 1)} {unit}
+                <span className="text-xs ml-2">
+                  (Confidence: {(prediction.confidence * 100).toFixed(0)}%)
+                </span>
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Notes (optional)
+          </label>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add any context or notes about this value..."
+            rows={3}
+            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          />
+        </div>
+
+        {/* Context Tags (Optional) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Context (optional)
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">
+                Energy Level
+              </label>
+              <Select
+                value={contextTags.energy || ''}
+                onChange={(e) =>
+                  setContextTags({
+                    ...contextTags,
+                    energy: e.target.value ? parseInt(e.target.value) : undefined,
+                  })
+                }
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                <option value="">Not set</option>
+                <option value="1">Very Low</option>
+                <option value="2">Low</option>
+                <option value="3">Medium</option>
+                <option value="4">High</option>
+                <option value="5">Very High</option>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">
+                Stress Level
+              </label>
+              <Select
+                value={contextTags.stress || ''}
+                onChange={(e) =>
+                  setContextTags({
+                    ...contextTags,
+                    stress: e.target.value ? parseInt(e.target.value) : undefined,
+                  })
+                }
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                <option value="">Not set</option>
+                <option value="1">Very Low</option>
+                <option value="2">Low</option>
+                <option value="3">Medium</option>
+                <option value="4">High</option>
+                <option value="5">Very High</option>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Mood</label>
+              <Select
+                value={contextTags.mood || ''}
+                onChange={(e) =>
+                  setContextTags({ ...contextTags, mood: e.target.value || undefined })
+                }
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                <option value="">Not set</option>
+                <option value="great">Great</option>
+                <option value="good">Good</option>
+                <option value="okay">Okay</option>
+                <option value="poor">Poor</option>
+              </Select>
             </div>
           </div>
-        )}
-
-        {/* AI Prediction */}
-        {prediction && (
-          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">
-              AI Prediction
-            </p>
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              Predicted next value:{' '}
-              {prediction.futureValue.toFixed(metric.unit === 'dollars' ? 0 : 1)} {unit}
-              <span className="text-xs ml-2">
-                (Confidence: {(prediction.confidence * 100).toFixed(0)}%)
-              </span>
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Notes */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Notes (optional)
-        </label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Add any context or notes about this value..."
-          rows={3}
-          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-        />
-      </div>
-
-      {/* Context Tags (Optional) */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Context (optional)
-        </label>
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">
-              Energy Level
-            </label>
-            <select
-              value={contextTags.energy || ''}
-              onChange={(e) =>
-                setContextTags({
-                  ...contextTags,
-                  energy: e.target.value ? parseInt(e.target.value) : undefined,
-                })
-              }
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            >
-              <option value="">Not set</option>
-              <option value="1">Very Low</option>
-              <option value="2">Low</option>
-              <option value="3">Medium</option>
-              <option value="4">High</option>
-              <option value="5">Very High</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">
-              Stress Level
-            </label>
-            <select
-              value={contextTags.stress || ''}
-              onChange={(e) =>
-                setContextTags({
-                  ...contextTags,
-                  stress: e.target.value ? parseInt(e.target.value) : undefined,
-                })
-              }
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            >
-              <option value="">Not set</option>
-              <option value="1">Very Low</option>
-              <option value="2">Low</option>
-              <option value="3">Medium</option>
-              <option value="4">High</option>
-              <option value="5">Very High</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Mood</label>
-            <select
-              value={contextTags.mood || ''}
-              onChange={(e) =>
-                setContextTags({ ...contextTags, mood: e.target.value || undefined })
-              }
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            >
-              <option value="">Not set</option>
-              <option value="great">Great</option>
-              <option value="good">Good</option>
-              <option value="okay">Okay</option>
-              <option value="poor">Poor</option>
-            </select>
-          </div>
         </div>
-      </div>
 
-      {/* Photo/Voice (Placeholder for mobile) */}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-2"
-          disabled
-        >
-          <Camera className="w-4 h-4" />
-          Photo (Mobile)
-        </button>
-        <button
-          type="button"
-          className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-2"
-          disabled
-        >
-          <Mic className="w-4 h-4" />
-          Voice (Mobile)
-        </button>
-      </div>
+        {/* Photo/Voice (Placeholder for mobile) */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-2"
+            disabled
+          >
+            <Camera className="w-4 h-4" />
+            Photo (Mobile)
+          </button>
+          <button
+            type="button"
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-2"
+            disabled
+          >
+            <Mic className="w-4 h-4" />
+            Voice (Mobile)
+          </button>
+        </div>
 
-      {/* Actions */}
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
-          Cancel
-        </Button>
-        <Button variant="primary" type="submit" disabled={isLoading || !value}>
-          {isLoading ? 'Logging...' : 'Log Value'}
-        </Button>
-      </div>
+        {/* Actions */}
+        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit" disabled={isLoading || !value}>
+            {isLoading ? 'Logging...' : 'Log Value'}
+          </Button>
+        </div>
+      </fieldset>
     </form>
   );
 }

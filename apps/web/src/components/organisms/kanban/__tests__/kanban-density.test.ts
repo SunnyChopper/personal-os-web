@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   KANBAN_BACKLOG_DENSITY_STORAGE_KEY,
   KANBAN_CARD_DENSITY_STORAGE_KEY,
-} from '@/components/organisms/kanban/kanban-constants';
+} from '@/lib/growth-system/kanban-constants';
 import {
   persistKanbanCardDensity,
   readKanbanCardDensity,

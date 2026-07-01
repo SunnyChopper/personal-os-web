@@ -17,10 +17,10 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Settings2 } from 'lucide-react';
 import Button from '@/components/atoms/Button';
-import { HabitCompletionWidget } from '@/components/widgets/weekly/HabitCompletionWidget';
-import { MetricSeriesWidget } from '@/components/widgets/weekly/MetricSeriesWidget';
-import { StatTilesWidget } from '@/components/widgets/weekly/StatTilesWidget';
-import { VelocityWidget } from '@/components/widgets/weekly/VelocityWidget';
+import { HabitCompletionWidget } from '@/components/organisms/widgets/weekly/HabitCompletionWidget';
+import { MetricSeriesWidget } from '@/components/organisms/widgets/weekly/MetricSeriesWidget';
+import { StatTilesWidget } from '@/components/organisms/widgets/weekly/StatTilesWidget';
+import { VelocityWidget } from '@/components/organisms/widgets/weekly/VelocityWidget';
 import type { WeeklyReviewCurrentDashboard } from '@/types/growth-system';
 import type { WeeklyDashboardConfig, WeeklyDashboardWidget } from '@/types/weekly-dashboard';
 import { cn } from '@/lib/utils';

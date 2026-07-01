@@ -10,6 +10,8 @@ export function useCareerApplications(filters?: {
   status?: string;
   search?: string;
   includeArchived?: boolean;
+  jobPostingId?: string | null;
+  generatedResumeId?: string | null;
   page?: number;
   pageSize?: number;
   /** When false, skips the list query (e.g. recommend-only usage from Resume Builder). */
@@ -21,6 +23,8 @@ export function useCareerApplications(filters?: {
     status: filters?.status ?? 'all',
     search: filters?.search ?? '',
     includeArchived: filters?.includeArchived ?? false,
+    jobPostingId: filters?.jobPostingId ?? null,
+    generatedResumeId: filters?.generatedResumeId ?? null,
     page: filters?.page ?? 1,
     pageSize: filters?.pageSize ?? 50,
   });
@@ -28,6 +32,7 @@ export function useCareerApplications(filters?: {
   const invalidateApps = () => {
     void qc.invalidateQueries({ queryKey: queryKeys.careerResume.applicationsPrefix() });
     void qc.invalidateQueries({ queryKey: queryKeys.careerResume.applicationsAnalytics() });
+    void qc.invalidateQueries({ queryKey: queryKeys.careerResume.generatedPrefix() });
   };
 
   const listApps = useQuery({
@@ -39,6 +44,8 @@ export function useCareerApplications(filters?: {
         status: filters?.status || null,
         search: filters?.search || null,
         includeArchived: filters?.includeArchived,
+        jobPostingId: filters?.jobPostingId || null,
+        generatedResumeId: filters?.generatedResumeId || null,
       }),
     enabled: filters?.listEnabled !== false,
   });

@@ -25,6 +25,7 @@ import {
   pruneSubtreeOrphans,
 } from '@/components/molecules/goal-mindmap-utils';
 import { GoalMindmapNode, type GoalMindmapRfNode } from '@/components/molecules/GoalMindmapNode';
+import { Select } from '@/components/atoms/Select';
 
 const GOAL_MINDMAP_NODE_HEIGHT = 140;
 const MINDMAP_VIEW_ANIMATION_MS = 300;
@@ -395,7 +396,7 @@ function MindmapFlowInner({
               >
                 Focus goal
               </label>
-              <select
+              <Select
                 id="mindmap-root-goal"
                 value={effectiveRootId ?? ''}
                 onChange={(e) => setSelectedRootId(e.target.value || null)}
@@ -406,7 +407,7 @@ function MindmapFlowInner({
                     {g.title}
                   </option>
                 ))}
-              </select>
+              </Select>
             </>
           )}
         </div>

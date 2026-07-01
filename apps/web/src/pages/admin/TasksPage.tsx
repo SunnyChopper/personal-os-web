@@ -10,7 +10,10 @@ import {
   X,
   Loader2,
   AlertCircle,
+  LayoutGrid,
+  LayoutList,
 } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { motion, AnimatePresence } from 'framer-motion';
 import type {
   Task,
@@ -53,6 +56,12 @@ import {
   AREA_LABELS,
   TASK_STATUS_LABELS,
 } from '@/constants/growth-system';
+import { Select } from '@/components/atoms/Select';
+import type { KanbanCardDensity } from '@/lib/growth-system/kanban-constants';
+import {
+  persistKanbanCardDensity,
+  readKanbanCardDensity,
+} from '@/components/organisms/kanban/kanban-density';
 
 type ViewMode = 'list' | 'kanban' | 'calendar' | 'graph';
 
@@ -96,7 +105,7 @@ const filterPanelVariants = {
   show: {
     opacity: 1,
     height: 'auto',
-    marginBottom: '1rem',
+    marginBottom: '0.75rem',
   },
   exit: {
     opacity: 0,
@@ -116,6 +125,14 @@ export default function TasksPage() {
   const [taskSortField, setTaskSortField] = useState<TaskListSortField>('priority');
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [showFilters, setShowFilters] = useState(false);
+  const [cardDensity, setCardDensity] = useState<KanbanCardDensity>(() => readKanbanCardDensity());
+
+  const isKanbanCompact = cardDensity === 'compact';
+
+  const setCardDensityMode = (mode: KanbanCardDensity) => {
+    setCardDensity(mode);
+    persistKanbanCardDensity(mode);
+  };
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createStatus, setCreateStatus] = useState<TaskStatus | undefined>();
@@ -228,16 +245,18 @@ export default function TasksPage() {
 
   const allGoals = useMemo<EntitySummary[]>(
     () =>
-      goals.map((g) => ({
-        id: g.id,
-        title: g.title,
-        type: 'goal' as const,
-        area: g.area,
-        status: g.status,
-        parentGoalId: g.parentGoalId,
-        targetDate: g.targetDate,
-        completedDate: g.completedDate,
-      })),
+      goals
+        .filter((g) => g.status !== 'Abandoned' && g.status !== 'Achieved')
+        .map((g) => ({
+          id: g.id,
+          title: g.title,
+          type: 'goal' as const,
+          area: g.area,
+          status: g.status,
+          parentGoalId: g.parentGoalId,
+          targetDate: g.targetDate,
+          completedDate: g.completedDate,
+        })),
     [goals]
   );
 
@@ -387,11 +406,36 @@ export default function TasksPage() {
   ): Promise<void> => {
     const trackSubmitting = options?.trackSubmitting !== false;
     const notifyOnError = options?.notifyOnError === true;
+    const previousProjectIds =
+      input.projectIds !== undefined
+        ? (tasks.find((t) => t.id === taskId)?.projectIds ?? [])
+        : undefined;
     if (trackSubmitting) {
       setIsSubmitting(true);
     }
     try {
-      await updateTask({ id: taskId, input });
+      const response = await updateTask({ id: taskId, input });
+      if (response.success && response.data) {
+        if (selectedTask?.id === taskId) {
+          setSelectedTask(response.data);
+        }
+        if (taskToView?.id === taskId) {
+          setTaskToView(response.data);
+        }
+        if (previousProjectIds !== undefined) {
+          const nextProjectIds = response.data.projectIds ?? [];
+          const changedIds = new Set([...previousProjectIds, ...nextProjectIds]);
+          for (const projectId of changedIds) {
+            const wasLinked = previousProjectIds.includes(projectId);
+            const isLinked = nextProjectIds.includes(projectId);
+            if (wasLinked !== isLinked) {
+              window.dispatchEvent(
+                new CustomEvent('task-project-link-changed', { detail: { projectId } })
+              );
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Failed to update task:', error);
       if (notifyOnError) {
@@ -494,26 +538,6 @@ export default function TasksPage() {
     removeTaskDependencyFromCache(queryClient, taskId, dependsOnId);
   };
 
-  const handleProjectLink = async (taskId: string, projectId: string) => {
-    await tasksService.linkToProject(taskId, projectId);
-    // Notify ProjectsPage to refresh its task list
-    window.dispatchEvent(new CustomEvent('task-project-link-changed', { detail: { projectId } }));
-  };
-
-  const handleProjectUnlink = async (taskId: string, projectId: string) => {
-    await tasksService.unlinkFromProject(taskId, projectId);
-    // Notify ProjectsPage to refresh its task list
-    window.dispatchEvent(new CustomEvent('task-project-link-changed', { detail: { projectId } }));
-  };
-
-  const handleGoalLink = async (taskId: string, goalId: string) => {
-    await tasksService.linkToGoal(taskId, goalId);
-  };
-
-  const handleGoalUnlink = async (taskId: string, goalId: string) => {
-    await tasksService.unlinkFromGoal(taskId, goalId);
-  };
-
   const getTaskDependencies = (taskId: string): Task[] => {
     const depIds = taskDependencies.get(taskId) || [];
     return tasks.filter((t) => depIds.includes(t.id));
@@ -524,16 +548,18 @@ export default function TasksPage() {
     return tasks.filter((t) => blockedIds.includes(t.id));
   };
 
-  const getLinkedProjects = (_taskId: string): EntitySummary[] => {
-    // TODO: Fetch linked projects from API if needed
-    // For now, return empty array as task-project linking wasn't fully implemented
-    return [];
+  const getLinkedProjects = (taskId: string): EntitySummary[] => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task?.projectIds?.length) return [];
+    const projectIdSet = new Set(task.projectIds);
+    return allProjects.filter((p) => projectIdSet.has(p.id));
   };
 
-  const getLinkedGoals = (_taskId: string): EntitySummary[] => {
-    // TODO: Fetch linked goals from API if needed
-    // For now, return empty array as task-goal linking wasn't fully implemented
-    return [];
+  const getLinkedGoals = (taskId: string): EntitySummary[] => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task?.goalIds?.length) return [];
+    const goalIdSet = new Set(task.goalIds);
+    return allGoals.filter((g) => goalIdSet.has(g.id));
   };
 
   const activeFilterCount = [
@@ -551,128 +577,140 @@ export default function TasksPage() {
     duePreset !== 'none';
 
   return (
-    <div
-      className={
-        viewMode === 'kanban' ? 'flex h-full w-full min-h-0 min-w-0 flex-1 flex-col' : 'min-h-0'
-      }
+    <PageContainer
+      width="full"
+      className={viewMode === 'kanban' ? 'flex h-full min-h-0 min-w-0 flex-1 flex-col' : 'min-h-0'}
     >
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className={`flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between ${
+        className={`mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-4 ${
           viewMode === 'kanban' ? 'shrink-0' : ''
         }`}
       >
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Tasks</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage your tasks and track progress
-          </p>
-        </div>
-        <motion.div
-          whileTap={{ scale: 0.95 }}
-          whileHover={{ scale: 1.02 }}
-          className="min-h-[44px] min-w-[44px]"
-        >
-          <Button
-            variant="primary"
-            onClick={() => setIsCreateDialogOpen(true)}
-            className="w-full sm:w-auto"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            New Task
-          </Button>
-        </motion.div>
-      </motion.div>
+        <h1 className="shrink-0 text-2xl font-bold text-gray-900 dark:text-white">Tasks</h1>
 
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-        className={`mb-4 flex flex-wrap items-center gap-3 ${
-          viewMode === 'kanban' ? 'shrink-0' : ''
-        }`}
-      >
-        <div className="relative flex-1 min-w-[200px] sm:min-w-[300px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+        <div className="relative min-w-0 flex-1 xl:max-w-md">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search tasks..."
-            className="w-full pl-10 pr-4 py-2.5 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            className="w-full min-h-[44px] rounded-lg border border-gray-300 bg-white py-1.5 pl-9 pr-3 text-gray-900 placeholder-gray-400 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500 xl:min-h-[36px]"
           />
         </div>
 
-        <motion.div
-          whileTap={{ scale: 0.95 }}
-          whileHover={{ scale: 1.02 }}
-          className="min-h-[44px] min-w-[44px]"
-        >
-          <Button
-            variant="secondary"
-            onClick={() => setShowFilters(!showFilters)}
-            className="relative w-full sm:w-auto"
-          >
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-            {activeFilterCount > 0 ? (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="ml-2 px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full"
-              >
-                {activeFilterCount}
-              </motion.span>
-            ) : null}
-          </Button>
-        </motion.div>
+        <div className="flex flex-wrap items-center gap-2 xl:shrink-0">
+          <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.02 }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="relative min-h-[44px] xl:min-h-[36px]"
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              Filters
+              {activeFilterCount > 0 ? (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                >
+                  {activeFilterCount}
+                </motion.span>
+              ) : null}
+            </Button>
+          </motion.div>
 
-        <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-1">
-          {(['list', 'kanban', 'calendar', 'graph'] as ViewMode[]).map((mode, index) => {
-            const icons = {
-              list: List,
-              kanban: Kanban,
-              calendar: CalendarIcon,
-              graph: Network,
-            };
-            const labels = {
-              list: 'List',
-              kanban: 'Board',
-              calendar: 'Calendar',
-              graph: 'Graph',
-            };
-            const titles = {
-              list: 'List view',
-              kanban: 'Kanban board',
-              calendar: 'Calendar view',
-              graph: 'Dependency graph',
-            };
-            const Icon = icons[mode];
-            const isActive = viewMode === mode;
+          {viewMode === 'kanban' ? (
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.96 }}
+              whileHover={{ scale: 1.02 }}
+              onClick={() => setCardDensityMode(isKanbanCompact ? 'cards' : 'compact')}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 xl:min-h-[36px]"
+              title={
+                isKanbanCompact
+                  ? 'Show card details on all columns'
+                  : 'Use compact rows on all columns'
+              }
+              aria-pressed={isKanbanCompact}
+              aria-label={
+                isKanbanCompact
+                  ? 'Switch to detailed cards on all columns'
+                  : 'Switch to compact rows on all columns'
+              }
+            >
+              {isKanbanCompact ? (
+                <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />
+              ) : (
+                <LayoutList className="h-4 w-4 shrink-0" aria-hidden />
+              )}
+              <span className="hidden sm:inline">
+                {isKanbanCompact ? 'Detailed cards' : 'Compact rows'}
+              </span>
+            </motion.button>
+          ) : null}
 
-            return (
-              <motion.button
-                key={mode}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.05 }}
-                whileTap={{ scale: 0.9 }}
-                whileHover={{ scale: 1.05 }}
-                onClick={() => setViewMode(mode)}
-                className={`flex items-center gap-2 px-3 py-2 rounded min-h-[44px] transition-colors ${
-                  isActive
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-                title={titles[mode]}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-sm font-medium hidden sm:inline">{labels[mode]}</span>
-              </motion.button>
-            );
-          })}
+          <div className="flex items-center gap-0.5 rounded-lg border border-gray-300 bg-white p-0.5 dark:border-gray-600 dark:bg-gray-800">
+            {(['list', 'kanban', 'calendar', 'graph'] as ViewMode[]).map((mode, index) => {
+              const icons = {
+                list: List,
+                kanban: Kanban,
+                calendar: CalendarIcon,
+                graph: Network,
+              };
+              const labels = {
+                list: 'List',
+                kanban: 'Board',
+                calendar: 'Calendar',
+                graph: 'Graph',
+              };
+              const titles = {
+                list: 'List view',
+                kanban: 'Kanban board',
+                calendar: 'Calendar view',
+                graph: 'Dependency graph',
+              };
+              const Icon = icons[mode];
+              const isActive = viewMode === mode;
+
+              return (
+                <motion.button
+                  key={mode}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => setViewMode(mode)}
+                  className={`flex min-h-[44px] items-center gap-1.5 rounded px-2.5 py-1.5 transition-colors xl:min-h-[36px] ${
+                    isActive
+                      ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                      : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+                  }`}
+                  title={titles[mode]}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="hidden text-sm font-medium sm:inline">{labels[mode]}</span>
+                </motion.button>
+              );
+            })}
+          </div>
+
+          <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.02 }}>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="min-h-[44px] w-full sm:w-auto xl:min-h-[36px]"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New Task
+            </Button>
+          </motion.div>
         </div>
       </motion.div>
 
@@ -684,16 +722,16 @@ export default function TasksPage() {
             animate="show"
             exit="exit"
             transition={{ duration: 0.3 }}
-            className="mb-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 overflow-hidden"
+            className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"
           >
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-2 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900 dark:text-white">Filters</h3>
               <div className="flex items-center gap-2">
                 {activeFilterCount > 0 && (
                   <motion.button
                     whileTap={{ scale: 0.95 }}
                     onClick={handleClearFilters}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline min-h-[44px] px-2"
+                    className="min-h-[36px] px-2 text-sm text-blue-600 hover:underline dark:text-blue-400"
                   >
                     Clear all
                   </motion.button>
@@ -701,21 +739,21 @@ export default function TasksPage() {
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => setShowFilters(false)}
-                  className="p-2 min-h-[44px] min-w-[44px] hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center justify-center"
+                  className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="h-4 w-4" />
                 </motion.button>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Sort by
                 </label>
-                <select
+                <Select
                   value={taskSortField}
                   onChange={(e) => setTaskSortField(e.target.value as TaskListSortField)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="priority">Priority</option>
                   <option value="size">Story points</option>
@@ -723,32 +761,32 @@ export default function TasksPage() {
                   <option value="dueDate">Due date</option>
                   <option value="createdAt">Created</option>
                   <option value="updatedAt">Updated</option>
-                </select>
+                </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Due date
                 </label>
-                <select
+                <Select
                   value={duePreset}
                   onChange={(e) => setDuePreset(e.target.value as DuePreset)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="none">Any due date</option>
                   <option value="today">Due today</option>
                   <option value="tomorrow">Due tomorrow</option>
                   <option value="week">Due this week</option>
                   <option value="month">Due this month</option>
-                </select>
+                </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Area
                 </label>
-                <select
+                <Select
                   value={selectedArea || ''}
                   onChange={(e) => setSelectedArea((e.target.value as Area) || undefined)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">All Areas</option>
                   {AREA_OPTIONS.map((area) => (
@@ -756,16 +794,16 @@ export default function TasksPage() {
                       {AREA_LABELS[area]}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Status
                 </label>
-                <select
+                <Select
                   value={selectedStatus || ''}
                   onChange={(e) => setSelectedStatus((e.target.value as TaskStatus) || undefined)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">All Statuses</option>
                   {STATUS_OPTIONS.map((status) => (
@@ -773,16 +811,16 @@ export default function TasksPage() {
                       {TASK_STATUS_LABELS[status]}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Priority
                 </label>
-                <select
+                <Select
                   value={selectedPriority || ''}
                   onChange={(e) => setSelectedPriority((e.target.value as Priority) || undefined)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">All Priorities</option>
                   {PRIORITY_OPTIONS.map((priority) => (
@@ -790,7 +828,7 @@ export default function TasksPage() {
                       {priority}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
           </motion.div>
@@ -906,6 +944,8 @@ export default function TasksPage() {
           >
             <TaskKanbanBoard
               tasks={filteredTasks}
+              projects={projects}
+              cardDensity={cardDensity}
               isLoading={tasksDataLoading}
               onTaskUpdate={handleKanbanTaskUpdate}
               onTaskEdit={handleEditTask}
@@ -965,6 +1005,8 @@ export default function TasksPage() {
       >
         <TaskCreateForm
           dependencyPickerEntities={taskEntitiesForCreateDeps}
+          projectPickerEntities={allProjects}
+          goalPickerEntities={allGoals}
           onSubmit={handleCreateTask}
           onCancel={() => {
             setIsCreateDialogOpen(false);
@@ -993,10 +1035,6 @@ export default function TasksPage() {
           linkedGoals={getLinkedGoals(selectedTask.id)}
           onDependencyAdd={handleDependencyAdd}
           onDependencyRemove={handleDependencyRemove}
-          onProjectLink={handleProjectLink}
-          onProjectUnlink={handleProjectUnlink}
-          onGoalLink={handleGoalLink}
-          onGoalUnlink={handleGoalUnlink}
           onCreateSubtasks={handleCreateSubtasks}
         />
       )}
@@ -1087,6 +1125,6 @@ export default function TasksPage() {
         isSplittingDraggedTask={isSplittingDraggedTask}
         splitDragError={splitDragError}
       />
-    </div>
+    </PageContainer>
   );
 }

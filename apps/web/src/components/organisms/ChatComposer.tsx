@@ -11,6 +11,8 @@ import { Globe, Loader2, Send, StopCircle } from 'lucide-react';
 import type { AssistantWsConnectionState } from '@/lib/websocket/assistant-ws-client';
 
 /** Max textarea height (px); beyond this, content scrolls inside the field. */
+import { Textarea } from '@/components/atoms/Textarea';
+
 const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 200;
 
 export type ChatComposerHandle = {
@@ -111,7 +113,7 @@ export const ChatComposer = memo(
           </div>
         )}
         <div className="flex items-end gap-1.5 sm:gap-2">
-          <textarea
+          <Textarea
             ref={textareaRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}

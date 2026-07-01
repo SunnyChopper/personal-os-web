@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Activity, CalendarRange, Monitor, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
-import { AISettingsPanel } from '@/components/settings/AISettingsPanel';
+import { AISettingsPanel } from '@/components/organisms/settings/AISettingsPanel';
 import { MARGIN_OF_SAFETY_OPTIONS, useMarginOfSafetyBuffer } from '@/hooks/useMarginOfSafetyBuffer';
 import { useSoundEffects } from '@/hooks/useSoundEffects';
 import { apiClient } from '@/lib/api-client';
+import { Select } from '@/components/atoms/Select';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -232,7 +233,7 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <select
+          <Select
             id="weekly-review-day"
             disabled={weeklyReviewLoading || weeklyReviewSaving}
             value={weeklyReviewDay}
@@ -258,7 +259,7 @@ export default function SettingsPage() {
                 {label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         {weeklyReviewError && (
           <p className="mt-3 text-sm text-red-600 dark:text-red-400">{weeklyReviewError}</p>
@@ -288,7 +289,7 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <select
+          <Select
             id="margin-of-safety-buffer"
             disabled={marginQuery.isLoading || marginMutation.isPending}
             value={marginBuffer}
@@ -309,7 +310,7 @@ export default function SettingsPage() {
                 {opt.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         {marginError && (
           <p className="mt-3 text-sm text-red-600 dark:text-red-400">{marginError}</p>

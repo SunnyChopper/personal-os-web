@@ -64,9 +64,11 @@ When this repo is opened inside the monorepo workspace (sibling `personal-os-bac
 
 `apps/web/scripts/validate-architecture.ts` enforces layout under `apps/web/src/components/`:
 
-- **Atomic levels**: `atoms/`, `molecules/`, `organisms/`, `templates/`, `pages/`
-- **Feature groups** (allowed siblings, not atomic levels): `auth/`, `routing/`, `settings/`, `shared/`, `assistant/`, `proactive/`, `tools/`, `chatbot/`, `observability/`, `widgets/` (e.g. `widgets/weekly/*` for dashboard tiles)
-- **Do not** add new top-level folders under `components/` without updating `utilityDirs` in `validate-architecture.ts` and this section.
+- **Top-level atomic levels only**: `atoms/`, `molecules/`, `organisms/`, `templates/`
+- **Feature subfolders** nest under the correct atomic level, e.g. `molecules/assistant/ManualModelListbox.tsx`, `organisms/proactive/AutomationCard.tsx`, `organisms/widgets/weekly/VelocityWidget.tsx`, `templates/auth/ProtectedRoute.tsx`
+- **Route pages** live in `src/pages/` (not `components/pages/`)
+- **Non-UI helpers** (formatters, criteria builders) live in `src/lib/{domain}/` — not under `components/`
+- **Do not** add new top-level folders under `components/` besides the four atomic levels. Canonical contract: monorepo `docs/contracts/frontend-atomic-design-placement-contract-spec.md`
 
 **File naming under `components/`** (also checked by `validate-architecture`):
 
@@ -105,7 +107,7 @@ bun run format:check
 
 - **Local dev**: use `apps/web/.env` (see `apps/web/.env.example`).
 - **Deploy CI (SPA)**: **`deploy-spa.yml`** **`deploy-dev`** runs after **`CI Validation`** succeeds (via `workflow_run` on same-repo PRs), **`vite build --mode ci-dev`** (loads **`apps/web/.env.ci-dev`**) plus **`SPA_CI_STAGE`** for Turbo cache isolation; tag `deploy/dev` and **`workflow_dispatch`** still deploy dev. **`deploy-prod`** still injects **`VITE_*`** from the **`prod`** Environment secrets only (push `main`). **`deploy-garden.yml`** uses the same **CI Validation** → dev pattern for **`build:opennext`**.
-- **Deploy from your machine** (same S3 paths + invalidation as CI): copy `.env.deploy.example` → `.env.deploy.dev` or `.env.deploy.prod`. From **monorepo root**, dry-run with **`bun run check:infra:frontend:<stage>`** (edge only) or **`bun run check:infra:<stage>`** (edge + API). Apply edge only + refresh deploy env keys: **`bun run deploy:infra:frontend:<stage>`**. Apply API Terraform only: **`bun run deploy:infra:backend:<stage>`**. Apply **both** stacks: **`bun run deploy:infra:<stage>`**. Add `VITE_*` and garden secrets to `.env.deploy.*` as needed. Then **`bun run deploy:frontend:dev`** (Vite + OpenNext), or **`bun run deploy:frontend:personal-os:<stage>`** / **`bun run deploy:frontend:public-garden:<stage>`**. From `personal-os-web/`, the same names are wired via `../scripts/`. OpenNext builds are unreliable on Windows without WSL (symlinks); use Linux, macOS, or WSL for full `deploy:frontend:*` including public garden.
+- **Deploy from your machine** (same S3 paths + invalidation as CI): copy `.env.deploy.example` → `.env.deploy.dev` or `.env.deploy.prod`, and set **`apps/web/.env.{stage}`** (Vite) plus **`personal-os-backend/.env.{stage}`** (Lambda). **One command (infra → backend → frontend):** from monorepo root **`pnpm run deploy:prod`** / **`deploy:dev`** (`scripts/deploy-stack.mjs`; prod migrations: **`deploy:prod:migrate`**). **Piecemeal:** dry-run **`check:infra:<stage>`**; **`deploy:infra:<stage>`**; **`deploy:backend:<stage>`**; **`deploy:frontend:<stage>`** (or SPA/garden only). From `personal-os-web/`, **`pnpm run deploy:prod`** delegates to the same stack script. OpenNext on Windows uses WSL via `run-wsl.mjs` (included in full-stack deploy).
 
 Note: Some older docs mention `VITE_API_URL` / `VITE_COGNITO_*`. For this frontend build, treat `**VITE_API_BASE_URL` + `VITE_AWS_*` as canonical\*\*.
 

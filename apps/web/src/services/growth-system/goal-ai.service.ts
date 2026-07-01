@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import { apiFailure, withFeatureLlm } from '@/lib/llm/feature-ai-request';
 import { llmLogger } from '@/lib/logger';
 import type { Goal, Task, GoalProgressBreakdown } from '@/types/growth-system';
 import type { ApiResponse } from '@/types/api-contracts';
@@ -19,9 +20,6 @@ interface AIResponse<T> {
 }
 
 export const goalAIService = {
-  /**
-   * Get AI-powered progress coaching for a specific goal
-   */
   async getProgressCoaching(
     goal: Goal,
     progress: GoalProgressBreakdown,
@@ -34,18 +32,23 @@ export const goalAIService = {
         priority: t.priority,
       }));
 
+      const body = await withFeatureLlm('goalProgress', {
+        goalId: goal.id,
+        title: goal.title,
+        description: goal.description ?? '',
+        timeHorizon: goal.timeHorizon,
+        targetDate: goal.targetDate,
+        currentProgress: progress.overall ?? 0,
+        criteria: [],
+        linkedTasks: tasksSummary,
+        linkedMetrics: [],
+        linkedHabits: [],
+        recentActivity: [],
+      });
+
       const backendResponse = await apiClient.post<{ data: AIResponse<ProgressCoachingOutput> }>(
-        '/ai/goals/progress-coaching',
-        {
-          goalId: goal.id,
-          goalTitle: goal.title,
-          goalDescription: goal.description,
-          timeHorizon: goal.timeHorizon,
-          targetDate: goal.targetDate,
-          status: goal.status,
-          progress,
-          linkedTasks: tasksSummary,
-        }
+        '/ai/goals/progress',
+        body
       );
 
       if (backendResponse.success && backendResponse.data) {
@@ -54,31 +57,15 @@ export const goalAIService = {
           success: true,
         };
       }
-
-      return {
-        data: undefined,
-        error: {
-          message: backendResponse.error?.message || 'Failed to get coaching',
-          code: 'COACHING_ERROR',
-        },
-        success: false,
-      };
+      const message = backendResponse.error?.message || 'Failed to get coaching';
+      return apiFailure<ProgressCoachingOutput>('goalProgress', message, 'COACHING_ERROR');
     } catch (error) {
       llmLogger.error('Error getting progress coaching', error);
-      return {
-        data: undefined,
-        error: {
-          message: error instanceof Error ? error.message : 'Failed to get coaching',
-          code: 'COACHING_ERROR',
-        },
-        success: false,
-      };
+      const message = error instanceof Error ? error.message : 'Failed to get coaching';
+      return apiFailure<ProgressCoachingOutput>('goalProgress', message, 'COACHING_ERROR');
     }
   },
 
-  /**
-   * Calculate AI-powered goal health score
-   */
   async calculateHealthScore(
     goal: Goal,
     allGoals: Goal[],
@@ -90,63 +77,51 @@ export const goalAIService = {
         .slice(0, 5)
         .map((g) => ({ title: g.title, status: g.status, priority: g.priority }));
 
+      const body = await withFeatureLlm('goalProgress', {
+        goalId: goal.id,
+        title: goal.title,
+        description: goal.description ?? '',
+        timeHorizon: goal.timeHorizon,
+        targetDate: goal.targetDate,
+        currentProgress: progress.overall ?? 0,
+        criteria: [],
+        linkedTasks: [],
+        linkedMetrics: [],
+        linkedHabits: [],
+        recentActivity: relatedGoalsContext,
+      });
+
       const backendResponse = await apiClient.post<{ data: AIResponse<GoalHealthScoreOutput> }>(
-        '/ai/goals/health-score',
-        {
-          goalId: goal.id,
-          goalTitle: goal.title,
-          timeHorizon: goal.timeHorizon,
-          priority: goal.priority,
-          status: goal.status,
-          createdAt: goal.createdAt,
-          targetDate: goal.targetDate,
-          lastActivityAt: goal.lastActivityAt,
-          progress,
-          relatedGoals: relatedGoalsContext,
-        }
+        '/ai/goals/progress',
+        body
       );
 
       if (backendResponse.success && backendResponse.data) {
-        return {
-          data: backendResponse.data.data.result,
-          success: true,
-        };
+        const progressResult = backendResponse.data.data.result as unknown as GoalHealthScoreOutput;
+        return { data: progressResult, success: true };
       }
 
-      return {
-        data: undefined,
-        error: {
-          message: backendResponse.error?.message || 'Failed to calculate health score',
-          code: 'HEALTH_SCORE_ERROR',
-        },
-        success: false,
-      };
+      const message = backendResponse.error?.message || 'Failed to calculate health score';
+      return apiFailure<GoalHealthScoreOutput>('goalProgress', message, 'HEALTH_SCORE_ERROR');
     } catch (error) {
       llmLogger.error('Error calculating health score', error);
-      return {
-        data: undefined,
-        error: {
-          message: error instanceof Error ? error.message : 'Failed to calculate health score',
-          code: 'HEALTH_SCORE_ERROR',
-        },
-        success: false,
-      };
+      const message = error instanceof Error ? error.message : 'Failed to calculate health score';
+      return apiFailure<GoalHealthScoreOutput>('goalProgress', message, 'HEALTH_SCORE_ERROR');
     }
   },
 
-  /**
-   * Decompose a goal into sub-goals, tasks, metrics, and habits
-   */
   async decomposeGoal(goal: Goal): Promise<ApiResponse<GoalDecompositionOutput>> {
     try {
-      // Try backend endpoint first
+      const body = await withFeatureLlm('goalCascade', {
+        goalId: goal.id,
+        title: goal.title,
+        description: goal.description ?? '',
+        timeHorizon: goal.timeHorizon,
+      });
+
       const backendResponse = await apiClient.post<{ data: AIResponse<GoalDecompositionOutput> }>(
         '/ai/goals/cascade',
-        {
-          goalId: goal.id,
-          goalTitle: goal.title,
-          goalDescription: goal.description,
-        }
+        body
       );
 
       if (backendResponse.success && backendResponse.data) {
@@ -156,50 +131,52 @@ export const goalAIService = {
         };
       }
 
-      return {
-        data: undefined,
-        error: {
-          message: backendResponse.error?.message || 'Failed to decompose goal',
-          code: 'DECOMPOSITION_ERROR',
-        },
-        success: false,
-      };
+      const message = backendResponse.error?.message || 'Failed to decompose goal';
+      return apiFailure<GoalDecompositionOutput>('goalCascade', message, 'DECOMPOSITION_ERROR');
     } catch (error) {
       llmLogger.error('Error decomposing goal', error);
-      return {
-        data: undefined,
-        error: {
-          message: error instanceof Error ? error.message : 'Failed to decompose goal',
-          code: 'DECOMPOSITION_ERROR',
-        },
-        success: false,
-      };
+      const message = error instanceof Error ? error.message : 'Failed to decompose goal';
+      return apiFailure<GoalDecompositionOutput>('goalCascade', message, 'DECOMPOSITION_ERROR');
     }
   },
 
-  /**
-   * Detect conflicts and overcommitment across all goals
-   */
   async detectConflicts(goals: Goal[]): Promise<ApiResponse<ConflictDetectionOutput>> {
     try {
       const activeGoals = goals.filter((g) => g.status === 'Active');
+      const primary = activeGoals[0];
+      if (!primary) {
+        return apiFailure<ConflictDetectionOutput>(
+          'goalConflict',
+          'No active goals to analyze',
+          'CONFLICT_DETECTION_ERROR'
+        );
+      }
 
-      const goalsSummary = activeGoals.map((g) => ({
-        id: g.id,
-        title: g.title,
-        description: g.description,
-        timeHorizon: g.timeHorizon,
-        priority: g.priority,
-        status: g.status,
-        area: g.area,
-        targetDate: g.targetDate,
-      }));
+      const otherGoals = activeGoals
+        .filter((g) => g.id !== primary.id)
+        .map((g) => ({
+          id: g.id,
+          title: g.title,
+          description: g.description,
+          timeHorizon: g.timeHorizon,
+          priority: g.priority,
+          status: g.status,
+          area: g.area,
+          targetDate: g.targetDate,
+        }));
+
+      const body = await withFeatureLlm('goalConflict', {
+        goalId: primary.id,
+        title: primary.title,
+        description: primary.description ?? '',
+        timeHorizon: primary.timeHorizon,
+        area: primary.area,
+        otherGoals,
+      });
 
       const backendResponse = await apiClient.post<{ data: AIResponse<ConflictDetectionOutput> }>(
         '/ai/goals/conflicts',
-        {
-          goals: goalsSummary,
-        }
+        body
       );
 
       if (backendResponse.success && backendResponse.data) {
@@ -209,24 +186,20 @@ export const goalAIService = {
         };
       }
 
-      return {
-        data: undefined,
-        error: {
-          message: backendResponse.error?.message || 'Failed to detect conflicts',
-          code: 'CONFLICT_DETECTION_ERROR',
-        },
-        success: false,
-      };
+      const message = backendResponse.error?.message || 'Failed to detect conflicts';
+      return apiFailure<ConflictDetectionOutput>(
+        'goalConflict',
+        message,
+        'CONFLICT_DETECTION_ERROR'
+      );
     } catch (error) {
       llmLogger.error('Error detecting conflicts', error);
-      return {
-        data: undefined,
-        error: {
-          message: error instanceof Error ? error.message : 'Failed to detect conflicts',
-          code: 'CONFLICT_DETECTION_ERROR',
-        },
-        success: false,
-      };
+      const message = error instanceof Error ? error.message : 'Failed to detect conflicts';
+      return apiFailure<ConflictDetectionOutput>(
+        'goalConflict',
+        message,
+        'CONFLICT_DETECTION_ERROR'
+      );
     }
   },
 };

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, Search, Repeat, Calendar, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { motion, AnimatePresence } from 'framer-motion';
 import type {
   Habit,
@@ -591,451 +592,445 @@ export default function HabitsPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div
-          className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 ${selectedHabit ? 'pb-24 max-lg:pb-28' : ''}`}
-        >
-          {selectedHabit ? (
-            <>
-              <HabitDetailHeader
-                habit={selectedHabit}
-                logs={selectedLogs}
-                onBack={handleBackToGrid}
-                onEdit={() => setIsEditDialogOpen(true)}
-                onDelete={() => setHabitToDelete(selectedHabit)}
-              />
+      <PageContainer className={`py-4 sm:py-6 ${selectedHabit ? 'pb-24 max-lg:pb-28' : ''}`}>
+        {selectedHabit ? (
+          <>
+            <HabitDetailHeader
+              habit={selectedHabit}
+              logs={selectedLogs}
+              onBack={handleBackToGrid}
+              onEdit={() => setIsEditDialogOpen(true)}
+              onDelete={() => setHabitToDelete(selectedHabit)}
+            />
 
-              {isAIConfigured && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-4 sm:mb-6">
-                  <button
-                    onClick={() => setShowAIAssist(!showAIAssist)}
-                    className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
-                  >
-                    <Sparkles size={18} />
-                    <span>AI Habit Tools</span>
-                    {showAIAssist ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </button>
+            {isAIConfigured && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-4 sm:mb-6">
+                <button
+                  onClick={() => setShowAIAssist(!showAIAssist)}
+                  className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+                >
+                  <Sparkles size={18} />
+                  <span>AI Habit Tools</span>
+                  {showAIAssist ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
 
-                  {showAIAssist && (
-                    <div className="mt-4">
-                      <AIHabitAssistPanel
-                        habit={selectedHabit}
-                        logs={selectedLogs}
-                        onApplyPatch={async (patch: EstablishedHabitSuggestedPatch) => {
-                          const input: UpdateHabitInput = { ...patch };
-                          await handleUpdateHabit(selectedHabit.id, input);
-                        }}
-                      />
+                {showAIAssist && (
+                  <div className="mt-4">
+                    <AIHabitAssistPanel
+                      habit={selectedHabit}
+                      logs={selectedLogs}
+                      onApplyPatch={async (patch: EstablishedHabitSuggestedPatch) => {
+                        const input: UpdateHabitInput = { ...patch };
+                        await handleUpdateHabit(selectedHabit.id, input);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <HabitDetailTabs activeTab={activeTab} onTabChange={setActiveTab}>
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  <HabitStatsDashboard habit={selectedHabit} logs={selectedLogs} />
+                  <LinkedGoalsDisplay goals={linkedGoals.get(selectedHabit.id) || []} />
+                </div>
+              )}
+
+              {activeTab === 'activity' && (
+                <div className="space-y-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Activity
+                    </h2>
+                    <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1 shrink-0 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => setActivityView('heatmap')}
+                        className={`px-3 py-1.5 text-sm rounded transition-colors min-h-[40px] touch-manipulation ${
+                          activityView === 'heatmap'
+                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                      >
+                        Heatmap
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActivityView('calendar')}
+                        className={`px-3 py-1.5 text-sm rounded transition-colors min-h-[40px] touch-manipulation ${
+                          activityView === 'calendar'
+                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                      >
+                        Calendar
+                      </button>
                     </div>
+                  </div>
+                  {activityView === 'heatmap' ? (
+                    <HabitCalendarHeatmap
+                      habit={selectedHabit}
+                      logs={selectedLogs}
+                      months={6}
+                      onDateClick={handleDateClick}
+                    />
+                  ) : (
+                    <HabitCalendarView
+                      habit={selectedHabit}
+                      logs={selectedLogs}
+                      onDateClick={handleDateClick}
+                      onQuickLog={(date) => handleDateModalLog(date)}
+                    />
                   )}
                 </div>
               )}
 
-              <HabitDetailTabs activeTab={activeTab} onTabChange={setActiveTab}>
-                {activeTab === 'overview' && (
-                  <div className="space-y-6">
-                    <HabitStatsDashboard habit={selectedHabit} logs={selectedLogs} />
-                    <LinkedGoalsDisplay goals={linkedGoals.get(selectedHabit.id) || []} />
-                  </div>
-                )}
+              {activeTab === 'analytics' && (
+                <div className="space-y-6">
+                  <CompletionRateChart habit={selectedHabit} logs={selectedLogs} />
+                  <WeeklyMonthlyComparison habit={selectedHabit} logs={selectedLogs} />
+                </div>
+              )}
 
-                {activeTab === 'activity' && (
-                  <div className="space-y-6">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        Activity
+              {activeTab === 'history' && (
+                <div className="space-y-6">
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Calendar className="w-5 h-5 shrink-0" />
+                        Completion History
                       </h2>
-                      <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1 shrink-0 self-start sm:self-auto">
-                        <button
-                          type="button"
-                          onClick={() => setActivityView('heatmap')}
-                          className={`px-3 py-1.5 text-sm rounded transition-colors min-h-[40px] touch-manipulation ${
-                            activityView === 'heatmap'
-                              ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                          }`}
-                        >
-                          Heatmap
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActivityView('calendar')}
-                          className={`px-3 py-1.5 text-sm rounded transition-colors min-h-[40px] touch-manipulation ${
-                            activityView === 'calendar'
-                              ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                          }`}
-                        >
-                          Calendar
-                        </button>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        {selectedLogs.length} total • {selectedStreak} day streak
                       </div>
                     </div>
-                    {activityView === 'heatmap' ? (
-                      <HabitCalendarHeatmap
-                        habit={selectedHabit}
-                        logs={selectedLogs}
-                        months={6}
-                        onDateClick={handleDateClick}
+
+                    {selectedLogs.length === 0 ? (
+                      <EmptyState
+                        title="No completions yet"
+                        description="Start building your streak by logging your first completion"
+                        actionLabel="Log Completion"
+                        onAction={() => handleQuickLog(selectedHabit)}
                       />
                     ) : (
-                      <HabitCalendarView
-                        habit={selectedHabit}
-                        logs={selectedLogs}
-                        onDateClick={handleDateClick}
-                        onQuickLog={(date) => handleDateModalLog(date)}
-                      />
-                    )}
-                  </div>
-                )}
-
-                {activeTab === 'analytics' && (
-                  <div className="space-y-6">
-                    <CompletionRateChart habit={selectedHabit} logs={selectedLogs} />
-                    <WeeklyMonthlyComparison habit={selectedHabit} logs={selectedLogs} />
-                  </div>
-                )}
-
-                {activeTab === 'history' && (
-                  <div className="space-y-6">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                          <Calendar className="w-5 h-5 shrink-0" />
-                          Completion History
-                        </h2>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          {selectedLogs.length} total • {selectedStreak} day streak
-                        </div>
-                      </div>
-
-                      {selectedLogs.length === 0 ? (
-                        <EmptyState
-                          title="No completions yet"
-                          description="Start building your streak by logging your first completion"
-                          actionLabel="Log Completion"
-                          onAction={() => handleQuickLog(selectedHabit)}
-                        />
-                      ) : (
-                        <div className="space-y-2">
-                          {sortedSelectedLogs.slice(0, 50).map((log) => (
-                            <button
-                              key={log.id}
-                              onClick={() => {
-                                const dayKey = getHabitLogCalendarDay(log.completedAt);
-                                const [year, month, day] = dayKey.split('-').map(Number);
-                                handleDateClick(new Date(year, month - 1, day));
-                              }}
-                              className="w-full text-left flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors min-h-[44px] touch-manipulation"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-base font-semibold text-gray-900 dark:text-white">
-                                    {formatCompletionDate(log.completedAt)}
+                      <div className="space-y-2">
+                        {sortedSelectedLogs.slice(0, 50).map((log) => (
+                          <button
+                            key={log.id}
+                            onClick={() => {
+                              const dayKey = getHabitLogCalendarDay(log.completedAt);
+                              const [year, month, day] = dayKey.split('-').map(Number);
+                              handleDateClick(new Date(year, month - 1, day));
+                            }}
+                            className="w-full text-left flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors min-h-[44px] touch-manipulation"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-base font-semibold text-gray-900 dark:text-white">
+                                  {formatCompletionDate(log.completedAt)}
+                                </span>
+                                {log.amount && log.amount > 1 && (
+                                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                                    × {log.amount}
                                   </span>
-                                  {log.amount && log.amount > 1 && (
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                                      × {log.amount}
-                                    </span>
-                                  )}
-                                </div>
-                                {log.notes && (
-                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 break-words">
-                                    {log.notes}
-                                  </p>
                                 )}
                               </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                              {log.notes && (
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 break-words">
+                                  {log.notes}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </HabitDetailTabs>
+                </div>
+              )}
+            </HabitDetailTabs>
 
-              <FloatingLogButton
+            <FloatingLogButton
+              habit={selectedHabit}
+              logs={selectedLogs}
+              onLog={() => handleQuickLog(selectedHabit)}
+            />
+
+            {selectedDate && (
+              <DateDetailModal
+                isOpen={isDateModalOpen}
+                onClose={() => {
+                  setIsDateModalOpen(false);
+                  setSelectedDate(null);
+                }}
                 habit={selectedHabit}
-                logs={selectedLogs}
-                onLog={() => handleQuickLog(selectedHabit)}
+                date={selectedDate}
+                logs={selectedDateLogs}
+                onLog={handleDateModalLog}
+                onUpdateCompletionNote={async (completionDate, note) => {
+                  if (!selectedHabit) {
+                    throw new Error('No habit selected');
+                  }
+                  const response = await updateCompletionNote({
+                    habitId: selectedHabit.id,
+                    completionDate,
+                    note,
+                  });
+                  if (!response.success) {
+                    throw new Error(response.error?.message ?? 'Failed to update completion note');
+                  }
+                  await loadHabitLogs(selectedHabit.id, { throwOnError: true });
+                }}
               />
-
-              {selectedDate && (
-                <DateDetailModal
-                  isOpen={isDateModalOpen}
-                  onClose={() => {
-                    setIsDateModalOpen(false);
-                    setSelectedDate(null);
-                  }}
-                  habit={selectedHabit}
-                  date={selectedDate}
-                  logs={selectedDateLogs}
-                  onLog={handleDateModalLog}
-                  onUpdateCompletionNote={async (completionDate, note) => {
-                    if (!selectedHabit) {
-                      throw new Error('No habit selected');
-                    }
-                    const response = await updateCompletionNote({
-                      habitId: selectedHabit.id,
-                      completionDate,
-                      note,
-                    });
-                    if (!response.success) {
-                      throw new Error(
-                        response.error?.message ?? 'Failed to update completion note'
-                      );
-                    }
-                    await loadHabitLogs(selectedHabit.id, { throwOnError: true });
-                  }}
-                />
-              )}
-            </>
-          ) : (
-            <>
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"
-              >
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2 sm:gap-3">
-                    <Repeat className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400" />
-                    Daily Habits
-                  </h1>
-                  <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">
-                    Build consistency one day at a time
-                  </p>
-                </div>
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Button
-                    variant="primary"
-                    onClick={() => setIsCreateDialogOpen(true)}
-                    className="w-full sm:w-auto min-h-[44px] touch-manipulation"
-                  >
-                    <Plus className="w-5 h-5 mr-2" />
-                    <span className="hidden sm:inline">New Habit</span>
-                    <span className="sm:hidden">New</span>
-                  </Button>
-                </motion.div>
-              </motion.div>
-
-              {/* Search and View Mode */}
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-                className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
-              >
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search habits..."
-                    className="w-full pl-10 pr-4 py-2.5 sm:py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px] touch-manipulation"
-                  />
-                </div>
-                <div className="flex bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-1">
-                  <motion.button
-                    onClick={() => setViewMode('today')}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`px-4 py-2 rounded-md transition-colors min-h-[44px] touch-manipulation ${
-                      viewMode === 'today'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                    }`}
-                  >
-                    Today
-                  </motion.button>
-                  <motion.button
-                    onClick={() => setViewMode('all')}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`px-4 py-2 rounded-md transition-colors min-h-[44px] touch-manipulation ${
-                      viewMode === 'all'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                    }`}
-                  >
-                    All Habits
-                  </motion.button>
-                </div>
-              </motion.div>
-
-              {viewMode === 'today' && todaySummary && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 text-sm text-blue-900 dark:text-blue-100"
-                >
-                  Today: {todaySummary.completedCount} of {todaySummary.totalHabits} habits logged
-                  {todaySummary.pendingCount > 0
-                    ? ` · ${todaySummary.pendingCount} still pending`
-                    : ' · all done'}
-                </motion.div>
-              )}
-
-              {viewMode === 'today' && (
-                <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-                  Showing habits to focus on today—pending completions appear first. Switch to All
-                  Habits for the full list.
+            )}
+          </>
+        ) : (
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"
+            >
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2 sm:gap-3">
+                  <Repeat className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400" />
+                  Daily Habits
+                </h1>
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">
+                  Build consistency one day at a time
                 </p>
-              )}
+              </div>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                  variant="primary"
+                  onClick={() => setIsCreateDialogOpen(true)}
+                  className="w-full sm:w-auto min-h-[44px] touch-manipulation"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  <span className="hidden sm:inline">New Habit</span>
+                  <span className="sm:hidden">New</span>
+                </Button>
+              </motion.div>
+            </motion.div>
 
-              {/* Filter Pills */}
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.15 }}
-                className="mb-6 flex flex-wrap gap-2"
-              >
-                {/* All Filter */}
+            {/* Search and View Mode */}
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
+            >
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search habits..."
+                  className="w-full pl-10 pr-4 py-2.5 sm:py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px] touch-manipulation"
+                />
+              </div>
+              <div className="flex bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-1">
                 <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setSelectedHabitType(null)}
-                  className={`px-4 py-2 text-sm font-medium rounded-full border transition-all touch-manipulation ${
-                    selectedHabitType === null
-                      ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 border-gray-700 dark:border-gray-300 shadow-md'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  onClick={() => setViewMode('today')}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`px-4 py-2 rounded-md transition-colors min-h-[44px] touch-manipulation ${
+                    viewMode === 'today'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  All ({habits.length})
+                  Today
                 </motion.button>
+                <motion.button
+                  onClick={() => setViewMode('all')}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`px-4 py-2 rounded-md transition-colors min-h-[44px] touch-manipulation ${
+                    viewMode === 'all'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  All Habits
+                </motion.button>
+              </div>
+            </motion.div>
 
-                {/* Type Filters */}
-                {HABIT_TYPES.map((type) => {
-                  const typeHabits = groupedByType[type];
-                  const isSelected = selectedHabitType === type;
-                  const hasHabits = typeHabits.length > 0;
+            {viewMode === 'today' && todaySummary && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 text-sm text-blue-900 dark:text-blue-100"
+              >
+                Today: {todaySummary.completedCount} of {todaySummary.totalHabits} habits logged
+                {todaySummary.pendingCount > 0
+                  ? ` · ${todaySummary.pendingCount} still pending`
+                  : ' · all done'}
+              </motion.div>
+            )}
 
-                  // Color scheme for each type
-                  const getTypeStyles = (t: HabitType, selected: boolean) => {
-                    const baseStyles =
-                      'px-4 py-2 text-sm font-medium rounded-full border transition-all touch-manipulation';
+            {viewMode === 'today' && (
+              <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+                Showing habits to focus on today—pending completions appear first. Switch to All
+                Habits for the full list.
+              </p>
+            )}
 
-                    if (!hasHabits) {
-                      return `${baseStyles} bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed`;
-                    }
+            {/* Filter Pills */}
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.15 }}
+              className="mb-6 flex flex-wrap gap-2"
+            >
+              {/* All Filter */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setSelectedHabitType(null)}
+                className={`px-4 py-2 text-sm font-medium rounded-full border transition-all touch-manipulation ${
+                  selectedHabitType === null
+                    ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 border-gray-700 dark:border-gray-300 shadow-md'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                All ({habits.length})
+              </motion.button>
 
-                    if (selected) {
-                      switch (t) {
-                        case 'Build':
-                          return `${baseStyles} bg-green-600 dark:bg-green-500 text-white border-green-700 dark:border-green-400 shadow-md`;
-                        case 'Maintain':
-                          return `${baseStyles} bg-blue-600 dark:bg-blue-500 text-white border-blue-700 dark:border-blue-400 shadow-md`;
-                        case 'Reduce':
-                          return `${baseStyles} bg-amber-600 dark:bg-amber-500 text-white border-amber-700 dark:border-amber-400 shadow-md`;
-                        case 'Quit':
-                          return `${baseStyles} bg-red-600 dark:bg-red-500 text-white border-red-700 dark:border-red-400 shadow-md`;
-                        default:
-                          return `${baseStyles} bg-gray-600 dark:bg-gray-500 text-white border-gray-700 dark:border-gray-400 shadow-md`;
-                      }
-                    }
+              {/* Type Filters */}
+              {HABIT_TYPES.map((type) => {
+                const typeHabits = groupedByType[type];
+                const isSelected = selectedHabitType === type;
+                const hasHabits = typeHabits.length > 0;
 
-                    // Unselected state
+                // Color scheme for each type
+                const getTypeStyles = (t: HabitType, selected: boolean) => {
+                  const baseStyles =
+                    'px-4 py-2 text-sm font-medium rounded-full border transition-all touch-manipulation';
+
+                  if (!hasHabits) {
+                    return `${baseStyles} bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed`;
+                  }
+
+                  if (selected) {
                     switch (t) {
                       case 'Build':
-                        return `${baseStyles} bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/50 cursor-pointer`;
+                        return `${baseStyles} bg-green-600 dark:bg-green-500 text-white border-green-700 dark:border-green-400 shadow-md`;
                       case 'Maintain':
-                        return `${baseStyles} bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/50 cursor-pointer`;
+                        return `${baseStyles} bg-blue-600 dark:bg-blue-500 text-white border-blue-700 dark:border-blue-400 shadow-md`;
                       case 'Reduce':
-                        return `${baseStyles} bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/50 cursor-pointer`;
+                        return `${baseStyles} bg-amber-600 dark:bg-amber-500 text-white border-amber-700 dark:border-amber-400 shadow-md`;
                       case 'Quit':
-                        return `${baseStyles} bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50 cursor-pointer`;
+                        return `${baseStyles} bg-red-600 dark:bg-red-500 text-white border-red-700 dark:border-red-400 shadow-md`;
                       default:
-                        return `${baseStyles} bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer`;
+                        return `${baseStyles} bg-gray-600 dark:bg-gray-500 text-white border-gray-700 dark:border-gray-400 shadow-md`;
                     }
-                  };
+                  }
 
-                  return (
-                    <motion.button
-                      key={type}
-                      whileHover={hasHabits ? { scale: 1.05 } : {}}
-                      whileTap={hasHabits ? { scale: 0.95 } : {}}
-                      onClick={() => hasHabits && setSelectedHabitType(isSelected ? null : type)}
-                      disabled={!hasHabits}
-                      className={getTypeStyles(type, isSelected)}
-                    >
-                      {type} ({typeHabits.length})
-                    </motion.button>
-                  );
-                })}
-              </motion.div>
+                  // Unselected state
+                  switch (t) {
+                    case 'Build':
+                      return `${baseStyles} bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/50 cursor-pointer`;
+                    case 'Maintain':
+                      return `${baseStyles} bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/50 cursor-pointer`;
+                    case 'Reduce':
+                      return `${baseStyles} bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/50 cursor-pointer`;
+                    case 'Quit':
+                      return `${baseStyles} bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50 cursor-pointer`;
+                    default:
+                      return `${baseStyles} bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer`;
+                  }
+                };
 
-              <AnimatePresence mode="popLayout">
-                {isLoading ? (
-                  <motion.div
-                    key="loading"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"
+                return (
+                  <motion.button
+                    key={type}
+                    whileHover={hasHabits ? { scale: 1.05 } : {}}
+                    whileTap={hasHabits ? { scale: 0.95 } : {}}
+                    onClick={() => hasHabits && setSelectedHabitType(isSelected ? null : type)}
+                    disabled={!hasHabits}
+                    className={getTypeStyles(type, isSelected)}
                   >
-                    <HabitCardSkeleton count={8} />
-                  </motion.div>
-                ) : filteredHabits.length === 0 ? (
-                  <motion.div
-                    key="empty"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                  >
-                    <EmptyState
-                      title="No habits found"
-                      description={
-                        viewMode === 'today'
-                          ? 'No daily or weekly habits match your filters for today.'
-                          : selectedHabitType
-                            ? `No ${selectedHabitType.toLowerCase()} habits found${searchQuery ? ' matching your search' : ''}`
-                            : searchQuery
-                              ? 'Try adjusting your search query'
-                              : 'Get started by creating your first habit'
-                      }
-                      actionLabel="Create Habit"
-                      onAction={() => setIsCreateDialogOpen(true)}
-                    />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="habits-grid"
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="show"
-                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"
-                  >
-                    <AnimatePresence mode="popLayout">
-                      {filteredHabits.map((habit) => (
-                        <motion.div
-                          key={habit.id}
-                          variants={itemVariants}
-                          initial="hidden"
-                          animate="show"
-                          exit="exit"
-                        >
-                          <HabitCard
-                            habit={habit}
-                            streak={getStreak(habit.id)}
-                            todayCompleted={isTodayCompleted(habit.id)}
-                            todayProgress={getTodayProgress(habit.id)}
-                            weeklyProgress={getWeeklyProgress(habit.id)}
-                            totalCompletions={getTotalCompletions(habit.id)}
-                            lastCompletedDate={getLastCompletedDate(habit.id)}
-                            onClick={handleHabitClick}
-                            onQuickLog={handleQuickLog}
-                          />
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </>
-          )}
-        </div>
-      </div>
+                    {type} ({typeHabits.length})
+                  </motion.button>
+                );
+              })}
+            </motion.div>
+
+            <AnimatePresence mode="popLayout">
+              {isLoading ? (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"
+                >
+                  <HabitCardSkeleton count={8} />
+                </motion.div>
+              ) : filteredHabits.length === 0 ? (
+                <motion.div
+                  key="empty"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <EmptyState
+                    title="No habits found"
+                    description={
+                      viewMode === 'today'
+                        ? 'No daily or weekly habits match your filters for today.'
+                        : selectedHabitType
+                          ? `No ${selectedHabitType.toLowerCase()} habits found${searchQuery ? ' matching your search' : ''}`
+                          : searchQuery
+                            ? 'Try adjusting your search query'
+                            : 'Get started by creating your first habit'
+                    }
+                    actionLabel="Create Habit"
+                    onAction={() => setIsCreateDialogOpen(true)}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="habits-grid"
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="show"
+                  className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"
+                >
+                  <AnimatePresence mode="popLayout">
+                    {filteredHabits.map((habit) => (
+                      <motion.div
+                        key={habit.id}
+                        variants={itemVariants}
+                        initial="hidden"
+                        animate="show"
+                        exit="exit"
+                      >
+                        <HabitCard
+                          habit={habit}
+                          streak={getStreak(habit.id)}
+                          todayCompleted={isTodayCompleted(habit.id)}
+                          todayProgress={getTodayProgress(habit.id)}
+                          weeklyProgress={getWeeklyProgress(habit.id)}
+                          totalCompletions={getTotalCompletions(habit.id)}
+                          lastCompletedDate={getLastCompletedDate(habit.id)}
+                          onClick={handleHabitClick}
+                          onQuickLog={handleQuickLog}
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
+      </PageContainer>
 
       <Dialog
         isOpen={isCreateDialogOpen}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import type { Area, SubCategory, Priority, FilterOptions } from '@/types/growth-system';
+import { Select } from '@/components/atoms/Select';
 
 interface FilterPanelProps {
   filters: FilterOptions;
@@ -84,7 +85,7 @@ export function FilterPanel({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Area
               </label>
-              <select
+              <Select
                 value={filters.area || ''}
                 onChange={(e) => updateFilter('area', e.target.value || undefined)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -95,7 +96,7 @@ export function FilterPanel({
                     {area}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           )}
 
@@ -104,7 +105,7 @@ export function FilterPanel({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Priority
               </label>
-              <select
+              <Select
                 value={filters.priority || ''}
                 onChange={(e) => updateFilter('priority', e.target.value || undefined)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -115,7 +116,7 @@ export function FilterPanel({
                     {priority}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           )}
 
@@ -124,7 +125,7 @@ export function FilterPanel({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Status
               </label>
-              <select
+              <Select
                 value={filters.status || ''}
                 onChange={(e) => updateFilter('status', e.target.value || undefined)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -135,7 +136,7 @@ export function FilterPanel({
                     {status}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           )}
 
@@ -146,7 +147,7 @@ export function FilterPanel({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Activity Level
                 </label>
-                <select
+                <Select
                   value={filters.momentum || ''}
                   onChange={(e) => updateFilter('momentum', e.target.value || undefined)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -154,14 +155,14 @@ export function FilterPanel({
                   <option value="">All</option>
                   <option value="active">Active</option>
                   <option value="dormant">Dormant</option>
-                </select>
+                </Select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Time Remaining
                 </label>
-                <select
+                <Select
                   value={filters.targetProximity || ''}
                   onChange={(e) => updateFilter('targetProximity', e.target.value || undefined)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -170,7 +171,7 @@ export function FilterPanel({
                   <option value="approaching">Due Soon</option>
                   <option value="far">Long Term</option>
                   <option value="reached">Completed</option>
-                </select>
+                </Select>
               </div>
 
               <div className="space-y-2">

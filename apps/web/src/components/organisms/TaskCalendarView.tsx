@@ -12,10 +12,17 @@ interface TaskCalendarViewProps {
   tasks: Task[];
   isLoading?: boolean;
   onTaskClick: (task: Task) => void;
+  /** Optional anchor month (e.g. tests); defaults to the current date. */
+  initialMonth?: Date;
 }
 
-export function TaskCalendarView({ tasks, isLoading = false, onTaskClick }: TaskCalendarViewProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+export function TaskCalendarView({
+  tasks,
+  isLoading = false,
+  onTaskClick,
+  initialMonth,
+}: TaskCalendarViewProps) {
+  const [currentDate, setCurrentDate] = useState(() => initialMonth ?? new Date());
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   const getMonthData = () => {

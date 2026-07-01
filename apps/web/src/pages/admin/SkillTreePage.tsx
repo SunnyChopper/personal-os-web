@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/query-keys';
 import { motion } from 'framer-motion';
 import {
   Network,
@@ -27,6 +28,7 @@ import { SkillProgressRing } from '@/components/molecules/SkillProgressRing';
 import { isSkillMastered, skillLevelToNum } from '@/lib/skill-tree-utils';
 import { cn } from '@/lib/utils';
 import { ROUTES } from '@/routes';
+import { Select } from '@/components/atoms/Select';
 
 const linkButtonSecondarySm =
   'inline-flex items-center justify-center rounded-full font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 px-4 py-2 text-sm bg-white text-primary border-2 border-primary hover:bg-primary hover:text-white dark:bg-gray-800 dark:border-green-400 dark:text-green-400 dark:hover:bg-green-600 dark:hover:text-white';
@@ -58,7 +60,7 @@ export default function SkillTreePage() {
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['skill-tree'],
+    queryKey: queryKeys.knowledgeVault.skillTree(),
     queryFn: async () => {
       const res = await skillsService.getTree();
       if (!res.success || !res.data) {
@@ -165,7 +167,7 @@ export default function SkillTreePage() {
     setVerifyBusy(skillId);
     try {
       await skillsService.verifySkill(skillId);
-      await qc.invalidateQueries({ queryKey: ['skill-tree'] });
+      await qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.skillTree() });
     } finally {
       setVerifyBusy(null);
     }
@@ -195,7 +197,7 @@ export default function SkillTreePage() {
       window.alert(res.error || 'Delete failed');
       return;
     }
-    await qc.invalidateQueries({ queryKey: ['skill-tree'] });
+    await qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.skillTree() });
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.delete(skill.id);
@@ -218,7 +220,7 @@ export default function SkillTreePage() {
         const res = await skillsService.deleteSkill(id);
         if (!res.success) errors.push(`${id}: ${res.error || 'failed'}`);
       }
-      await qc.invalidateQueries({ queryKey: ['skill-tree'] });
+      await qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.skillTree() });
       clearBulkSelection();
       if (errors.length) window.alert(`Some deletes failed:\n${errors.slice(0, 5).join('\n')}`);
     } finally {
@@ -236,7 +238,7 @@ export default function SkillTreePage() {
         const res = await skillsService.updateSkill(id, { level: bulkLevel });
         if (!res.success) errors.push(`${id}: ${res.error || 'failed'}`);
       }
-      await qc.invalidateQueries({ queryKey: ['skill-tree'] });
+      await qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.skillTree() });
       if (errors.length) window.alert(`Some updates failed:\n${errors.slice(0, 5).join('\n')}`);
     } finally {
       setBulkBusy(false);
@@ -262,7 +264,7 @@ export default function SkillTreePage() {
         return;
       }
       setCreateOpen(false);
-      await qc.invalidateQueries({ queryKey: ['skill-tree'] });
+      await qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.skillTree() });
     } finally {
       setFormBusy(false);
     }
@@ -290,7 +292,7 @@ export default function SkillTreePage() {
         return;
       }
       setEditSkill(null);
-      await qc.invalidateQueries({ queryKey: ['skill-tree'] });
+      await qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.skillTree() });
     } finally {
       setFormBusy(false);
     }
@@ -716,7 +718,7 @@ export default function SkillTreePage() {
           </span>
           <label className="flex items-center gap-2 text-sm">
             <span className="text-gray-600 dark:text-gray-400">Set level</span>
-            <select
+            <Select
               value={bulkLevel}
               onChange={(e) => setBulkLevel(e.target.value as SkillLevelApi)}
               className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm"
@@ -726,7 +728,7 @@ export default function SkillTreePage() {
                   {l}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <Button
             type="button"

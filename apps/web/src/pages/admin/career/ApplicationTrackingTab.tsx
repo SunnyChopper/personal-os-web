@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ClipboardPaste, ListPlus, Loader2, Plus, Upload } from 'lucide-react';
+import { ROUTES } from '@/routes';
 import type { useCareerResume } from '@/hooks/useCareerResume';
 import {
   useCareerApplicationAnalytics,
@@ -11,12 +13,16 @@ import { logger } from '@/lib/logger';
 import { careerService } from '@/services/career.service';
 import type {
   CareerApplicationEvent,
+  CareerApplicationOutcomeBucket,
   CareerApplicationStatusApi,
   CareerApplicationSummary,
   CareerGeneratedResume,
 } from '@/types/api/career.types';
 
 import { applicationStatusLabel, rejectionTriageBucketLabel } from './application-tracking-labels';
+import { CareerFitIntelligencePanel } from '@/components/molecules/CareerFitIntelligencePanel';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 type Cr = ReturnType<typeof useCareerResume>;
 
@@ -67,7 +73,54 @@ function generatedDraftLabel(g: CareerGeneratedResume): string {
   return meta ? `${meta} · ${tail}` : tail || g.id.slice(0, 8);
 }
 
-export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
+function formatOutcomeRate(rate?: number): string {
+  return `${((rate ?? 0) * 100).toFixed(1)}%`;
+}
+
+function OutcomeBucketList({
+  title,
+  buckets,
+}: {
+  title: string;
+  buckets?: CareerApplicationOutcomeBucket[];
+}) {
+  const rows = (buckets ?? []).slice(0, 5);
+  return (
+    <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2">
+      <div className="text-gray-500 text-[11px] uppercase tracking-wide">{title}</div>
+      <ul className="mt-1 space-y-1 text-xs">
+        {rows.length ? (
+          rows.map((b) => (
+            <li key={`${title}-${b.bucket}`} className="flex items-center justify-between gap-3">
+              <span className="truncate">{b.label}</span>
+              <span className="shrink-0 tabular-nums text-gray-700 dark:text-gray-200">
+                {formatOutcomeRate(b.interviewRate)} int · {b.applicationCount}
+              </span>
+            </li>
+          ))
+        ) : (
+          <li className="text-gray-500">No linked outcomes yet.</li>
+        )}
+      </ul>
+    </div>
+  );
+}
+
+export default function ApplicationTrackingTab({
+  cr,
+  selectedApplicationId,
+  filterGeneratedResumeId,
+  filterJobPostingId,
+  onOpenGeneratedDraft,
+  onOpenJobPosting,
+}: {
+  cr: Cr;
+  selectedApplicationId?: string | null;
+  filterGeneratedResumeId?: string | null;
+  filterJobPostingId?: string | null;
+  onOpenGeneratedDraft?: (resumeId: string) => void;
+  onOpenJobPosting?: (postingId: string) => void;
+}) {
   const [statusFilter, setStatusFilter] = useState<CareerApplicationStatusApi | ''>('');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -102,9 +155,18 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
     setActiveLogTab(null);
   }, [selectedId, isCreating]);
 
+  useEffect(() => {
+    if (selectedApplicationId) {
+      setSelectedId(selectedApplicationId);
+      setIsCreating(false);
+    }
+  }, [selectedApplicationId]);
+
   const appsHook = useCareerApplications({
     status: statusFilter || undefined,
     search: search.trim() || undefined,
+    generatedResumeId: filterGeneratedResumeId ?? null,
+    jobPostingId: filterJobPostingId ?? null,
     pageSize: 50,
   });
 
@@ -119,24 +181,30 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
   }, [analyticsQ.data?.rejectionRate]);
 
   const gens = cr.generated.data?.items ?? [];
+  const [ingestBusy, setIngestBusy] = useState(false);
 
   async function handleExtractMetadata() {
     if (!captureUrl.trim() && !captureRaw.trim()) {
       alert('Enter a posting URL or paste a job description first.');
       return;
     }
+    setIngestBusy(true);
     try {
-      const posting = await cr.analyzePosting.mutateAsync({
+      const result = await careerService.ingestJobPosting({
         sourceUrl: captureUrl.trim() || null,
         rawText: captureRaw.trim() || null,
+        saveEvenIfLowConfidence: true,
       });
+      const posting = result.posting;
       setJobPostingId(posting.id);
-      setCompany(posting.companyGuess ?? '');
-      setRole(posting.roleGuess ?? '');
+      setCompany(posting.company ?? posting.companyGuess ?? '');
+      setRole(posting.title ?? posting.roleGuess ?? '');
       if (captureUrl.trim()) setSourceUrlSaved(captureUrl.trim());
       else if (posting.sourceUrl) setSourceUrlSaved(posting.sourceUrl);
     } catch (e) {
       logger.warn('CareerApplication extract posting failed', { error: e });
+    } finally {
+      setIngestBusy(false);
     }
   }
 
@@ -320,6 +388,31 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
         </div>
       </div>
 
+      <div className="grid gap-2 sm:grid-cols-3 text-xs">
+        {[
+          ['Interview rate', analyticsQ.data?.outcomes?.interviewRate],
+          ['Offer rate', analyticsQ.data?.outcomes?.offerRate],
+          ['Accepted offer rate', analyticsQ.data?.outcomes?.acceptedOfferRate],
+        ].map(([label, rate]) => (
+          <div
+            key={String(label)}
+            className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-2"
+          >
+            <div className="text-gray-500 text-[11px] uppercase tracking-wide">{String(label)}</div>
+            <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-white">
+              {formatOutcomeRate(typeof rate === 'number' ? rate : undefined)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4 text-xs">
+        <OutcomeBucketList title="ATS bands" buckets={analyticsQ.data?.atsScoreBands} />
+        <OutcomeBucketList title="Templates" buckets={analyticsQ.data?.resumeTemplates} />
+        <OutcomeBucketList title="Providers" buckets={analyticsQ.data?.providers} />
+        <OutcomeBucketList title="Fit tiers" buckets={analyticsQ.data?.fitTiers} />
+      </div>
+
       <div className="grid lg:grid-cols-3 gap-6">
         <section className="lg:col-span-1 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
           <div className="flex flex-col gap-2">
@@ -338,7 +431,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
           </div>
           <label className="flex flex-col gap-1 text-xs">
             Filter status
-            <select
+            <Select
               className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as CareerApplicationStatusApi | '')}
@@ -348,7 +441,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <input
             type="search"
@@ -399,10 +492,16 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                   New application
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Paste a URL or job description, use{' '}
-                  <span className="font-medium">Extract metadata</span> to fill company and role,
-                  then add to your pipeline. Optional: link a tailored draft or upload the resume
-                  file you submitted.
+                  Paste a URL or job description and use{' '}
+                  <span className="font-medium">Extract metadata</span> (deduped ingest), or ingest
+                  in{' '}
+                  <Link
+                    to={ROUTES.admin.careerJobSources}
+                    className="text-blue-600 dark:text-blue-400 underline"
+                  >
+                    Job Sources
+                  </Link>
+                  . Optional: link a tailored draft or upload the resume file you submitted.
                 </p>
               </div>
 
@@ -418,7 +517,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                 </label>
                 <label className="flex flex-col gap-1 text-sm md:col-span-2">
                   <span className="text-gray-700 dark:text-gray-300">Paste job description</span>
-                  <textarea
+                  <Textarea
                     className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 min-h-[96px]"
                     value={captureRaw}
                     onChange={(e) => setCaptureRaw(e.target.value)}
@@ -427,7 +526,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
 
                 <div className="md:col-span-2 flex flex-wrap gap-2 items-center">
                   <Btn
-                    loading={cr.analyzePosting.isPending}
+                    loading={ingestBusy}
                     onClick={() => void handleExtractMetadata()}
                     className="gap-2"
                   >
@@ -439,13 +538,6 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                       Posting {jobPostingId.slice(0, 8)}…
                     </span>
                   ) : null}
-                  {cr.analyzePosting.error ? (
-                    <span className="text-xs text-red-600 dark:text-red-400">
-                      {cr.analyzePosting.error instanceof Error
-                        ? cr.analyzePosting.error.message
-                        : String(cr.analyzePosting.error)}
-                    </span>
-                  ) : null}
                 </div>
 
                 <div className="md:col-span-2 grid sm:grid-cols-2 gap-3">
@@ -453,7 +545,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                     <span className="text-gray-700 dark:text-gray-300">
                       Tailored resume (optional)
                     </span>
-                    <select
+                    <Select
                       className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900"
                       value={generatedResumeId ?? ''}
                       onChange={(e) =>
@@ -466,7 +558,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                           {generatedDraftLabel(g)}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <div className="flex flex-col gap-1 text-sm">
                     <span className="text-gray-700 dark:text-gray-300">
@@ -581,7 +673,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                     </label>
                     <label className="flex flex-col gap-1 text-xs sm:col-span-2">
                       Status at save
-                      <select
+                      <Select
                         className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm"
                         value={newStatus}
                         onChange={(e) => setNewStatus(e.target.value as CareerApplicationStatusApi)}
@@ -591,11 +683,11 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                             {opt.label}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     <label className="flex flex-col gap-1 text-xs sm:col-span-2">
                       Notes
-                      <textarea
+                      <Textarea
                         className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1.5 bg-white dark:bg-gray-900 text-sm min-h-[64px]"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
@@ -646,7 +738,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
               <div className="grid md:grid-cols-2 gap-4 text-sm">
                 <label className="flex flex-col gap-1 text-xs">
                   Update rollup status (PATCH)
-                  <select
+                  <Select
                     className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 bg-white dark:bg-gray-900"
                     value={detailQ.data.application.status}
                     onChange={async (e) => {
@@ -666,7 +758,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                         {opt.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <label className="flex flex-col gap-1 text-xs">
                   Archive toggle
@@ -734,7 +826,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                         />
                       </label>
                     </div>
-                    <textarea
+                    <Textarea
                       className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-900"
                       placeholder="Notes"
                       value={eventNotes}
@@ -755,7 +847,7 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                       Paste rejection text; themes attach to this application and inform fit
                       signals.
                     </p>
-                    <textarea
+                    <Textarea
                       className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm bg-white dark:bg-gray-900 min-h-[96px]"
                       placeholder="Paste rejection email text…"
                       value={rejectionText}
@@ -795,6 +887,80 @@ export default function ApplicationTrackingTab({ cr }: { cr: Cr }) {
                   </div>
                 ) : null}
               </div>
+
+              {detailQ.data.jobPosting || detailQ.data.generatedResume ? (
+                <div className="grid md:grid-cols-2 gap-3 text-sm">
+                  {detailQ.data.generatedResume ? (
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                      <div className="text-xs uppercase tracking-wide text-gray-500">
+                        Generated draft
+                      </div>
+                      <div className="mt-1 font-medium text-gray-900 dark:text-white">
+                        {[
+                          detailQ.data.generatedResume.companyName,
+                          detailQ.data.generatedResume.jobTitle,
+                        ]
+                          .filter(Boolean)
+                          .join(' — ') || detailQ.data.generatedResume.id.slice(0, 8)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {detailQ.data.generatedResume.resumeTemplate ?? 'draft'}
+                        {detailQ.data.generatedResume.atsScore != null
+                          ? ` · ATS ${detailQ.data.generatedResume.atsScore}`
+                          : ''}
+                      </div>
+                      {onOpenGeneratedDraft ? (
+                        <OutlineBtn
+                          type="button"
+                          className="mt-2"
+                          onClick={() => onOpenGeneratedDraft(detailQ.data!.generatedResume!.id)}
+                        >
+                          Open draft
+                        </OutlineBtn>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {detailQ.data.jobPosting ? (
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                      <div className="text-xs uppercase tracking-wide text-gray-500">
+                        Job posting
+                      </div>
+                      <div className="mt-1 font-medium text-gray-900 dark:text-white">
+                        {[detailQ.data.jobPosting.company, detailQ.data.jobPosting.title]
+                          .filter(Boolean)
+                          .join(' — ') ||
+                          [detailQ.data.jobPosting.companyGuess, detailQ.data.jobPosting.roleGuess]
+                            .filter(Boolean)
+                            .join(' — ') ||
+                          detailQ.data.jobPosting.id.slice(0, 8)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {detailQ.data.jobPosting.provider ??
+                          detailQ.data.jobPosting.jobBoard ??
+                          'posting'}
+                      </div>
+                      {onOpenJobPosting ? (
+                        <OutlineBtn
+                          type="button"
+                          className="mt-2"
+                          onClick={() => onOpenJobPosting(detailQ.data!.jobPosting!.id)}
+                        >
+                          Open posting
+                        </OutlineBtn>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {detailQ.data.recommendation ? (
+                <div>
+                  <h4 className="text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                    Saved fit intelligence
+                  </h4>
+                  <CareerFitIntelligencePanel fit={detailQ.data.recommendation} />
+                </div>
+              ) : null}
 
               <div>
                 <h4 className="text-sm font-semibold mb-2 text-gray-900 dark:text-white">

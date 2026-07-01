@@ -1,4 +1,4 @@
-import { formatProviderDisplay } from '@/components/settings/assistantMemoryIngestionDisplay';
+import { formatProviderDisplay } from '@/lib/settings/assistantMemoryIngestionDisplay';
 import { cn } from '@/lib/utils';
 
 const PROVIDER_BADGE_STYLES: Record<string, string> = {

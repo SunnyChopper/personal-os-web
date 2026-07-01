@@ -148,3 +148,94 @@ export function getValidParentGoals(
       goal.status !== 'Abandoned' // Optionally exclude abandoned goals
   );
 }
+
+export interface LinkedGoalNode {
+  goal: Goal;
+  children: LinkedGoalNode[];
+}
+
+/**
+ * Walks parentGoalId upward from `goal` until a linked ancestor is found or the chain ends.
+ */
+function findNearestLinkedAncestorId(
+  goal: Goal,
+  linkedIds: Set<string>,
+  goalsById: Map<string, Goal>
+): string | null {
+  let currentId: string | null = goal.parentGoalId;
+  const visited = new Set<string>();
+
+  while (currentId) {
+    if (visited.has(currentId)) return null;
+    visited.add(currentId);
+
+    if (linkedIds.has(currentId)) return currentId;
+
+    const parent = goalsById.get(currentId);
+    currentId = parent?.parentGoalId ?? null;
+  }
+
+  return null;
+}
+
+/** True when attaching `goal` under `ancestorId` would close a parent-chain loop. */
+function wouldCreateParentCycle(
+  goalId: string,
+  ancestorId: string,
+  goalsById: Map<string, Goal>
+): boolean {
+  let currentId: string | null = ancestorId;
+  const visited = new Set<string>();
+
+  while (currentId) {
+    if (currentId === goalId) return true;
+    if (visited.has(currentId)) return false;
+    visited.add(currentId);
+    const parent = goalsById.get(currentId);
+    currentId = parent?.parentGoalId ?? null;
+  }
+
+  return false;
+}
+
+/**
+ * Builds a forest of linked goals for project detail display.
+ * Roots are linked goals with no linked ancestor in the parent chain.
+ * Children attach under their nearest linked ancestor (gaps in the chain collapse upward).
+ */
+export function buildLinkedGoalTree(linkedGoalIds: string[], allGoals: Goal[]): LinkedGoalNode[] {
+  const goalsById = new Map(allGoals.map((g) => [g.id, g]));
+  const linkedIds = new Set(linkedGoalIds);
+
+  const linkedGoals: Goal[] = [];
+  for (const id of linkedGoalIds) {
+    const goal = goalsById.get(id);
+    if (goal) linkedGoals.push(goal);
+  }
+
+  const nodeById = new Map<string, LinkedGoalNode>();
+  for (const goal of linkedGoals) {
+    nodeById.set(goal.id, { goal, children: [] });
+  }
+
+  const roots: LinkedGoalNode[] = [];
+
+  for (const goal of linkedGoals) {
+    const node = nodeById.get(goal.id);
+    if (!node) continue;
+
+    const ancestorId = findNearestLinkedAncestorId(goal, linkedIds, goalsById);
+    const parentNode =
+      ancestorId && !wouldCreateParentCycle(goal.id, ancestorId, goalsById)
+        ? nodeById.get(ancestorId)
+        : undefined;
+
+    if (parentNode) {
+      parentNode.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  return roots;
+}

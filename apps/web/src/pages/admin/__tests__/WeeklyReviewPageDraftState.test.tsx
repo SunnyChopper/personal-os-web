@@ -109,7 +109,7 @@ vi.mock('@/components/organisms/WeeklyDashboardSettingsDrawer', () => ({
   WeeklyDashboardSettingsDrawer: () => null,
 }));
 
-vi.mock('@/components/widgets/weekly/LeverageRoiRetrospectiveWidget', () => ({
+vi.mock('@/components/organisms/widgets/weekly/LeverageRoiRetrospectiveWidget', () => ({
   LeverageRoiRetrospectiveWidget: () => null,
 }));
 

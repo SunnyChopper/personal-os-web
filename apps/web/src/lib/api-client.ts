@@ -652,8 +652,20 @@ class ApiClient {
     return this.get<ChatMessage[]>(`/assistant/threads/${threadId}/messages`);
   }
 
-  async getChatMessageTree(threadId: string): Promise<ApiResponse<MessageTreeResponse>> {
-    return this.get<MessageTreeResponse>(`/assistant/threads/${threadId}/messages/tree`);
+  async getChatMessageTree(
+    threadId: string,
+    params?: { limit?: number; before?: string }
+  ): Promise<ApiResponse<MessageTreeResponse>> {
+    const search = new URLSearchParams();
+    if (params?.limit != null) {
+      search.set('limit', String(params.limit));
+    }
+    if (params?.before) {
+      search.set('before', params.before);
+    }
+    const qs = search.toString();
+    const path = `/assistant/threads/${threadId}/messages/tree${qs ? `?${qs}` : ''}`;
+    return this.get<MessageTreeResponse>(path);
   }
 
   async createChatMessage(data: CreateMessageRequest): Promise<ApiResponse<ChatMessage>> {

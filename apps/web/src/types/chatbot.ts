@@ -4,6 +4,8 @@ export interface ChatThread {
   title: string;
   createdAt: string;
   updatedAt: string;
+  /** Most recent persisted message time; drives sidebar ordering when set */
+  lastMessageAt?: string;
   /** True when the thread was created by proactive/scheduled automation */
   automationOriginated?: boolean;
   activeLeafMessageId?: string;
@@ -72,6 +74,9 @@ export interface MessageTreeResponse {
   nodes: ChatMessage[];
   childrenByParentId: Record<string, string[]>;
   leafIds: string[];
+  /** Opaque cursor (MESSAGE#{createdAt}#{id}) for loading older messages. */
+  nextCursor?: string | null;
+  hasMore?: boolean;
 }
 
 export interface CreateThreadRequest {
@@ -307,6 +312,8 @@ export interface WsThreadUpdatedPayload {
   threadId: string;
   title: string;
   updatedAt: string;
+  lastMessageAt?: string;
+  activeLeafMessageId?: string;
 }
 
 export interface WsRunErrorPayload {

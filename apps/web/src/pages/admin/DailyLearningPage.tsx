@@ -54,6 +54,7 @@ import {
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { Select } from '@/components/atoms/Select';
 
 type Tab = 'feed' | 'filtered' | 'roadmap' | 'settings';
 
@@ -816,7 +817,7 @@ export default function DailyLearningPage() {
                     Time zone (IANA)
                   </span>
                   <div className="mt-1.5 flex flex-wrap gap-2 items-center">
-                    <select
+                    <Select
                       className="flex-1 min-w-[12rem] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm shadow-sm"
                       value={draft.timeZone || browserTimeZone}
                       onChange={(e) => setDraft({ ...draft, timeZone: e.target.value })}
@@ -826,7 +827,7 @@ export default function DailyLearningPage() {
                           {z}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     <Button
                       type="button"
                       size="sm"
@@ -869,7 +870,7 @@ export default function DailyLearningPage() {
                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5 mb-1.5">
                     Reuse one thread per stream for continuity, or start fresh each run.
                   </p>
-                  <select
+                  <Select
                     className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm max-w-md shadow-sm"
                     value={draft.assistantThreadStrategy ?? 'reuseFixedThread'}
                     onChange={(e) =>
@@ -881,7 +882,7 @@ export default function DailyLearningPage() {
                   >
                     <option value="reuseFixedThread">Reuse one dedicated thread per stream</option>
                     <option value="newThreadEachRun">New thread each run</option>
-                  </select>
+                  </Select>
                 </div>
                 <Button type="button" onClick={onSaveSettings} disabled={updateSettings.isPending}>
                   <Settings2 className="w-4 h-4 mr-1" />
@@ -1167,7 +1168,7 @@ export default function DailyLearningPage() {
                     </label>
                     <label className="text-sm">
                       Kind
-                      <select
+                      <Select
                         className="block mt-1 rounded border border-gray-300 dark:border-gray-600 px-2 py-1"
                         value={newSrc.kind}
                         onChange={(e) =>
@@ -1178,7 +1179,7 @@ export default function DailyLearningPage() {
                         <option value="arxiv">arxiv</option>
                         <option value="manualUrl">manualUrl</option>
                         <option value="xList">xList</option>
-                      </select>
+                      </Select>
                     </label>
                     <label className="text-sm flex-1 min-w-[200px]">
                       RSS / URL / Query

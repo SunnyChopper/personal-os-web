@@ -1,4 +1,5 @@
 import { Coffee } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { MealPlanner } from '@/components/organisms/fitness/MealPlanner';
 import { NutritionQuickAdd } from '@/components/organisms/fitness/NutritionQuickAdd';
 import { PantryManager } from '@/components/organisms/fitness/PantryManager';
@@ -17,7 +18,7 @@ export default function HealthFitnessNutritionPage() {
   const rows = data?.success ? (data.data?.data ?? []) : [];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 p-6">
+    <PageContainer className="space-y-8">
       <div>
         <div className="mb-2 flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
           <Coffee className="h-6 w-6" />
@@ -62,6 +63,6 @@ export default function HealthFitnessNutritionPage() {
           ))}
         </ul>
       </section>
-    </div>
+    </PageContainer>
   );
 }

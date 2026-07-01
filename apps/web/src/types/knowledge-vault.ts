@@ -1,6 +1,16 @@
 import type { Area } from './growth-system';
 
-export type VaultItemType = 'note' | 'document' | 'course_lesson' | 'flashcard';
+export type VaultItemType =
+  | 'note'
+  | 'document'
+  | 'course_lesson'
+  | 'flashcard'
+  | 'practice_question_set'
+  | 'quiz'
+  | 'homework_assignment';
+
+export type PracticeArtifactStatus = 'draft' | 'active' | 'completed' | 'archived';
+export type PracticeQuestionType = 'multiple_choice' | 'short_answer' | 'coding' | 'yes_no';
 export type VaultItemStatus = 'draft' | 'active' | 'archived';
 export type DifficultyLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
 export type QuestionType = 'yes_no' | 'multiple_choice';
@@ -31,10 +41,59 @@ export type DocumentIndexingStatus = 'pending' | 'complete' | 'failed';
 export interface Document extends VaultItem {
   type: 'document';
   fileUrl: string | null;
+  sourceUrl?: string | null;
   fileType: string | null;
   pageCount: number | null;
   indexingStatus?: DocumentIndexingStatus | null;
   chunkCount?: number | null;
+}
+
+export interface VaultDocumentChunk {
+  chunkIndex: number;
+  content: string;
+  tokenCount: number;
+  pageFrom: number | null;
+  pageTo: number | null;
+  embeddingModel: string;
+  embeddingVersion: number;
+  createdAt: string;
+}
+
+export interface VaultDocumentUploadMetadata {
+  fileId: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  s3Key: string;
+}
+
+export interface VaultDocumentDetail {
+  document: Document;
+  upload: VaultDocumentUploadMetadata | null;
+  downloadUrl: string | null;
+  chunks: VaultDocumentChunk[];
+  defaultChunkSizeTokens: number;
+  defaultChunkOverlapTokens: number;
+  defaultMaxChunks: number;
+  defaultMaxChars: number;
+}
+
+export interface VaultDocumentChunksList {
+  chunks: VaultDocumentChunk[];
+  total: number;
+}
+
+export interface VaultDocumentReingestInput {
+  chunkSizeTokens: number;
+  chunkOverlapTokens: number;
+  maxChunks?: number;
+  maxChars?: number;
+}
+
+export interface VaultDocumentReingestResult {
+  documentId: string;
+  indexingStatus: DocumentIndexingStatus;
+  chunkCount: number;
 }
 
 export interface CourseLesson extends VaultItem {
@@ -59,6 +118,127 @@ export interface Flashcard extends VaultItem {
   easeFactor: number;
   repetitions: number;
 }
+
+export interface PracticeQuestionSetItem extends VaultItem {
+  type: 'practice_question_set';
+  questionCount: number;
+  completedCount: number;
+  difficulty: string | null;
+  courseId: string | null;
+  moduleId: string | null;
+  lessonId: string | null;
+  sourceItemIds: string[];
+}
+
+export interface QuizVaultItem extends VaultItem {
+  type: 'quiz';
+  questionCount: number;
+  bestScorePercent: number | null;
+  attemptCount: number;
+  difficulty: string | null;
+  courseId: string | null;
+  moduleId: string | null;
+  lessonId: string | null;
+  sourceItemIds: string[];
+}
+
+export interface HomeworkVaultItem extends VaultItem {
+  type: 'homework_assignment';
+  dueDate: string | null;
+  linkedTaskId: string | null;
+  linkedProjectId: string | null;
+  courseId: string | null;
+  moduleId: string | null;
+  lessonId: string | null;
+  sourceItemIds: string[];
+}
+
+export interface PracticeSourceScope {
+  sourceType: 'course' | 'module' | 'lesson' | 'note' | 'document' | 'vault';
+  courseId?: string | null;
+  moduleId?: string | null;
+  lessonId?: string | null;
+  sourceItemIds?: string[];
+}
+
+export interface PracticeQuestion {
+  id: string;
+  questionText: string;
+  questionType: PracticeQuestionType;
+  options: string[];
+  correctAnswer: string | null;
+  explanation?: string | null;
+  hints?: string[];
+}
+
+export interface PracticeQuestionSet {
+  id: string;
+  title: string;
+  artifactType: 'practice_question_set';
+  questions: PracticeQuestion[];
+  difficulty: string | null;
+  status: PracticeArtifactStatus;
+  sourceScope: PracticeSourceScope;
+  completedCount: number;
+  area: Area;
+  tags: string[];
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuizArtifact {
+  id: string;
+  title: string;
+  artifactType: 'quiz';
+  questions: PracticeQuestion[];
+  difficulty: string;
+  adaptiveContextSummary: string | null;
+  status: PracticeArtifactStatus;
+  sourceScope: PracticeSourceScope;
+  bestScorePercent: number | null;
+  attemptCount: number;
+  timeLimitMinutes: number | null;
+  area: Area;
+  tags: string[];
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuizAttempt {
+  id: string;
+  quizId: string;
+  responses: Record<string, string>;
+  scorePercent: number;
+  correctCount: number;
+  totalCount: number;
+  completedAt: string;
+  userId: string;
+}
+
+export interface HomeworkAssignment {
+  id: string;
+  title: string;
+  artifactType: 'homework_assignment';
+  prompt: string;
+  deliverables: string[];
+  rubric: string | null;
+  dueDate: string | null;
+  status: PracticeArtifactStatus;
+  sourceScope: PracticeSourceScope;
+  linkedTaskId: string | null;
+  linkedProjectId: string | null;
+  estimatedMinutes: number | null;
+  completedAt: string | null;
+  area: Area;
+  tags: string[];
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PracticeArtifact = PracticeQuestionSet | QuizArtifact | HomeworkAssignment;
 
 /** Module + lesson outline from API (camelCase). */
 export interface BackendCourseModule {
@@ -141,6 +321,7 @@ export interface PreAssessmentQuestion {
   questionText: string;
   questionType: QuestionType;
   options: string[];
+  correctAnswer?: string;
 }
 
 /** Snapshot persisted on the course (GET /knowledge/courses/:id). */
@@ -224,6 +405,9 @@ export interface FlashcardDeck {
   name: string;
   description: string | null;
   topic: string | null;
+  area?: Area | null;
+  tags?: string[];
+  sourceItemIds?: string[];
   totalCards: number;
   cardsDue: number;
   cardsNew: number;
@@ -237,14 +421,16 @@ export interface FlashcardDeck {
 export interface DeckFlashcardInput {
   front: string;
   back: string;
+  sourceItemId?: string | null;
 }
 
-/** UI + service input for creating a deck; `area` / `tags` are folded into description/topic for the API. */
+/** UI + service input for creating a deck. */
 export interface CreateFlashcardDeckInput {
   name: string;
   description?: string;
-  area: Area;
+  area?: Area;
   tags?: string[];
+  sourceItemIds?: string[];
   flashcards: DeckFlashcardInput[];
 }
 
@@ -398,6 +584,8 @@ export interface GenerateCourseSkeletonInput {
 export interface GenerateLessonContentInput {
   courseId: string;
   lessonId: string;
+  /** Catalog model id when manual; omit for server vault defaults. */
+  model?: string;
 }
 
 export interface CreateConnectionInput {

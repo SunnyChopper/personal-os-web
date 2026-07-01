@@ -2,7 +2,7 @@ import {
   KANBAN_BACKLOG_DENSITY_STORAGE_KEY,
   KANBAN_CARD_DENSITY_STORAGE_KEY,
   type KanbanCardDensity,
-} from '@/components/organisms/kanban/kanban-constants';
+} from '@/lib/growth-system/kanban-constants';
 
 function parseDensity(value: string | null): KanbanCardDensity | null {
   if (value === 'compact' || value === 'cards') {

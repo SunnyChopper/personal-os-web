@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Gift, Plus, Pencil, Trash2 } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { addCalendarDays, localCalendarDate } from '@/lib/date/local-calendar';
 import {
   useFitnessRewardRules,
@@ -18,6 +19,7 @@ import type {
   FitnessRewardTriggerType,
   UpdateFitnessRewardRuleInput,
 } from '@/types/fitness';
+import { Select } from '@/components/atoms/Select';
 
 const CATEGORIES: FitnessRewardCategory[] = [
   'hydration',
@@ -171,7 +173,7 @@ export default function HealthFitnessRewardsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 p-6">
+    <PageContainer className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="mb-2 flex items-center gap-2 text-blue-600 dark:text-blue-400">
@@ -316,7 +318,7 @@ export default function HealthFitnessRewardsPage() {
               </label>
               <label className="block text-sm">
                 <span className="text-gray-600 dark:text-gray-400">Category</span>
-                <select
+                <Select
                   className="mt-1 w-full rounded border px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
                   value={form.category}
                   onChange={(e) =>
@@ -331,7 +333,7 @@ export default function HealthFitnessRewardsPage() {
                       {c}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="block text-sm">
                 <span className="text-gray-600 dark:text-gray-400">Target (optional)</span>
@@ -344,7 +346,7 @@ export default function HealthFitnessRewardsPage() {
               </label>
               <label className="block text-sm">
                 <span className="text-gray-600 dark:text-gray-400">Trigger</span>
-                <select
+                <Select
                   className="mt-1 w-full rounded border px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
                   value={form.triggerType}
                   onChange={(e) =>
@@ -356,13 +358,13 @@ export default function HealthFitnessRewardsPage() {
                 >
                   <option value="manual">Manual claim</option>
                   <option value="auto">Auto-detect</option>
-                </select>
+                </Select>
               </label>
               {form.triggerType === 'auto' && (
                 <>
                   <label className="block text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Auto metric</span>
-                    <select
+                    <Select
                       className="mt-1 w-full rounded border px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
                       value={form.autoMetric}
                       onChange={(e) =>
@@ -378,12 +380,12 @@ export default function HealthFitnessRewardsPage() {
                           {m}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   {form.autoMetric === 'workout_set_pr' && (
                     <label className="block text-sm">
                       <span className="text-gray-600 dark:text-gray-400">Exercise</span>
-                      <select
+                      <Select
                         className="mt-1 w-full rounded border px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
                         value={form.exerciseId}
                         onChange={(e) => setForm((f) => ({ ...f, exerciseId: e.target.value }))}
@@ -394,7 +396,7 @@ export default function HealthFitnessRewardsPage() {
                             {ex.name}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                   )}
                 </>
@@ -450,6 +452,6 @@ export default function HealthFitnessRewardsPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ClipboardList } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { vaultPrimitivesService } from '@/services/knowledge-vault/vault-primitives.service';
 import Button from '@/components/atoms/Button';
 
@@ -36,7 +37,7 @@ export default function CheatSheetPage() {
       : 'Generate Cheat Sheet';
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
+    <PageContainer width="narrow" className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="flex items-start gap-3 min-w-0">
           <ClipboardList className="w-9 h-9 text-green-600 shrink-0 mt-0.5" />
@@ -96,6 +97,6 @@ export default function CheatSheetPage() {
           </div>
         )
       )}
-    </div>
+    </PageContainer>
   );
 }

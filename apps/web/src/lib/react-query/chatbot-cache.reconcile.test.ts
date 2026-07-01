@@ -1,6 +1,9 @@
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
-import { reconcileOptimisticUserMessageId } from '@/lib/react-query/chatbot-cache';
+import {
+  readMergedMessageTreeFromCache,
+  reconcileOptimisticUserMessageId,
+} from '@/lib/react-query/chatbot-cache';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import type { MessageTreeResponse } from '@/types/chatbot';
 
@@ -26,9 +29,7 @@ describe('reconcileOptimisticUserMessageId', () => {
 
     reconcileOptimisticUserMessageId(queryClient, threadId, 'client-user-1', 'msg-server-1');
 
-    const next = queryClient.getQueryData<MessageTreeResponse>(
-      queryKeys.chatbot.messages.tree(threadId)
-    );
+    const next = readMergedMessageTreeFromCache(queryClient, threadId);
     expect(next?.nodes[0]?.id).toBe('msg-server-1');
     expect(next?.leafIds).toEqual(['msg-server-1']);
   });

@@ -7,6 +7,7 @@ import { vaultItemsService } from '@/services/knowledge-vault/vault-items.servic
 import { vaultPrimitivesService } from '@/services/knowledge-vault/vault-primitives.service';
 import { apiClient } from '@/lib/api-client';
 import type { Note } from '@/types/knowledge-vault';
+import { Textarea } from '@/components/atoms/Textarea';
 
 export default function FeynmanStudyPage() {
   const { itemId } = useParams<{ itemId: string }>();
@@ -158,7 +159,7 @@ export default function FeynmanStudyPage() {
             <div ref={bottomRef} />
           </div>
           <div className="p-3 border-t border-gray-200 dark:border-gray-700 flex gap-2 items-end shrink-0">
-            <textarea
+            <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Explain the concept in your own words…"

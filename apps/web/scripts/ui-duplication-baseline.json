@@ -1,0 +1,8 @@
+{
+  "description": "Max allowed duplication counts; CI fails if exceeded. Lower after migrations.",
+  "rawSelect": 3,
+  "rawTextarea": 4,
+  "adhocModal": 45,
+  "cardSurface": 200,
+  "asOf": "2026-06-09-post-migration"
+}

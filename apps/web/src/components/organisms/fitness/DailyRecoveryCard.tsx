@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { addCalendarDays, localCalendarDate } from '@/lib/date/local-calendar';
 import { cn } from '@/lib/utils';
 import type { DailyRecovery, RecoveryLinkableField, RecoveryMetricLinks } from '@/types/fitness';
+import { Textarea } from '@/components/atoms/Textarea';
 
 function formatRecoveryDateLabel(isoDate: string): string {
   const [y, m, d] = isoDate.split('-').map(Number);
@@ -520,7 +521,7 @@ export function DailyRecoveryCard() {
 
             <label className="block text-sm text-gray-700 dark:text-gray-300">
               <span className="font-medium">Notes</span>
-              <textarea
+              <Textarea
                 className={cn(formFieldClassName, 'mt-1.5 w-full resize-y')}
                 rows={3}
                 value={form.notes}

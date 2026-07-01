@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Gauge, Sparkles, Zap } from 'lucide-react';
 import { ProviderBrandBadge } from '@/components/atoms/ProviderBrandBadge';
-import { formatModelDisplayLabel } from '@/components/settings/assistantMemoryIngestionDisplay';
+import { formatModelDisplayLabel } from '@/lib/settings/assistantMemoryIngestionDisplay';
 import { cn } from '@/lib/utils';
 import type { AssistantModelCatalogEntry } from '@/types/chatbot';
 

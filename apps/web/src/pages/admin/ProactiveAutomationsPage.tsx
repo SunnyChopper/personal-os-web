@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { proactiveService } from '@/services/proactive.service';
 import { detectBrowserTimeZone, getIanaTimeZoneOptions } from '@/lib/iana-time-zones';
 import type {
   ProactiveAutomation,
@@ -8,24 +9,30 @@ import type {
   ProactiveSuggestion,
 } from '@/types/api-contracts';
 import type { AssistantModelCatalogData } from '@/types/chatbot';
-import AutomationCard from '@/components/proactive/AutomationCard';
-import AutomationFormModal from '@/components/proactive/AutomationFormModal';
-import AutomationRunHistoryDialog from '@/components/proactive/AutomationRunHistoryDialog';
-import ProactiveSuggestionCard from '@/components/proactive/ProactiveSuggestionCard';
-import RejectSuggestionDialog from '@/components/proactive/RejectSuggestionDialog';
-import UpdateSuggestionFeedbackDialog from '@/components/proactive/UpdateSuggestionFeedbackDialog';
+import AutomationCard from '@/components/organisms/proactive/AutomationCard';
+import AutomationFormModal from '@/components/organisms/proactive/AutomationFormModal';
+import AutomationRunHistoryDialog from '@/components/molecules/proactive/AutomationRunHistoryDialog';
+import ProactiveSuggestionCard from '@/components/organisms/proactive/ProactiveSuggestionCard';
+import RejectSuggestionDialog from '@/components/molecules/proactive/RejectSuggestionDialog';
+import UpdateSuggestionFeedbackDialog from '@/components/molecules/proactive/UpdateSuggestionFeedbackDialog';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
 import Dialog from '@/components/molecules/Dialog';
 import { ChevronDown, Settings2, Sparkles } from 'lucide-react';
-import { BrainstormModelPicker } from '@/components/assistant/BrainstormModelPicker';
+import { BrainstormModelPicker } from '@/components/molecules/assistant/BrainstormModelPicker';
 import {
   brainstormValueToApiModelField,
   type BrainstormModelPickerValue,
 } from '@/lib/assistant/brainstorm-model-picker';
 import { chatbotService } from '@/services/chatbot.service';
 import { queryKeys } from '@/lib/react-query/query-keys';
+import {
+  useProactiveAutomations,
+  useProactiveSettings,
+  useProactiveSuggestions,
+} from '@/hooks/useProactive';
 import { partitionProactiveSuggestions } from '@/pages/admin/proactive-suggestions-partition';
+import { Select } from '@/components/atoms/Select';
 
 const KINDS: ProactiveAutomationKind[] = [
   'dailyBriefing',
@@ -649,14 +656,14 @@ function SettingsTab({
           <div className="flex flex-wrap gap-3 items-center">
             <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
               Format
-              <select
+              <Select
                 className="mt-1 block border rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-900 dark:border-gray-600"
                 value={webhookFormat}
                 onChange={(e) => onWebhookFormatChange(e.target.value as 'discord' | 'generic')}
               >
                 <option value="discord">Discord (embed)</option>
                 <option value="generic">Generic JSON</option>
-              </select>
+              </Select>
             </label>
             <label className="text-xs flex items-center gap-2 pt-5">
               <input
@@ -781,7 +788,7 @@ function SettingsTab({
           zone, so you can mix regions if needed.
         </p>
         <div className="flex flex-wrap gap-2 items-center">
-          <select
+          <Select
             className="border rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-900 dark:border-gray-600 min-w-[14rem] max-w-full flex-1"
             value={tz}
             onChange={(e) => onTzChange(e.target.value)}
@@ -791,7 +798,7 @@ function SettingsTab({
                 {z}
               </option>
             ))}
-          </select>
+          </Select>
           <button
             type="button"
             className="text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100"
@@ -880,37 +887,13 @@ export default function ProactiveAutomationsPage() {
     null
   );
 
-  const notificationWebhookQ = useQuery({
-    queryKey: queryKeys.preferences.notificationWebhook(),
-    queryFn: async () => {
-      const res = await apiClient.getNotificationWebhook();
-      if (!res.success || !res.data)
-        throw new Error(res.error?.message ?? 'Failed to load webhook settings');
-      return res.data;
-    },
-  });
+  const {
+    timeZone: timeZonePrefQ,
+    webhook: notificationWebhookQ,
+    recovery: recoveryNotificationsQ,
+  } = useProactiveSettings();
 
-  const recoveryNotificationsQ = useQuery({
-    queryKey: queryKeys.preferences.recoveryNotifications(),
-    queryFn: async () => {
-      const res = await apiClient.getRecoveryNotifications();
-      if (!res.success || !res.data)
-        throw new Error(res.error?.message ?? 'Failed to load recovery notification settings');
-      return res.data;
-    },
-  });
-
-  const timeZonePrefQ = useQuery({
-    queryKey: queryKeys.preferences.timeZone(),
-    queryFn: async () => {
-      const res = await apiClient.getPreferencesTimeZone();
-      if (!res.success || !res.data?.timeZone)
-        throw new Error(res.error?.message ?? 'Failed to load');
-      return res.data.timeZone;
-    },
-  });
-
-  const savedTimeZone = timeZonePrefQ.data ?? 'UTC';
+  const savedTimeZone = timeZonePrefQ.data?.timeZone ?? 'UTC';
   const tz = draftTimeZone ?? savedTimeZone;
 
   const savedWebhook = notificationWebhookQ.data ?? {
@@ -933,23 +916,8 @@ export default function ProactiveAutomationsPage() {
   const recoveryWebhookEnabled =
     draftRecoveryWebhookEnabled ?? savedRecovery.channelWebhookEnabled ?? false;
 
-  const automationsQ = useQuery({
-    queryKey: queryKeys.proactive.automations(),
-    queryFn: async () => {
-      const res = await apiClient.getProactiveAutomations();
-      if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Failed to load');
-      return res.data;
-    },
-  });
-
-  const suggestionsQ = useQuery({
-    queryKey: queryKeys.proactive.suggestions(),
-    queryFn: async () => {
-      const res = await apiClient.getProactiveSuggestions();
-      if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Failed to load');
-      return res.data;
-    },
-  });
+  const automationsQ = useProactiveAutomations();
+  const suggestionsQ = useProactiveSuggestions();
 
   const needsAssistantModelCatalog = mainTab === 'suggestions' || formModalOpen;
 
@@ -981,7 +949,7 @@ export default function ProactiveAutomationsPage() {
 
   const saveTz = async () => {
     setTzSaving(true);
-    const res = await apiClient.setPreferencesTimeZone({ timeZone: tz });
+    const res = await proactiveService.setTimeZone({ timeZone: tz });
     setTzSaving(false);
     if (!res.success) {
       setFormError(res.error?.message ?? 'Failed to save time zone');
@@ -994,7 +962,7 @@ export default function ProactiveAutomationsPage() {
   const saveWebhook = async () => {
     setWebhookSaving(true);
     setWebhookSaveError(null);
-    const res = await apiClient.setNotificationWebhook({
+    const res = await proactiveService.setNotificationWebhook({
       url: webhookUrl.trim() || null,
       format: webhookFormat,
       enabled: webhookEnabled,
@@ -1013,7 +981,7 @@ export default function ProactiveAutomationsPage() {
   const saveRecovery = async () => {
     setRecoverySaving(true);
     setRecoverySaveError(null);
-    const res = await apiClient.setRecoveryNotifications({
+    const res = await proactiveService.setRecoveryNotifications({
       enabled: recoveryEnabled,
       channelEmailEnabled: recoveryEmailEnabled,
       channelWebhookEnabled: recoveryWebhookEnabled,
@@ -1031,7 +999,7 @@ export default function ProactiveAutomationsPage() {
 
   const createMut = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
-      const res = await apiClient.createProactiveAutomation(body);
+      const res = await proactiveService.createAutomation(body);
       if (!res.success) throw new Error(res.error?.message ?? 'Create failed');
       return res.data;
     },
@@ -1045,7 +1013,7 @@ export default function ProactiveAutomationsPage() {
 
   const updateMut = useMutation({
     mutationFn: async ({ id, body }: { id: string; body: Record<string, unknown> }) => {
-      const res = await apiClient.updateProactiveAutomation(id, body);
+      const res = await proactiveService.updateAutomation(id, body);
       if (!res.success) throw new Error(res.error?.message ?? 'Update failed');
       return res.data;
     },
@@ -1060,7 +1028,7 @@ export default function ProactiveAutomationsPage() {
 
   const toggleMut = useMutation({
     mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
-      const res = await apiClient.updateProactiveAutomation(id, { enabled });
+      const res = await proactiveService.updateAutomation(id, { enabled });
       if (!res.success) throw new Error(res.error?.message ?? 'Update failed');
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.proactive.automations() }),
@@ -1068,7 +1036,7 @@ export default function ProactiveAutomationsPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
-      const res = await apiClient.deleteProactiveAutomation(id);
+      const res = await proactiveService.deleteAutomation(id);
       if (!res.success) throw new Error(res.error?.message ?? 'Delete failed');
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.proactive.automations() }),
@@ -1081,7 +1049,7 @@ export default function ProactiveAutomationsPage() {
       feedback?: string;
       resolvedPayload?: Record<string, unknown>;
     }) => {
-      const res = await apiClient.resolveProactiveSuggestion(payload.id, {
+      const res = await proactiveService.resolveSuggestion(payload.id, {
         approve: payload.approve,
         ...(payload.feedback ? { feedback: payload.feedback } : {}),
         ...(payload.resolvedPayload ? { resolvedPayload: payload.resolvedPayload } : {}),
@@ -1102,7 +1070,7 @@ export default function ProactiveAutomationsPage() {
       body: Record<string, unknown>;
       suggestionId: string;
     }) => {
-      const res = await apiClient.resolveProactiveSuggestion(suggestionId, {
+      const res = await proactiveService.resolveSuggestion(suggestionId, {
         approve: true,
         resolvedPayload: body,
       });
@@ -1126,7 +1094,7 @@ export default function ProactiveAutomationsPage() {
       id: string;
       body: { feedback?: string; proposedPayload?: Record<string, unknown> };
     }) => {
-      const res = await apiClient.patchProactiveSuggestion(args.id, args.body);
+      const res = await proactiveService.patchSuggestion(args.id, args.body);
       if (!res.success) throw new Error(res.error?.message ?? 'Update failed');
       return res.data;
     },
@@ -1137,7 +1105,7 @@ export default function ProactiveAutomationsPage() {
 
   const brainstormMut = useMutation({
     mutationFn: async (picker: BrainstormModelPickerValue) => {
-      const res = await apiClient.brainstormProactiveSuggestions({
+      const res = await proactiveService.brainstormSuggestions({
         timeZone: savedTimeZone,
         model: brainstormValueToApiModelField(picker),
       });
@@ -1162,7 +1130,7 @@ export default function ProactiveAutomationsPage() {
 
   const emailTestMut = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.sendProactiveTestEmail();
+      const res = await proactiveService.sendTestEmail();
       if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Test email failed');
       return res.data;
     },
@@ -1182,7 +1150,7 @@ export default function ProactiveAutomationsPage() {
 
   const webhookTestMut = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.sendProactiveTestWebhook();
+      const res = await proactiveService.sendTestWebhook();
       if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Test webhook failed');
       return res.data;
     },
@@ -1200,7 +1168,7 @@ export default function ProactiveAutomationsPage() {
 
   const singleDispatchMut = useMutation({
     mutationFn: async (automationId: string) => {
-      const res = await apiClient.runProactiveAutomationDispatchTest(automationId);
+      const res = await proactiveService.runAutomationDispatchTest(automationId);
       if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Run failed');
       return res.data;
     },
@@ -1339,7 +1307,7 @@ export default function ProactiveAutomationsPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain">
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-12 pt-20 lg:px-8 lg:pt-8">
+      <PageContainer width="narrow" className="flex flex-1 flex-col pb-12 pt-20 lg:pt-8">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
             Proactive assistant
@@ -1573,7 +1541,7 @@ export default function ProactiveAutomationsPage() {
             );
           }}
         />
-      </div>
+      </PageContainer>
     </div>
   );
 }

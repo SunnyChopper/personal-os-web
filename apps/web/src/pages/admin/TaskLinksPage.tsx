@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/query-keys';
 import { Link2, ExternalLink } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import { Link } from 'react-router-dom';
 import {
   taskLinksService,
@@ -13,7 +15,7 @@ import { cn } from '@/lib/utils';
 export default function TaskLinksPage() {
   const qc = useQueryClient();
   const q = useQuery({
-    queryKey: ['vault-task-links-unack'],
+    queryKey: queryKeys.knowledgeVault.vaultTaskLinksUnack(),
     queryFn: async () => {
       const data = await taskLinksService.listUnacknowledged();
       return data?.items ?? [];
@@ -24,8 +26,8 @@ export default function TaskLinksPage() {
   const ack = useMutation({
     mutationFn: (id: string) => taskLinksService.acknowledge(id),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['vault-task-links-unack'] });
-      void qc.invalidateQueries({ queryKey: ['vault-task-links-unack-count'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.vaultTaskLinksUnack() });
+      void qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.vaultTaskLinksUnackCount() });
     },
   });
 
@@ -36,8 +38,8 @@ export default function TaskLinksPage() {
       return data;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['vault-task-links-unack'] });
-      void qc.invalidateQueries({ queryKey: ['vault-task-links-unack-count'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.vaultTaskLinksUnack() });
+      void qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.vaultTaskLinksUnackCount() });
     },
   });
 
@@ -47,8 +49,8 @@ export default function TaskLinksPage() {
       if (!ok) throw new Error('Approve failed');
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['vault-task-links-unack'] });
-      void qc.invalidateQueries({ queryKey: ['vault-task-links-unack-count'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.vaultTaskLinksUnack() });
+      void qc.invalidateQueries({ queryKey: queryKeys.knowledgeVault.vaultTaskLinksUnackCount() });
     },
   });
 
@@ -56,7 +58,7 @@ export default function TaskLinksPage() {
   const rowActionBusy = ack.isPending || approve.isPending;
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6">
+    <PageContainer width="narrow" className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="flex items-start gap-3 min-w-0">
           <Link2 className="w-8 h-8 text-green-600 shrink-0 mt-0.5" />
@@ -186,6 +188,6 @@ export default function TaskLinksPage() {
           className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/90 dark:bg-gray-900/50 py-14 px-6"
         />
       )}
-    </div>
+    </PageContainer>
   );
 }

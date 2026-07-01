@@ -8,7 +8,10 @@ import {
   removeNodeFromTree,
   shouldPreserveFailedPlaceholderOnMessageComplete,
 } from '@/hooks/useAssistantStreaming';
-import { upsertMessageTreeNodeCache } from '@/lib/react-query/chatbot-cache';
+import {
+  readMergedMessageTreeFromCache,
+  upsertMessageTreeNodeCache,
+} from '@/lib/react-query/chatbot-cache';
 
 describe('useAssistantStreaming', () => {
   const threadId = 'thread-123';
@@ -76,9 +79,7 @@ describe('useAssistantStreaming', () => {
       queryClient
     );
 
-    const tree = queryClient.getQueryData<MessageTreeResponse>(
-      queryKeys.chatbot.messages.tree(threadId)
-    );
+    const tree = readMergedMessageTreeFromCache(queryClient, threadId);
     const assistant = tree?.nodes.find((node) => node.id === assistantMessageId);
     expect(nextRuns['run-1']?.thinkingBuffer).toBe('Let me reason through this.');
     expect(assistant?.thinking).toBe('Let me reason through this.');
@@ -130,9 +131,7 @@ describe('useAssistantStreaming', () => {
       queryClient
     );
 
-    const next = queryClient.getQueryData<MessageTreeResponse>(
-      queryKeys.chatbot.messages.tree(threadId)
-    );
+    const next = readMergedMessageTreeFromCache(queryClient, threadId);
     const assistant = next?.nodes.find((node) => node.id === assistantMessageId);
     expect(assistant?.executionSteps).toEqual(executionSteps);
     expect(assistant?.thinking).toBe('more thinking');
@@ -241,9 +240,7 @@ describe('useAssistantStreaming', () => {
       { authoritativeContent: true }
     );
 
-    const next = queryClient.getQueryData<MessageTreeResponse>(
-      queryKeys.chatbot.messages.tree(threadId)
-    );
+    const next = readMergedMessageTreeFromCache(queryClient, threadId);
     const assistant = next?.nodes.find((node) => node.id === assistantMessageId);
     expect(assistant?.content).toBe('Here are your tasks:\n- **Book movers**');
     expect(assistant?.content).not.toContain("Wait, I'm the assistant");
