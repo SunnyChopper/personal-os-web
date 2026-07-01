@@ -5,8 +5,6 @@ export type SkeletonVariant = 'text' | 'circular' | 'rectangular';
 export interface SkeletonProps {
   className?: string;
   variant?: SkeletonVariant;
-  width?: string | number;
-  height?: string | number;
 }
 
 const variantClassName: Record<SkeletonVariant, string> = {
@@ -16,7 +14,7 @@ const variantClassName: Record<SkeletonVariant, string> = {
 };
 
 /** Reusable pulse placeholder for loading states. */
-export function Skeleton({ className, variant = 'text', width, height }: SkeletonProps) {
+export function Skeleton({ className, variant = 'text' }: SkeletonProps) {
   return (
     <div
       className={cn(
@@ -24,7 +22,6 @@ export function Skeleton({ className, variant = 'text', width, height }: Skeleto
         variantClassName[variant],
         className
       )}
-      style={{ width, height }}
       aria-hidden
     />
   );
