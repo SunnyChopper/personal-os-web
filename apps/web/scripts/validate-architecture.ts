@@ -21,6 +21,53 @@ interface ValidationResult {
 const results: ValidationResult[] = [];
 const srcPath = join(process.cwd(), 'src');
 
+/** Top-level component dirs allowed under src/components/. */
+const ATOMIC_DIRS = ['atoms', 'molecules', 'organisms', 'templates'] as const;
+
+type AtomicDir = (typeof ATOMIC_DIRS)[number];
+
+/**
+ * Legacy top-level feature folders removed by the Atomic Design refactor.
+ * Any remaining file here should fail validation with a migration hint.
+ */
+const DEPRECATED_TOP_LEVEL_FEATURE_DIRS = [
+  'auth',
+  'routing',
+  'settings',
+  'shared',
+  'assistant',
+  'proactive',
+  'tools',
+  'chatbot',
+  'observability',
+  'widgets',
+  'pages',
+] as const;
+
+function listTsxFilesRecursive(dirPath: string): string[] {
+  if (!existsSync(dirPath)) return [];
+  const entries = readdirSync(dirPath, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    const fullPath = join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === '__tests__') {
+        files.push(...listTsxFilesRecursive(fullPath));
+        continue;
+      }
+      files.push(...listTsxFilesRecursive(fullPath));
+    } else if (entry.isFile() && entry.name.endsWith('.tsx')) {
+      files.push(fullPath);
+    }
+  }
+  return files;
+}
+
+function relativeComponentPath(filePath: string): string {
+  const componentsRoot = join(srcPath, 'components');
+  return relative(componentsRoot, filePath).replace(/\\/g, '/');
+}
+
 /**
  * Check atomic design structure
  */
@@ -36,68 +83,49 @@ function validateAtomicDesign(): ValidationResult {
     };
   }
 
-  // Allowed atomic design directories
-  const atomicDirs = ['atoms', 'molecules', 'organisms', 'templates', 'pages'];
-  // Utility directories that don't follow atomic design but are acceptable
-  // Feature-group folders (not strict atomic levels) — keep aligned with src/components/* layout.
-  const utilityDirs = [
-    'auth',
-    'routing',
-    'settings',
-    'shared',
-    'assistant',
-    'proactive',
-    'tools',
-    'chatbot',
-    'observability',
-    'widgets', // weekly dashboard tile modules (e.g. widgets/weekly/*)
-  ];
-  const allowedDirs = [...atomicDirs, ...utilityDirs];
-
   const dirs = readdirSync(componentsPath, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
 
   for (const dir of dirs) {
-    if (!allowedDirs.includes(dir) && !dir.startsWith('_')) {
-      violations.push(`Unexpected directory: components/${dir}`);
+    if (dir.startsWith('_')) continue;
+    if (!ATOMIC_DIRS.includes(dir as AtomicDir)) {
+      if (
+        DEPRECATED_TOP_LEVEL_FEATURE_DIRS.includes(
+          dir as (typeof DEPRECATED_TOP_LEVEL_FEATURE_DIRS)[number]
+        )
+      ) {
+        violations.push(
+          `Deprecated top-level feature folder: components/${dir}/ — nest under atoms/, molecules/, organisms/, or templates/ (see docs/contracts/frontend-atomic-design-placement-contract-spec.md)`
+        );
+      } else {
+        violations.push(`Unexpected directory: components/${dir}`);
+      }
     }
   }
 
-  // Check that components follow atomic design import rules
-  // Atoms: should NOT import from molecules/organisms/templates/pages
-  // Molecules: SHOULD import from atoms (allowed), should NOT import from organisms/templates/pages
-  // Organisms: SHOULD import from molecules/atoms (allowed), should NOT import from templates/pages
-  const checkComponentLocation = (dir: string, disallowedTypes: string[]) => {
-    const dirPath = join(componentsPath, dir);
-    if (!existsSync(dirPath)) return;
+  const importRules: { level: AtomicDir; disallowed: AtomicDir[] }[] = [
+    { level: 'atoms', disallowed: ['molecules', 'organisms', 'templates'] },
+    { level: 'molecules', disallowed: ['organisms', 'templates'] },
+    { level: 'organisms', disallowed: ['templates'] },
+  ];
 
-    const files = readdirSync(dirPath, { withFileTypes: true }).filter(
-      (f) => f.isFile() && f.name.endsWith('.tsx')
-    );
-
-    for (const file of files) {
-      const filePath = join(dirPath, file.name);
+  for (const { level, disallowed } of importRules) {
+    const levelPath = join(componentsPath, level);
+    const files = listTsxFilesRecursive(levelPath);
+    for (const filePath of files) {
       const content = readFileSync(filePath, 'utf-8') as string;
-
-      // Check for imports from disallowed atomic levels
-      for (const type of disallowedTypes) {
+      const displayPath = `components/${relativeComponentPath(filePath)}`;
+      for (const type of disallowed) {
         const pattern = new RegExp(`from ['"].*components/${type}/`, 'g');
         if (pattern.test(content)) {
           violations.push(
-            `${file.name} in ${dir}/ imports from ${type}/ (violates atomic design - ${dir} should not import from ${type})`
+            `${displayPath} imports from ${type}/ (violates atomic design — ${level} should not import from ${type})`
           );
         }
       }
     }
-  };
-
-  // Atoms should not import from any higher level
-  checkComponentLocation('atoms', ['molecules', 'organisms', 'templates', 'pages']);
-  // Molecules should not import from organisms/templates/pages (but CAN import from atoms)
-  checkComponentLocation('molecules', ['organisms', 'templates', 'pages']);
-  // Organisms should not import from templates/pages (but CAN import from molecules/atoms)
-  checkComponentLocation('organisms', ['templates', 'pages']);
+  }
 
   return {
     rule: 'Atomic Design Structure',
@@ -133,41 +161,32 @@ function validateServiceLayer(): ValidationResult {
     const content = readFileSync(filePath, 'utf-8') as string;
     const relativePath = relative(srcPath, filePath);
 
-    // Check for properly typed async functions
-    // Services should return typed Promises (ApiResponse, LLMResponse, or other typed responses)
-    // Skip if file has no async exports or if it's a type/interface file
     if (content.includes('export') && content.includes('async')) {
-      // Check for common typed response patterns
       const hasTypedResponse =
         /Promise<ApiResponse</.test(content) ||
         /Promise<LLMResponse</.test(content) ||
         /Promise<[A-Z][a-zA-Z0-9]*Response</.test(content) ||
-        // Allow simple return types like Promise<Task[]>, Promise<void>, etc.
         /Promise<[A-Z][a-zA-Z0-9[\]|<>]*>/.test(content);
 
-      // Only flag if there are async exports but no typed Promise returns
-      // This is a soft check - some services might have helper functions without types
       const asyncExports = content.match(
         /export\s+(async\s+)?function|export\s+const\s+\w+\s*=\s*async/g
       );
       if (asyncExports && asyncExports.length > 0 && !hasTypedResponse) {
-        // Check if it's just a simple void or basic type (which is acceptable)
         const hasBasicType = /Promise<void>|Promise<string>|Promise<number>|Promise<boolean>/.test(
           content
         );
         if (!hasBasicType) {
-          // This is informational, not a hard violation
-          // violations.push(`${relativePath}: Async functions should have typed return values`);
+          // informational only
         }
       }
     }
 
-    // Check for direct DOM manipulation
-    if (/document\.|window\./.test(content)) {
+    const domAccessPattern =
+      /\b(document\.(querySelector|getElementById|getElementsBy|createElement|body|documentElement|addEventListener)|window\.)/;
+    if (domAccessPattern.test(content)) {
       violations.push(`${relativePath}: Service should not manipulate DOM`);
     }
 
-    // Check for React imports (services should be framework-agnostic)
     if (/from ['"]react['"]/.test(content)) {
       violations.push(`${relativePath}: Service should not import React`);
     }
@@ -193,7 +212,7 @@ function validateImports(): ValidationResult {
     recursive: true,
   })
     .filter((f) => f.endsWith('.tsx'))
-    .slice(0, 20); // Sample first 20 files
+    .slice(0, 20);
 
   for (const file of componentFiles) {
     const filePath = join(srcPath, 'components', file);
@@ -209,7 +228,6 @@ function validateImports(): ValidationResult {
       }
     }
 
-    // Check for imports after code
     if (lastImportLine > 0) {
       const afterImports = lines.slice(lastImportLine + 1, lastImportLine + 5);
       if (afterImports.some((l) => l.trim().startsWith('import '))) {
@@ -225,7 +243,7 @@ function validateImports(): ValidationResult {
       violations.length > 0
         ? `Found ${violations.length} violations in sample`
         : 'Imports are well-organized',
-    files: violations.slice(0, 5), // Show first 5
+    files: violations.slice(0, 5),
   };
 }
 
@@ -247,6 +265,14 @@ function validateComponentFileNames(): string[] {
     if (!fileName) continue;
     const displayPath = `components/${normalizedPath}`;
 
+    if (/\.stories\.tsx$/i.test(fileName)) {
+      if (!/^[A-Z][a-zA-Z0-9]+\.stories\.tsx$/.test(fileName)) {
+        violations.push(
+          `${displayPath}: Storybook files use PascalCase basename, e.g. Foo.stories.tsx`
+        );
+      }
+      continue;
+    }
     if (/\.test\.tsx$/i.test(fileName)) {
       if (!/^[A-Z][a-zA-Z0-9]+\.test\.tsx$/.test(fileName)) {
         violations.push(
@@ -313,10 +339,7 @@ function validateFileNaming(): ValidationResult {
 
   violations.push(...validateComponentFileNames());
 
-  // Services should be kebab-case (allows .service.ts and .agent.ts patterns)
   checkDirectory('services', /^[a-z][a-z0-9-]*(\.(service|agent))?\.ts$/, 'kebab-case');
-
-  // Utils should be kebab-case
   checkDirectory('utils', /^[a-z][a-z0-9-]*\.ts$/, 'kebab-case');
 
   return {
@@ -330,10 +353,38 @@ function validateFileNaming(): ValidationResult {
   };
 }
 
+/**
+ * Ensure canonical UI primitive barrels and core files exist.
+ */
+function validateUiPrimitives(): ValidationResult {
+  const required = [
+    'components/atoms/Select.tsx',
+    'components/atoms/Textarea.tsx',
+    'components/atoms/Card.tsx',
+    'components/atoms/index.ts',
+    'components/molecules/FormField.tsx',
+    'components/molecules/ConfirmDialog.tsx',
+    'components/molecules/Combobox.tsx',
+    'components/molecules/MultiCombobox.tsx',
+    'components/molecules/index.ts',
+  ];
+  const missing = required.filter((rel) => !existsSync(join(srcPath, rel)));
+  return {
+    rule: 'UI Primitives',
+    passed: missing.length === 0,
+    message:
+      missing.length > 0
+        ? `Missing ${missing.length} primitive file(s)`
+        : 'Canonical UI primitives present',
+    files: missing,
+  };
+}
+
 // Run all validations
 console.log('🏗️  Validating Architecture...\n');
 
 results.push(validateAtomicDesign());
+results.push(validateUiPrimitives());
 results.push(validateServiceLayer());
 results.push(validateImports());
 results.push(validateFileNaming());

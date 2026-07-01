@@ -239,5 +239,187 @@ module.exports = {
         };
       },
     },
+
+    /**
+     * Prefer FormInput / Select / Textarea atoms over raw form controls.
+     */
+    'no-raw-form-control': {
+      meta: {
+        type: 'suggestion',
+        docs: {
+          description:
+            'Use FormInput, Select, or Textarea primitives instead of raw HTML form controls',
+          category: 'Best Practices',
+        },
+        schema: [],
+      },
+      create(context) {
+        const filename = context.getFilename().replace(/\\/g, '/');
+        if (
+          filename.includes('.test.') ||
+          filename.includes('.stories.') ||
+          filename.includes('/components/atoms/FormInput') ||
+          filename.includes('/components/atoms/Select') ||
+          filename.includes('/components/atoms/Textarea') ||
+          filename.includes('/components/atoms/FormCheckbox') ||
+          filename.includes('/components/atoms/InlineEdit')
+        ) {
+          return {};
+        }
+
+        function getJsxName(node) {
+          if (!node.name) return null;
+          if (node.name.type === 'JSXIdentifier') return node.name.name;
+          return null;
+        }
+
+        return {
+          JSXOpeningElement(node) {
+            const tag = getJsxName(node);
+            if (!tag) return;
+
+            if (tag === 'select') {
+              context.report({
+                node,
+                message: 'Use Select from @/components/atoms/Select instead of raw <select>.',
+              });
+              return;
+            }
+
+            if (tag === 'textarea') {
+              context.report({
+                node,
+                message: 'Use Textarea from @/components/atoms/Textarea instead of raw <textarea>.',
+              });
+            }
+          },
+        };
+      },
+    },
+
+    /**
+     * Prefer Dialog / BottomSheet / ConfirmDialog over hand-rolled modals.
+     */
+    'no-adhoc-modal': {
+      meta: {
+        type: 'suggestion',
+        docs: {
+          description: 'Use Dialog, ConfirmDialog, or BottomSheet instead of ad-hoc modal overlays',
+          category: 'Best Practices',
+        },
+        schema: [],
+      },
+      create(context) {
+        const filename = context.getFilename().replace(/\\/g, '/');
+        if (
+          filename.includes('.test.') ||
+          filename.includes('.stories.') ||
+          filename.includes('/molecules/Dialog.') ||
+          filename.includes('/molecules/BottomSheet.') ||
+          filename.includes('/molecules/ConfirmDialog.') ||
+          filename.includes('/molecules/Loader.')
+        ) {
+          return {};
+        }
+
+        function classContainsFixedInset(value) {
+          if (typeof value !== 'string') return false;
+          return value.includes('fixed') && value.includes('inset-0');
+        }
+
+        return {
+          JSXAttribute(node) {
+            if (node.name?.name !== 'className') return;
+            const val = node.value;
+            if (!val) return;
+
+            if (val.type === 'Literal' && classContainsFixedInset(val.value)) {
+              context.report({
+                node,
+                message:
+                  'Use Dialog, ConfirmDialog, or BottomSheet instead of hand-rolled fixed inset-0 overlays.',
+              });
+              return;
+            }
+
+            if (val.type === 'JSXExpressionContainer' && val.expression.type === 'Literal') {
+              if (classContainsFixedInset(val.expression.value)) {
+                context.report({
+                  node,
+                  message:
+                    'Use Dialog, ConfirmDialog, or BottomSheet instead of hand-rolled fixed inset-0 overlays.',
+                });
+              }
+            }
+          },
+        };
+      },
+    },
+
+    /**
+     * Prefer Card atom over duplicated card surface class strings.
+     */
+    'prefer-card-primitive': {
+      meta: {
+        type: 'suggestion',
+        docs: {
+          description: 'Use Card or cardSurfaceClassName instead of copying card border classes',
+          category: 'Best Practices',
+        },
+        schema: [],
+      },
+      create(context) {
+        const filename = context.getFilename().replace(/\\/g, '/');
+        if (
+          filename.includes('.test.') ||
+          filename.includes('.stories.') ||
+          filename.includes('/components/atoms/Card.')
+        ) {
+          return {};
+        }
+
+        const cardNeedle =
+          'rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800';
+
+        function mentionsCardSurface(value) {
+          return typeof value === 'string' && value.includes(cardNeedle);
+        }
+
+        return {
+          JSXAttribute(node) {
+            if (node.name?.name !== 'className') return;
+            const val = node.value;
+            if (!val) return;
+
+            if (val.type === 'Literal' && mentionsCardSurface(val.value)) {
+              context.report({
+                node,
+                message: 'Use Card or cardSurfaceClassName from @/components/atoms/Card.',
+              });
+              return;
+            }
+
+            if (val.type === 'JSXExpressionContainer') {
+              const expr = val.expression;
+              if (expr.type === 'Literal' && mentionsCardSurface(expr.value)) {
+                context.report({
+                  node,
+                  message: 'Use Card or cardSurfaceClassName from @/components/atoms/Card.',
+                });
+              }
+              if (expr.type === 'TemplateLiteral') {
+                const raw = expr.quasis.map((q) => q.value.cooked || '').join('');
+                if (mentionsCardSurface(raw)) {
+                  context.report({
+                    node,
+                    message: 'Use Card or cardSurfaceClassName from @/components/atoms/Card.',
+                  });
+                }
+              }
+            }
+          },
+        };
+      },
+    },
   },
 };
