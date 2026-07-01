@@ -1,5 +1,6 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import type { ChatMessage, ChatThread, MessageTreeResponse } from '@/types/chatbot';
+import { threadRecencyMs } from '@/lib/chat/thread-recency';
 import { queryKeys } from '@/lib/react-query/query-keys';
 
 type ListCache<T> = { data?: T[] } | T[];
@@ -44,10 +45,85 @@ const removeById = <T extends { id: string }>(items: T[], id: string): T[] =>
   items.filter((item) => item.id !== id);
 
 const sortThreads = (threads: ChatThread[]): ChatThread[] =>
-  [...threads].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  [...threads].sort((a, b) => threadRecencyMs(b) - threadRecencyMs(a));
 
 const sortMessages = (messages: ChatMessage[]): ChatMessage[] =>
   [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+const ROOT_KEY = 'ROOT';
+
+/** Build branch adjacency metadata from a chronological node list. */
+export function buildMessageTreeFromNodes(nodes: ChatMessage[]): MessageTreeResponse {
+  const uniqueById = new Map<string, ChatMessage>();
+  sortMessages(nodes).forEach((node) => uniqueById.set(node.id, node));
+  const messages = [...uniqueById.values()];
+
+  const idToCreatedAt: Record<string, string> = {};
+  for (const msg of messages) {
+    idToCreatedAt[msg.id] = msg.createdAt;
+  }
+
+  const childrenByParentId: Record<string, string[]> = {};
+  const parentIdsWithChildren = new Set<string>();
+
+  for (const msg of messages) {
+    const parentId = msg.parentId ?? ROOT_KEY;
+    childrenByParentId[parentId] = childrenByParentId[parentId] ?? [];
+    childrenByParentId[parentId].push(msg.id);
+    if (parentId !== ROOT_KEY) {
+      parentIdsWithChildren.add(parentId);
+    }
+  }
+
+  for (const parentId of Object.keys(childrenByParentId)) {
+    childrenByParentId[parentId].sort(
+      (a, b) =>
+        new Date(idToCreatedAt[a] ?? 0).getTime() - new Date(idToCreatedAt[b] ?? 0).getTime()
+    );
+  }
+
+  const leafIds = messages
+    .map((msg) => msg.id)
+    .filter((id) => !parentIdsWithChildren.has(id))
+    .sort(
+      (a, b) =>
+        new Date(idToCreatedAt[a] ?? 0).getTime() - new Date(idToCreatedAt[b] ?? 0).getTime()
+    );
+
+  return {
+    rootKey: ROOT_KEY,
+    nodes: messages,
+    childrenByParentId,
+    leafIds,
+  };
+}
+
+/** Merge infinite-query pages (page 0 = newest) into one tree for branch selection. */
+export function mergeMessageTreePages(pages: MessageTreeResponse[]): MessageTreeResponse {
+  if (pages.length === 0) {
+    return {
+      rootKey: ROOT_KEY,
+      nodes: [],
+      childrenByParentId: {},
+      leafIds: [],
+      hasMore: false,
+      nextCursor: null,
+    };
+  }
+  const byId = new Map<string, ChatMessage>();
+  for (let pageIndex = pages.length - 1; pageIndex >= 0; pageIndex -= 1) {
+    for (const node of pages[pageIndex].nodes) {
+      byId.set(node.id, node);
+    }
+  }
+  const oldestPage = pages[pages.length - 1];
+  const merged = buildMessageTreeFromNodes([...byId.values()]);
+  return {
+    ...merged,
+    nextCursor: oldestPage.nextCursor ?? null,
+    hasMore: oldestPage.hasMore ?? false,
+  };
+}
 
 /**
  * Merge assistant trace arrays from HTTP/refetch vs React Query cache (or WS buffer vs payload).
@@ -92,20 +168,37 @@ export const upsertChatThreadCache = (queryClient: QueryClient, thread: ChatThre
   queryClient.setQueryData(queryKeys.chatbot.threads.detail(thread.id), thread);
 };
 
+export type ThreadMetadataWsPatch = {
+  title: string;
+  updatedAt: string;
+  lastMessageAt?: string;
+  activeLeafMessageId?: string;
+};
+
+const mergeThreadMetadataPatch = (
+  thread: ChatThread,
+  patch: ThreadMetadataWsPatch
+): ChatThread => ({
+  ...thread,
+  title: patch.title,
+  updatedAt: patch.updatedAt,
+  ...(patch.lastMessageAt ? { lastMessageAt: patch.lastMessageAt } : {}),
+  ...(patch.activeLeafMessageId ? { activeLeafMessageId: patch.activeLeafMessageId } : {}),
+});
+
 /**
- * Apply a thread title update from assistant WebSocket `threadUpdated`.
+ * Apply thread metadata from assistant WebSocket `threadUpdated`.
  * Detail cache may be empty while `useChatThread` is still loading (race after first send);
  * fall back to the threads list entry or a minimal thread so the sidebar updates.
  */
-export const upsertThreadTitleFromWs = (
+export const upsertThreadMetadataFromWs = (
   queryClient: QueryClient,
   threadId: string,
-  title: string,
-  updatedAt: string
+  patch: ThreadMetadataWsPatch
 ): void => {
   const detail = queryClient.getQueryData<ChatThread>(queryKeys.chatbot.threads.detail(threadId));
   if (detail) {
-    upsertChatThreadCache(queryClient, { ...detail, title, updatedAt });
+    upsertChatThreadCache(queryClient, mergeThreadMetadataPatch(detail, patch));
     return;
   }
 
@@ -116,7 +209,7 @@ export const upsertThreadTitleFromWs = (
     const items = extractListData<ChatThread>(data);
     const fromList = items.find((t) => t.id === threadId);
     if (fromList) {
-      upsertChatThreadCache(queryClient, { ...fromList, title, updatedAt });
+      upsertChatThreadCache(queryClient, mergeThreadMetadataPatch(fromList, patch));
       return;
     }
   }
@@ -124,10 +217,22 @@ export const upsertThreadTitleFromWs = (
   upsertChatThreadCache(queryClient, {
     id: threadId,
     userId: '',
-    title,
-    createdAt: updatedAt,
-    updatedAt,
+    title: patch.title,
+    createdAt: patch.updatedAt,
+    updatedAt: patch.updatedAt,
+    ...(patch.lastMessageAt ? { lastMessageAt: patch.lastMessageAt } : {}),
+    ...(patch.activeLeafMessageId ? { activeLeafMessageId: patch.activeLeafMessageId } : {}),
   });
+};
+
+/** @deprecated Use upsertThreadMetadataFromWs */
+export const upsertThreadTitleFromWs = (
+  queryClient: QueryClient,
+  threadId: string,
+  title: string,
+  updatedAt: string
+): void => {
+  upsertThreadMetadataFromWs(queryClient, threadId, { title, updatedAt });
 };
 
 export const removeChatThreadCache = (queryClient: QueryClient, threadId: string): void => {
@@ -176,12 +281,87 @@ export const replaceChatThreadMessages = (
   queryClient.setQueryData(queryKeys.chatbot.messages.list(threadId), sortMessages(messages));
 };
 
+/** Shape required by `useInfiniteQuery` on `queryKeys.chatbot.messages.tree`. */
+export type MessageTreeInfiniteData = {
+  pages: MessageTreeResponse[];
+  pageParams: (string | undefined)[];
+};
+
+export const isMessageTreeInfiniteCache = (value: unknown): value is MessageTreeInfiniteData =>
+  Boolean(
+    value &&
+    typeof value === 'object' &&
+    'pages' in value &&
+    Array.isArray((value as MessageTreeInfiniteData).pages)
+  );
+
+const isLegacyFlatMessageTreeCache = (value: unknown): value is MessageTreeResponse =>
+  Boolean(
+    value &&
+    typeof value === 'object' &&
+    'nodes' in value &&
+    Array.isArray((value as MessageTreeResponse).nodes) &&
+    !isMessageTreeInfiniteCache(value)
+  );
+
+export const wrapMessageTreeAsInfiniteData = (
+  tree: MessageTreeResponse
+): MessageTreeInfiniteData => ({
+  pages: [tree],
+  pageParams: [undefined],
+});
+
+/**
+ * Migrate legacy flat `MessageTreeResponse` cache entries before `useInfiniteQuery` subscribes.
+ * TanStack Query reads `data.pages.length`; flat cache causes `Cannot read properties of undefined (reading 'length')`.
+ */
+export const ensureMessageTreeInfiniteCache = (
+  queryClient: QueryClient,
+  threadId: string
+): void => {
+  const key = queryKeys.chatbot.messages.tree(threadId);
+  const cached = queryClient.getQueryData(key);
+  if (!cached || isMessageTreeInfiniteCache(cached)) {
+    return;
+  }
+  if (isLegacyFlatMessageTreeCache(cached)) {
+    queryClient.setQueryData(key, wrapMessageTreeAsInfiniteData(cached));
+  }
+};
+
+/** Merged tree across infinite pages (or legacy flat cache). */
+export const readMergedMessageTreeFromCache = (
+  queryClient: QueryClient,
+  threadId: string
+): MessageTreeResponse | undefined => {
+  const cached = queryClient.getQueryData<MessageTreeResponse | MessageTreeInfiniteData>(
+    queryKeys.chatbot.messages.tree(threadId)
+  );
+  if (!cached) {
+    return undefined;
+  }
+  if (isMessageTreeInfiniteCache(cached)) {
+    const pages = cached.pages.filter((page): page is MessageTreeResponse => page != null);
+    if (pages.length === 0) {
+      return undefined;
+    }
+    if (pages.length === 1) {
+      return pages[0];
+    }
+    return mergeMessageTreePages(pages);
+  }
+  return cached as MessageTreeResponse;
+};
+
 export const replaceMessageTreeCache = (
   queryClient: QueryClient,
   threadId: string,
   tree: MessageTreeResponse
 ): void => {
-  queryClient.setQueryData(queryKeys.chatbot.messages.tree(threadId), tree);
+  queryClient.setQueryData(
+    queryKeys.chatbot.messages.tree(threadId),
+    wrapMessageTreeAsInfiniteData(tree)
+  );
 };
 
 /**
@@ -287,16 +467,57 @@ export const removeNodeFromTree = (
   };
 };
 
+const readMessageTreePageZero = (
+  queryClient: QueryClient,
+  threadId: string
+): MessageTreeResponse | undefined => {
+  const cached = queryClient.getQueryData<MessageTreeResponse | MessageTreeInfiniteData>(
+    queryKeys.chatbot.messages.tree(threadId)
+  );
+  if (!cached) {
+    return undefined;
+  }
+  if (isMessageTreeInfiniteCache(cached)) {
+    return cached.pages[0];
+  }
+  if (isLegacyFlatMessageTreeCache(cached)) {
+    return cached;
+  }
+  return undefined;
+};
+
+const writeMessageTreePageZero = (
+  queryClient: QueryClient,
+  threadId: string,
+  pageZero: MessageTreeResponse
+): void => {
+  const key = queryKeys.chatbot.messages.tree(threadId);
+  const cached = queryClient.getQueryData<MessageTreeResponse | MessageTreeInfiniteData>(key);
+  if (isMessageTreeInfiniteCache(cached)) {
+    queryClient.setQueryData<MessageTreeInfiniteData>(key, {
+      ...cached,
+      pages: [pageZero, ...cached.pages.slice(1)],
+      pageParams:
+        cached.pageParams.length > 0
+          ? [cached.pageParams[0], ...cached.pageParams.slice(1)]
+          : [undefined],
+    });
+    return;
+  }
+  if (isLegacyFlatMessageTreeCache(cached)) {
+    queryClient.setQueryData(key, wrapMessageTreeAsInfiniteData(pageZero));
+    return;
+  }
+  queryClient.setQueryData(key, wrapMessageTreeAsInfiniteData(pageZero));
+};
+
 export const upsertMessageTreeNodeCache = (
   queryClient: QueryClient,
   threadId: string,
   message: ChatMessage,
   options?: UpsertMessageTreeOptions
 ): void => {
-  const ROOT_KEY = 'ROOT';
-  const existing = queryClient.getQueryData<MessageTreeResponse>(
-    queryKeys.chatbot.messages.tree(threadId)
-  );
+  const existing = readMessageTreePageZero(queryClient, threadId);
 
   // Bootstrap a minimal empty tree if none exists yet (e.g. first message in a new thread).
   const tree: MessageTreeResponse = existing ?? {
@@ -309,7 +530,7 @@ export const upsertMessageTreeNodeCache = (
   const existed = tree.nodes.some((node) => node.id === message.id);
   const nodes = upsertOrMergeMessageNode(tree.nodes, message, options);
   if (existed) {
-    queryClient.setQueryData(queryKeys.chatbot.messages.tree(threadId), {
+    writeMessageTreePageZero(queryClient, threadId, {
       ...tree,
       nodes,
     });
@@ -340,7 +561,7 @@ export const upsertMessageTreeNodeCache = (
     }
   }
 
-  queryClient.setQueryData(queryKeys.chatbot.messages.tree(threadId), {
+  writeMessageTreePageZero(queryClient, threadId, {
     ...tree,
     nodes,
     childrenByParentId,
@@ -358,9 +579,7 @@ export const reconcileOptimisticUserMessageId = (
   if (!clientMessageId || clientMessageId === serverMessageId) {
     return;
   }
-  const tree = queryClient.getQueryData<MessageTreeResponse>(
-    queryKeys.chatbot.messages.tree(threadId)
-  );
+  const tree = readMessageTreePageZero(queryClient, threadId);
   if (!tree) {
     return;
   }
@@ -368,14 +587,19 @@ export const reconcileOptimisticUserMessageId = (
   if (!node) {
     return;
   }
-  const nextNode: ChatMessage = { ...node, id: serverMessageId };
+  const nextNode: ChatMessage = {
+    ...node,
+    id: serverMessageId,
+    clientStatus: undefined,
+    clientMessageId: serverMessageId,
+  };
   const nodes = tree.nodes.map((n) => (n.id === clientMessageId ? nextNode : n));
   const childrenByParentId: Record<string, string[]> = {};
   for (const [key, children] of Object.entries(tree.childrenByParentId)) {
     childrenByParentId[key] = children.map((id) => (id === clientMessageId ? serverMessageId : id));
   }
   const leafIds = tree.leafIds.map((id) => (id === clientMessageId ? serverMessageId : id));
-  queryClient.setQueryData(queryKeys.chatbot.messages.tree(threadId), {
+  writeMessageTreePageZero(queryClient, threadId, {
     ...tree,
     nodes,
     childrenByParentId,

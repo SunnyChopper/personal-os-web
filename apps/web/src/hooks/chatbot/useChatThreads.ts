@@ -1,13 +1,22 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { chatbotService } from '@/services/chatbot.service';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { extractApiError, isNetworkError } from '@/lib/react-query/error-utils';
 import { isLocalAssistantThreadId } from '@/lib/chat/local-thread-id';
+import type { ChatThread } from '@/types/chatbot';
 import {
   assistantChatQueryDefaults,
   normalizeChatThreadsQueryData,
 } from '@/hooks/chatbot/chatbot-query-shared';
+
+function findThreadInListCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  threadId: string
+): ChatThread | undefined {
+  const listData = queryClient.getQueryData(queryKeys.chatbot.threads.lists());
+  return normalizeChatThreadsQueryData(listData).find((thread) => thread.id === threadId);
+}
 
 export function useChatThreads() {
   const { recordError, recordSuccess } = useBackendStatus();
@@ -43,6 +52,7 @@ export function useChatThreads() {
 }
 
 export function useChatThread(id: string | undefined) {
+  const queryClient = useQueryClient();
   const { recordError, recordSuccess } = useBackendStatus();
 
   const { data, isLoading, error, isError } = useQuery({
@@ -66,6 +76,12 @@ export function useChatThread(id: string | undefined) {
       }
     },
     enabled: !!id && !isLocalAssistantThreadId(id),
+    placeholderData: () => {
+      if (!id) {
+        return undefined;
+      }
+      return findThreadInListCache(queryClient, id);
+    },
     ...assistantChatQueryDefaults,
   });
 

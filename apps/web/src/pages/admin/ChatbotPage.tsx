@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BackendStatusBanner } from '@/components/molecules/BackendStatusBanner';
-import { AssistantRunConfigPickerForm } from '@/components/assistant/AssistantRunConfigPickerForm';
+import { AssistantRunConfigPickerForm } from '@/components/organisms/assistant/AssistantRunConfigPickerForm';
 import type { ModelPickerDraft } from '@/lib/assistant/run-config-picker-draft';
 import { Sparkles, ChevronLeft, ChevronRight, SlidersHorizontal, X } from 'lucide-react';
 import { useAssistantChatPage } from '@/hooks/chatbot/useAssistantChatPage';
@@ -35,7 +35,11 @@ export default function ChatbotPage() {
     deleteDialogProps,
     ToastContainer,
     activeThread,
+    showChatShell,
     isTreeLoading,
+    fetchEarlier,
+    hasEarlier,
+    isFetchingEarlier,
     isTreeError,
     treeError,
     refetchTree,
@@ -545,13 +549,16 @@ export default function ChatbotPage() {
         </div>
         {viewMode === 'memory' ? (
           <AssistantMemoryPanel />
-        ) : activeThread ? (
+        ) : showChatShell ? (
           <>
             <AssistantChatTranscript
               isTreeLoading={isTreeLoading}
               isTreeError={isTreeError}
               treeError={treeError}
               onRetryTree={refetchTree}
+              hasEarlierMessages={hasEarlier}
+              isFetchingEarlierMessages={isFetchingEarlier}
+              onLoadEarlierMessages={fetchEarlier}
               transcript={transcript}
               runByAssistantMessageId={runByAssistantMessageId}
               getSiblings={getSiblings}

@@ -142,6 +142,9 @@ function TraceEntry({
       : (toolDetails?.durationMs ?? null)
     : (toolDetails?.durationMs ?? null);
   const canExpandTool = Boolean(toolDetails && toolName);
+  const toolFailed =
+    Boolean(toolDetails?.error) ||
+    (typeof toolDetails?.status === 'string' && toolDetails.status.toLowerCase() === 'error');
   const listCountBadge = formatListToolCountBadge(toolDetails);
   const displayDurationMs =
     durationMs !== null && durationMs > 0 ? durationMs : (toolDetails?.durationMs ?? null);
@@ -238,7 +241,7 @@ function TraceEntry({
                     : planningReasoning.isStreaming
                       ? 'Receiving reasoning from the model…'
                       : (planningReasoning.disabledReason ??
-                        'No reasoning stream was captured for this run (the thinking model may be disabled).')}
+                        'Reasoning stream unavailable for this step.')}
                 </pre>
               </div>
             )}
@@ -271,6 +274,14 @@ function TraceEntry({
               {listCountBadge ? (
                 <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 font-mono text-[10px] text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">
                   {listCountBadge}
+                </span>
+              ) : null}
+              {toolFailed ? (
+                <span
+                  className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800 dark:bg-red-900/40 dark:text-red-200"
+                  title={toolDetails?.error ?? 'Tool call failed'}
+                >
+                  Failed
                 </span>
               ) : null}
             </button>

@@ -7,6 +7,8 @@ import { assistantMemoryService } from '@/services/assistant-memory.service';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import type { Area } from '@/types/growth-system';
 import type { AssistantMemoryFile, LongTermMemoryEntry } from '@/types/assistant-memory';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const AREAS: Area[] = ['Health', 'Wealth', 'Love', 'Happiness', 'Operations', 'Day Job'];
 
@@ -235,7 +237,7 @@ export function AssistantMemoryPanel() {
                 Loading memory...
               </div>
             ) : (
-              <textarea
+              <Textarea
                 value={draftContent}
                 onChange={(event) => setDraftContent(event.target.value)}
                 className="flex-1 min-h-[400px] w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 font-mono text-sm text-gray-900 dark:text-gray-100 resize-none"
@@ -319,6 +321,7 @@ export function AssistantMemoryPanel() {
           {editingEntry && (
             <form
               className="space-y-4"
+              aria-busy={editSaving}
               onSubmit={async (e) => {
                 e.preventDefault();
                 setEditSaving(true);
@@ -341,66 +344,71 @@ export function AssistantMemoryPanel() {
                 }
               }}
             >
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={(ev) => setEditTitle(ev.target.value)}
-                  className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-gray-100"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Summary
-                </label>
-                <textarea
-                  value={editSummary}
-                  onChange={(ev) => setEditSummary(ev.target.value)}
-                  rows={10}
-                  className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Area
-                </label>
-                <select
-                  value={editArea}
-                  onChange={(ev) => setEditArea(ev.target.value as Area)}
-                  className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-gray-100"
-                >
-                  {AREAS.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <TagInput value={editTags} onChange={setEditTags} />
-              {editError && (
-                <div className="text-sm text-red-600 dark:text-red-400">{editError}</div>
-              )}
-              <div className="flex gap-3 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setEditingEntry(null)}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={editSaving}
-                  className="px-4 py-2 rounded-lg bg-green-600 text-white disabled:opacity-50"
-                >
-                  {editSaving ? 'Saving…' : 'Save'}
-                </button>
-              </div>
+              <fieldset
+                disabled={editSaving}
+                className="min-w-0 space-y-4 border-0 p-0 m-0 disabled:opacity-60"
+              >
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(ev) => setEditTitle(ev.target.value)}
+                    className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-gray-100"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Summary
+                  </label>
+                  <Textarea
+                    value={editSummary}
+                    onChange={(ev) => setEditSummary(ev.target.value)}
+                    rows={10}
+                    className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Area
+                  </label>
+                  <Select
+                    value={editArea}
+                    onChange={(ev) => setEditArea(ev.target.value as Area)}
+                    className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-gray-100"
+                  >
+                    {AREAS.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <TagInput value={editTags} onChange={setEditTags} />
+                {editError && (
+                  <div className="text-sm text-red-600 dark:text-red-400">{editError}</div>
+                )}
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setEditingEntry(null)}
+                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSaving}
+                    className="px-4 py-2 rounded-lg bg-green-600 text-white disabled:opacity-50"
+                  >
+                    {editSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </fieldset>
             </form>
           )}
         </div>

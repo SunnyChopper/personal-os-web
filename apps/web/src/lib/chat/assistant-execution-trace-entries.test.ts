@@ -19,4 +19,12 @@ describe('getVisibleExecutionTraceEntries', () => {
     ];
     expect(getVisibleExecutionTraceEntries(history)).toEqual(history);
   });
+
+  it('drops stale Planning tool calls when Deciding response is present', () => {
+    const history: StatusEntry[] = [
+      { stage: 'planning', message: 'Planning tool calls', startedAt: 1 },
+      { stage: 'planning', message: 'Deciding response', startedAt: 2 },
+    ];
+    expect(getVisibleExecutionTraceEntries(history)).toEqual([history[1]]);
+  });
 });

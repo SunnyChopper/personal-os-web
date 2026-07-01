@@ -3,10 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { MessageTreeResponse, StatusEntry } from '@/types/chatbot';
 import {
   mergeFetchedMessageTreeWithCache,
+  readMergedMessageTreeFromCache,
   upsertMessageTreeNodeCache,
 } from '@/lib/react-query/chatbot-cache';
-import { queryKeys } from '@/lib/react-query/query-keys';
-
 describe('mergeFetchedMessageTreeWithCache', () => {
   const rootKey = 'ROOT';
   const steps: StatusEntry[] = [
@@ -179,7 +178,7 @@ describe('mergeFetchedMessageTreeWithCache', () => {
       content: '',
       executionSteps: steps,
     });
-    const tree = qc.getQueryData<MessageTreeResponse>(queryKeys.chatbot.messages.tree(threadId));
+    const tree = readMergedMessageTreeFromCache(qc, threadId);
     expect(tree?.nodes.find((n) => n.id === 'a1')?.content).toBe('Hello from stream');
     expect(tree?.nodes.find((n) => n.id === 'a1')?.executionSteps).toEqual(steps);
   });
@@ -204,7 +203,7 @@ describe('mergeFetchedMessageTreeWithCache', () => {
       },
       { authoritativeContent: true }
     );
-    const tree = qc.getQueryData<MessageTreeResponse>(queryKeys.chatbot.messages.tree(threadId));
+    const tree = readMergedMessageTreeFromCache(qc, threadId);
     expect(tree?.nodes.find((n) => n.id === 'a1')?.content).toBe(
       'Here are your tasks:\n- **Book movers**'
     );
@@ -230,7 +229,7 @@ describe('mergeFetchedMessageTreeWithCache', () => {
       content: 'ab',
       executionSteps: [],
     });
-    const tree = qc.getQueryData<MessageTreeResponse>(queryKeys.chatbot.messages.tree(threadId));
+    const tree = readMergedMessageTreeFromCache(qc, threadId);
     expect(tree?.nodes.find((n) => n.id === 'a1')?.executionSteps).toEqual(steps);
     expect(tree?.nodes.find((n) => n.id === 'a1')?.content).toBe('ab');
   });

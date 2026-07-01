@@ -4,14 +4,14 @@ import type { QueryClient } from '@tanstack/react-query';
 import { extractApiError, extractErrorMessage } from '@/lib/react-query/error-utils';
 import { isLocalAssistantThreadId } from '@/lib/chat/local-thread-id';
 import {
+  readMergedMessageTreeFromCache,
   removeNodeFromTree,
   replaceMessageTreeCache,
   upsertMessageTreeNodeCache,
 } from '@/lib/react-query/chatbot-cache';
-import { queryKeys } from '@/lib/react-query/query-keys';
 import type { AssistantWsConnectionState } from '@/lib/websocket/assistant-ws-client';
 import { wsLogger } from '@/lib/logger';
-import type { AssistantRunConfig, ChatThread, MessageTreeResponse } from '@/types/chatbot';
+import type { AssistantRunConfig, ChatThread } from '@/types/chatbot';
 
 type ShowToast = (options: { type: 'error'; title: string; message: string }) => void;
 
@@ -305,9 +305,7 @@ export function useChatbotSendHandlers({
       const apiError = extractApiError(error);
       const message = apiError?.message || extractErrorMessage(error, 'Message failed to send');
       if (isDraft) {
-        const existingDraftTree = queryClient.getQueryData<MessageTreeResponse>(
-          queryKeys.chatbot.messages.tree(threadForSend.id)
-        );
+        const existingDraftTree = readMergedMessageTreeFromCache(queryClient, threadForSend.id);
         if (existingDraftTree) {
           const nextDraftTree = removeNodeFromTree(existingDraftTree, optimisticUserId);
           replaceMessageTreeCache(queryClient, threadForSend.id, nextDraftTree);

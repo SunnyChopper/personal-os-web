@@ -419,11 +419,21 @@ export class AssistantWsClient {
         const threadId = String(p.threadId ?? p.thread_id ?? '');
         const title = String(p.title ?? '');
         const updatedAt = String(p.updatedAt ?? p.updated_at ?? '');
+        const lastMessageAtRaw = p.lastMessageAt ?? p.last_message_at;
+        const lastMessageAt =
+          lastMessageAtRaw != null && String(lastMessageAtRaw).trim()
+            ? String(lastMessageAtRaw)
+            : undefined;
+        const activeLeafRaw = p.activeLeafMessageId ?? p.active_leaf_message_id;
+        const activeLeafMessageId =
+          activeLeafRaw != null && String(activeLeafRaw).trim() ? String(activeLeafRaw) : undefined;
         if (threadId && title) {
           this.handlers.onThreadUpdated?.({
             threadId,
             title,
             updatedAt: updatedAt || new Date().toISOString(),
+            ...(lastMessageAt ? { lastMessageAt } : {}),
+            ...(activeLeafMessageId ? { activeLeafMessageId } : {}),
           });
         }
         break;

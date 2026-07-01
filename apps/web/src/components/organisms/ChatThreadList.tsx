@@ -1,5 +1,6 @@
 import { Check, Edit2, Loader2, MessageCircle, Plus, Trash2, X } from 'lucide-react';
 import { formatRelativeChatTimestamp } from '@/lib/chat/format-relative-time';
+import { threadRecencyTimestamp } from '@/lib/chat/thread-recency';
 import { extractErrorMessage } from '@/lib/react-query/error-utils';
 import { isLocalAssistantThreadId } from '@/lib/chat/local-thread-id';
 import type { ChatThread } from '@/types/chatbot';
@@ -25,6 +26,8 @@ export type ChatThreadListProps = {
   isUpdating: boolean;
   onDeleteThread: (id: string) => void;
   onSelectThread: (threadId: string) => void;
+  /** Optional per-thread display timestamp (e.g. active row uses visible transcript time). */
+  getThreadDisplayTimestamp?: (thread: ChatThread) => string;
 };
 
 export function ChatThreadList({
@@ -44,6 +47,7 @@ export function ChatThreadList({
   isUpdating,
   onDeleteThread,
   onSelectThread,
+  getThreadDisplayTimestamp,
 }: ChatThreadListProps) {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -175,7 +179,9 @@ export function ChatThreadList({
                       </div>
                       <div className="flex min-w-0 items-center justify-between gap-2">
                         <p className="min-w-0 truncate text-xs tabular-nums leading-snug text-gray-500 dark:text-gray-400 max-lg:font-medium lg:text-[11px] lg:font-normal">
-                          {formatRelativeChatTimestamp(thread.updatedAt || thread.createdAt)}
+                          {formatRelativeChatTimestamp(
+                            getThreadDisplayTimestamp?.(thread) ?? threadRecencyTimestamp(thread)
+                          )}
                         </p>
                         {thread.automationOriginated ? (
                           <span

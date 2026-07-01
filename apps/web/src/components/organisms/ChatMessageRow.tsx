@@ -124,11 +124,8 @@ export const ChatMessageRow = memo(function ChatMessageRow({
     isAwaitingRunStart || awaitingWsFollowUp || (isLoading && message.id === latestUserMessageId);
   /** Single strip: "Sending…" then kickoff progress (latest user only). Hidden once runStarted so the assistant row owns planning UI. */
   const showAssistantPendingStrip =
-    isLatestUserRow &&
-    !streamingRunForThisUserMessage &&
-    (message.clientStatus === 'sending' || assistantKickoffInProgress);
-  const assistantPendingPhase =
-    message.clientStatus === 'sending' ? ('sending' as const) : ('planning' as const);
+    isLatestUserRow && !streamingRunForThisUserMessage && assistantKickoffInProgress;
+  const assistantPendingPhase = 'planning' as const;
   const isLatestUserMessageRetryable =
     message.role === 'user' &&
     message.id === latestUserMessageId &&
@@ -160,9 +157,7 @@ export const ChatMessageRow = memo(function ChatMessageRow({
   const foldThinkingIntoTrace = showExecutionTrace && traceHasPlanning;
   const assistantThinkingForTrace = run?.thinkingBuffer?.trim() || message.thinking?.trim() || '';
   const assistantThinkingStreaming = Boolean(
-    run &&
-    (Boolean(run.thinkingBuffer?.trim()) ||
-      (run.thinkingPhase != null && run.reasoningStreamEnabled !== false))
+    run && Boolean(run.thinkingBuffer?.trim()) && run.reasoningStreamEnabled !== false
   );
   const reasoningDisabledMessage =
     run?.reasoningStreamDisabledReason ??
@@ -355,14 +350,6 @@ export const ChatMessageRow = memo(function ChatMessageRow({
                   )}
                 </>
               )}
-              {message.role === 'user' &&
-                message.clientStatus === 'sending' &&
-                !showAssistantPendingStrip && (
-                  <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <Loader2 size={12} className="animate-spin" />
-                    <span>Sending...</span>
-                  </div>
-                )}
               {message.role === 'user' && message.clientStatus === 'failed' && (
                 <div className="mt-1 text-xs text-red-600 dark:text-red-400">
                   <span title={message.clientError || 'Message failed to send'}>Not delivered</span>

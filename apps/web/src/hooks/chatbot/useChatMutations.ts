@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatbotService } from '@/services/chatbot.service';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
-import { queryKeys } from '@/lib/react-query/query-keys';
 import { extractApiError } from '@/lib/react-query/error-utils';
 import {
   patchChatMessageCache,
+  readMergedMessageTreeFromCache,
   removeChatMessageCache,
   removeChatThreadCache,
   removeNodeFromTree,
@@ -19,7 +19,6 @@ import type {
   CreateMessageRequest,
   CreateThreadRequest,
   EditMessageRequest,
-  MessageTreeResponse,
   UpdateThreadRequest,
 } from '@/types/chatbot';
 
@@ -107,9 +106,7 @@ export function useChatMessageMutations() {
     onSuccess: (message, _variables, context) => {
       if (context?.isOptimistic && context.clientMessageId) {
         removeChatMessageCache(queryClient, context.threadId, context.clientMessageId);
-        const existingTree = queryClient.getQueryData<MessageTreeResponse>(
-          queryKeys.chatbot.messages.tree(message.threadId)
-        );
+        const existingTree = readMergedMessageTreeFromCache(queryClient, message.threadId);
         if (existingTree) {
           const nextTree = removeNodeFromTree(existingTree, context.clientMessageId);
           replaceMessageTreeCache(queryClient, message.threadId, nextTree);

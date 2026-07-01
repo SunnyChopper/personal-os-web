@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Archive, ArchiveRestore, Loader2, Pencil, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { PageContainer } from '@/components/templates/PageContainer';
 import Dialog from '@/components/molecules/Dialog';
 import TagInput from '@/components/molecules/TagInput';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -8,6 +9,8 @@ import { queryKeys } from '@/lib/react-query/query-keys';
 import { ltmService } from '@/services/ltm.service';
 import type { Area } from '@/types/growth-system';
 import type { LongTermMemoryEntry } from '@/types/assistant-memory';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 
 const AREAS: Area[] = ['Health', 'Wealth', 'Love', 'Happiness', 'Operations', 'Day Job'];
 
@@ -153,7 +156,7 @@ export default function MemoryAuditPage() {
   });
 
   return (
-    <div className="min-h-0 flex-1 flex flex-col p-4 md:p-6 max-w-7xl mx-auto w-full">
+    <PageContainer className="min-h-0 flex-1 flex flex-col">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Memory Audit</h1>
         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -200,7 +203,7 @@ export default function MemoryAuditPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
         <label className="flex flex-col gap-1 text-xs text-gray-600 dark:text-gray-400">
           <span className="font-medium text-gray-700 dark:text-gray-300">Visibility</span>
-          <select
+          <Select
             value={visibility}
             onChange={(e) => setVisibility(e.target.value as LtmVisibilityFilter)}
             className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
@@ -208,11 +211,11 @@ export default function MemoryAuditPage() {
             <option value="active">Active only</option>
             <option value="all">Active + archived</option>
             <option value="archivedOnly">Archived only</option>
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-gray-600 dark:text-gray-400">
           <span className="font-medium text-gray-700 dark:text-gray-300">Area</span>
-          <select
+          <Select
             value={filterArea}
             onChange={(e) => setFilterArea(e.target.value as Area | 'all')}
             className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
@@ -223,7 +226,7 @@ export default function MemoryAuditPage() {
                 {a}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-gray-600 dark:text-gray-400 sm:col-span-2">
           <span className="font-medium text-gray-700 dark:text-gray-300">Source contains</span>
@@ -465,7 +468,7 @@ export default function MemoryAuditPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Summary
                 </label>
-                <textarea
+                <Textarea
                   value={editSummary}
                   onChange={(ev) => setEditSummary(ev.target.value)}
                   rows={10}
@@ -477,7 +480,7 @@ export default function MemoryAuditPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Area
                 </label>
-                <select
+                <Select
                   value={editArea}
                   onChange={(ev) => setEditArea(ev.target.value as Area)}
                   className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-gray-100"
@@ -487,7 +490,7 @@ export default function MemoryAuditPage() {
                       {a}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <TagInput value={editTags} onChange={setEditTags} />
               {editError && (
@@ -551,6 +554,6 @@ export default function MemoryAuditPage() {
           </div>
         </div>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 }

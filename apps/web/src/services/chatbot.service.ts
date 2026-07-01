@@ -10,15 +10,14 @@ import type {
   ThreadContextUsage,
   UpdateThreadRequest,
 } from '@/types/chatbot';
+import { threadRecencyMs } from '@/lib/chat/thread-recency';
 import { apiClient } from '@/lib/api-client';
 
 export const chatbotService = {
   async getThreads(): Promise<ChatThread[]> {
     const response = await apiClient.getChatThreads();
     if (response.success && response.data) {
-      return response.data.sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
+      return response.data.sort((a, b) => threadRecencyMs(b) - threadRecencyMs(a));
     }
     if (response.error) {
       throw response.error;
@@ -97,8 +96,11 @@ export const chatbotService = {
     throw new Error('Failed to fetch messages');
   },
 
-  async getMessageTree(threadId: string): Promise<MessageTreeResponse> {
-    const response = await apiClient.getChatMessageTree(threadId);
+  async getMessageTree(
+    threadId: string,
+    params?: { limit?: number; before?: string }
+  ): Promise<MessageTreeResponse> {
+    const response = await apiClient.getChatMessageTree(threadId, params);
     if (response.success && response.data) {
       return response.data;
     }

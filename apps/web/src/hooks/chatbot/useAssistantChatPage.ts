@@ -7,6 +7,8 @@ import { wsLogger } from '@/lib/logger';
 import { useAdminShell } from '@/contexts/AdminShellContext';
 import { useAuth } from '@/contexts/Auth';
 import { createLocalAssistantThreadId, isLocalAssistantThreadId } from '@/lib/chat/local-thread-id';
+import { threadRecencyTimestamp } from '@/lib/chat/thread-recency';
+import type { ChatThread } from '@/types/chatbot';
 import {
   useChatThreads,
   useChatThread,
@@ -95,9 +97,22 @@ export function useAssistantChatPage({
     isError: isTreeError,
     error: treeError,
     refetch: refetchTree,
+    fetchEarlier,
+    hasEarlier,
+    isFetchingEarlier,
   } = useMessageTree(resolvedThreadId || undefined);
 
-  const activeThread = syntheticDraftThread ?? serverThread;
+  const listThread = useMemo(() => {
+    if (!resolvedThreadId || isLocalAssistantThreadId(resolvedThreadId)) {
+      return null;
+    }
+    return displayThreads.find((thread) => thread.id === resolvedThreadId) ?? null;
+  }, [displayThreads, resolvedThreadId]);
+
+  const activeThread = syntheticDraftThread ?? serverThread ?? listThread;
+  const showChatShell =
+    Boolean(activeThread) ||
+    (Boolean(resolvedThreadId) && !isLocalAssistantThreadId(resolvedThreadId ?? ''));
   const isLocalDraft =
     Boolean(resolvedThreadId) && isLocalAssistantThreadId(resolvedThreadId ?? '');
 
@@ -331,7 +346,25 @@ export function useAssistantChatPage({
       tree: treeForBranch,
       nodeById: nodeByIdForBranch,
       activeLeafMessageId: activeThread?.activeLeafMessageId,
+      threadLastMessageAt: activeThread?.lastMessageAt,
     });
+
+  const activeThreadVisibleTimestamp = useMemo(() => {
+    if (transcript.length === 0) {
+      return undefined;
+    }
+    return transcript[transcript.length - 1]?.createdAt;
+  }, [transcript]);
+
+  const getThreadDisplayTimestamp = useCallback(
+    (thread: ChatThread) => {
+      if (thread.id === resolvedThreadId && activeThreadVisibleTimestamp) {
+        return activeThreadVisibleTimestamp;
+      }
+      return threadRecencyTimestamp(thread);
+    },
+    [activeThreadVisibleTimestamp, resolvedThreadId]
+  );
 
   const runConfigForSelectedLeaf = useMemo(
     () =>
@@ -755,9 +788,11 @@ export function useAssistantChatPage({
       isUpdating,
       onDeleteThread: requestDeleteThread,
       onSelectThread: handleThreadSelect,
+      getThreadDisplayTimestamp,
     }),
     [
       displayThreads,
+      getThreadDisplayTimestamp,
       editingThreadId,
       editingTitle,
       handleCreateThread,
@@ -790,10 +825,14 @@ export function useAssistantChatPage({
     },
     ToastContainer,
     activeThread,
+    showChatShell,
     isTreeLoading,
     isTreeError,
     treeError,
     refetchTree,
+    fetchEarlier,
+    hasEarlier,
+    isFetchingEarlier,
     transcript,
     isStreaming,
     isAwaitingRunStart,
