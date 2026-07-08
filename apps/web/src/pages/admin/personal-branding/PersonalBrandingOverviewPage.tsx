@@ -20,7 +20,7 @@ const MODULES = [
   },
   {
     title: 'Content Pipeline',
-    description: 'Platform repurposer and pipeline logbook.',
+    description: 'Generate and manage platform-native content variants.',
     href: ROUTES.admin.personalBrandingPipeline,
     icon: Share2,
   },

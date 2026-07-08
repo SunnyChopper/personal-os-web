@@ -7,6 +7,7 @@ import { personalBrandingService } from '@/services/personal-branding.service';
 import type {
   BrandPlatform,
   ContentNode,
+  ContentVariantDistributionStatus,
   RepurposeJobStatus,
 } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS } from '@/types/api/personal-branding.dto';
@@ -131,6 +132,20 @@ export function useContentPipeline() {
     },
   });
 
+  const updateDistributionStatusMutation = useMutation({
+    mutationFn: ({
+      variantId,
+      distributionStatus,
+    }: {
+      variantId: string;
+      distributionStatus: ContentVariantDistributionStatus;
+    }) =>
+      personalBrandingService.updateVariantDistributionStatus(variantId, { distributionStatus }),
+    onSuccess: () => {
+      void invalidatePipeline();
+    },
+  });
+
   const togglePlatform = (platform: BrandPlatform) => {
     setTargetPlatforms((prev) =>
       prev.includes(platform) ? prev.filter((p) => p !== platform) : [...prev, platform]
@@ -167,6 +182,7 @@ export function useContentPipeline() {
     rejectVariantMutation,
     sendToSandboxMutation,
     regeneratePlatformMutation,
+    updateDistributionStatusMutation,
     rejectingVariantId,
     setRejectingVariantId,
     rejectCritique,

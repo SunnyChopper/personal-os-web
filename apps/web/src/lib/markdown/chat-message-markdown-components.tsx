@@ -7,6 +7,9 @@ const headingBase =
 
 const userHeadingBase = '!mt-4 !mb-2 first:!mt-0 font-semibold font-sans tracking-tight text-white';
 
+const reasoningHeadingBase =
+  '!mt-2 !mb-1 first:!mt-0 font-semibold font-sans tracking-tight text-gray-800 dark:text-gray-200 text-[11px]';
+
 /**
  * Stable markdown component map for assistant chat bubbles (avoids new object identity each render).
  * Headings/blockquote are plain (no CollapsibleHeading / MarkdownContentWrapper — those are for long-form docs).
@@ -125,6 +128,91 @@ export const chatMessageMarkdownComponents: Partial<Components> = {
     >
       {children}
     </td>
+  ),
+};
+
+/**
+ * Compact markdown component map for internal reasoning / thinking panels.
+ * Tighter spacing and smaller type than chat bubbles; muted gray tones for the reasoning card.
+ */
+export const reasoningMarkdownComponents: Partial<Components> = {
+  h1: ({ children, className }) => (
+    <h1 className={cn(reasoningHeadingBase, 'text-sm', className)}>{children}</h1>
+  ),
+  h2: ({ children, className }) => (
+    <h2 className={cn(reasoningHeadingBase, 'text-xs', className)}>{children}</h2>
+  ),
+  h3: ({ children, className }) => (
+    <h3 className={cn(reasoningHeadingBase, className)}>{children}</h3>
+  ),
+  h4: ({ children, className }) => (
+    <h4 className={cn(reasoningHeadingBase, className)}>{children}</h4>
+  ),
+  blockquote: ({ children, className }) => (
+    <blockquote
+      className={cn(
+        '!mt-0 !mb-1 border-l-2 border-gray-300 pl-2 py-0.5 text-[11px] text-gray-700 dark:border-gray-600 dark:text-gray-300',
+        className
+      )}
+    >
+      {children}
+    </blockquote>
+  ),
+  p: ({ children }) => (
+    <p className="!mt-0 !mb-1 last:!mb-0 text-[11px] leading-relaxed text-gray-800 dark:text-gray-200">
+      {children}
+    </p>
+  ),
+  strong: ({ children, className }) => (
+    <strong className={cn('font-semibold text-gray-900 dark:text-gray-100', className)}>
+      {children}
+    </strong>
+  ),
+  em: ({ children, className }) => (
+    <em className={cn('italic text-gray-800 dark:text-gray-200', className)}>{children}</em>
+  ),
+  ul: ({ children }) => (
+    <ul
+      className={cn(
+        '!mt-0 !mb-1 list-disc list-outside pl-4 space-y-0.5 text-[11px] text-gray-800 dark:text-gray-200 [&>li]:list-item',
+        '[&_ul]:!mt-0.5 [&_ul]:!mb-0 [&_ul]:list-[circle] [&_ul]:pl-4'
+      )}
+    >
+      {children}
+    </ul>
+  ),
+  ol: ({ children }) => (
+    <ol
+      className={cn(
+        '!mt-0 !mb-1 list-decimal list-outside pl-4 space-y-0.5 text-[11px] text-gray-800 dark:text-gray-200 [&>li]:list-item',
+        '[&_ol]:!mt-0.5 [&_ol]:!mb-0 [&_ol]:list-[lower-alpha] [&_ol]:pl-4'
+      )}
+    >
+      {children}
+    </ol>
+  ),
+  li: ({ children }) => (
+    <li className="list-item leading-relaxed min-h-[1em] [&>p]:!m-0">{children}</li>
+  ),
+  hr: ({ className, ...props }) => (
+    <hr
+      className={cn(
+        '!my-1 border-0 border-t border-solid border-gray-300 dark:border-gray-500',
+        className
+      )}
+      {...props}
+    />
+  ),
+  a: chatMessageMarkdownComponents.a,
+  code: ({ children, className }) => (
+    <code
+      className={cn(
+        'rounded bg-gray-100 px-1 py-0.5 font-mono text-[10px] text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+        className
+      )}
+    >
+      {children}
+    </code>
   ),
 };
 
