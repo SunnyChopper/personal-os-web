@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -16,11 +16,18 @@ import {
 } from 'lucide-react';
 import { PageContainer } from '@/components/templates/PageContainer';
 import Button from '@/components/atoms/Button';
+import { StatusBadge } from '@/components/atoms/StatusBadge';
+import CollapsibleSection from '@/components/molecules/CollapsibleSection';
+import { JsonViewer } from '@/components/molecules/JsonViewer';
 import LinkedStackTrace from '@/components/molecules/observability/LinkedStackTrace';
+import ExecutionSummaryHeader from '@/components/molecules/observability/ExecutionSummaryHeader';
 import Dialog from '@/components/molecules/Dialog';
 import MarkdownRenderer from '@/components/molecules/MarkdownRenderer';
 import { useEditorLinkSettings } from '@/hooks/useEditorLinkSettings';
-import { formatObservabilityUsd } from '@/lib/observability-formatters';
+import {
+  formatObservabilityTokenCount,
+  formatObservabilityUsd,
+} from '@/lib/observability-formatters';
 import {
   getObservabilityMessageRole,
   parseObservabilityPromptText,
@@ -31,7 +38,12 @@ import { ROUTES } from '@/routes';
 import { assistantSandboxService } from '@/services/assistant-sandbox.service';
 import { observabilityService } from '@/services/observability.service';
 import { cn } from '@/lib/utils';
-import type { ObservabilityExecutionRow, ObservabilityHealthRow } from '@/types/observability';
+import type {
+  ObservabilityBurnPoint,
+  ObservabilityExecutionDetail,
+  ObservabilityExecutionRow,
+  ObservabilityHealthRow,
+} from '@/types/observability';
 import { formatLatencyMs } from '@/utils/latency-formatters';
 import ExecutionDetailMetadata from './ExecutionDetailMetadata';
 import { Select } from '@/components/atoms/Select';
@@ -52,6 +64,49 @@ function tabLabel(t: MainTab): string {
   }
 }
 
+function formatExecutionPreview(preview: string | null | undefined): string {
+  const trimmed = preview?.trim();
+  return trimmed ? trimmed : '—';
+}
+
+function formatBurnBucketLabel(bucketStart: string): string {
+  const d = new Date(bucketStart);
+  if (Number.isNaN(d.getTime())) return bucketStart;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function BurnDailyTooltip({ point }: { point: ObservabilityBurnPoint }) {
+  return (
+    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-[240px] -translate-x-1/2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs shadow-lg dark:border-gray-600 dark:bg-gray-900">
+      <div className="font-semibold text-gray-900 dark:text-white">
+        {formatBurnBucketLabel(point.bucketStart)}
+      </div>
+      <dl className="mt-1 space-y-0.5 text-gray-600 dark:text-gray-300 tabular-nums">
+        <div className="flex justify-between gap-4">
+          <dt>Cost</dt>
+          <dd>{formatObservabilityUsd(point.totalCostUsd)}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt>Input tokens</dt>
+          <dd>{formatObservabilityTokenCount(point.inputTokens)}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt>Output tokens</dt>
+          <dd>{formatObservabilityTokenCount(point.outputTokens)}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt>Total tokens</dt>
+          <dd>{formatObservabilityTokenCount(point.totalTokens)}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt>Calls</dt>
+          <dd>{point.callCount.toLocaleString()}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
 function parseMainTab(value: string | null): MainTab | null {
   if (value && (TAB_ORDER as readonly string[]).includes(value)) {
     return value as MainTab;
@@ -61,6 +116,61 @@ function parseMainTab(value: string | null): MainTab | null {
 
 const EXECUTION_TEXT_PANEL_CLASS =
   'text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto';
+
+function ExpandableTextPanel({
+  children,
+  collapsedMaxHeight = 'max-h-48',
+  expandedMaxHeight = 'max-h-[32rem]',
+}: {
+  children: ReactNode;
+  collapsedMaxHeight?: string;
+  expandedMaxHeight?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="space-y-2">
+      <div
+        className={cn(
+          EXECUTION_TEXT_PANEL_CLASS,
+          expanded ? expandedMaxHeight : collapsedMaxHeight
+        )}
+      >
+        {children}
+      </div>
+      <Button type="button" size="sm" variant="secondary" onClick={() => setExpanded((v) => !v)}>
+        {expanded ? 'Show less' : 'Show more'}
+      </Button>
+    </div>
+  );
+}
+
+function isExecutionFailure(status: string): boolean {
+  return status !== 'succeeded';
+}
+
+function getRawPayloadEntries(detail: ObservabilityExecutionDetail) {
+  const entries: { label: string; data: unknown }[] = [];
+  if (detail.promptPayloadJson != null) {
+    entries.push({ label: 'promptPayloadJson', data: detail.promptPayloadJson });
+  }
+  if (detail.requestMetadataJson != null) {
+    entries.push({ label: 'requestMetadataJson', data: detail.requestMetadataJson });
+  }
+  if (detail.retryPayloadJson != null) {
+    entries.push({ label: 'retryPayloadJson', data: detail.retryPayloadJson });
+  }
+  if (detail.pricingSnapshotJson != null) {
+    entries.push({ label: 'pricingSnapshotJson', data: detail.pricingSnapshotJson });
+  }
+  return entries;
+}
+
+function hasFailureDetails(detail: ObservabilityExecutionDetail): boolean {
+  return Boolean(
+    detail.errorMessage?.trim() || detail.stackTrace?.trim() || detail.partialResponseText?.trim()
+  );
+}
 
 function renderPromptText(text: string) {
   const parsed = parseObservabilityPromptText(text);
@@ -109,6 +219,7 @@ export default function ObservabilityPage() {
   const [modelFilter, setModelFilter] = useState('');
   const [providerFilter, setProviderFilter] = useState('');
   const [groupBy, setGroupBy] = useState<'module' | 'model' | 'provider'>('module');
+  const [hoveredBurnIndex, setHoveredBurnIndex] = useState<number | null>(null);
 
   const burnShared = useMemo(
     () => ({
@@ -501,16 +612,29 @@ export default function ObservabilityPage() {
               ) : points.length === 0 ? (
                 <p className="text-sm text-gray-500">No execution data in this window yet.</p>
               ) : (
-                <div className="flex items-end gap-0.5 h-44 border-b border-gray-200 dark:border-gray-600 pb-1">
-                  {points.map((p) => (
+                <div
+                  className="relative flex items-end gap-0.5 h-44 border-b border-gray-200 dark:border-gray-600 pb-1"
+                  onMouseLeave={() => setHoveredBurnIndex(null)}
+                >
+                  {points.map((p, idx) => (
                     <div
                       key={p.bucketStart}
                       className="flex-1 min-w-0 flex flex-col justify-end group relative"
-                      title={`${p.bucketStart}: ${p.totalTokens.toLocaleString()} tokens · ${formatObservabilityUsd(p.totalCostUsd)}`}
+                      onMouseEnter={() => setHoveredBurnIndex(idx)}
+                      onFocus={() => setHoveredBurnIndex(idx)}
+                      onBlur={() => setHoveredBurnIndex(null)}
+                      role="presentation"
                     >
+                      {hoveredBurnIndex === idx && <BurnDailyTooltip point={p} />}
                       <div
-                        className="w-full mx-auto max-w-[12px] rounded-t bg-violet-500/90 dark:bg-violet-400/90"
-                        style={{ height: `${(p.totalTokens / maxTokens) * 100}%`, minHeight: 2 }}
+                        className={cn(
+                          'w-full mx-auto max-w-[12px] rounded-t bg-violet-500/90 dark:bg-violet-400/90 transition-opacity',
+                          hoveredBurnIndex != null && hoveredBurnIndex !== idx && 'opacity-40'
+                        )}
+                        style={{
+                          height: `${(p.totalTokens / maxTokens) * 100}%`,
+                          minHeight: 2,
+                        }}
                       />
                     </div>
                   ))}
@@ -550,21 +674,23 @@ export default function ObservabilityPage() {
                   <tr className="text-left text-gray-500 border-b border-gray-200 dark:border-gray-700">
                     <th className="py-2 pr-4">{groupBy}</th>
                     <th className="py-2 pr-4">Cost</th>
-                    <th className="py-2 pr-4">Tokens</th>
+                    <th className="py-2 pr-4">Input tokens</th>
+                    <th className="py-2 pr-4">Output tokens</th>
+                    <th className="py-2 pr-4">Total tokens</th>
                     <th className="py-2">Calls</th>
                   </tr>
                 </thead>
                 <tbody>
                   {breakdownQ.isLoading && (
                     <tr>
-                      <td colSpan={4} className="p-8 text-center text-gray-500">
+                      <td colSpan={6} className="p-8 text-center text-gray-500">
                         <Loader2 className="h-6 w-6 animate-spin inline" /> Loading…
                       </td>
                     </tr>
                   )}
                   {breakdownQ.isError && (
                     <tr>
-                      <td colSpan={4} className="p-8 text-center text-red-600 text-sm">
+                      <td colSpan={6} className="p-8 text-center text-red-600 text-sm">
                         Failed to load breakdown.
                       </td>
                     </tr>
@@ -573,7 +699,7 @@ export default function ObservabilityPage() {
                     !breakdownQ.isError &&
                     (breakdownQ.data?.rows ?? []).length === 0 && (
                       <tr>
-                        <td colSpan={4} className="p-8 text-center text-gray-500 text-sm">
+                        <td colSpan={6} className="p-8 text-center text-gray-500 text-sm">
                           No breakdown data in this window.
                         </td>
                       </tr>
@@ -589,7 +715,15 @@ export default function ObservabilityPage() {
                         <td className="py-2 pr-4 tabular-nums">
                           {formatObservabilityUsd(r.totalCostUsd)}
                         </td>
-                        <td className="py-2 pr-4 tabular-nums">{r.totalTokens.toLocaleString()}</td>
+                        <td className="py-2 pr-4 tabular-nums">
+                          {formatObservabilityTokenCount(r.inputTokens)}
+                        </td>
+                        <td className="py-2 pr-4 tabular-nums">
+                          {formatObservabilityTokenCount(r.outputTokens)}
+                        </td>
+                        <td className="py-2 pr-4 tabular-nums">
+                          {formatObservabilityTokenCount(r.totalTokens)}
+                        </td>
                         <td className="py-2 tabular-nums">{r.callCount}</td>
                       </tr>
                     ))}
@@ -673,12 +807,14 @@ export default function ObservabilityPage() {
                         </td>
                         <td className="p-2 font-mono text-xs">{row.module}</td>
                         <td className="p-2 font-mono text-xs">{row.model}</td>
-                        <td className="p-2 text-xs">{row.status}</td>
+                        <td className="p-2 text-xs">
+                          <StatusBadge status={row.status} size="sm" />
+                        </td>
                         <td className="p-2 text-xs tabular-nums">
                           {formatObservabilityUsd(row.totalCostUsd)}
                         </td>
                         <td className="p-2 text-xs text-gray-600 max-w-xs truncate">
-                          {row.responsePreview ?? '—'}
+                          {formatExecutionPreview(row.responsePreview)}
                         </td>
                       </tr>
                     ))}
@@ -758,32 +894,105 @@ export default function ObservabilityPage() {
                       </span>
                     )}
                   </div>
+
+                  <ExecutionSummaryHeader detail={detailQ.data} />
+
+                  {detailQ.data.errorMessage?.trim() && isExecutionFailure(detailQ.data.status) && (
+                    <div
+                      role="alert"
+                      className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+                    >
+                      {detailQ.data.errorMessage}
+                    </div>
+                  )}
+
                   <ExecutionDetailMetadata detail={detailQ.data} />
+
                   {detailQ.data.promptText != null && (
-                    <div>
-                      <div className="text-xs font-semibold text-gray-600 mb-1">Prompt</div>
-                      <div className={cn(EXECUTION_TEXT_PANEL_CLASS, 'max-h-48')}>
+                    <CollapsibleSection title="Prompt" defaultOpen>
+                      <ExpandableTextPanel
+                        collapsedMaxHeight="max-h-48"
+                        expandedMaxHeight="max-h-[32rem]"
+                      >
                         {renderPromptText(detailQ.data.promptText)}
-                      </div>
-                    </div>
+                      </ExpandableTextPanel>
+                    </CollapsibleSection>
                   )}
+
                   {detailQ.data.responseRawText != null && (
-                    <div>
-                      <div className="text-xs font-semibold text-gray-600 mb-1">Response</div>
-                      <div className={cn(EXECUTION_TEXT_PANEL_CLASS, 'max-h-64')}>
+                    <CollapsibleSection title="Response" defaultOpen>
+                      <ExpandableTextPanel
+                        collapsedMaxHeight="max-h-64"
+                        expandedMaxHeight="max-h-[32rem]"
+                      >
                         <MarkdownRenderer content={detailQ.data.responseRawText} variant="chat" />
-                      </div>
-                    </div>
+                      </ExpandableTextPanel>
+                    </CollapsibleSection>
                   )}
-                  {detailQ.data.stackTrace != null && (
-                    <div>
-                      <div className="text-xs font-semibold text-red-600 mb-1">Stack trace</div>
-                      <LinkedStackTrace
-                        text={detailQ.data.stackTrace}
-                        settings={editorLinkSettings}
-                        className="bg-red-50 dark:bg-red-950/30 p-3 rounded border border-red-200 dark:border-red-900"
-                      />
-                    </div>
+
+                  {hasFailureDetails(detailQ.data) && (
+                    <CollapsibleSection
+                      title="Failure details"
+                      defaultOpen={isExecutionFailure(detailQ.data.status)}
+                      summary={detailQ.data.errorMessage?.slice(0, 80) ?? 'Stack trace'}
+                    >
+                      <div className="space-y-4">
+                        {detailQ.data.errorMessage?.trim() && (
+                          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+                            {detailQ.data.errorMessage}
+                          </div>
+                        )}
+                        {detailQ.data.partialResponseText != null && (
+                          <div>
+                            <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                              Partial response
+                            </div>
+                            <ExpandableTextPanel
+                              collapsedMaxHeight="max-h-32"
+                              expandedMaxHeight="max-h-64"
+                            >
+                              <MarkdownRenderer
+                                content={detailQ.data.partialResponseText}
+                                variant="chat"
+                              />
+                            </ExpandableTextPanel>
+                          </div>
+                        )}
+                        {detailQ.data.stackTrace != null && (
+                          <div>
+                            <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">
+                              Stack trace
+                            </div>
+                            <LinkedStackTrace
+                              text={detailQ.data.stackTrace}
+                              settings={editorLinkSettings}
+                              className="bg-red-50 dark:bg-red-950/30 p-3 rounded border border-red-200 dark:border-red-900"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </CollapsibleSection>
+                  )}
+
+                  {getRawPayloadEntries(detailQ.data).length > 0 && (
+                    <CollapsibleSection
+                      title="Raw payloads"
+                      defaultOpen={false}
+                      summary={`${getRawPayloadEntries(detailQ.data).length} field(s)`}
+                    >
+                      <div className="space-y-4">
+                        {getRawPayloadEntries(detailQ.data).map(({ label, data }) => (
+                          <div key={label}>
+                            <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                              {label}
+                            </div>
+                            <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-950 p-3 overflow-auto max-h-96">
+                              <JsonViewer data={data} initialExpanded={false} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CollapsibleSection>
                   )}
                 </div>
               )}

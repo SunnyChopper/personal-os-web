@@ -14,6 +14,8 @@ export interface ObservabilityBurnSummary {
 export interface ObservabilityBurnPoint {
   bucketStart: string;
   totalCostUsd: number;
+  inputTokens: number;
+  outputTokens: number;
   totalTokens: number;
   callCount: number;
 }
@@ -25,6 +27,8 @@ export interface ObservabilityBurnTimeseries {
 export interface ObservabilityBreakdownRow {
   key: string;
   totalCostUsd: number;
+  inputTokens: number;
+  outputTokens: number;
   totalTokens: number;
   callCount: number;
 }
