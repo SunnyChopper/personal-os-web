@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Eye, EyeOff, Globe, Loader2, Rss } from 'lucide-react';
+import { Eye, EyeOff, FolderGit, Globe, Loader2, Rss } from 'lucide-react';
 import Dialog from '@/components/molecules/Dialog';
 import Button from '@/components/atoms/Button';
 import { FormField } from '@/components/molecules/FormField';
 import { FormCheckbox } from '@/components/atoms/FormCheckbox';
 import { FormInput } from '@/components/atoms/FormInput';
 import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 import {
   RADAR_AUTH_SCHEME_LABELS,
+  RADAR_GITHUB_EVENT_TYPE_LABELS,
+  RADAR_GITHUB_RELEASE_FILTER_LABELS,
   RADAR_SOURCE_TYPE_LABELS,
   RADAR_SYNC_CADENCE_LABELS,
 } from '@/types/api/personal-branding.dto';
 import type {
   CreateRadarSourceInput,
   RadarAuthScheme,
+  RadarGithubEventType,
+  RadarGithubReleaseFilter,
   RadarSource,
   RadarSourceType,
   RadarSyncCadence,
@@ -45,7 +50,14 @@ const SOURCE_TYPE_OPTIONS: {
     icon: Globe,
     description: 'Call a REST endpoint and ingest JSON responses.',
   },
+  {
+    value: 'GITHUB_REPO',
+    icon: FolderGit,
+    description: 'Watch a GitHub repo for commits, releases, issues, and pull requests.',
+  },
 ];
+
+const GITHUB_EVENT_TYPES = Object.keys(RADAR_GITHUB_EVENT_TYPE_LABELS) as RadarGithubEventType[];
 
 const HTTP_METHODS = ['GET', 'POST'] as const;
 
@@ -201,6 +213,12 @@ export default function SourceEditorDialog({
   const [clearSecret, setClearSecret] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [cadence, setCadence] = useState<RadarSyncCadence | ''>('');
+  const [githubOwner, setGithubOwner] = useState('');
+  const [githubRepo, setGithubRepo] = useState('');
+  const [githubEventTypes, setGithubEventTypes] = useState<RadarGithubEventType[]>(['COMMITS']);
+  const [githubReleaseFilter, setGithubReleaseFilter] = useState<RadarGithubReleaseFilter>('ALL');
+  const [githubAiFilterEnabled, setGithubAiFilterEnabled] = useState(true);
+  const [githubAiFilterInstructions, setGithubAiFilterInstructions] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -217,6 +235,12 @@ export default function SourceEditorDialog({
       setClearSecret(false);
       setEnabled(initial.enabled);
       setCadence((initial.cadence as RadarSyncCadence | null) ?? '');
+      setGithubOwner(initial.githubConfig?.owner ?? '');
+      setGithubRepo(initial.githubConfig?.repo ?? '');
+      setGithubEventTypes(initial.githubConfig?.eventTypes ?? ['COMMITS']);
+      setGithubReleaseFilter(initial.githubConfig?.releaseFilter ?? 'ALL');
+      setGithubAiFilterEnabled(initial.githubConfig?.aiFilterEnabled ?? true);
+      setGithubAiFilterInstructions(initial.githubConfig?.aiFilterInstructions ?? '');
     } else {
       setName('');
       setSourceType('RSS');
@@ -229,6 +253,12 @@ export default function SourceEditorDialog({
       setClearSecret(false);
       setEnabled(true);
       setCadence('');
+      setGithubOwner('');
+      setGithubRepo('');
+      setGithubEventTypes(['COMMITS']);
+      setGithubReleaseFilter('ALL');
+      setGithubAiFilterEnabled(true);
+      setGithubAiFilterInstructions('');
     }
   }, [isOpen, initial]);
 
@@ -239,20 +269,59 @@ export default function SourceEditorDialog({
       setAuthScheme('BEARER');
       setAuthHeaderName('');
       setAuthQueryParamName('');
+    } else if (nextType === 'GITHUB_REPO') {
+      setHttpMethod('GET');
+      setAuthScheme('BEARER');
+      setAuthHeaderName('');
+      setAuthQueryParamName('');
     }
   };
 
-  const buildPayload = () => ({
-    name: name.trim(),
-    sourceType,
-    endpoint: endpoint.trim(),
-    httpMethod: sourceType === 'API' ? httpMethod : 'GET',
-    authScheme: sourceType === 'API' ? authScheme : 'NONE',
-    authHeaderName: authHeaderName.trim() || null,
-    authQueryParamName: authQueryParamName.trim() || null,
-    enabled,
-    cadence: cadence || null,
-  });
+  const toggleGithubEventType = (eventType: RadarGithubEventType) => {
+    setGithubEventTypes((current) =>
+      current.includes(eventType)
+        ? current.filter((value) => value !== eventType)
+        : [...current, eventType]
+    );
+  };
+
+  const buildPayload = () => {
+    if (sourceType === 'GITHUB_REPO') {
+      const owner = githubOwner.trim();
+      const repo = githubRepo.trim();
+      return {
+        name: name.trim(),
+        sourceType,
+        endpoint: `https://github.com/${owner}/${repo}`,
+        httpMethod: 'GET' as const,
+        authScheme: 'BEARER' as const,
+        authHeaderName: null,
+        authQueryParamName: null,
+        enabled,
+        cadence: cadence || null,
+        githubConfig: {
+          owner,
+          repo,
+          eventTypes: githubEventTypes,
+          releaseFilter: githubReleaseFilter,
+          aiFilterEnabled: githubAiFilterEnabled,
+          aiFilterInstructions: githubAiFilterInstructions.trim() || null,
+        },
+      };
+    }
+
+    return {
+      name: name.trim(),
+      sourceType,
+      endpoint: endpoint.trim(),
+      httpMethod: sourceType === 'API' ? httpMethod : 'GET',
+      authScheme: sourceType === 'API' ? authScheme : 'NONE',
+      authHeaderName: authHeaderName.trim() || null,
+      authQueryParamName: authQueryParamName.trim() || null,
+      enabled,
+      cadence: cadence || null,
+    };
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -276,7 +345,10 @@ export default function SourceEditorDialog({
   };
 
   const canAdvanceFromIdentify = name.trim().length > 0;
-  const canAdvanceFromConfigure = endpoint.trim().length > 0;
+  const canAdvanceFromConfigure =
+    sourceType === 'GITHUB_REPO'
+      ? githubOwner.trim().length > 0 && githubRepo.trim().length > 0 && githubEventTypes.length > 0
+      : endpoint.trim().length > 0;
   const showApiAuthFields = sourceType === 'API' && authScheme !== 'NONE';
 
   const dialogTitle = initial ? 'Edit radar source' : 'New radar source';
@@ -313,7 +385,7 @@ export default function SourceEditorDialog({
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Source type<span className="ml-0.5 text-red-500">*</span>
                 </p>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-3">
                   {SOURCE_TYPE_OPTIONS.map(({ value, icon: Icon, description }) => (
                     <button
                       key={value}
@@ -357,54 +429,149 @@ export default function SourceEditorDialog({
 
           {step === 'configure' ? (
             <div className="space-y-4">
-              <FormField
-                label={sourceType === 'RSS' ? 'Feed URL' : 'Endpoint URL'}
-                htmlFor="radar-source-endpoint"
-                required
-                hint={
-                  sourceType === 'RSS'
-                    ? 'Public RSS or Atom feed URL.'
-                    : 'Full URL including path for the API endpoint.'
-                }
-              >
-                <FormInput
-                  id="radar-source-endpoint"
-                  value={endpoint}
-                  onChange={(e) => setEndpoint(e.target.value)}
-                  placeholder={
-                    sourceType === 'RSS'
-                      ? 'https://example.com/feed.xml'
-                      : 'https://api.example.com/v1/trends'
-                  }
-                  required
-                />
-              </FormField>
-
-              {sourceType === 'API' ? (
-                <FormField
-                  label="HTTP method"
-                  hint="Most trend APIs use GET; choose POST only when required."
-                >
-                  <div className="inline-flex rounded-lg border border-gray-300 p-0.5 dark:border-gray-600">
-                    {HTTP_METHODS.map((method) => (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setHttpMethod(method)}
-                        className={cn(
-                          'rounded-md px-4 py-1.5 text-sm font-medium transition',
-                          httpMethod === method
-                            ? 'bg-blue-600 text-white'
-                            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-                        )}
-                        aria-pressed={httpMethod === method}
-                      >
-                        {method}
-                      </button>
-                    ))}
+              {sourceType === 'GITHUB_REPO' ? (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField label="Repository owner" htmlFor="github-owner" required>
+                      <FormInput
+                        id="github-owner"
+                        value={githubOwner}
+                        onChange={(e) => setGithubOwner(e.target.value)}
+                        placeholder="langchain-ai"
+                        required
+                      />
+                    </FormField>
+                    <FormField label="Repository name" htmlFor="github-repo" required>
+                      <FormInput
+                        id="github-repo"
+                        value={githubRepo}
+                        onChange={(e) => setGithubRepo(e.target.value)}
+                        placeholder="langgraph"
+                        required
+                      />
+                    </FormField>
                   </div>
-                </FormField>
-              ) : null}
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Poll for updates<span className="ml-0.5 text-red-500">*</span>
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {GITHUB_EVENT_TYPES.map((eventType) => (
+                        <label
+                          key={eventType}
+                          className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700"
+                        >
+                          <FormCheckbox
+                            checked={githubEventTypes.includes(eventType)}
+                            onChange={() => toggleGithubEventType(eventType)}
+                          />
+                          {RADAR_GITHUB_EVENT_TYPE_LABELS[eventType]}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {githubEventTypes.includes('RELEASES') ? (
+                    <FormField label="Release filter" htmlFor="github-release-filter">
+                      <Select
+                        id="github-release-filter"
+                        value={githubReleaseFilter}
+                        onChange={(e) =>
+                          setGithubReleaseFilter(e.target.value as RadarGithubReleaseFilter)
+                        }
+                        className="w-full"
+                      >
+                        {(
+                          Object.keys(
+                            RADAR_GITHUB_RELEASE_FILTER_LABELS
+                          ) as RadarGithubReleaseFilter[]
+                        ).map((key) => (
+                          <option key={key} value={key}>
+                            {RADAR_GITHUB_RELEASE_FILTER_LABELS[key]}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormField>
+                  ) : null}
+
+                  <div className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <FormCheckbox
+                        checked={githubAiFilterEnabled}
+                        onChange={(e) => setGithubAiFilterEnabled(e.target.checked)}
+                      />
+                      Filter out noise with AI
+                    </label>
+                    {githubAiFilterEnabled ? (
+                      <FormField
+                        label="Filtering instructions"
+                        htmlFor="github-ai-instructions"
+                        hint="Optional guidance for what should surface vs. be treated as noise."
+                      >
+                        <Textarea
+                          id="github-ai-instructions"
+                          value={githubAiFilterInstructions}
+                          onChange={(e) => setGithubAiFilterInstructions(e.target.value)}
+                          placeholder="Only surface major feature releases; skip dependency bumps and typo-fix commits."
+                          rows={3}
+                        />
+                      </FormField>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <FormField
+                    label={sourceType === 'RSS' ? 'Feed URL' : 'Endpoint URL'}
+                    htmlFor="radar-source-endpoint"
+                    required
+                    hint={
+                      sourceType === 'RSS'
+                        ? 'Public RSS or Atom feed URL.'
+                        : 'Full URL including path for the API endpoint.'
+                    }
+                  >
+                    <FormInput
+                      id="radar-source-endpoint"
+                      value={endpoint}
+                      onChange={(e) => setEndpoint(e.target.value)}
+                      placeholder={
+                        sourceType === 'RSS'
+                          ? 'https://example.com/feed.xml'
+                          : 'https://api.example.com/v1/trends'
+                      }
+                      required
+                    />
+                  </FormField>
+
+                  {sourceType === 'API' ? (
+                    <FormField
+                      label="HTTP method"
+                      hint="Most trend APIs use GET; choose POST only when required."
+                    >
+                      <div className="inline-flex rounded-lg border border-gray-300 p-0.5 dark:border-gray-600">
+                        {HTTP_METHODS.map((method) => (
+                          <button
+                            key={method}
+                            type="button"
+                            onClick={() => setHttpMethod(method)}
+                            className={cn(
+                              'rounded-md px-4 py-1.5 text-sm font-medium transition',
+                              httpMethod === method
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                            )}
+                            aria-pressed={httpMethod === method}
+                          >
+                            {method}
+                          </button>
+                        ))}
+                      </div>
+                    </FormField>
+                  ) : null}
+                </>
+              )}
 
               <FormField
                 label="Per-source cadence"
@@ -446,6 +613,27 @@ export default function SourceEditorDialog({
                     onChange={setSecretToken}
                     placeholder={
                       initial?.hasSecret ? 'Enter new token to replace' : 'Optional auth token'
+                    }
+                    hasStoredSecret={initial?.hasSecret}
+                    clearSecret={clearSecret}
+                    onClearSecretChange={setClearSecret}
+                    showClearOption={Boolean(initial?.hasSecret)}
+                  />
+                </>
+              ) : sourceType === 'GITHUB_REPO' ? (
+                <>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    A GitHub personal access token is optional for public repos, but recommended to
+                    raise the API rate limit from 60 to 5,000 requests per hour.
+                  </p>
+                  <SecretTokenField
+                    id="radar-github-token"
+                    value={secretToken}
+                    onChange={setSecretToken}
+                    placeholder={
+                      initial?.hasSecret
+                        ? 'Enter new token to replace'
+                        : 'Optional GitHub personal access token'
                     }
                     hasStoredSecret={initial?.hasSecret}
                     clearSecret={clearSecret}

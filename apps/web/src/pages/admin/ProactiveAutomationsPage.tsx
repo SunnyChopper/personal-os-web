@@ -602,13 +602,11 @@ function SettingsTab({
 
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:p-5">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-          Test email delivery
+          Test email notifications
         </h3>
         <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 max-w-2xl">
-          Delivers to the email stored on your Cognito user (login email). The visible From address
-          is whatever the API sets in SES_FROM_ADDRESS; that identity must be verified in Amazon SES
-          and is not the same as using your Gmail as the sender unless you verified that address in
-          SES.
+          Send a sample proactive update to the email address you use to sign in. Use this to
+          confirm messages reach your inbox—check spam if nothing arrives within a few minutes.
         </p>
         <Button
           type="button"
@@ -634,16 +632,17 @@ function SettingsTab({
 
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:p-5">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-          Webhook delivery (Discord)
+          Discord notifications
         </h3>
         <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 max-w-2xl">
-          Push bite-sized run snapshots to a private channel via an HTTPS webhook. Create an
-          Incoming Webhook in your Discord server channel settings, paste the URL below, and enable
-          webhook notifications on each automation. Works alongside email.
+          Get proactive updates in a private Discord channel—useful if you spend more time in
+          Discord than email. In your server, open channel settings → Integrations → Incoming
+          Webhook, paste the URL below, then turn on Discord for each automation you want notified.
+          Email and Discord can run together.
         </p>
         <div className="space-y-3 max-w-2xl">
           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            Webhook URL
+            Discord webhook URL
             <input
               type="url"
               className="mt-1 w-full border rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-900 dark:border-gray-600"
@@ -655,14 +654,14 @@ function SettingsTab({
           </label>
           <div className="flex flex-wrap gap-3 items-center">
             <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-              Format
+              Message style
               <Select
                 className="mt-1 block border rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-900 dark:border-gray-600"
                 value={webhookFormat}
                 onChange={(e) => onWebhookFormatChange(e.target.value as 'discord' | 'generic')}
               >
-                <option value="discord">Discord (embed)</option>
-                <option value="generic">Generic JSON</option>
+                <option value="discord">Rich card (Discord)</option>
+                <option value="generic">Plain text (other apps)</option>
               </Select>
             </label>
             <label className="text-xs flex items-center gap-2 pt-5">
@@ -673,7 +672,7 @@ function SettingsTab({
                 onChange={(e) => onWebhookEnabledChange(e.target.checked)}
               />
               <span className="font-medium text-gray-700 dark:text-gray-300">
-                Enable webhook delivery
+                Turn on Discord notifications
               </span>
             </label>
           </div>
@@ -684,7 +683,7 @@ function SettingsTab({
               disabled={webhookSaving}
               onClick={onSaveWebhook}
             >
-              {webhookSaving ? 'Saving…' : 'Save webhook settings'}
+              {webhookSaving ? 'Saving…' : 'Save Discord settings'}
             </button>
             <Button
               type="button"
@@ -694,7 +693,7 @@ function SettingsTab({
               disabled={webhookTestPending}
               onClick={onWebhookTest}
             >
-              {webhookTestPending ? 'Sending…' : 'Send test webhook'}
+              {webhookTestPending ? 'Sending…' : 'Send test message'}
             </Button>
           </div>
           {webhookSaveError ? (
@@ -717,13 +716,13 @@ function SettingsTab({
 
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:p-5">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-          Recovery notifications
+          Low recovery alerts
         </h3>
         <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 max-w-2xl">
-          When your daily recovery check-in shows suboptimal sleep or recovery signals, Personal OS
-          can warn you proactively (email and/or webhook). The dashboard also shows a recovery
-          warning in the Health Action widget. Requires recovery data logged for today; sent at most
-          once per day after the morning health-action job runs.
+          Get a heads-up when today&apos;s recovery data suggests you&apos;re under-rested. Personal
+          OS can email you, post to Discord, or show a warning on your dashboard—so you can adjust
+          your day before overdoing it. You&apos;ll receive at most one alert per day, after your
+          morning health check-in has data for today.
         </p>
         <div className="space-y-3 max-w-2xl">
           <label className="text-xs flex items-center gap-2">
@@ -734,7 +733,7 @@ function SettingsTab({
               onChange={(e) => onRecoveryEnabledChange(e.target.checked)}
             />
             <span className="font-medium text-gray-700 dark:text-gray-300">
-              Enable recovery warnings
+              Warn me about low recovery
             </span>
           </label>
           <div className="flex flex-wrap gap-4 pl-1">
@@ -746,7 +745,7 @@ function SettingsTab({
                 disabled={!recoveryEnabled}
                 onChange={(e) => onRecoveryEmailEnabledChange(e.target.checked)}
               />
-              <span className="text-gray-700 dark:text-gray-300">Email</span>
+              <span className="text-gray-700 dark:text-gray-300">Email me</span>
             </label>
             <label className="text-xs flex items-center gap-2">
               <input
@@ -756,9 +755,7 @@ function SettingsTab({
                 disabled={!recoveryEnabled}
                 onChange={(e) => onRecoveryWebhookEnabledChange(e.target.checked)}
               />
-              <span className="text-gray-700 dark:text-gray-300">
-                Webhook (uses webhook URL above)
-              </span>
+              <span className="text-gray-700 dark:text-gray-300">Post to Discord</span>
             </label>
           </div>
           <div>
@@ -768,7 +765,7 @@ function SettingsTab({
               disabled={recoverySaving}
               onClick={onSaveRecovery}
             >
-              {recoverySaving ? 'Saving…' : 'Save recovery notifications'}
+              {recoverySaving ? 'Saving…' : 'Save alert settings'}
             </button>
           </div>
           {recoverySaveError ? (
@@ -784,8 +781,8 @@ function SettingsTab({
           Default time zone
         </h3>
         <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 max-w-2xl">
-          Used as the default when you create an automation. Each automation stores its own time
-          zone, so you can mix regions if needed.
+          New automations start with this time zone. You can still pick a different zone on each
+          automation if you schedule across regions.
         </p>
         <div className="flex flex-wrap gap-2 items-center">
           <Select
@@ -819,15 +816,24 @@ function SettingsTab({
 
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:p-5 bg-gray-50/50 dark:bg-gray-950/20">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-          Automation kinds
+          Automation types
         </h3>
+        <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 max-w-2xl">
+          Each type runs on its own schedule and focuses on a different part of your day.
+        </p>
         <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
           {KINDS.map((k) => (
             <li key={k}>
               <span className="font-medium text-gray-800 dark:text-gray-200">{KIND_LABELS[k]}</span>
-              {k === 'dailyBriefing' ? ' — morning summary and priorities.' : null}
-              {k === 'logbookEvening' ? ' — end-of-day reflection prompt.' : null}
-              {k === 'custom' ? ' — your own instructions each run.' : null}
+              {k === 'dailyBriefing' ? ' — start your day with priorities and context.' : null}
+              {k === 'logbookEvening' ? ' — reflect on the day and capture what mattered.' : null}
+              {k === 'custom' ? ' — follow instructions you write for each run.' : null}
+              {k === 'dailyLearningTrends'
+                ? ' — surface trends from your learning activity.'
+                : null}
+              {k === 'dailyLearningTheory'
+                ? ' — deepen theory tied to what you are studying.'
+                : null}
             </li>
           ))}
         </ul>
@@ -1313,10 +1319,10 @@ export default function ProactiveAutomationsPage() {
             Proactive assistant
           </h1>
           <p className="mt-1 w-full text-sm text-gray-600 dark:text-gray-400">
-            Schedule morning briefings and evening logbook check-ins. At the time you pick, the
-            assistant prepares an update you can open in the app; you can also get a short email
-            with a link back to the conversation. When your workspace is set up for it, replying to
-            that email continues the same thread.
+            Get a morning briefing and an evening logbook check-in on your schedule. When each
+            automation runs, the assistant prepares an update you can open here in the app. Turn on
+            email to receive a short summary with a link back—and reply to keep the conversation
+            going.
           </p>
         </header>
 

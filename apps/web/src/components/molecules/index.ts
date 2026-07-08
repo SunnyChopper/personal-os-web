@@ -1,5 +1,7 @@
 export { default as Dialog } from './Dialog';
 export { default as BottomSheet } from './BottomSheet';
+export { default as SlideDrawer } from './SlideDrawer';
+export type { SlideDrawerProps } from './SlideDrawer';
 export { default as ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps } from './ConfirmDialog';
 export { FormField } from './FormField';

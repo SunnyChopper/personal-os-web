@@ -25,6 +25,7 @@ export interface NewDraftAiRequest {
   platform: BrandPlatform;
   brandProfileId: string;
   topic: string;
+  templateId?: string;
 }
 
 interface NewDraftWizardModalProps {
@@ -51,6 +52,7 @@ export default function NewDraftWizardModal({
   const [platform, setPlatform] = useState<BrandPlatform>('linkedin');
   const [brandProfileId, setBrandProfileId] = useState('');
   const [topic, setTopic] = useState('');
+  const [templateId, setTemplateId] = useState('');
 
   const profilesQ = useQuery({
     queryKey: queryKeys.personalBranding.profiles.list(1, 50),
@@ -66,6 +68,14 @@ export default function NewDraftWizardModal({
 
   const profiles = profilesQ.data ?? [];
 
+  const templatesQ = useQuery({
+    queryKey: queryKeys.personalBranding.contentTemplates.list(1, 100),
+    queryFn: () => personalBrandingService.listContentTemplates(1, 100),
+    enabled: isOpen,
+  });
+
+  const templates = templatesQ.data?.data ?? [];
+
   useEffect(() => {
     if (!isOpen) return;
     setStep('contentType');
@@ -74,6 +84,7 @@ export default function NewDraftWizardModal({
     setPlatform('linkedin');
     setBrandProfileId('');
     setTopic('');
+    setTemplateId('');
   }, [isOpen]);
 
   useEffect(() => {
@@ -208,56 +219,74 @@ export default function NewDraftWizardModal({
       {step === 'aiDetail' ? (
         <fieldset disabled={isGenerating} className="space-y-4 disabled:opacity-60">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            AI will write in your brand voice for the selected platform.
+            Add raw thoughts to have AI draft this in your brand voice, or leave it blank to start
+            from a template.
           </p>
-          {profilesQ.isPending ? (
-            <p className="text-sm text-gray-500">Loading brand profiles…</p>
-          ) : profiles.length === 0 ? (
-            <p className="text-sm text-amber-600 dark:text-amber-400">
-              Create a Brand Identity profile before using AI generation.
-            </p>
-          ) : (
-            <>
-              <label className="block text-sm text-gray-700 dark:text-gray-300">
-                Brand profile
-                <Select
-                  value={brandProfileId}
-                  onChange={(e) => setBrandProfileId(e.target.value)}
-                  className={`${formFieldClassName} mt-1`}
-                >
-                  {profiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label className="block text-sm text-gray-700 dark:text-gray-300">
-                Target platform
-                <Select
-                  value={platform}
-                  onChange={(e) => setPlatform(e.target.value as BrandPlatform)}
-                  className={`${formFieldClassName} mt-1`}
-                >
-                  {PLATFORMS.map((p) => (
-                    <option key={p} value={p}>
-                      {BRAND_PLATFORM_LABELS[p]}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label className="block text-sm text-gray-700 dark:text-gray-300">
-                Topic or brief
-                <Textarea
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  rows={4}
-                  placeholder="What should this piece cover?"
-                  className={`${formFieldClassName} mt-1 resize-y`}
-                />
-              </label>
-            </>
-          )}
+          <label className="block text-sm text-gray-700 dark:text-gray-300">
+            Raw thoughts (optional)
+            <Textarea
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              rows={4}
+              placeholder="Jot down rough ideas, bullet points, or a brief — leave blank to start from a template."
+              className={`${formFieldClassName} mt-1 resize-y`}
+            />
+          </label>
+          {topic.trim().length > 0 ? (
+            profilesQ.isPending ? (
+              <p className="text-sm text-gray-500">Loading brand profiles…</p>
+            ) : profiles.length === 0 ? (
+              <p className="text-sm text-amber-600 dark:text-amber-400">
+                Create a Brand Identity profile before using AI generation.
+              </p>
+            ) : (
+              <>
+                <label className="block text-sm text-gray-700 dark:text-gray-300">
+                  Brand profile
+                  <Select
+                    value={brandProfileId}
+                    onChange={(e) => setBrandProfileId(e.target.value)}
+                    className={`${formFieldClassName} mt-1`}
+                  >
+                    {profiles.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <label className="block text-sm text-gray-700 dark:text-gray-300">
+                  Target platform
+                  <Select
+                    value={platform}
+                    onChange={(e) => setPlatform(e.target.value as BrandPlatform)}
+                    className={`${formFieldClassName} mt-1`}
+                  >
+                    {PLATFORMS.map((p) => (
+                      <option key={p} value={p}>
+                        {BRAND_PLATFORM_LABELS[p]}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <label className="block text-sm text-gray-700 dark:text-gray-300">
+                  Content template <span className="font-normal text-gray-500">(optional)</span>
+                  <Select
+                    value={templateId}
+                    onChange={(e) => setTemplateId(e.target.value)}
+                    className={`${formFieldClassName} mt-1`}
+                  >
+                    <option value="">None</option>
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.title}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+              </>
+            )
+          ) : null}
           <div className="flex justify-between pt-2">
             <Button type="button" size="sm" variant="secondary" onClick={handleBack}>
               Back
@@ -265,19 +294,29 @@ export default function NewDraftWizardModal({
             <Button
               type="button"
               size="sm"
-              disabled={isGenerating || profiles.length === 0 || !brandProfileId || !topic.trim()}
-              onClick={() =>
-                onGenerateWithAi({
-                  contentType,
-                  platform,
-                  brandProfileId,
-                  topic: topic.trim(),
-                })
+              disabled={
+                isGenerating ||
+                (topic.trim().length > 0 && (profiles.length === 0 || !brandProfileId))
               }
+              onClick={() => {
+                const trimmedTopic = topic.trim();
+                if (trimmedTopic) {
+                  onGenerateWithAi({
+                    contentType,
+                    platform,
+                    brandProfileId,
+                    topic: trimmedTopic,
+                    templateId: templateId || undefined,
+                  });
+                  return;
+                }
+                onStartFromTemplate({ contentType, title: '' });
+                onClose();
+              }}
               className="inline-flex items-center gap-2"
             >
               {isGenerating ? <Loader2 size={16} className="animate-spin" /> : null}
-              {isGenerating ? 'Generating…' : 'Generate draft'}
+              {isGenerating ? 'Generating…' : topic.trim() ? 'Generate draft' : 'Create draft'}
             </Button>
           </div>
         </fieldset>

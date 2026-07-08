@@ -14,8 +14,10 @@ import ProfileVersionHistory from './ProfileVersionHistory';
 import { LOCAL_DRAFT_PROFILE_ID } from './brand-identity.constants';
 import type {
   BrandProfile,
+  BrandProfileOutputTest,
   BrandProfileStatus,
   BrandProfileVersion,
+  GenerateProfileOutputTestInput,
   ProfileExtractionJob,
   ProfileExtractionSource,
 } from '@/types/api/personal-branding.dto';
@@ -214,6 +216,9 @@ function ProfileEditor({
   versionsLoading,
   isActivatingVersion,
   onActivateVersion,
+  outputTests,
+  outputTestsLoading,
+  onGenerateOutputTest,
 }: {
   profile: BrandProfile;
   onSave: (body: ProfileFormSnapshot) => Promise<void>;
@@ -229,6 +234,12 @@ function ProfileEditor({
   versionsLoading: boolean;
   isActivatingVersion: boolean;
   onActivateVersion: (versionId: string) => void;
+  outputTests: BrandProfileOutputTest[];
+  outputTestsLoading: boolean;
+  onGenerateOutputTest: (
+    profileId: string,
+    body: GenerateProfileOutputTestInput
+  ) => Promise<BrandProfileOutputTest>;
 }) {
   const [name, setName] = useState(profile.name);
   const [description, setDescription] = useState(profile.description ?? '');
@@ -396,6 +407,9 @@ function ProfileEditor({
         isLocalDraft={isLocalDraft}
         formSnapshot={formSnapshot}
         onEnsureSaved={onEnsureSaved}
+        onGenerate={onGenerateOutputTest}
+        history={outputTests}
+        historyLoading={outputTestsLoading}
         disabled={busy}
       />
     </>
@@ -414,8 +428,10 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
     profiles,
     profileDetail,
     profileVersions,
+    profileOutputTests,
     extractionJob,
     pollTimedOut,
+    clearExtractionJob,
     selectedProfileId,
     setSelectedProfileId,
     createProfile,
@@ -424,6 +440,7 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
     startExtraction,
     rerunExtraction,
     activateVersion,
+    generateOutputTest,
   } = brandIdentity;
 
   const serverProfiles = profiles.data?.data ?? [];
@@ -562,8 +579,17 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
           </div>
         )}
         {extractionStatus === 'failed' && extractionError && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40">
-            Extraction failed: {extractionError}
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40">
+            <p>Extraction failed: {extractionError}</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => clearExtractionJob()}
+              className="shrink-0"
+            >
+              Dismiss
+            </Button>
           </div>
         )}
 
@@ -577,6 +603,8 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
               extractionSourcesCount={extractionSources.length}
               versions={profileVersions.data?.data ?? []}
               versionsLoading={profileVersions.isLoading}
+              outputTests={profileOutputTests.data?.data ?? []}
+              outputTestsLoading={profileOutputTests.isLoading}
               isRerunning={rerunExtraction.isPending}
               isActivatingVersion={activateVersion.isPending}
               onRerunExtraction={() => {
@@ -609,6 +637,9 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
                   });
               }}
               onEnsureSaved={handleEnsureSaved}
+              onGenerateOutputTest={(profileId, body) =>
+                generateOutputTest.mutateAsync({ profileId, body })
+              }
               onSave={async (body) => {
                 try {
                   if (isLocalDraftSelected) {
@@ -708,7 +739,10 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
         }
         job={extractionJob.data}
         pollTimedOut={pollTimedOut}
-        onClose={() => setExtractionProgressOpen(false)}
+        onClose={() => {
+          setExtractionProgressOpen(false);
+          clearExtractionJob();
+        }}
       />
       <ToastContainer />
     </TwoColumnLayout>

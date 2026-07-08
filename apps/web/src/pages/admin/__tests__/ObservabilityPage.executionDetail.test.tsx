@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -67,7 +67,7 @@ describe('ObservabilityPage execution detail', () => {
     vi.mocked(observabilityService.listExecutions).mockResolvedValue(emptyPage);
   });
 
-  it('shows providerRequestId when present', async () => {
+  it('shows providerRequestId when Trace & correlation is expanded', async () => {
     const user = userEvent.setup();
     vi.mocked(observabilityService.listExecutions).mockResolvedValue({
       ...emptyPage,
@@ -99,6 +99,12 @@ describe('ObservabilityPage execution detail', () => {
     renderPage();
     await user.click(screen.getByRole('tab', { name: /execution log/i }));
     await user.click(screen.getByText('assistant'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /trace & correlation/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /trace & correlation/i }));
 
     await waitFor(() => {
       expect(screen.getByText('req_01provider')).toBeInTheDocument();
@@ -141,7 +147,7 @@ describe('ObservabilityPage execution detail', () => {
     });
   });
 
-  it('renders prompt and completion token split with input share in detail', async () => {
+  it('renders token and cost stats in Overview section', async () => {
     const user = userEvent.setup();
     vi.mocked(observabilityService.listExecutions).mockResolvedValue({
       ...emptyPage,
@@ -177,14 +183,14 @@ describe('ObservabilityPage execution detail', () => {
     await user.click(screen.getByText('assistant'));
 
     await waitFor(() => {
-      expect(screen.getByText('Token usage')).toBeInTheDocument();
-      expect(screen.getByText('Prompt (input)')).toBeInTheDocument();
-      expect(screen.getByText('Completion (output)')).toBeInTheDocument();
-      expect(screen.getByText('12,453 (97% input share)')).toBeInTheDocument();
-      expect(screen.getByText('412')).toBeInTheDocument();
-      expect(screen.getByText('12,865')).toBeInTheDocument();
-      expect(screen.getByText('Input cost (USD)')).toBeInTheDocument();
-      expect(screen.getByText('Output cost (USD)')).toBeInTheDocument();
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByText('Overview')).toBeInTheDocument();
+      expect(within(dialog).getByText('Tokens')).toBeInTheDocument();
+      expect(dialog.textContent).toContain('12,453 (97% input share)');
+      expect(dialog.textContent).toContain('412');
+      expect(dialog.textContent).toContain('12,865');
+      expect(dialog.textContent).toContain('$0.0124');
+      expect(dialog.textContent).toContain('$0.0008');
     });
   });
 
@@ -221,10 +227,10 @@ describe('ObservabilityPage execution detail', () => {
     await user.click(screen.getByText('assistant'));
 
     await waitFor(() => {
-      const promptLabel = screen.getByText('Prompt (input)');
-      const promptRow = promptLabel.parentElement;
-      expect(promptRow?.textContent).toContain('—');
-      expect(promptRow?.textContent).not.toContain('input share');
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByText('Overview')).toBeInTheDocument();
+      expect(dialog.textContent).toMatch(/In:\s*—/);
+      expect(dialog.textContent).not.toContain('input share');
     });
   });
 
@@ -266,6 +272,7 @@ describe('ObservabilityPage execution detail', () => {
     await user.click(screen.getByText('assistant'));
 
     await waitFor(() => {
+      expect(screen.getByText('Failure details')).toBeInTheDocument();
       expect(screen.getByText(/\/var\/task\/src\/assistant\/engine\.py/)).toBeInTheDocument();
       expect(screen.queryByText(/langchain_core\/runnables\/base\.py/)).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: /show 1 external frame/i })).toBeInTheDocument();
@@ -313,9 +320,10 @@ describe('ObservabilityPage execution detail', () => {
       expect(screen.getByRole('heading', { name: 'Context' })).toBeInTheDocument();
       expect(screen.getByText(/First line\.\s*Second line\./)).toBeInTheDocument();
       expect(screen.getByText('What is on my calendar?')).toBeInTheDocument();
-      const promptPanel = screen.getByText('Prompt').parentElement;
-      expect(promptPanel?.textContent ?? '').not.toMatch(/\\n/);
-      expect(promptPanel?.textContent ?? '').not.toContain('```json');
+      expect(screen.getByRole('button', { name: /prompt/i })).toBeInTheDocument();
+      const dialog = screen.getByRole('dialog');
+      expect(dialog.textContent ?? '').not.toMatch(/\\n/);
+      expect(dialog.textContent ?? '').not.toContain('```json');
     });
   });
 
@@ -351,11 +359,106 @@ describe('ObservabilityPage execution detail', () => {
     await user.click(screen.getByText('assistant'));
 
     await waitFor(() => {
+      expect(screen.getByRole('button', { name: /trace & correlation/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /trace & correlation/i }));
+
+    await waitFor(() => {
       const providerLabel = screen
         .getAllByText('providerRequestId')
         .find((el) => el.tagName === 'DT');
       const row = providerLabel?.parentElement;
       expect(row?.textContent).toContain('—');
+    });
+  });
+
+  it('copies trace id via CopyIconButton', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    vi.mocked(observabilityService.listExecutions).mockResolvedValue({
+      ...emptyPage,
+      data: [
+        {
+          id: 'exec-copy',
+          occurredAt: new Date().toISOString(),
+          module: 'assistant',
+          provider: 'groq',
+          model: 'm',
+          status: 'succeeded',
+        },
+      ],
+      total: 1,
+    });
+    vi.mocked(observabilityService.getExecution).mockResolvedValue({
+      id: 'exec-copy-id',
+      occurredAt: new Date().toISOString(),
+      module: 'assistant',
+      provider: 'groq',
+      model: 'm',
+      status: 'succeeded',
+    });
+
+    renderPage();
+    await user.click(screen.getByRole('tab', { name: /execution log/i }));
+    await user.click(screen.getByText('assistant'));
+    await user.click(screen.getByRole('button', { name: /trace & correlation/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('exec-copy-id')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /copy id/i }));
+    expect(writeText).toHaveBeenCalledWith('exec-copy-id');
+  });
+
+  it('renders error banner and Raw payloads when present', async () => {
+    const user = userEvent.setup();
+    vi.mocked(observabilityService.listExecutions).mockResolvedValue({
+      ...emptyPage,
+      data: [
+        {
+          id: 'exec-raw',
+          occurredAt: new Date().toISOString(),
+          module: 'assistant',
+          provider: 'openai',
+          model: 'gpt-4',
+          status: 'failed',
+        },
+      ],
+      total: 1,
+    });
+    vi.mocked(observabilityService.getExecution).mockResolvedValue({
+      id: 'exec-raw',
+      occurredAt: new Date().toISOString(),
+      module: 'assistant',
+      provider: 'openai',
+      model: 'gpt-4',
+      status: 'failed',
+      errorMessage: 'Model rate limit exceeded',
+      requestMetadataJson: { temperature: 0.2 },
+      pricingSnapshotJson: { inputUsdPer1M: 0.5 },
+    });
+
+    renderPage();
+    await user.click(screen.getByRole('tab', { name: /execution log/i }));
+    await user.click(screen.getByText('assistant'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Model rate limit exceeded');
+      expect(screen.getByRole('button', { name: /raw payloads/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /raw payloads/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('requestMetadataJson')).toBeInTheDocument();
+      expect(screen.getByText('pricingSnapshotJson')).toBeInTheDocument();
     });
   });
 });

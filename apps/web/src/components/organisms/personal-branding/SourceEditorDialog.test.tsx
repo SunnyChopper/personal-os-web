@@ -120,6 +120,53 @@ describe('SourceEditorDialog', () => {
     ).toBeInTheDocument();
   });
 
+  it('submits GitHub create payload from the final step', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    render(<SourceEditorDialog isOpen onClose={vi.fn()} onCreate={onCreate} onUpdate={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/Name/), 'LangGraph');
+    await user.click(screen.getByRole('button', { name: 'GitHub repository' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.type(screen.getByLabelText(/Repository owner/), 'langchain-ai');
+    await user.type(screen.getByLabelText(/Repository name/), 'langgraph');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Create source' }));
+
+    expect(onCreate).toHaveBeenCalledWith({
+      name: 'LangGraph',
+      sourceType: 'GITHUB_REPO',
+      endpoint: 'https://github.com/langchain-ai/langgraph',
+      httpMethod: 'GET',
+      authScheme: 'BEARER',
+      authHeaderName: null,
+      authQueryParamName: null,
+      enabled: true,
+      cadence: null,
+      githubConfig: {
+        owner: 'langchain-ai',
+        repo: 'langgraph',
+        eventTypes: ['COMMITS'],
+        releaseFilter: 'ALL',
+        aiFilterEnabled: true,
+        aiFilterInstructions: null,
+      },
+    });
+  });
+
+  it('shows release filter when Releases event type is selected', async () => {
+    const user = userEvent.setup();
+    render(<SourceEditorDialog isOpen onClose={vi.fn()} onCreate={vi.fn()} onUpdate={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/Name/), 'Repo watch');
+    await user.click(screen.getByRole('button', { name: 'GitHub repository' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.queryByLabelText(/Release filter/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Releases' }));
+    expect(screen.getByLabelText(/Release filter/)).toBeInTheDocument();
+  });
+
   it('submits update payload in edit mode', async () => {
     const user = userEvent.setup();
     const onUpdate = vi.fn().mockResolvedValue(undefined);

@@ -8,14 +8,19 @@ import { cn } from '@/lib/utils';
 import type {
   AssetPromptsResult,
   ContentNode,
+  ContentStatus,
   ContentType,
 } from '@/types/api/personal-branding.dto';
 import { CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
 import { DialogFooter, PageCard, SidebarCard } from '../PersonalBrandingPageTemplate';
+import ContentStatusBadge from './ContentStatusBadge';
+import ContentStatusChangeModal, { type ContentStatusChangeMode } from './ContentStatusChangeModal';
+import { contentTextStats } from './content-workbench-helpers';
 
 interface SandboxWorkspaceTabProps {
-  draftNodes: ContentNode[];
+  contentNodes: ContentNode[];
   activeDraftId: string | null;
+  activeContentStatus: ContentStatus | null;
   editorTitle: string;
   onTitleChange: (value: string) => void;
   editorBody: string;
@@ -25,6 +30,7 @@ interface SandboxWorkspaceTabProps {
   isDirty: boolean;
   isSaving: boolean;
   isPublishing: boolean;
+  isUnpublishing: boolean;
   isDeleting: boolean;
   isGeneratingAssets: boolean;
   drawerOpen: boolean;
@@ -33,13 +39,15 @@ interface SandboxWorkspaceTabProps {
   onNewDraft: () => void;
   onSaveDraft: () => void;
   onDeleteDraft: () => void | Promise<void>;
-  onPublish: () => void;
+  onPublish: () => void | Promise<void>;
+  onUnpublish: () => void | Promise<void>;
   onGenerateAssetPrompts: () => void;
 }
 
 export default function SandboxWorkspaceTab({
-  draftNodes,
+  contentNodes,
   activeDraftId,
+  activeContentStatus,
   editorTitle,
   onTitleChange,
   editorBody,
@@ -49,6 +57,7 @@ export default function SandboxWorkspaceTab({
   isDirty,
   isSaving,
   isPublishing,
+  isUnpublishing,
   isDeleting,
   isGeneratingAssets,
   drawerOpen,
@@ -58,11 +67,27 @@ export default function SandboxWorkspaceTab({
   onSaveDraft,
   onDeleteDraft,
   onPublish,
+  onUnpublish,
   onGenerateAssetPrompts,
 }: SandboxWorkspaceTabProps) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const deleteDisabled = !activeDraftId || isSaving || isPublishing || isDeleting;
+  const [statusChangeModal, setStatusChangeModal] = useState<ContentStatusChangeMode | null>(null);
+  const deleteDisabled = !activeDraftId || isSaving || isPublishing || isUnpublishing || isDeleting;
+  const isPublished = activeContentStatus === 'PUBLISHED';
+  const statusChangePending = isPublishing || isUnpublishing;
   const draftLabel = editorTitle.trim() || 'Untitled draft';
+  const publishStats = contentTextStats(editorBody);
+
+  const closeStatusChangeModal = () => {
+    if (!statusChangePending) setStatusChangeModal(null);
+  };
+
+  const handleStatusChangeConfirm = () => {
+    const action = statusChangeModal === 'unpublish' ? onUnpublish : onPublish;
+    void Promise.resolve(action()).then(() => {
+      setStatusChangeModal(null);
+    });
+  };
 
   return (
     <div
@@ -74,7 +99,7 @@ export default function SandboxWorkspaceTab({
       {drawerOpen ? (
         <SidebarCard className="flex h-full flex-col overflow-hidden">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Draft history</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Your content</h3>
             <button
               type="button"
               onClick={onNewDraft}
@@ -88,10 +113,10 @@ export default function SandboxWorkspaceTab({
             </button>
           </div>
           <ul className="flex-1 space-y-2 overflow-y-auto">
-            {draftNodes.length === 0 ? (
-              <li className="text-xs text-gray-500 dark:text-gray-400">No drafts yet.</li>
+            {contentNodes.length === 0 ? (
+              <li className="text-xs text-gray-500 dark:text-gray-400">No content yet.</li>
             ) : (
-              draftNodes.map((node) => (
+              contentNodes.map((node) => (
                 <li key={node.id}>
                   <button
                     type="button"
@@ -104,8 +129,10 @@ export default function SandboxWorkspaceTab({
                     )}
                   >
                     <div className="font-medium truncate">{node.title}</div>
-                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {node.status} · {new Date(node.updatedAt).toLocaleDateString()}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      <ContentStatusBadge status={node.status} />
+                      <span aria-hidden="true">·</span>
+                      <span>{new Date(node.updatedAt).toLocaleDateString()}</span>
                     </div>
                   </button>
                 </li>
@@ -123,10 +150,10 @@ export default function SandboxWorkspaceTab({
             variant="secondary"
             onClick={onToggleDrawer}
             className="inline-flex items-center gap-2"
-            aria-label="Toggle draft history"
+            aria-label="Toggle content library"
           >
             <PanelLeft size={16} />
-            Drafts
+            Content
           </Button>
           <Button
             type="button"
@@ -162,15 +189,27 @@ export default function SandboxWorkspaceTab({
             {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
             Delete
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={onPublish}
-            disabled={isPublishing || !editorTitle.trim()}
-          >
-            {isPublishing ? 'Publishing…' : 'Mark published'}
-          </Button>
+          {isPublished ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setStatusChangeModal('unpublish')}
+              disabled={statusChangePending || !activeDraftId}
+            >
+              {isUnpublishing ? 'Moving…' : 'Move to draft'}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setStatusChangeModal('publish')}
+              disabled={statusChangePending || !editorTitle.trim()}
+            >
+              {isPublishing ? 'Publishing…' : 'Mark published'}
+            </Button>
+          )}
           <Button
             type="button"
             size="sm"
@@ -237,6 +276,17 @@ export default function SandboxWorkspaceTab({
           </PageCard>
         ) : null}
       </PageCard>
+
+      <ContentStatusChangeModal
+        isOpen={statusChangeModal !== null}
+        mode={statusChangeModal ?? 'publish'}
+        contentTitle={draftLabel}
+        wordCount={publishStats.wordCount}
+        readingTimeMinutes={publishStats.readingTimeMinutes}
+        isPending={statusChangePending}
+        onClose={closeStatusChangeModal}
+        onConfirm={handleStatusChangeConfirm}
+      />
 
       <Dialog
         isOpen={deleteModalOpen}

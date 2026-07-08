@@ -8,8 +8,8 @@
  *   node scripts/deploy-spa.mjs prod --no-build    # CI: after `bun run --filter web build`
  *
  * Config: copy `.env.deploy.example` → `.env.deploy.dev` (or `.env.deploy.prod`) and set
- * `SPA_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`. Vite `VITE_*` also loaded from
- * `apps/web/.env.dev` / `apps/web/.env.prod` (overridable in `.env.deploy.*`).
+ * `SPA_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`. Vite `VITE_*` loaded from
+ * `apps/web/.env` (optional) + `apps/web/.env.dev` / `apps/web/.env.prod` (overridable in `.env.deploy.*`).
  */
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

@@ -2,7 +2,12 @@ import { Loader2, Sparkles } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { Select } from '@/components/atoms/Select';
 import { Textarea } from '@/components/atoms/Textarea';
-import type { BrandPlatform, BrandProfile, ContentIdea } from '@/types/api/personal-branding.dto';
+import type {
+  BrandPlatform,
+  BrandProfile,
+  ContentIdea,
+  ContentIdeaGenerationContextStats,
+} from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
 import {
   PageCard,
@@ -28,6 +33,7 @@ interface IdeationEngineTabProps {
   onSeedIdeasChange: (value: string) => void;
   isGenerating: boolean;
   generateError: string | null;
+  lastGenerationStats: ContentIdeaGenerationContextStats | null;
   onGenerate: () => void;
   onApprove: (ideaId: string) => void;
   onReject: (idea: ContentIdea) => void;
@@ -47,6 +53,7 @@ export default function IdeationEngineTab({
   onSeedIdeasChange,
   isGenerating,
   generateError,
+  lastGenerationStats,
   onGenerate,
   onApprove,
   onReject,
@@ -156,6 +163,13 @@ export default function IdeationEngineTab({
         <h2 className="text-lg font-medium text-gray-900 dark:text-white">
           Candidate content ideas
         </h2>
+
+        {lastGenerationStats && lastGenerationStats.referencedPublishedCount > 0 ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Referenced {lastGenerationStats.referencedPublishedCount} past published post
+            {lastGenerationStats.referencedPublishedCount === 1 ? '' : 's'} for style and voice.
+          </p>
+        ) : null}
 
         {isLoading ? (
           <div className="flex min-h-[200px] items-center justify-center text-gray-500">

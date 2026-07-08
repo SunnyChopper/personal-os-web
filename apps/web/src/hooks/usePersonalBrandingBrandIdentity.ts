@@ -59,6 +59,14 @@ export function usePersonalBrandingBrandIdentity(options?: {
     [qc]
   );
 
+  const invalidateProfileOutputTests = useCallback(
+    (profileId: string) =>
+      qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.profiles.outputTests(profileId),
+      }),
+    [qc]
+  );
+
   const profiles = useQuery({
     queryKey: queryKeys.personalBranding.profiles.list(),
     queryFn: async () => {
@@ -83,10 +91,24 @@ export function usePersonalBrandingBrandIdentity(options?: {
     refetchOnWindowFocus: false,
   });
 
+  const profileOutputTests = useQuery({
+    queryKey: queryKeys.personalBranding.profiles.outputTests(selectedProfileId ?? ''),
+    queryFn: () => personalBrandingService.listProfileOutputTests(selectedProfileId!),
+    enabled: Boolean(selectedProfileId) && selectedProfileId !== LOCAL_DRAFT_PROFILE_ID,
+    refetchOnWindowFocus: false,
+  });
+
+  const clearExtractionJob = useCallback(() => {
+    setPollExtractionJobId(null);
+    setPollTimedOut(false);
+    pollStartedAtRef.current = null;
+  }, []);
+
   const extractionJob = useQuery({
     queryKey: queryKeys.personalBranding.extractions.detail(pollExtractionJobId ?? ''),
     queryFn: () => personalBrandingService.getProfileExtraction(pollExtractionJobId!),
     enabled: Boolean(pollExtractionJobId) && !pollTimedOut,
+    refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
     refetchInterval: (query) => {
       const data = query.state.data;
@@ -173,6 +195,19 @@ export function usePersonalBrandingBrandIdentity(options?: {
     },
   });
 
+  const generateOutputTest = useMutation({
+    mutationFn: ({
+      profileId,
+      body,
+    }: {
+      profileId: string;
+      body: Parameters<typeof personalBrandingService.generateProfileOutputTest>[1];
+    }) => personalBrandingService.generateProfileOutputTest(profileId, body),
+    onSuccess: (_saved, { profileId }) => {
+      void invalidateProfileOutputTests(profileId);
+    },
+  });
+
   const createPlatformRule = useMutation({
     mutationFn: (body: CreatePlatformRuleInput) => personalBrandingService.createPlatformRule(body),
     onSuccess: () => void invalidatePlatformRules(),
@@ -218,7 +253,6 @@ export function usePersonalBrandingBrandIdentity(options?: {
     const status = extractionJob.data?.status;
     const profileId = extractionJob.data?.profileId ?? selectedProfileId;
     if (status && TERMINAL_EXTRACTION.includes(status)) {
-      setPollExtractionJobId(null);
       void invalidateProfiles();
       if (profileId) {
         void invalidateProfileDetail(profileId);
@@ -247,6 +281,7 @@ export function usePersonalBrandingBrandIdentity(options?: {
     profiles,
     profileDetail,
     profileVersions,
+    profileOutputTests,
     extractionJob,
     platformRules,
     selectedProfileId,
@@ -254,17 +289,20 @@ export function usePersonalBrandingBrandIdentity(options?: {
     pollExtractionJobId,
     setPollExtractionJobId,
     pollTimedOut,
+    clearExtractionJob,
     createProfile,
     updateProfile,
     deleteProfile,
     startExtraction,
     rerunExtraction,
     activateVersion,
+    generateOutputTest,
     createPlatformRule,
     updatePlatformRule,
     deletePlatformRule,
     invalidateProfiles,
     invalidatePlatformRules,
     invalidateProfileVersions,
+    invalidateProfileOutputTests,
   };
 }

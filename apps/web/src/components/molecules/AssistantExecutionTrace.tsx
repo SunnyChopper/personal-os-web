@@ -14,9 +14,11 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AssistantTraceJsonViewer } from '@/components/molecules/AssistantTraceJsonViewer';
+import MarkdownRenderer from '@/components/molecules/MarkdownRenderer';
 import { ToolApprovalCard } from '@/components/molecules/ToolApprovalCard';
 import { getVisibleExecutionTraceEntries } from '@/lib/chat/assistant-execution-trace-entries';
 import { formatListToolCountBadge } from '@/lib/chat/assistant-list-tool-count-badge';
+import { reasoningMarkdownComponents } from '@/lib/markdown/chat-message-markdown-components';
 import type {
   StatusEntry,
   WsToolApprovalRequiredPayload,
@@ -235,14 +237,24 @@ function TraceEntry({
                 <div className="mb-1 font-medium text-gray-600 dark:text-gray-400">
                   Internal reasoning
                 </div>
-                <pre className="max-h-64 overflow-y-auto overflow-x-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-[11px] leading-relaxed text-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                  {planningReasoning.text.trim()
-                    ? planningReasoning.text
-                    : planningReasoning.isStreaming
-                      ? 'Receiving reasoning from the model…'
-                      : (planningReasoning.disabledReason ??
-                        'Reasoning stream unavailable for this step.')}
-                </pre>
+                <div className="max-h-64 overflow-y-auto overflow-x-auto rounded bg-white p-2 dark:bg-gray-900">
+                  {planningReasoning.text.trim() ? (
+                    <MarkdownRenderer
+                      content={planningReasoning.text}
+                      variant="chat"
+                      components={reasoningMarkdownComponents}
+                      contentKey={`reasoning-${entry.startedAt}`}
+                      className="text-[11px] leading-relaxed text-gray-800 dark:text-gray-200"
+                    />
+                  ) : (
+                    <p className="text-[11px] leading-relaxed text-gray-800 dark:text-gray-200">
+                      {planningReasoning.isStreaming
+                        ? 'Receiving reasoning from the model…'
+                        : (planningReasoning.disabledReason ??
+                          'Reasoning stream unavailable for this step.')}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </>

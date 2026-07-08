@@ -2,12 +2,17 @@ import { AlertCircle, FileText, Loader2, UserCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 import { selectableChipClassName } from '../personal-branding-ui';
 import { EmptyState } from '@/components/molecules/EmptyState';
 import { Select } from '@/components/atoms/Select';
 import { Textarea } from '@/components/atoms/Textarea';
 import { ROUTES } from '@/routes';
-import { BRAND_PLATFORM_LABELS } from '@/types/api/personal-branding.dto';
+import {
+  BRAND_PLATFORM_LABELS,
+  CONTENT_VARIANT_DISTRIBUTION_STATUS_LABELS,
+  type ContentVariantDistributionStatus,
+} from '@/types/api/personal-branding.dto';
 import { PageCard, gridItemCardClassName } from '../PersonalBrandingPageTemplate';
 import { useContentPipeline } from './useContentPipeline';
 
@@ -19,6 +24,7 @@ interface PlatformRepurposerTabProps {
 
 export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTabProps) {
   const navigate = useNavigate();
+  const { showToast, ToastContainer } = useToast();
 
   const isMissingContent = pipeline.finalizedNodes.length === 0;
   const isMissingProfile = pipeline.profiles.length === 0;
@@ -26,8 +32,27 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
   const goToWorkbench = () => navigate(`${ROUTES.admin.personalBrandingWorkbench}?tab=sandbox`);
   const goToBrandIdentity = () => navigate(ROUTES.admin.personalBrandingBrandIdentity);
 
+  const handleDistributionStatusChange = (
+    variantId: string,
+    distributionStatus: ContentVariantDistributionStatus
+  ) => {
+    pipeline.updateDistributionStatusMutation.mutate(
+      { variantId, distributionStatus },
+      {
+        onError: (error) => {
+          showToast({
+            type: 'error',
+            title: "Couldn't update status",
+            message: error instanceof Error ? error.message : 'Please try again.',
+          });
+        },
+      }
+    );
+  };
+
   return (
     <div className="space-y-6">
+      <ToastContainer />
       <PageCard>
         <h2 className="text-lg font-medium text-gray-900 dark:text-white">Platform Repurposer</h2>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
@@ -182,9 +207,45 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
                     {variant.characterCount}
                     {variant.characterLimit ? ` / ${variant.characterLimit}` : ''} chars ·{' '}
                     {variant.status}
+                    {(variant.referencedContentIds?.length ?? 0) > 0
+                      ? ` · Referenced ${variant.referencedContentIds!.length} past post${
+                          variant.referencedContentIds!.length === 1 ? '' : 's'
+                        }`
+                      : ''}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {variant.status !== 'rejected' ? (
+                    <label className="text-xs text-gray-600 dark:text-gray-400">
+                      <span className="sr-only">Distribution status for {variant.title}</span>
+                      <Select
+                        value={variant.distributionStatus}
+                        disabled={
+                          pipeline.updateDistributionStatusMutation.isPending &&
+                          pipeline.updateDistributionStatusMutation.variables?.variantId ===
+                            variant.id
+                        }
+                        onChange={(e) =>
+                          handleDistributionStatusChange(
+                            variant.id,
+                            e.target.value as ContentVariantDistributionStatus
+                          )
+                        }
+                        className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-950"
+                        aria-label={`Distribution status for ${BRAND_PLATFORM_LABELS[variant.platform]}`}
+                      >
+                        {(
+                          Object.keys(
+                            CONTENT_VARIANT_DISTRIBUTION_STATUS_LABELS
+                          ) as ContentVariantDistributionStatus[]
+                        ).map((status) => (
+                          <option key={status} value={status}>
+                            {CONTENT_VARIANT_DISTRIBUTION_STATUS_LABELS[status]}
+                          </option>
+                        ))}
+                      </Select>
+                    </label>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"

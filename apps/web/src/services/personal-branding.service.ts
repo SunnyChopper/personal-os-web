@@ -1,13 +1,18 @@
 import { apiClient } from '@/lib/api-client';
 import type {
   ApproveContentIdeaResult,
+  ApproveContentTemplateCandidateInput,
+  ApproveContentTemplateCandidateResult,
   AssetPromptsResult,
   BrandPlatform,
   BrandConfigResponse,
   BrandProfile,
   BrandProfileDetail,
   BrandProfileListResponse,
+  BrandProfileOutputTest,
+  BrandProfileOutputTestListResponse,
   BrandProfileVersionListResponse,
+  GenerateProfileOutputTestInput,
   StartProfileExtractionRerunInput,
   PaginatedPersonalBranding,
   ContentIdea,
@@ -16,12 +21,16 @@ import type {
   ContentStatus,
   ContentType,
   ContentDraftGenerationResult,
+  ContentTemplate,
+  ContentTemplateCandidate,
+  ContentTemplateSettings,
   ContentVariant,
   ContentVariantList,
   CreateBrandProfileInput,
   CreateConnectionInteractionInput,
   CreateContentIdeaInput,
   CreateContentNodeInput,
+  CreateContentTemplateInput,
   CreateCreatorConnectionInput,
   CreatePlatformRuleInput,
   CreateProfileExtractionAccepted,
@@ -48,15 +57,32 @@ import type {
   RadarSource,
   RadarSourceListResponse,
   SaveRadarDiscoverySuggestionInput,
+  FollowSuggestion,
+  FollowSuggestionListResponse,
+  ReconFeedSettings,
+  ReconPost,
+  ReconPostListResponse,
+  ReconRunListResponse,
+  ReconRunStartAccepted,
+  ReconRunSummary,
+  UpdateFollowSuggestionInput,
+  UpdateReconFeedSettingsInput,
+  UpdateReconPostInput,
   GenerateContentIdeasInput,
+  GenerateVaultIdeasInput,
+  ExtractContentTemplatesInput,
+  ExtractContentTemplatesResult,
   GenerateContentIdeasResult,
   RejectContentIdeaInput,
+  RejectContentTemplateCandidateInput,
+  RetryContentTemplateCandidateInput,
   RejectVariantInput,
   RejectedIdeaFeedback,
   RepurposeJob,
   SendToSandboxResult,
   StartRepurposeAccepted,
   StartRepurposeInput,
+  UpdateVariantDistributionStatusInput,
   RolodexMetricLinksResponse,
   RolodexResponseVectorInput,
   RolodexResponseVectorsResult,
@@ -64,6 +90,8 @@ import type {
   TrackingMetricListResponse,
   UpdateBrandProfileInput,
   UpdateContentNodeInput,
+  UpdateContentTemplateInput,
+  UpdateContentTemplateSettingsInput,
   UpdateCreatorConnectionInput,
   UpdatePlatformRuleInput,
   UpdateRadarSettingsInput,
@@ -192,6 +220,24 @@ export const personalBrandingService = {
       )
     ),
 
+  generateProfileOutputTest: async (
+    profileId: string,
+    body: GenerateProfileOutputTestInput
+  ): Promise<BrandProfileOutputTest> =>
+    unwrap(
+      await apiClient.post<BrandProfileOutputTest>(
+        `/personal-branding/profiles/${profileId}/output-tests`,
+        body
+      )
+    ),
+
+  listProfileOutputTests: async (profileId: string): Promise<BrandProfileOutputTestListResponse> =>
+    unwrap(
+      await apiClient.get<BrandProfileOutputTestListResponse>(
+        `/personal-branding/profiles/${profileId}/output-tests`
+      )
+    ),
+
   listPlatformRules: async (page = 1, pageSize = 50): Promise<PlatformRulesListResponse> => {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     return apiClient.get(`/personal-branding/platform-rules?${q}`);
@@ -292,6 +338,17 @@ export const personalBrandingService = {
       await apiClient.post<ContentVariant>(`/personal-branding/variants/${variantId}/reject`, body)
     ),
 
+  updateVariantDistributionStatus: async (
+    variantId: string,
+    body: UpdateVariantDistributionStatusInput
+  ): Promise<ContentVariant> =>
+    unwrap(
+      await apiClient.patch<ContentVariant>(
+        `/personal-branding/variants/${variantId}/distribution-status`,
+        body
+      )
+    ),
+
   sendVariantToSandbox: async (variantId: string): Promise<SendToSandboxResult> =>
     unwrap(
       await apiClient.post<SendToSandboxResult>(
@@ -354,6 +411,19 @@ export const personalBrandingService = {
     return res.data.data.result;
   },
 
+  generateVaultExtractedIdeas: async (
+    body: GenerateVaultIdeasInput
+  ): Promise<GenerateContentIdeasResult> => {
+    const res = await apiClient.post<{ data: { result: GenerateContentIdeasResult } }>(
+      '/ai/personal-branding/content-ideas/generate-from-vault',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to generate vault content ideas');
+    }
+    return res.data.data.result;
+  },
+
   generateAssetPrompts: async (body: {
     title: string;
     body: string;
@@ -375,6 +445,7 @@ export const personalBrandingService = {
     contentType: ContentType;
     platform: BrandPlatform;
     brandProfileId: string;
+    templateId?: string;
     model?: string;
   }): Promise<ContentDraftGenerationResult> => {
     const res = await apiClient.post<{ data: { result: ContentDraftGenerationResult } }>(
@@ -386,6 +457,114 @@ export const personalBrandingService = {
     }
     return res.data.data.result;
   },
+
+  listContentTemplates: async (
+    page = 1,
+    pageSize = 50
+  ): Promise<PaginatedPersonalBranding<ContentTemplate>> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    return unwrap(
+      await apiClient.get<PaginatedPersonalBranding<ContentTemplate>>(
+        `/personal-branding/content-templates?${q}`
+      )
+    );
+  },
+
+  createContentTemplate: async (body: CreateContentTemplateInput): Promise<ContentTemplate> =>
+    unwrap(await apiClient.post<ContentTemplate>('/personal-branding/content-templates', body)),
+
+  updateContentTemplate: async (
+    templateId: string,
+    body: UpdateContentTemplateInput
+  ): Promise<ContentTemplate> =>
+    unwrap(
+      await apiClient.patch<ContentTemplate>(
+        `/personal-branding/content-templates/${templateId}`,
+        body
+      )
+    ),
+
+  deleteContentTemplate: async (templateId: string): Promise<void> => {
+    await apiClient.delete(`/personal-branding/content-templates/${templateId}`);
+  },
+
+  listContentTemplateCandidates: async (
+    page = 1,
+    pageSize = 50,
+    status = 'GENERATED'
+  ): Promise<PaginatedPersonalBranding<ContentTemplateCandidate>> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize), status });
+    return unwrap(
+      await apiClient.get<PaginatedPersonalBranding<ContentTemplateCandidate>>(
+        `/personal-branding/content-template-candidates?${q}`
+      )
+    );
+  },
+
+  approveContentTemplateCandidate: async (
+    candidateId: string,
+    body: ApproveContentTemplateCandidateInput = {}
+  ): Promise<ApproveContentTemplateCandidateResult> =>
+    unwrap(
+      await apiClient.post<ApproveContentTemplateCandidateResult>(
+        `/personal-branding/content-template-candidates/${candidateId}/approve`,
+        body
+      )
+    ),
+
+  rejectContentTemplateCandidate: async (
+    candidateId: string,
+    body: RejectContentTemplateCandidateInput
+  ): Promise<void> => {
+    unwrap(
+      await apiClient.post<null>(
+        `/personal-branding/content-template-candidates/${candidateId}/reject`,
+        body
+      )
+    );
+  },
+
+  extractContentTemplates: async (
+    body: ExtractContentTemplatesInput
+  ): Promise<ExtractContentTemplatesResult> => {
+    const res = await apiClient.post<{ data: { result: ExtractContentTemplatesResult } }>(
+      '/ai/personal-branding/content-templates/extract',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to extract content templates');
+    }
+    return res.data.data.result;
+  },
+
+  retryContentTemplateCandidate: async (
+    candidateId: string,
+    body: RetryContentTemplateCandidateInput
+  ): Promise<ContentTemplateCandidate> => {
+    const res = await apiClient.post<{ data: { result: ContentTemplateCandidate } }>(
+      `/ai/personal-branding/content-template-candidates/${candidateId}/retry`,
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to retry content template');
+    }
+    return res.data.data.result;
+  },
+
+  getContentTemplateSettings: async (): Promise<ContentTemplateSettings> =>
+    unwrap(
+      await apiClient.get<ContentTemplateSettings>('/personal-branding/content-template-settings')
+    ),
+
+  updateContentTemplateSettings: async (
+    body: UpdateContentTemplateSettingsInput
+  ): Promise<ContentTemplateSettings> =>
+    unwrap(
+      await apiClient.patch<ContentTemplateSettings>(
+        '/personal-branding/content-template-settings',
+        body
+      )
+    ),
 
   listRadarSources: async (page = 1, pageSize = 50): Promise<RadarSourceListResponse> => {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
@@ -413,8 +592,16 @@ export const personalBrandingService = {
   updateRadarSettings: async (body: UpdateRadarSettingsInput): Promise<RadarSettings> =>
     unwrap(await apiClient.put<RadarSettings>('/personal-branding/radar-settings', body)),
 
-  listRadarItems: async (page = 1, pageSize = 50): Promise<RadarItemListResponse> => {
-    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  listRadarItems: async (
+    page = 1,
+    pageSize = 50,
+    includeFiltered = false
+  ): Promise<RadarItemListResponse> => {
+    const q = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+      includeFiltered: String(includeFiltered),
+    });
     return apiClient.get(`/personal-branding/radar-items?${q}`);
   },
 
@@ -568,4 +755,69 @@ export const personalBrandingService = {
     }
     return res.data;
   },
+
+  getReconFeedSettings: async (): Promise<ReconFeedSettings> =>
+    unwrap(
+      await apiClient.get<ReconFeedSettings>('/personal-branding/rolodex/recon-feed/settings')
+    ),
+
+  updateReconFeedSettings: async (body: UpdateReconFeedSettingsInput): Promise<ReconFeedSettings> =>
+    unwrap(
+      await apiClient.patch<ReconFeedSettings>(
+        '/personal-branding/rolodex/recon-feed/settings',
+        body
+      )
+    ),
+
+  listReconPosts: async (
+    page = 1,
+    pageSize = 50,
+    filters?: { connectionId?: string; status?: string; minScore?: number }
+  ): Promise<ReconPostListResponse> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (filters?.connectionId) q.set('connectionId', filters.connectionId);
+    if (filters?.status) q.set('status', filters.status);
+    if (filters?.minScore !== undefined) q.set('minScore', String(filters.minScore));
+    return apiClient.get(`/personal-branding/rolodex/recon-feed/posts?${q}`);
+  },
+
+  updateReconPost: async (postId: string, body: UpdateReconPostInput): Promise<ReconPost> =>
+    unwrap(
+      await apiClient.patch<ReconPost>(
+        `/personal-branding/rolodex/recon-feed/posts/${postId}`,
+        body
+      )
+    ),
+
+  listFollowSuggestions: async (
+    page = 1,
+    pageSize = 50,
+    status?: string
+  ): Promise<FollowSuggestionListResponse> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (status) q.set('status', status);
+    return apiClient.get(`/personal-branding/rolodex/recon-feed/follow-suggestions?${q}`);
+  },
+
+  updateFollowSuggestion: async (
+    suggestionId: string,
+    body: UpdateFollowSuggestionInput
+  ): Promise<FollowSuggestion> =>
+    unwrap(
+      await apiClient.patch<FollowSuggestion>(
+        `/personal-branding/rolodex/recon-feed/follow-suggestions/${suggestionId}`,
+        body
+      )
+    ),
+
+  startReconRun: async (): Promise<ReconRunStartAccepted> =>
+    unwrap(await apiClient.post<ReconRunStartAccepted>('/personal-branding/recon-runs', {})),
+
+  listReconRuns: async (page = 1, pageSize = 20): Promise<ReconRunListResponse> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    return apiClient.get(`/personal-branding/recon-runs?${q}`);
+  },
+
+  getReconRun: async (runId: string): Promise<ReconRunSummary> =>
+    unwrap(await apiClient.get<ReconRunSummary>(`/personal-branding/recon-runs/${runId}`)),
 };

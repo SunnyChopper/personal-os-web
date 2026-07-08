@@ -193,8 +193,9 @@ export default function TasksPage() {
     splitDraggedTask,
     isSplittingDraggedTask,
   } = useTasks(apiTaskFilters);
-  const { projects } = useProjects();
+  const { projects, isLoading: projectsDataLoading } = useProjects();
   const { goals } = useGoals();
+  const boardIsLoading = tasksDataLoading || projectsDataLoading;
 
   // Prefetch goals and projects if they haven't been loaded yet (tasks depend on them)
   useEffect(() => {
@@ -946,7 +947,7 @@ export default function TasksPage() {
               tasks={filteredTasks}
               projects={projects}
               cardDensity={cardDensity}
-              isLoading={tasksDataLoading}
+              isLoading={boardIsLoading}
               onTaskUpdate={handleKanbanTaskUpdate}
               onTaskEdit={handleEditTask}
               onTaskClick={handleViewTask}

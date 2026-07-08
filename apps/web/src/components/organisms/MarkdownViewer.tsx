@@ -125,37 +125,39 @@ export default function MarkdownViewer({ filePath }: MarkdownViewerProps) {
   useEffect(() => {
     const filePathChanged = filePath !== filePathRef.current;
     const contentChanged = file?.content !== fileContentRef.current;
+    if (!filePathChanged && !contentChanged) return;
 
-    if (filePathChanged || contentChanged) {
-      if (filePathChanged) {
-        filePathRef.current = filePath;
-        clearMessages(); // Clear any previous errors/success messages
-      }
-      fileContentRef.current = file?.content;
+    fileContentRef.current = file?.content;
 
-      // For local-only files, always open in edit mode immediately
-      if (isLocalOnly) {
-        setIsEditing(true);
-        // Initialize with content from localStorage or empty string
-        const localFile = getLocalFile(filePath || '');
-        const localContent = localFile?.content || '';
-        setEditedContent(localContent);
-        setLastSavedContent('');
-        // Local-only files always need to be saved to cloud, so enable Save button
-        setHasChanges(true);
-      } else {
-        // For regular files, load content and start in view mode
-        // Content will be a string (empty string if not yet loaded from S3)
-        if (file) {
-          const loadedContent = file.content || '';
-          setEditedContent(loadedContent);
-          setLastSavedContent(loadedContent);
-          setHasChanges(false);
-          setIsEditing(false);
-        }
-      }
+    if (filePathChanged) {
+      filePathRef.current = filePath;
+      clearMessages(); // Clear any previous errors/success messages
     }
-  }, [filePath, file, file?.content, isLocalOnly, clearMessages]);
+
+    // Content-only changes while actively editing are almost always an echo of our own
+    // autosave (query cache updated before onSaved fires). Ignore them so the user
+    // isn't bounced back to view mode mid-edit.
+    if (!filePathChanged && isEditing) return;
+
+    // For local-only files, always open in edit mode immediately
+    if (isLocalOnly) {
+      setIsEditing(true);
+      // Initialize with content from localStorage or empty string
+      const localFile = getLocalFile(filePath || '');
+      const localContent = localFile?.content || '';
+      setEditedContent(localContent);
+      setLastSavedContent('');
+      // Local-only files always need to be saved to cloud, so enable Save button
+      setHasChanges(true);
+    } else if (file) {
+      // For regular files, load content and start in view mode
+      const loadedContent = file.content || '';
+      setEditedContent(loadedContent);
+      setLastSavedContent(loadedContent);
+      setHasChanges(false);
+      setIsEditing(false);
+    }
+  }, [filePath, file, file?.content, isLocalOnly, clearMessages, isEditing]);
 
   const handleSave = async () => {
     if (!filePath) return;
