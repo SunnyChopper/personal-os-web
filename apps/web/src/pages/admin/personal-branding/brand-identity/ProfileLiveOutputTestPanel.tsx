@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, Sparkles, X } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { FormInput } from '@/components/atoms/FormInput';
 import { Select } from '@/components/atoms/Select';
 import { cn } from '@/lib/utils';
-import { personalBrandingService } from '@/services/personal-branding.service';
+import ProfileOutputTestHistory from './ProfileOutputTestHistory';
 import type {
   BrandPlatform,
+  BrandProfileOutputTest,
   BrandProfileStatus,
-  ContentDraftGenerationResult,
+  GenerateProfileOutputTestInput,
 } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS } from '@/types/api/personal-branding.dto';
 
@@ -33,6 +34,12 @@ interface ProfileLiveOutputTestPanelProps {
   isLocalDraft: boolean;
   formSnapshot: ProfileFormSnapshot;
   onEnsureSaved: (snapshot: ProfileFormSnapshot) => Promise<string>;
+  onGenerate: (
+    profileId: string,
+    body: GenerateProfileOutputTestInput
+  ) => Promise<BrandProfileOutputTest>;
+  history: BrandProfileOutputTest[];
+  historyLoading?: boolean;
   disabled?: boolean;
 }
 
@@ -44,13 +51,24 @@ export default function ProfileLiveOutputTestPanel({
   isLocalDraft,
   formSnapshot,
   onEnsureSaved,
+  onGenerate,
+  history,
+  historyLoading = false,
   disabled = false,
 }: ProfileLiveOutputTestPanelProps) {
   const [topic, setTopic] = useState('How I approach building in public');
   const [platform, setPlatform] = useState<BrandPlatform>('linkedin');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ContentDraftGenerationResult | null>(null);
+  const [latestResult, setLatestResult] = useState<BrandProfileOutputTest | null>(null);
+  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
+
+  const selectedTest = useMemo(
+    () => history.find((test) => test.id === selectedTestId) ?? null,
+    [history, selectedTestId]
+  );
+
+  const displayedResult = latestResult ?? selectedTest;
 
   useEffect(() => {
     if (!open) return;
@@ -83,19 +101,25 @@ export default function ProfileLiveOutputTestPanel({
     setIsGenerating(true);
     try {
       const savedProfileId = isLocalDraft ? await onEnsureSaved(formSnapshot) : profileId;
-      const draft = await personalBrandingService.generateDraft({
+      const saved = await onGenerate(savedProfileId, {
         topic: trimmedTopic,
         contentType: 'DEEP_DIVE_BLOG',
         platform,
-        brandProfileId: savedProfileId,
       });
-      setResult(draft);
+      setSelectedTestId(null);
+      setLatestResult(saved);
     } catch (err) {
-      setResult(null);
+      setLatestResult(null);
       setError(err instanceof Error ? err.message : 'Preview generation failed');
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleSelectHistory = (test: BrandProfileOutputTest) => {
+    setSelectedTestId(test.id);
+    setLatestResult(null);
+    setError(null);
   };
 
   return (
@@ -203,15 +227,31 @@ export default function ProfileLiveOutputTestPanel({
 
               <div
                 className={cn(
-                  'min-h-[240px] flex-1 overflow-y-auto rounded-lg border-2 border-gray-200 bg-gray-50/80 p-3 dark:border-gray-700 dark:bg-gray-950/40',
-                  !result && 'flex items-center justify-center'
+                  'min-h-[200px] overflow-y-auto rounded-lg border-2 border-gray-200 bg-gray-50/80 p-3 dark:border-gray-700 dark:bg-gray-950/40',
+                  !displayedResult && 'flex items-center justify-center'
                 )}
               >
-                {result ? (
+                {displayedResult ? (
                   <article className="space-y-3 text-sm">
-                    <h4 className="font-semibold text-gray-900 dark:text-white">{result.title}</h4>
+                    <div className="space-y-1">
+                      <h4 className="font-semibold text-gray-900 dark:text-white">
+                        {displayedResult.title}
+                      </h4>
+                      <p className="text-xs text-gray-500">
+                        {BRAND_PLATFORM_LABELS[displayedResult.platform]} ·{' '}
+                        {new Date(displayedResult.createdAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
+                        {displayedResult.profileVersionId
+                          ? ` · version ${displayedResult.profileVersionId.slice(0, 8)}`
+                          : ''}
+                      </p>
+                    </div>
                     <div className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-                      {result.body}
+                      {displayedResult.body}
                     </div>
                   </article>
                 ) : (
@@ -221,6 +261,13 @@ export default function ProfileLiveOutputTestPanel({
                   </p>
                 )}
               </div>
+
+              <ProfileOutputTestHistory
+                tests={history}
+                isLoading={historyLoading}
+                selectedTestId={selectedTestId}
+                onSelect={handleSelectHistory}
+              />
             </div>
           </motion.aside>
         </>
