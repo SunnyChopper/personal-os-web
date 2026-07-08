@@ -329,6 +329,11 @@ export const queryKeys = {
     vaultTaskLinksUnack: () => [...queryKeys.knowledgeVault.all, 'vault-task-links-unack'] as const,
     vaultTaskLinksUnackCount: () =>
       [...queryKeys.knowledgeVault.all, 'vault-task-links-unack-count'] as const,
+    projectLabIdeas: {
+      all: () => [...queryKeys.knowledgeVault.all, 'project-lab-ideas'] as const,
+      list: (status?: string) =>
+        [...queryKeys.knowledgeVault.projectLabIdeas.all(), 'list', status ?? 'GENERATED'] as const,
+    },
   },
 
   // Daily Learning
@@ -440,6 +445,8 @@ export const queryKeys = {
         [...queryKeys.personalBranding.profiles.all(), 'detail', profileId] as const,
       versions: (profileId: string) =>
         [...queryKeys.personalBranding.profiles.all(), 'versions', profileId] as const,
+      outputTests: (profileId: string) =>
+        [...queryKeys.personalBranding.profiles.all(), 'output-tests', profileId] as const,
     },
     extractions: {
       all: () => [...queryKeys.personalBranding.all, 'extractions'] as const,
@@ -493,6 +500,36 @@ export const queryKeys = {
       list: (page = 1, pageSize = 50) =>
         [...queryKeys.personalBranding.rejectedFeedback.all(), 'list', page, pageSize] as const,
     },
+    contentTemplates: {
+      all: () => [...queryKeys.personalBranding.all, 'content-templates'] as const,
+      list: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.contentTemplates.all(), 'list', page, pageSize] as const,
+      detail: (templateId: string) =>
+        [...queryKeys.personalBranding.contentTemplates.all(), 'detail', templateId] as const,
+    },
+    templateCandidates: {
+      all: () => [...queryKeys.personalBranding.all, 'content-template-candidates'] as const,
+      list: (page = 1, pageSize = 50, status?: string) =>
+        [
+          ...queryKeys.personalBranding.templateCandidates.all(),
+          'list',
+          page,
+          pageSize,
+          status ?? 'GENERATED',
+        ] as const,
+    },
+    rejectedTemplateFeedback: {
+      all: () => [...queryKeys.personalBranding.all, 'rejected-content-template-feedback'] as const,
+      list: (page = 1, pageSize = 50) =>
+        [
+          ...queryKeys.personalBranding.rejectedTemplateFeedback.all(),
+          'list',
+          page,
+          pageSize,
+        ] as const,
+    },
+    contentTemplateSettings: () =>
+      [...queryKeys.personalBranding.all, 'content-template-settings'] as const,
     radarSources: {
       all: () => [...queryKeys.personalBranding.all, 'radar-sources'] as const,
       list: (page = 1, pageSize = 50) =>
@@ -503,8 +540,14 @@ export const queryKeys = {
     radarSettings: () => [...queryKeys.personalBranding.all, 'radar-settings'] as const,
     radarItems: {
       all: () => [...queryKeys.personalBranding.all, 'radar-items'] as const,
-      list: (page = 1, pageSize = 50) =>
-        [...queryKeys.personalBranding.radarItems.all(), 'list', page, pageSize] as const,
+      list: (page = 1, pageSize = 50, includeFiltered = false) =>
+        [
+          ...queryKeys.personalBranding.radarItems.all(),
+          'list',
+          page,
+          pageSize,
+          includeFiltered,
+        ] as const,
     },
     radarRuns: {
       all: () => [...queryKeys.personalBranding.all, 'radar-runs'] as const,
@@ -546,6 +589,20 @@ export const queryKeys = {
     rolodexMetricLinks: () => [...queryKeys.personalBranding.all, 'rolodex-metric-links'] as const,
     connectionMetricLinks: (connectionId: string) =>
       [...queryKeys.personalBranding.all, 'connection-metric-links', connectionId] as const,
+    reconFeed: {
+      all: () => [...queryKeys.personalBranding.all, 'recon-feed'] as const,
+      settings: () => [...queryKeys.personalBranding.reconFeed.all(), 'settings'] as const,
+      posts: (filters?: { connectionId?: string; status?: string; minScore?: number }) =>
+        [...queryKeys.personalBranding.reconFeed.all(), 'posts', filters ?? {}] as const,
+      followSuggestions: (status?: string) =>
+        [
+          ...queryKeys.personalBranding.reconFeed.all(),
+          'follow-suggestions',
+          status ?? 'all',
+        ] as const,
+      runs: (page = 1, pageSize = 20) =>
+        [...queryKeys.personalBranding.reconFeed.all(), 'runs', page, pageSize] as const,
+    },
   },
 
   // Rewards
