@@ -43,7 +43,8 @@ export type AIFeature =
   | 'noteGenerate'
   | 'noteExtract'
   | 'noteAnalyze'
-  | 'contentIdeation';
+  | 'contentIdeation'
+  | 'projectLabIdeation';
 
 export interface FeatureProviderConfig {
   provider: LLMProvider;
@@ -121,6 +122,7 @@ export const AI_FEATURE_GROUPS: { id: string; label: string; features: AIFeature
       'noteGenerate',
       'noteExtract',
       'noteAnalyze',
+      'projectLabIdeation',
     ],
   },
 ];
@@ -169,6 +171,7 @@ export const AI_FEATURE_DISPLAY_NAMES: Record<AIFeature, string> = {
   noteExtract: 'Note Content Extraction',
   noteAnalyze: 'Note Content Analysis',
   contentIdeation: 'Content Ideation Engine',
+  projectLabIdeation: 'Project Labs Ideation',
 };
 
 /** Bundled fallback when feature-config API is unreachable (Apr 2026 catalog). */
@@ -216,4 +219,5 @@ export const DEFAULT_FEATURE_PROVIDERS: Record<AIFeature, FeatureProviderConfig>
   noteExtract: { provider: 'anthropic', model: 'claude-haiku-4-5' },
   noteAnalyze: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
   contentIdeation: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+  projectLabIdeation: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
 };
