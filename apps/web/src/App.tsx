@@ -79,6 +79,7 @@ import {
   PostmanPage,
   ProactiveAutomationsPage,
   ProjectsPage,
+  ProjectLabsPage,
   RegexPage,
   ResumeBuilderPage,
   RewardStudioPage,
@@ -673,6 +674,14 @@ function AppContent() {
             element={
               <AdminRouteSuspense>
                 <SyntopicPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.knowledgeVaultProjectLabs}
+            element={
+              <AdminRouteSuspense>
+                <ProjectLabsPage />
               </AdminRouteSuspense>
             }
           />

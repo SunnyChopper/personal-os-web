@@ -10,6 +10,7 @@ export const DailyLearningPage = lazy(() => import('@/pages/admin/DailyLearningP
 export const InboxPage = lazy(() => import('@/pages/admin/InboxPage'));
 export const CheatSheetPage = lazy(() => import('@/pages/admin/CheatSheetPage'));
 export const SyntopicPage = lazy(() => import('@/pages/admin/SyntopicPage'));
+export const ProjectLabsPage = lazy(() => import('@/pages/admin/ProjectLabsPage'));
 export const TaskLinksPage = lazy(() => import('@/pages/admin/TaskLinksPage'));
 export const FeynmanStudyPage = lazy(() => import('@/pages/admin/FeynmanStudyPage'));
 export const CourseDetailPage = lazy(() => import('@/pages/admin/CourseDetailPage'));

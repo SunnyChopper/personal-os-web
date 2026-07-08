@@ -57,6 +57,7 @@ import {
   Share2,
   Radio,
   Users,
+  FlaskConical,
 } from 'lucide-react';
 import LeisureModeToggle from '@/components/atoms/LeisureModeToggle';
 import { WalletWidget } from '@/components/molecules/WalletWidget';
@@ -219,6 +220,7 @@ const workNavigation: NavItem[] = [
       { name: 'Flashcards', href: ROUTES.admin.knowledgeVaultFlashcards, icon: Layers },
       { name: 'Skill Tree', href: ROUTES.admin.knowledgeVaultSkillTree, icon: Network },
       { name: 'Concept Collider', href: ROUTES.admin.knowledgeVaultCollider, icon: Sparkles },
+      { name: 'Project Labs', href: ROUTES.admin.knowledgeVaultProjectLabs, icon: FlaskConical },
       { name: 'Compare Sources', href: ROUTES.admin.knowledgeVaultSyntopic, icon: FileText },
       { name: 'Cheat Sheets', href: ROUTES.admin.knowledgeVaultCheatSheet, icon: ClipboardList },
       { name: 'Task Links', href: ROUTES.admin.knowledgeVaultTaskLinks, icon: Link2 },
