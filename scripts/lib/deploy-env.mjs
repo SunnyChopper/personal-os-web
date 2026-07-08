@@ -1,7 +1,7 @@
 /**
  * Load `.env.deploy.{stage}` from the personal-os-web workspace root.
- * Also load `apps/web/.env.dev` or `apps/web/.env.prod` for Vite (VITE_*) build-time
- * defaults — the deploy file overrides when both define the same key.
+ * Also load `apps/web/.env`, then `apps/web/.env.dev` or `apps/web/.env.prod` for Vite
+ * (VITE_*) build-time defaults — the deploy file overrides when both define the same key.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -35,6 +35,10 @@ export function loadDeployEnvFile(webRoot, stage) {
   return parseEnvFile(join(webRoot, deployEnvFileName(stage)));
 }
 
+export function loadWebAppBaseEnvFile(webRoot) {
+  return parseEnvFile(join(webRoot, 'apps', 'web', '.env'));
+}
+
 /**
  * Vite `build` (Cognito, API, WS) lives in `apps/web/.env.{dev|prod}`; deploy scripts
  * historically only read `.env.deploy.*` (S3, CloudFront). Merge so `bun run build` via
@@ -52,9 +56,10 @@ export function mergeProcessEnv(overrides) {
   return { ...process.env, ...overrides };
 }
 
-/** Full env for Vite: process → apps/web/.env.(dev|prod) → .env.deploy.* (highest wins). */
+/** Full env for Vite: process → apps/web/.env → apps/web/.env.(dev|prod) → .env.deploy.* (highest wins). */
 export function buildViteBuildEnv(webRoot, stage) {
+  const base = loadWebAppBaseEnvFile(webRoot);
   const webApp = loadWebAppViteEnvFile(webRoot, stage);
   const deploy = loadDeployEnvFile(webRoot, stage);
-  return { ...process.env, ...webApp, ...deploy };
+  return { ...process.env, ...base, ...webApp, ...deploy };
 }
