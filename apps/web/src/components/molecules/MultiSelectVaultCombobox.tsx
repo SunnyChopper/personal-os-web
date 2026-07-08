@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { vaultItemsService } from '@/services/knowledge-vault/vault-items.service';
-import type { VaultItem } from '@/types/knowledge-vault';
+import type { VaultItem, VaultItemType } from '@/types/knowledge-vault';
 import { cn } from '@/lib/utils';
 
 export interface MultiSelectVaultComboboxProps {
@@ -11,7 +11,15 @@ export interface MultiSelectVaultComboboxProps {
   maxItems?: number;
   /** Optional map id -> title for pills when item not in hits */
   labelLookup?: Record<string, string>;
+  /** Vault item types shown in search results (default: notes + documents) */
+  allowedTypes?: VaultItemType[];
+  /** Label for the selection hint, e.g. "documents" or "sources" */
+  itemLabel?: string;
+  /** Fires when resolved pill labels change (e.g. after search picks). */
+  onLabelLookupChange?: (labels: Record<string, string>) => void;
 }
+
+const DEFAULT_ALLOWED_TYPES: VaultItemType[] = ['note', 'document'];
 
 export function MultiSelectVaultCombobox({
   selectedIds,
@@ -19,6 +27,9 @@ export function MultiSelectVaultCombobox({
   minItems = 2,
   maxItems = 5,
   labelLookup = {},
+  allowedTypes = DEFAULT_ALLOWED_TYPES,
+  itemLabel = 'documents',
+  onLabelLookupChange,
 }: MultiSelectVaultComboboxProps) {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<VaultItem[]>([]);
@@ -41,23 +52,28 @@ export function MultiSelectVaultCombobox({
     );
   }, [selectedIds, hits, mergedLabels]);
 
-  const runSearch = useCallback(async (query: string) => {
-    const t = query.trim();
-    if (t.length < 2) {
-      setHits([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await vaultItemsService.search(t);
-      if (res.success && res.data) {
-        const notesDocs = res.data.filter((i) => i.type === 'note' || i.type === 'document');
-        setHits(notesDocs.slice(0, 20));
-      } else setHits([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const allowedSet = useMemo(() => new Set(allowedTypes), [allowedTypes]);
+
+  const runSearch = useCallback(
+    async (query: string) => {
+      const t = query.trim();
+      if (t.length < 2) {
+        setHits([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await vaultItemsService.search(t);
+        if (res.success && res.data) {
+          const filtered = res.data.filter((i) => allowedSet.has(i.type));
+          setHits(filtered.slice(0, 20));
+        } else setHits([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [allowedSet]
+  );
 
   useEffect(() => {
     const h = window.setTimeout(() => void runSearch(q), 300);
@@ -78,6 +94,10 @@ export function MultiSelectVaultCombobox({
       return changed ? next : prev;
     });
   }, [selectedIds]);
+
+  useEffect(() => {
+    onLabelLookupChange?.(mergedLabels);
+  }, [mergedLabels, onLabelLookupChange]);
 
   const add = (item: VaultItem) => {
     if (selectedSet.has(item.id)) return;
@@ -101,7 +121,7 @@ export function MultiSelectVaultCombobox({
   return (
     <div className="space-y-2">
       <p className="text-xs text-gray-500">
-        Select {minItems}–{maxItems} documents ({selectedIds.length} selected)
+        Select {minItems}–{maxItems} {itemLabel} ({selectedIds.length} selected)
       </p>
       <div className="flex flex-wrap gap-2">
         {selectedItems.map((it) => (

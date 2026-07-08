@@ -8,7 +8,9 @@ import type {
   BrandPlatform,
   BrandProfile,
   ContentIdea,
+  ContentIdeaGenerationContextStats,
   ContentNode,
+  ContentStatus,
   ContentType,
 } from '@/types/api/personal-branding.dto';
 import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
@@ -30,6 +32,7 @@ export function useContentWorkbench() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTabState] = useState(() => searchParams.get('tab') ?? 'sandbox');
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [activeContentStatus, setActiveContentStatus] = useState<ContentStatus | null>(null);
   const [editorTitle, setEditorTitle] = useState('');
   const [editorBody, setEditorBody] = useState('');
   const [contentType, setContentType] = useState<ContentType>('DEEP_DIVE_BLOG');
@@ -39,7 +42,14 @@ export function useContentWorkbench() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [targetPlatform, setTargetPlatform] = useState<BrandPlatform>('linkedin');
   const [seedIdeas, setSeedIdeas] = useState('');
+  const [selectedVaultItemIds, setSelectedVaultItemIds] = useState<string[]>([]);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [vaultGenerateError, setVaultGenerateError] = useState<string | null>(null);
+  const [lastGenerationStats, setLastGenerationStats] =
+    useState<ContentIdeaGenerationContextStats | null>(null);
+  const [lastVaultGenerationStats, setLastVaultGenerationStats] =
+    useState<ContentIdeaGenerationContextStats | null>(null);
+  const [vaultItemLabels, setVaultItemLabels] = useState<Record<string, string>>({});
   const [newDraftWizardOpen, setNewDraftWizardOpen] = useState(false);
   const [titlePromptOpen, setTitlePromptOpen] = useState(false);
 
@@ -66,15 +76,28 @@ export function useContentWorkbench() {
 
   const brandProfiles: BrandProfile[] = profilesQ.data?.data ?? [];
 
-  const draftNodes = useMemo(() => {
+  const contentNodes = useMemo(() => {
     const items = contentQ.data?.data?.data ?? [];
-    return items.filter((n) => ['DRAFT', 'FINALIZED', 'PIPELINED'].includes(n.status));
+    return items
+      .filter((n) => n.status !== 'SKIPPED')
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [contentQ.data]);
 
   const ideas = ideasQ.data?.data ?? [];
 
+  const ideationIdeas = useMemo(
+    () => ideas.filter((idea) => idea.sourceType !== 'VAULT_EXTRACTED'),
+    [ideas]
+  );
+
+  const vaultIdeas = useMemo(
+    () => ideas.filter((idea) => idea.sourceType === 'VAULT_EXTRACTED'),
+    [ideas]
+  );
+
   const loadDraft = useCallback((node: ContentNode) => {
     setActiveDraftId(node.id);
+    setActiveContentStatus(node.status);
     setEditorTitle(node.title);
     setEditorBody(node.body ?? '');
     setContentType(node.contentType ?? 'DEEP_DIVE_BLOG');
@@ -95,9 +118,9 @@ export function useContentWorkbench() {
   const urlContentId = searchParams.get('contentId');
 
   useEffect(() => {
-    if (activeDraftId || draftNodes.length === 0) return;
-    loadDraft(draftNodes[0]);
-  }, [activeDraftId, draftNodes, loadDraft]);
+    if (activeDraftId || contentNodes.length === 0) return;
+    loadDraft(contentNodes[0]);
+  }, [activeDraftId, contentNodes, loadDraft]);
 
   useEffect(() => {
     if (selectedProfileId || brandProfiles.length === 0) return;
@@ -107,7 +130,7 @@ export function useContentWorkbench() {
 
   useEffect(() => {
     if (!urlContentId) return;
-    const fromList = draftNodes.find((n) => n.id === urlContentId);
+    const fromList = contentNodes.find((n) => n.id === urlContentId);
     if (fromList) {
       loadDraft(fromList);
       if (searchParams.get('tab')) setActiveTabState(searchParams.get('tab') ?? 'sandbox');
@@ -117,7 +140,7 @@ export function useContentWorkbench() {
       loadDraft(node);
       if (searchParams.get('tab')) setActiveTabState(searchParams.get('tab') ?? 'sandbox');
     });
-  }, [urlContentId, draftNodes, loadDraft, searchParams]);
+  }, [urlContentId, contentNodes, loadDraft, searchParams]);
 
   const invalidateWorkbench = useCallback(async () => {
     await Promise.all([
@@ -136,15 +159,15 @@ export function useContentWorkbench() {
         title: resolvedTitle,
         body: editorBody,
         contentType,
-        status: 'DRAFT' as const,
       };
       if (activeDraftId) {
         return personalBrandingService.updateContentNode(activeDraftId, body);
       }
-      return personalBrandingService.createContentNode(body);
+      return personalBrandingService.createContentNode({ ...body, status: 'DRAFT' });
     },
     onSuccess: (node, variables) => {
       setActiveDraftId(node.id);
+      setActiveContentStatus(node.status);
       if (variables?.title) {
         setEditorTitle(variables.title);
       } else if (!editorTitle.trim()) {
@@ -164,7 +187,23 @@ export function useContentWorkbench() {
       }
       return personalBrandingService.updateContentNode(activeDraftId, { status: 'PUBLISHED' });
     },
-    onSuccess: () => void invalidateWorkbench(),
+    onSuccess: () => {
+      setActiveContentStatus('PUBLISHED');
+      void invalidateWorkbench();
+    },
+  });
+
+  const unpublishMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeDraftId) {
+        throw new Error('No content selected');
+      }
+      return personalBrandingService.updateContentNode(activeDraftId, { status: 'DRAFT' });
+    },
+    onSuccess: () => {
+      setActiveContentStatus('DRAFT');
+      void invalidateWorkbench();
+    },
   });
 
   const approveIdeaMutation = useMutation({
@@ -188,8 +227,33 @@ export function useContentWorkbench() {
       });
     },
     onMutate: () => setGenerateError(null),
-    onSuccess: () => void invalidateWorkbench(),
+    onSuccess: (result) => {
+      setLastGenerationStats(result.contextStats);
+      void invalidateWorkbench();
+    },
     onError: (err: Error) => setGenerateError(err.message),
+  });
+
+  const generateVaultIdeasMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedProfileId) {
+        throw new Error('Select a brand profile first');
+      }
+      if (selectedVaultItemIds.length === 0) {
+        throw new Error('Select at least one Knowledge Vault item');
+      }
+      return personalBrandingService.generateVaultExtractedIdeas({
+        brandProfileId: selectedProfileId,
+        vaultItemIds: selectedVaultItemIds,
+        targetPlatform,
+      });
+    },
+    onMutate: () => setVaultGenerateError(null),
+    onSuccess: (result) => {
+      setLastVaultGenerationStats(result.contextStats);
+      void invalidateWorkbench();
+    },
+    onError: (err: Error) => setVaultGenerateError(err.message),
   });
 
   const rejectIdeaMutation = useMutation({
@@ -228,9 +292,11 @@ export function useContentWorkbench() {
         contentType: request.contentType,
         platform: request.platform,
         brandProfileId: request.brandProfileId,
+        templateId: request.templateId,
       }),
     onSuccess: (result, request) => {
       setActiveDraftId(null);
+      setActiveContentStatus(null);
       setContentType(request.contentType);
       setEditorTitle(result.title);
       setEditorBody(result.body);
@@ -293,6 +359,7 @@ export function useContentWorkbench() {
 
   const startNewDraft = useCallback(() => {
     setActiveDraftId(null);
+    setActiveContentStatus(null);
     setEditorTitle('');
     setEditorBody('');
     setAssetPrompts(null);
@@ -317,9 +384,12 @@ export function useContentWorkbench() {
     setActiveTab,
     contentQ,
     ideasQ,
-    draftNodes,
+    contentNodes,
     ideas,
+    ideationIdeas,
+    vaultIdeas,
     activeDraftId,
+    activeContentStatus,
     editorTitle,
     setEditorTitle: (value: string) => {
       setEditorTitle(value);
@@ -344,6 +414,7 @@ export function useContentWorkbench() {
     saveDraftMutation,
     deleteDraftMutation,
     publishMutation,
+    unpublishMutation,
     approveIdeaMutation,
     rejectIdeaMutation,
     assetPromptsMutation,
@@ -357,7 +428,15 @@ export function useContentWorkbench() {
     setTargetPlatform,
     seedIdeas,
     setSeedIdeas,
+    selectedVaultItemIds,
+    setSelectedVaultItemIds,
     generateError,
     generateIdeasMutation,
+    lastGenerationStats,
+    vaultGenerateError,
+    generateVaultIdeasMutation,
+    lastVaultGenerationStats,
+    vaultItemLabels,
+    setVaultItemLabels,
   };
 }

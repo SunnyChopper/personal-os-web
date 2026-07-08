@@ -1,22 +1,33 @@
 import { useState } from 'react';
 import SubModuleTabShell from '../SubModuleTabShell';
+import ContentTemplateFormModal from './ContentTemplateFormModal';
+import ContentTemplatesTab from './ContentTemplatesTab';
 import IdeationEngineTab from './IdeationEngineTab';
 import NewDraftWizardModal from './NewDraftWizardModal';
 import RejectIdeaModal from './RejectIdeaModal';
+import RetryTemplateModal from './RetryTemplateModal';
 import SandboxWorkspaceTab from './SandboxWorkspaceTab';
 import TitlePromptModal from './TitlePromptModal';
+import VaultExtractorTab from './VaultExtractorTab';
+import { useContentTemplates } from './useContentTemplates';
 import { useContentWorkbench } from './useContentWorkbench';
 
 const TABS = [
   { id: 'sandbox', label: 'Sandbox Workspace' },
   { id: 'ideation', label: 'Ideation Engine' },
+  { id: 'vault-extractor', label: 'Vault Extractor' },
+  { id: 'content-templates', label: 'Content Templates' },
 ] as const;
 
 export default function ContentWorkbenchPage() {
   const [drawerOpen, setDrawerOpen] = useState(true);
   const wb = useContentWorkbench();
+  const ct = useContentTemplates();
 
-  const isLoading = wb.contentQ.isPending || wb.ideasQ.isPending;
+  const isLoading =
+    wb.contentQ.isPending ||
+    wb.ideasQ.isPending ||
+    (wb.activeTab === 'content-templates' && (ct.templatesQ.isPending || ct.candidatesQ.isPending));
 
   return (
     <>
@@ -28,32 +39,120 @@ export default function ContentWorkbenchPage() {
         ariaLabel="Content Workbench sections"
         isLoading={isLoading}
         skeletonLayout="two-column"
-        renderPanel={(activeTab) =>
-          activeTab === 'ideation' ? (
-            <IdeationEngineTab
-              ideas={wb.ideas}
-              isLoading={wb.ideasQ.isPending}
-              approvingId={
-                wb.approveIdeaMutation.isPending ? (wb.approveIdeaMutation.variables ?? null) : null
-              }
-              profiles={wb.brandProfiles}
-              profilesLoading={wb.profilesQ.isPending}
-              selectedProfileId={wb.selectedProfileId}
-              onProfileChange={wb.setSelectedProfileId}
-              targetPlatform={wb.targetPlatform}
-              onTargetPlatformChange={wb.setTargetPlatform}
-              seedIdeas={wb.seedIdeas}
-              onSeedIdeasChange={wb.setSeedIdeas}
-              isGenerating={wb.generateIdeasMutation.isPending}
-              generateError={wb.generateError}
-              onGenerate={() => wb.generateIdeasMutation.mutate()}
-              onApprove={(ideaId) => wb.approveIdeaMutation.mutate(ideaId)}
-              onReject={(idea) => wb.setRejectingIdea(idea)}
-            />
-          ) : (
+        renderPanel={(activeTab) => {
+          if (activeTab === 'ideation') {
+            return (
+              <IdeationEngineTab
+                ideas={wb.ideationIdeas}
+                isLoading={wb.ideasQ.isPending}
+                approvingId={
+                  wb.approveIdeaMutation.isPending
+                    ? (wb.approveIdeaMutation.variables ?? null)
+                    : null
+                }
+                profiles={wb.brandProfiles}
+                profilesLoading={wb.profilesQ.isPending}
+                selectedProfileId={wb.selectedProfileId}
+                onProfileChange={wb.setSelectedProfileId}
+                targetPlatform={wb.targetPlatform}
+                onTargetPlatformChange={wb.setTargetPlatform}
+                seedIdeas={wb.seedIdeas}
+                onSeedIdeasChange={wb.setSeedIdeas}
+                isGenerating={wb.generateIdeasMutation.isPending}
+                generateError={wb.generateError}
+                lastGenerationStats={wb.lastGenerationStats}
+                onGenerate={() => wb.generateIdeasMutation.mutate()}
+                onApprove={(ideaId) => wb.approveIdeaMutation.mutate(ideaId)}
+                onReject={(idea) => wb.setRejectingIdea(idea)}
+              />
+            );
+          }
+
+          if (activeTab === 'vault-extractor') {
+            return (
+              <VaultExtractorTab
+                ideas={wb.vaultIdeas}
+                isLoading={wb.ideasQ.isPending}
+                approvingId={
+                  wb.approveIdeaMutation.isPending
+                    ? (wb.approveIdeaMutation.variables ?? null)
+                    : null
+                }
+                profiles={wb.brandProfiles}
+                profilesLoading={wb.profilesQ.isPending}
+                selectedProfileId={wb.selectedProfileId}
+                onProfileChange={wb.setSelectedProfileId}
+                targetPlatform={wb.targetPlatform}
+                onTargetPlatformChange={wb.setTargetPlatform}
+                selectedVaultItemIds={wb.selectedVaultItemIds}
+                onVaultSelectionChange={wb.setSelectedVaultItemIds}
+                vaultItemLabels={wb.vaultItemLabels}
+                onVaultItemLabelsChange={wb.setVaultItemLabels}
+                isGenerating={wb.generateVaultIdeasMutation.isPending}
+                generateError={wb.vaultGenerateError}
+                lastGenerationStats={wb.lastVaultGenerationStats}
+                onGenerate={() => wb.generateVaultIdeasMutation.mutate()}
+                onApprove={(ideaId) => wb.approveIdeaMutation.mutate(ideaId)}
+                onReject={(idea) => wb.setRejectingIdea(idea)}
+              />
+            );
+          }
+
+          if (activeTab === 'content-templates') {
+            return (
+              <ContentTemplatesTab
+                templates={ct.templates}
+                candidates={ct.candidates}
+                templatesLoading={ct.templatesQ.isPending}
+                candidatesLoading={ct.candidatesQ.isPending}
+                sourceKind={ct.sourceKind}
+                onSourceKindChange={ct.setSourceKind}
+                sourceUrl={ct.sourceUrl}
+                onSourceUrlChange={ct.setSourceUrl}
+                mediumApiKey={ct.mediumApiKey}
+                onMediumApiKeyChange={ct.setMediumApiKey}
+                hasMediumApiKey={ct.settingsQ.data?.hasMediumApiKey ?? false}
+                isSavingSettings={ct.saveSettingsMutation.isPending}
+                onSaveMediumApiKey={() => ct.saveSettingsMutation.mutate(ct.mediumApiKey)}
+                isExtracting={ct.extractMutation.isPending}
+                extractError={ct.extractError}
+                lastExtractionStats={ct.lastExtractionStats}
+                onExtract={() => ct.extractMutation.mutate()}
+                approvingId={
+                  ct.approveCandidateMutation.isPending
+                    ? (ct.approveCandidateMutation.variables?.candidateId ?? null)
+                    : null
+                }
+                retryingId={
+                  ct.retryCandidateMutation.isPending
+                    ? (ct.retryCandidateMutation.variables?.candidateId ?? null)
+                    : null
+                }
+                onCreateTemplate={() => {
+                  ct.setEditingTemplate(null);
+                  ct.setTemplateFormOpen(true);
+                }}
+                onEditTemplate={(template) => {
+                  ct.setEditingTemplate(template);
+                  ct.setTemplateFormOpen(true);
+                }}
+                onDeleteTemplate={(templateId) => {
+                  if (window.confirm('Delete this content template?')) {
+                    ct.deleteTemplateMutation.mutate(templateId);
+                  }
+                }}
+                onApprove={(candidateId) => ct.approveCandidateMutation.mutate({ candidateId })}
+                onReject={(candidate) => ct.setRejectingCandidate(candidate)}
+                onRetry={(candidate) => ct.setRetryingCandidate(candidate)}
+              />
+            );
+          }
+
+          return (
             <SandboxWorkspaceTab
-              draftNodes={wb.draftNodes}
+              contentNodes={wb.contentNodes}
               activeDraftId={wb.activeDraftId}
+              activeContentStatus={wb.activeContentStatus}
               editorTitle={wb.editorTitle}
               onTitleChange={(v) => {
                 wb.setEditorTitle(v);
@@ -65,6 +164,7 @@ export default function ContentWorkbenchPage() {
               isDirty={wb.isDirty}
               isSaving={wb.saveDraftMutation.isPending}
               isPublishing={wb.publishMutation.isPending}
+              isUnpublishing={wb.unpublishMutation.isPending}
               isDeleting={wb.deleteDraftMutation.isPending}
               isGeneratingAssets={wb.assetPromptsMutation.isPending}
               drawerOpen={drawerOpen}
@@ -76,11 +176,16 @@ export default function ContentWorkbenchPage() {
                 if (!wb.activeDraftId) return;
                 await wb.deleteDraftMutation.mutateAsync(wb.activeDraftId);
               }}
-              onPublish={() => wb.publishMutation.mutate()}
+              onPublish={async () => {
+                await wb.publishMutation.mutateAsync();
+              }}
+              onUnpublish={async () => {
+                await wb.unpublishMutation.mutateAsync();
+              }}
               onGenerateAssetPrompts={() => wb.assetPromptsMutation.mutate()}
             />
-          )
-        }
+          );
+        }}
       />
 
       <NewDraftWizardModal
@@ -107,6 +212,51 @@ export default function ContentWorkbenchPage() {
         onSubmit={(feedbackText) => {
           if (!wb.rejectingIdea) return;
           wb.rejectIdeaMutation.mutate({ ideaId: wb.rejectingIdea.id, feedbackText });
+        }}
+      />
+
+      <ContentTemplateFormModal
+        isOpen={ct.templateFormOpen}
+        template={ct.editingTemplate}
+        isSubmitting={ct.createTemplateMutation.isPending || ct.updateTemplateMutation.isPending}
+        onClose={() => {
+          ct.setTemplateFormOpen(false);
+          ct.setEditingTemplate(null);
+        }}
+        onSubmit={(body) => {
+          if (ct.editingTemplate) {
+            ct.updateTemplateMutation.mutate({ id: ct.editingTemplate.id, body });
+            return;
+          }
+          ct.createTemplateMutation.mutate(body);
+        }}
+      />
+
+      <RejectIdeaModal
+        isOpen={Boolean(ct.rejectingCandidate)}
+        ideaTitle={ct.rejectingCandidate?.title}
+        isSubmitting={ct.rejectCandidateMutation.isPending}
+        onClose={() => ct.setRejectingCandidate(null)}
+        onSubmit={(feedbackText) => {
+          if (!ct.rejectingCandidate) return;
+          ct.rejectCandidateMutation.mutate({
+            candidateId: ct.rejectingCandidate.id,
+            feedbackText,
+          });
+        }}
+      />
+
+      <RetryTemplateModal
+        isOpen={Boolean(ct.retryingCandidate)}
+        candidateTitle={ct.retryingCandidate?.title}
+        isSubmitting={ct.retryCandidateMutation.isPending}
+        onClose={() => ct.setRetryingCandidate(null)}
+        onSubmit={(feedbackText) => {
+          if (!ct.retryingCandidate) return;
+          ct.retryCandidateMutation.mutate({
+            candidateId: ct.retryingCandidate.id,
+            feedbackText,
+          });
         }}
       />
     </>

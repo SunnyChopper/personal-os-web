@@ -1,7 +1,7 @@
 import { Loader2, Sparkles } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { Select } from '@/components/atoms/Select';
-import { Textarea } from '@/components/atoms/Textarea';
+import { MultiSelectVaultCombobox } from '@/components/molecules/MultiSelectVaultCombobox';
 import type {
   BrandPlatform,
   BrandProfile,
@@ -19,7 +19,7 @@ import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
 
 const ALL_PLATFORMS = Object.keys(BRAND_PLATFORM_LABELS) as BrandPlatform[];
 
-interface IdeationEngineTabProps {
+interface VaultExtractorTabProps {
   ideas: ContentIdea[];
   isLoading: boolean;
   approvingId: string | null;
@@ -29,8 +29,10 @@ interface IdeationEngineTabProps {
   onProfileChange: (profileId: string) => void;
   targetPlatform: BrandPlatform;
   onTargetPlatformChange: (platform: BrandPlatform) => void;
-  seedIdeas: string;
-  onSeedIdeasChange: (value: string) => void;
+  selectedVaultItemIds: string[];
+  onVaultSelectionChange: (ids: string[]) => void;
+  vaultItemLabels: Record<string, string>;
+  onVaultItemLabelsChange: (labels: Record<string, string>) => void;
   isGenerating: boolean;
   generateError: string | null;
   lastGenerationStats: ContentIdeaGenerationContextStats | null;
@@ -39,7 +41,7 @@ interface IdeationEngineTabProps {
   onReject: (idea: ContentIdea) => void;
 }
 
-export default function IdeationEngineTab({
+export default function VaultExtractorTab({
   ideas,
   isLoading,
   approvingId,
@@ -49,27 +51,33 @@ export default function IdeationEngineTab({
   onProfileChange,
   targetPlatform,
   onTargetPlatformChange,
-  seedIdeas,
-  onSeedIdeasChange,
+  selectedVaultItemIds,
+  onVaultSelectionChange,
+  vaultItemLabels,
+  onVaultItemLabelsChange,
   isGenerating,
   generateError,
   lastGenerationStats,
   onGenerate,
   onApprove,
   onReject,
-}: IdeationEngineTabProps) {
+}: VaultExtractorTabProps) {
   const selectedProfile = profiles.find((p) => p.id === selectedProfileId) ?? null;
   const profileReady = selectedProfile ? isBrandProfileReadyForIdeation(selectedProfile) : false;
-  const canGenerate = Boolean(selectedProfileId && profileReady && !isGenerating);
+  const canGenerate = Boolean(
+    selectedProfileId && profileReady && selectedVaultItemIds.length > 0 && !isGenerating
+  );
 
   return (
     <div className="space-y-6">
       <PageCard className="space-y-4">
         <div>
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Generate ideas</h2>
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+            Extract ideas from Knowledge Vault
+          </h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Uses your Brand Identity pillars, audience, and platform rules. Rejected ideas inform
-            future runs.
+            Select vault notes or documents, combine them with your Brand Identity, and generate
+            on-brand content ideas. Rejected ideas inform future runs.
           </p>
         </div>
 
@@ -115,18 +123,20 @@ export default function IdeationEngineTab({
           </div>
         )}
 
-        <label className="block space-y-1.5 text-sm">
-          <span className="font-medium text-gray-700 dark:text-gray-300">
-            Seed ideas <span className="font-normal text-gray-500">(optional)</span>
+        <div className="space-y-1.5">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Knowledge Vault sources
           </span>
-          <Textarea
-            value={seedIdeas}
-            onChange={(e) => onSeedIdeasChange(e.target.value)}
-            rows={3}
-            placeholder="Topics, angles, or themes you want the brainstorm to explore…"
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+          <MultiSelectVaultCombobox
+            selectedIds={selectedVaultItemIds}
+            onSelectionChange={onVaultSelectionChange}
+            minItems={1}
+            maxItems={10}
+            labelLookup={vaultItemLabels}
+            itemLabel="vault sources"
+            onLabelLookupChange={onVaultItemLabelsChange}
           />
-        </label>
+        </div>
 
         {selectedProfile && !profileReady ? (
           <p className="text-sm text-amber-700 dark:text-amber-300">
@@ -153,7 +163,7 @@ export default function IdeationEngineTab({
           ) : (
             <>
               <Sparkles className="h-4 w-4" />
-              Generate ideas
+              Generate ideas from vault
             </>
           )}
         </Button>
@@ -161,13 +171,20 @@ export default function IdeationEngineTab({
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-          Candidate content ideas
+          Vault-sourced content ideas
         </h2>
 
-        {lastGenerationStats && lastGenerationStats.referencedPublishedCount > 0 ? (
+        {lastGenerationStats ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Referenced {lastGenerationStats.referencedPublishedCount} past published post
-            {lastGenerationStats.referencedPublishedCount === 1 ? '' : 's'} for style and voice.
+            Generated {lastGenerationStats.existingGeneratedCount > 0 ? 'new ' : ''}ideas using{' '}
+            {selectedVaultItemIds.length} vault source
+            {selectedVaultItemIds.length === 1 ? '' : 's'}
+            {lastGenerationStats.rejectedFeedbackCount > 0
+              ? ` (${lastGenerationStats.rejectedFeedbackCount} prior rejection${
+                  lastGenerationStats.rejectedFeedbackCount === 1 ? '' : 's'
+                } applied as hard negatives)`
+              : ''}
+            .
           </p>
         ) : null}
 
@@ -179,7 +196,7 @@ export default function IdeationEngineTab({
         ) : ideas.length === 0 ? (
           <PageCard className={cn(emptyStateCardClassName, 'p-10')}>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              No candidate ideas yet. Use Generate ideas above, or wait for Radar / other sources.
+              No vault-sourced ideas yet. Select Knowledge Vault items above and generate ideas.
             </p>
           </PageCard>
         ) : (
@@ -188,7 +205,7 @@ export default function IdeationEngineTab({
               <article key={idea.id} className={cn(gridItemCardClassName, 'flex flex-col')}>
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-semibold text-gray-900 dark:text-white">{idea.title}</h3>
-                  <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                  <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">
                     {CONTENT_TYPE_LABELS[idea.contentType]}
                   </span>
                 </div>
@@ -200,9 +217,15 @@ export default function IdeationEngineTab({
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
                   {idea.targetPlatform ? (
                     <span>{BRAND_PLATFORM_LABELS[idea.targetPlatform]}</span>
-                  ) : (
-                    <span>{idea.sourceType.replace(/_/g, ' ')}</span>
-                  )}
+                  ) : null}
+                  {(idea.vaultItemIds ?? []).map((vaultId) => (
+                    <span
+                      key={vaultId}
+                      className="rounded bg-violet-50 px-2 py-0.5 text-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
+                    >
+                      {vaultItemLabels[vaultId] ?? `Vault ${vaultId.slice(0, 8)}…`}
+                    </span>
+                  ))}
                   {idea.tags.map((tag) => (
                     <span key={tag} className="rounded bg-gray-100 px-2 py-0.5 dark:bg-gray-800">
                       {tag}
