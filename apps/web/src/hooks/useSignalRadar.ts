@@ -17,6 +17,7 @@ export type RadarRunsListFilters = {
 export type RadarItemsListFilters = {
   page?: number;
   pageSize?: number;
+  includeFiltered?: boolean;
 };
 
 const ACTIVE_RUN_STATUSES = new Set(['queued', 'running']);
@@ -108,11 +109,12 @@ export function useSignalRadar() {
 export function useSignalRadarItems(filters: RadarItemsListFilters = {}) {
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 50;
+  const includeFiltered = filters.includeFiltered ?? false;
 
   const items = useQuery({
-    queryKey: queryKeys.personalBranding.radarItems.list(page, pageSize),
+    queryKey: queryKeys.personalBranding.radarItems.list(page, pageSize, includeFiltered),
     queryFn: async () => {
-      const res = await personalBrandingService.listRadarItems(page, pageSize);
+      const res = await personalBrandingService.listRadarItems(page, pageSize, includeFiltered);
       if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Failed to load items');
       return res.data;
     },

@@ -9,6 +9,7 @@ import { useSignalRadarDiscoveryRun, type useSignalRadar } from '@/hooks/useSign
 import {
   RADAR_SOURCE_TYPE_LABELS,
   RADAR_SYNC_CADENCE_LABELS,
+  RADAR_SYNC_WEEKDAY_LABELS,
 } from '@/types/api/personal-branding.dto';
 import type {
   RadarDiscoverySuggestion,
@@ -19,6 +20,11 @@ import { Select } from '@/components/atoms/Select';
 import { PageCard } from '../PersonalBrandingPageTemplate';
 
 type SignalRadarHook = ReturnType<typeof useSignalRadar>;
+
+const BROWSER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const DEFAULT_SYNC_START_TIME = '08:00';
+const DEFAULT_SYNC_INTERVAL_HOURS = 6;
+const DEFAULT_SYNC_DAY_OF_WEEK = 0;
 
 function formatDate(value?: string | null): string {
   if (!value) return '—';
@@ -82,6 +88,9 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<RadarSource | null>(null);
   const [syncCadence, setSyncCadence] = useState<RadarSyncCadence>('DAILY');
+  const [syncStartTime, setSyncStartTime] = useState(DEFAULT_SYNC_START_TIME);
+  const [syncIntervalHours, setSyncIntervalHours] = useState(DEFAULT_SYNC_INTERVAL_HOURS);
+  const [syncDayOfWeek, setSyncDayOfWeek] = useState(DEFAULT_SYNC_DAY_OF_WEEK);
   const [discoveryRunId, setDiscoveryRunId] = useState<string | null>(null);
   const [savingSuggestionKey, setSavingSuggestionKey] = useState<string | null>(null);
 
@@ -89,7 +98,14 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
 
   useEffect(() => {
     if (!settings) return;
-    setSyncCadence(settings.syncCadence);
+    setSyncCadence(
+      settings.syncCadence === ('EVERY_6_HOURS' as RadarSyncCadence)
+        ? 'EVERY_N_HOURS'
+        : settings.syncCadence
+    );
+    setSyncStartTime(settings.syncStartTime || DEFAULT_SYNC_START_TIME);
+    setSyncIntervalHours(settings.syncIntervalHours ?? DEFAULT_SYNC_INTERVAL_HOURS);
+    setSyncDayOfWeek(settings.syncDayOfWeek ?? DEFAULT_SYNC_DAY_OF_WEEK);
   }, [settings]);
 
   const openCreate = () => {
@@ -104,7 +120,14 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
 
   const handleSaveSettings = async () => {
     try {
-      await signalRadar.updateSettings.mutateAsync({ syncCadence });
+      const body: Parameters<typeof signalRadar.updateSettings.mutateAsync>[0] = {
+        syncCadence,
+        syncStartTime: syncCadence === 'MANUAL_ONLY' ? null : syncStartTime,
+        syncTimezone: syncCadence === 'MANUAL_ONLY' ? null : BROWSER_TIMEZONE,
+        syncIntervalHours: syncCadence === 'EVERY_N_HOURS' ? syncIntervalHours : null,
+        syncDayOfWeek: syncCadence === 'WEEKLY' ? syncDayOfWeek : null,
+      };
+      await signalRadar.updateSettings.mutateAsync(body);
       showToast({ type: 'success', title: 'Radar settings saved' });
     } catch (err) {
       showToast({ type: 'error', title: err instanceof Error ? err.message : 'Save failed' });
@@ -130,11 +153,24 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
   return (
     <div className="space-y-8">
       <PageCard className="space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Global settings</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          Sync cadence drives scheduled ingestion. Tavily is provided by the platform.
-        </p>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Global settings</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              Sync cadence drives scheduled ingestion. Manual runs do not change the next due time.
+            </p>
+          </div>
+          <span
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-800 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-300"
+            title="Tavily is provided by the platform"
+          >
+            <span className="font-medium">Tavily</span>
+            <span className="rounded bg-green-100 px-1.5 py-0.5 font-medium dark:bg-green-900/50">
+              Active
+            </span>
+          </span>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Sync cadence
@@ -151,12 +187,53 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
               ))}
             </Select>
           </div>
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Tavily</span>
-            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-              Platform key active
-            </span>
-          </div>
+          {syncCadence === 'EVERY_N_HOURS' ? (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Interval (hours)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={168}
+                value={syncIntervalHours}
+                onChange={(e) => setSyncIntervalHours(Number(e.target.value))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+              />
+            </div>
+          ) : null}
+          {syncCadence === 'WEEKLY' ? (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Day of week
+              </label>
+              <Select
+                value={String(syncDayOfWeek)}
+                onChange={(e) => setSyncDayOfWeek(Number(e.target.value))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+              >
+                {Object.entries(RADAR_SYNC_WEEKDAY_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
+          {syncCadence !== 'MANUAL_ONLY' ? (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Start time
+              </label>
+              <input
+                type="time"
+                value={syncStartTime}
+                onChange={(e) => setSyncStartTime(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+              />
+              <p className="mt-1 text-xs text-gray-500">Local time ({BROWSER_TIMEZONE})</p>
+            </div>
+          ) : null}
         </div>
         {settings ? (
           <p className="text-xs text-gray-500">

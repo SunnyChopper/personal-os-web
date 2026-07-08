@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ExternalLink, Loader2, RefreshCw } from 'lucide-react';
+import { FormCheckbox } from '@/components/atoms/FormCheckbox';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
 import { linkAccentClassName } from '../personal-branding-ui';
@@ -9,11 +10,8 @@ import {
   useSignalRadarRunDetail,
   useSignalRadarRuns,
 } from '@/hooks/useSignalRadar';
-import {
-  RADAR_ITEM_TYPE_LABELS,
-  type RadarItem,
-  type RadarRunSummary,
-} from '@/types/api/personal-branding.dto';
+import { RADAR_ITEM_TYPE_LABELS, type RadarItem } from '@/types/api/personal-branding.dto';
+import RunDetailDrawer from './RunDetailDrawer';
 import {
   PageCard,
   emptyStateCardClassName,
@@ -29,6 +27,16 @@ function formatDate(value?: string | null): string {
   }
 }
 
+function capitalizeLabel(value: string): string {
+  if (!value) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatSourcesSuccessPercent(succeeded: number, total: number): string {
+  if (total <= 0) return '—';
+  return `${Math.round((succeeded / total) * 100)}%`;
+}
+
 function RunStatusBadge({ status }: { status: string }) {
   const tone =
     status === 'completed'
@@ -38,7 +46,11 @@ function RunStatusBadge({ status }: { status: string }) {
         : status === 'running' || status === 'queued'
           ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
           : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>{status}</span>;
+  return (
+    <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium capitalize', tone)}>
+      {status}
+    </span>
+  );
 }
 
 function RadarItemCard({ item }: { item: RadarItem }) {
@@ -60,6 +72,14 @@ function RadarItemCard({ item }: { item: RadarItem }) {
         {item.sourceName ? <span>{item.sourceName}</span> : null}
         {item.publishedAt ? <span>{formatDate(item.publishedAt)}</span> : null}
         <span>{(item.relevanceScore * 100).toFixed(0)}% relevance</span>
+        {typeof item.aiRelevanceScore === 'number' ? (
+          <span
+            className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200"
+            title={item.aiRationale ?? undefined}
+          >
+            AI {(item.aiRelevanceScore * 100).toFixed(0)}%
+          </span>
+        ) : null}
       </div>
       {item.matchedPillars.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1">
@@ -88,53 +108,22 @@ function RadarItemCard({ item }: { item: RadarItem }) {
   );
 }
 
-function RunSummaryPanel({ run }: { run: RadarRunSummary }) {
-  return (
-    <div className="grid gap-2 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm dark:border-gray-700 dark:bg-gray-900/50 sm:grid-cols-2 lg:grid-cols-4">
-      <div>
-        <span className="text-gray-500">Sources</span>
-        <p className="font-medium text-gray-900 dark:text-white">
-          {run.sourcesSucceeded}/{run.sourcesTotal} ok
-          {run.sourcesFailed ? ` · ${run.sourcesFailed} failed` : ''}
-        </p>
-      </div>
-      <div>
-        <span className="text-gray-500">Discovered</span>
-        <p className="font-medium text-gray-900 dark:text-white">{run.itemsDiscovered}</p>
-      </div>
-      <div>
-        <span className="text-gray-500">Created</span>
-        <p className="font-medium text-gray-900 dark:text-white">{run.itemsCreated}</p>
-      </div>
-      <div>
-        <span className="text-gray-500">Finished</span>
-        <p className="font-medium text-gray-900 dark:text-white">{formatDate(run.finishedAt)}</p>
-      </div>
-      {run.errorSummary ? (
-        <p className="sm:col-span-2 lg:col-span-4 text-amber-700 dark:text-amber-300">
-          {run.errorSummary}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 export default function TrendStreamTab() {
   const { showToast, ToastContainer } = useToast();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [itemPage] = useState(1);
+  const [includeFiltered, setIncludeFiltered] = useState(false);
 
   const { runs, startSync } = useSignalRadarRuns({ page: 1, pageSize: 10 });
-  const { items } = useSignalRadarItems({ page: itemPage, pageSize: 50 });
+  const { items } = useSignalRadarItems({
+    page: itemPage,
+    pageSize: 50,
+    includeFiltered,
+  });
 
   const runRows = runs.data?.data ?? [];
-  const activeRunId = useMemo(() => {
-    if (selectedRunId) return selectedRunId;
-    const active = runRows.find((r) => r.status === 'queued' || r.status === 'running');
-    return active?.id ?? runRows[0]?.id ?? null;
-  }, [selectedRunId, runRows]);
 
-  const activeDetail = useSignalRadarRunDetail(activeRunId);
+  const activeDetail = useSignalRadarRunDetail(selectedRunId);
   const runDetail = activeDetail.detail.data;
   const streamItems = items.data?.data ?? [];
 
@@ -142,6 +131,19 @@ export default function TrendStreamTab() {
     try {
       const res = await startSync.mutateAsync();
       setSelectedRunId(res.runId);
+      showToast({ type: 'success', title: 'Sync started' });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Sync failed to start',
+      });
+    }
+  };
+
+  const handleRerun = async () => {
+    try {
+      await startSync.mutateAsync();
+      setSelectedRunId(null);
       showToast({ type: 'success', title: 'Sync started' });
     } catch (err) {
       showToast({
@@ -160,20 +162,29 @@ export default function TrendStreamTab() {
             Inbound macro-topics from your radar sources.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => void handleSyncNow()}
-          disabled={startSync.isPending}
-          className="inline-flex items-center gap-2"
-        >
-          {startSync.isPending ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden />
-          ) : (
-            <RefreshCw className="size-4" aria-hidden />
-          )}
-          Sync now
-        </Button>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <FormCheckbox
+              checked={includeFiltered}
+              onChange={(e) => setIncludeFiltered(e.target.checked)}
+            />
+            Show AI-filtered noise
+          </label>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void handleSyncNow()}
+            disabled={startSync.isPending}
+            className="inline-flex items-center gap-2"
+          >
+            {startSync.isPending ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="size-4" aria-hidden />
+            )}
+            Sync now
+          </Button>
+        </div>
       </div>
 
       {startSync.error ? (
@@ -218,20 +229,18 @@ export default function TrendStreamTab() {
                   <tr
                     key={run.id}
                     className={`cursor-pointer border-t border-gray-100 hover:bg-gray-50/50 dark:border-gray-800 dark:hover:bg-gray-900/30 ${
-                      activeRunId === run.id ? 'bg-blue-50/60 dark:bg-blue-950/20' : ''
+                      selectedRunId === run.id ? 'bg-blue-50/60 dark:bg-blue-950/20' : ''
                     }`}
                     onClick={() => setSelectedRunId(run.id)}
                   >
                     <td className="px-3 py-2">
                       <RunStatusBadge status={run.status} />
                     </td>
-                    <td className="px-3 py-2">{run.trigger}</td>
+                    <td className="px-3 py-2 capitalize">{capitalizeLabel(run.trigger)}</td>
                     <td className="px-3 py-2">
-                      {run.sourcesSucceeded}/{run.sourcesTotal}
+                      {formatSourcesSuccessPercent(run.sourcesSucceeded, run.sourcesTotal)}
                     </td>
-                    <td className="px-3 py-2">
-                      {run.itemsCreated}/{run.itemsDiscovered}
-                    </td>
+                    <td className="px-3 py-2">{run.itemsCreated}</td>
                     <td className="px-3 py-2 text-xs text-gray-500">
                       {formatDate(run.startedAt ?? run.createdAt)}
                     </td>
@@ -241,12 +250,16 @@ export default function TrendStreamTab() {
             </tbody>
           </table>
         </div>
-        {runDetail ? (
-          <div className="px-6 pb-6">
-            <RunSummaryPanel run={runDetail} />
-          </div>
-        ) : null}
       </PageCard>
+
+      <RunDetailDrawer
+        open={Boolean(selectedRunId)}
+        run={runDetail}
+        isLoading={activeDetail.detail.isLoading}
+        isRerunning={startSync.isPending}
+        onClose={() => setSelectedRunId(null)}
+        onRerun={handleRerun}
+      />
 
       <section className="space-y-4">
         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Stream cards</h3>

@@ -84,7 +84,56 @@ describe('personalBrandingService signal radar', () => {
       data: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
     });
     await personalBrandingService.listRadarItems(1, 50);
-    expect(apiClient.get).toHaveBeenCalledWith('/personal-branding/radar-items?page=1&pageSize=50');
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/personal-branding/radar-items?page=1&pageSize=50&includeFiltered=false'
+    );
+  });
+
+  it('lists radar items with includeFiltered query', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      success: true,
+      data: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
+    });
+    await personalBrandingService.listRadarItems(1, 50, true);
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/personal-branding/radar-items?page=1&pageSize=50&includeFiltered=true'
+    );
+  });
+
+  it('creates a GitHub radar source with githubConfig', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'src-gh',
+        name: 'LangGraph',
+        sourceType: 'GITHUB_REPO',
+        endpoint: 'https://github.com/langchain-ai/langgraph',
+      },
+    });
+    await personalBrandingService.createRadarSource({
+      name: 'LangGraph',
+      sourceType: 'GITHUB_REPO',
+      endpoint: 'https://github.com/langchain-ai/langgraph',
+      githubConfig: {
+        owner: 'langchain-ai',
+        repo: 'langgraph',
+        eventTypes: ['COMMITS', 'RELEASES'],
+        releaseFilter: 'MAJOR_ONLY',
+        aiFilterEnabled: true,
+      },
+    });
+    expect(apiClient.post).toHaveBeenCalledWith('/personal-branding/radar-sources', {
+      name: 'LangGraph',
+      sourceType: 'GITHUB_REPO',
+      endpoint: 'https://github.com/langchain-ai/langgraph',
+      githubConfig: {
+        owner: 'langchain-ai',
+        repo: 'langgraph',
+        eventTypes: ['COMMITS', 'RELEASES'],
+        releaseFilter: 'MAJOR_ONLY',
+        aiFilterEnabled: true,
+      },
+    });
   });
 
   it('saves a discovery suggestion as a source', async () => {
