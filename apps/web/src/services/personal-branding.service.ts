@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 import type {
+  ApproveContentIdeaInput,
   ApproveContentIdeaResult,
   ApproveContentTemplateCandidateInput,
   ApproveContentTemplateCandidateResult,
@@ -42,13 +43,25 @@ import type {
   ConnectionInteractionListResponse,
   ConnectionInteractionLog,
   ConnectionMetricLinks,
+  ContentOpportunity,
+  ContentOpportunityListResponse,
+  ContentOpportunitySearchInput,
+  ContentOpportunitySearchResult,
+  ContentOpportunityStatus,
   CreatorConnection,
   CreatorConnectionListResponse,
   EffectivePlatformRules,
+  PlatformRuleCatalog,
   PlatformRuleRecord,
   PlatformRulesListResponse,
   ProfileExtractionJob,
+  ProfileExtractionSourceRunListResponse,
+  ProfileExtractionUploadSlot,
+  RadarDiscoveryCandidateFilters,
+  RadarDiscoveryCandidateListResponse,
   RadarDiscoveryRun,
+  RadarDiscoveryRunListResponse,
+  RadarItem,
   RadarItemListResponse,
   RadarRunDetail,
   RadarRunListResponse,
@@ -56,7 +69,8 @@ import type {
   RadarSettings,
   RadarSource,
   RadarSourceListResponse,
-  SaveRadarDiscoverySuggestionInput,
+  RadarSuggestedCadences,
+  StartRadarDiscoveryRunInput,
   FollowSuggestion,
   FollowSuggestionListResponse,
   ReconFeedSettings,
@@ -69,10 +83,15 @@ import type {
   UpdateReconFeedSettingsInput,
   UpdateReconPostInput,
   GenerateContentIdeasInput,
+  GenerateContentIdeasResult,
+  GenerateTopicSuggestionsInput,
+  GenerateTopicSuggestionsResult,
   GenerateVaultIdeasInput,
+  GenerateRadarIdeasInput,
   ExtractContentTemplatesInput,
   ExtractContentTemplatesResult,
-  GenerateContentIdeasResult,
+  BrainstormContentTemplatesInput,
+  BrainstormContentTemplatesResult,
   RejectContentIdeaInput,
   RejectContentTemplateCandidateInput,
   RetryContentTemplateCandidateInput,
@@ -105,6 +124,33 @@ function unwrap<T>(res: { success: boolean; data?: T; error?: { message?: string
   }
   return res.data;
 }
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size));
+  }
+  return out;
+}
+
+async function mapWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<void>
+): Promise<void> {
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      await worker(items[index]!, index);
+    }
+  });
+  await Promise.all(runners);
+}
+
+const UPLOAD_SLOT_BATCH = 50;
+const UPLOAD_CONCURRENCY = 4;
 
 export const personalBrandingService = {
   getBrandConfig: async (): Promise<BrandConfigResponse> =>
@@ -148,7 +194,7 @@ export const personalBrandingService = {
     if (input.name?.trim()) form.append('name', input.name.trim());
     if (input.provider?.trim()) form.append('provider', input.provider.trim());
     if (input.model?.trim()) form.append('model', input.model.trim());
-    const pasted = (input.sources ?? []).filter((s) => s.text.trim());
+    const pasted = (input.sources ?? []).filter((s) => (s.text ?? '').trim());
     if (pasted.length) {
       form.append(
         'sourcesJson',
@@ -156,7 +202,7 @@ export const personalBrandingService = {
           pasted.map((s) => ({
             title: s.title?.trim() || null,
             url: s.url?.trim() || null,
-            text: s.text.trim(),
+            text: (s.text ?? '').trim(),
           }))
         )
       );
@@ -171,19 +217,116 @@ export const personalBrandingService = {
   startProfileExtractionFromDialog: async (
     input: StartProfileExtractionInput
   ): Promise<CreateProfileExtractionAccepted> => {
-    if (input.files?.length) {
-      return personalBrandingService.startProfileExtractionUpload(input);
+    const pasted = (input.sources ?? []).filter((s) => (s.text ?? '').trim());
+    const files = input.files ?? [];
+    const xUsername = (input.xUsername ?? '').trim().replace(/^@+/, '');
+    if (!files.length && !pasted.length && !xUsername) {
+      throw new Error('Add at least one PDF, pasted snippet, or X username.');
     }
-    const sources = (input.sources ?? []).filter((s) => s.text.trim());
-    if (!sources.length) {
-      throw new Error('Add at least one PDF or pasted snippet.');
+
+    const session = unwrap(
+      await apiClient.post<ProfileExtractionJob>(
+        '/personal-branding/profile-extractions/sessions',
+        {
+          name: input.name,
+          provider: input.provider,
+          model: input.model,
+        }
+      )
+    );
+    const jobId = session.jobId;
+
+    for (const batch of chunkArray(files, UPLOAD_SLOT_BATCH)) {
+      const slotRes = await apiClient.post<{ slots: ProfileExtractionUploadSlot[] }>(
+        `/personal-branding/profile-extractions/${jobId}/upload-urls`,
+        {
+          files: batch.map((file, index) => ({
+            fileName: file.name,
+            mimeType: file.type || 'application/pdf',
+            fileSizeBytes: file.size,
+            clientUploadId: `${file.name}-${file.size}-${index}`,
+          })),
+        }
+      );
+      const slots = unwrap(slotRes).slots;
+      const byClientId = new Map(
+        slots.map((slot) => [slot.clientUploadId ?? slot.sourceId, slot] as const)
+      );
+
+      await mapWithConcurrency(batch, UPLOAD_CONCURRENCY, async (file, index) => {
+        const clientId = `${file.name}-${file.size}-${index}`;
+        const slot = byClientId.get(clientId) ?? slots[index];
+        if (!slot) throw new Error(`Missing upload slot for ${file.name}`);
+        const put = await fetch(slot.uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type || 'application/pdf' },
+        });
+        if (!put.ok) {
+          throw new Error(`Upload failed for ${file.name}: ${put.status}`);
+        }
+      });
+
+      await apiClient.post(`/personal-branding/profile-extractions/${jobId}/uploads/complete`, {
+        sourceIds: slots.map((slot) => slot.sourceId),
+      });
     }
-    return personalBrandingService.startProfileExtraction({
-      name: input.name,
-      sources,
-      provider: input.provider,
-      model: input.model,
+
+    for (const batch of chunkArray(pasted, UPLOAD_SLOT_BATCH)) {
+      await apiClient.post(`/personal-branding/profile-extractions/${jobId}/sources`, {
+        sources: batch.map((s) => ({
+          title: s.title?.trim() || null,
+          url: s.url?.trim() || null,
+          text: (s.text ?? '').trim(),
+        })),
+      });
+    }
+
+    if (xUsername) {
+      await apiClient.post(`/personal-branding/profile-extractions/${jobId}/sources`, {
+        sources: [
+          {
+            sourceType: 'x_profile',
+            xUsername,
+            title: `@${xUsername}`,
+            url: `https://x.com/${xUsername}`,
+          },
+        ],
+      });
+    }
+
+    const started = unwrap(
+      await apiClient.post<ProfileExtractionJob>(
+        `/personal-branding/profile-extractions/${jobId}/start`,
+        {
+          provider: input.provider,
+          model: input.model,
+        }
+      )
+    );
+    return {
+      jobId: started.jobId,
+      profileId: started.profileId,
+      status: started.status,
+    };
+  },
+
+  listProfileExtractionSources: async (
+    jobId: string,
+    page = 1,
+    pageSize = 50,
+    status?: string
+  ): Promise<ProfileExtractionSourceRunListResponse> => {
+    const q = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
     });
+    if (status) q.set('status', status);
+    return unwrap(
+      await apiClient.get<ProfileExtractionSourceRunListResponse>(
+        `/personal-branding/profile-extractions/${jobId}/sources?${q}`
+      )
+    );
   },
 
   getProfileExtraction: async (jobId: string): Promise<ProfileExtractionJob> =>
@@ -265,6 +408,9 @@ export const personalBrandingService = {
   deletePlatformRule: async (ruleId: string): Promise<void> => {
     await apiClient.delete(`/personal-branding/platform-rules/rules/${ruleId}`);
   },
+
+  getPlatformRuleCatalog: async (): Promise<PlatformRuleCatalog> =>
+    unwrap(await apiClient.get<PlatformRuleCatalog>('/personal-branding/platform-rules/catalog')),
 
   getEffectivePlatformRules: async (
     platform: string,
@@ -373,11 +519,14 @@ export const personalBrandingService = {
   createContentIdea: async (body: CreateContentIdeaInput): Promise<ContentIdea> =>
     unwrap(await apiClient.post<ContentIdea>('/personal-branding/content-ideas', body)),
 
-  approveContentIdea: async (ideaId: string): Promise<ApproveContentIdeaResult> =>
+  approveContentIdea: async (
+    ideaId: string,
+    body: ApproveContentIdeaInput
+  ): Promise<ApproveContentIdeaResult> =>
     unwrap(
       await apiClient.post<ApproveContentIdeaResult>(
         `/personal-branding/content-ideas/${ideaId}/approve`,
-        {}
+        body
       )
     ),
 
@@ -411,6 +560,19 @@ export const personalBrandingService = {
     return res.data.data.result;
   },
 
+  generateTopicSuggestions: async (
+    body: GenerateTopicSuggestionsInput
+  ): Promise<GenerateTopicSuggestionsResult> => {
+    const res = await apiClient.post<{ data: { result: GenerateTopicSuggestionsResult } }>(
+      '/ai/personal-branding/topic-suggestions',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to brainstorm topics');
+    }
+    return res.data.data.result;
+  },
+
   generateVaultExtractedIdeas: async (
     body: GenerateVaultIdeasInput
   ): Promise<GenerateContentIdeasResult> => {
@@ -420,6 +582,19 @@ export const personalBrandingService = {
     );
     if (!res.success || !res.data?.data?.result) {
       throw new Error(res.error?.message ?? 'Failed to generate vault content ideas');
+    }
+    return res.data.data.result;
+  },
+
+  generateRadarExtractedIdeas: async (
+    body: GenerateRadarIdeasInput
+  ): Promise<GenerateContentIdeasResult> => {
+    const res = await apiClient.post<{ data: { result: GenerateContentIdeasResult } }>(
+      '/ai/personal-branding/content-ideas/generate-from-radar',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to generate Trend Stream content ideas');
     }
     return res.data.data.result;
   },
@@ -537,6 +712,19 @@ export const personalBrandingService = {
     return res.data.data.result;
   },
 
+  brainstormContentTemplates: async (
+    body: BrainstormContentTemplatesInput
+  ): Promise<BrainstormContentTemplatesResult> => {
+    const res = await apiClient.post<{ data: { result: BrainstormContentTemplatesResult } }>(
+      '/ai/personal-branding/content-templates/brainstorm',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to brainstorm content templates');
+    }
+    return res.data.data.result;
+  },
+
   retryContentTemplateCandidate: async (
     candidateId: string,
     body: RetryContentTemplateCandidateInput
@@ -586,6 +774,13 @@ export const personalBrandingService = {
     await apiClient.delete(`/personal-branding/radar-sources/${sourceId}`);
   },
 
+  getRadarSuggestedCadences: async (): Promise<RadarSuggestedCadences> =>
+    unwrap(
+      await apiClient.get<RadarSuggestedCadences>(
+        '/personal-branding/radar-sources/suggested-cadences'
+      )
+    ),
+
   getRadarSettings: async (): Promise<RadarSettings> =>
     unwrap(await apiClient.get<RadarSettings>('/personal-branding/radar-settings')),
 
@@ -605,6 +800,13 @@ export const personalBrandingService = {
     return apiClient.get(`/personal-branding/radar-items?${q}`);
   },
 
+  updateRadarItemRelevance: async (itemId: string, relevant: boolean): Promise<RadarItem> =>
+    unwrap(
+      await apiClient.patch<RadarItem>(`/personal-branding/radar-items/${itemId}/relevance`, {
+        relevant,
+      })
+    ),
+
   startRadarRun: async (): Promise<RadarRunStartAccepted> =>
     unwrap(await apiClient.post<RadarRunStartAccepted>('/personal-branding/radar-runs', {})),
 
@@ -616,19 +818,66 @@ export const personalBrandingService = {
   getRadarRun: async (runId: string): Promise<RadarRunDetail> =>
     unwrap(await apiClient.get<RadarRunDetail>(`/personal-branding/radar-runs/${runId}`)),
 
-  startRadarDiscoveryRun: async (): Promise<RadarDiscoveryRun> =>
-    unwrap(await apiClient.post<RadarDiscoveryRun>('/personal-branding/radar-discovery/runs', {})),
+  startRadarDiscoveryRun: async (body: StartRadarDiscoveryRunInput): Promise<RadarDiscoveryRun> =>
+    unwrap(
+      await apiClient.post<RadarDiscoveryRun>('/personal-branding/radar-discovery/runs', body)
+    ),
+
+  listRadarDiscoveryRuns: async (
+    page = 1,
+    pageSize = 20
+  ): Promise<RadarDiscoveryRunListResponse> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    return apiClient.get(`/personal-branding/radar-discovery/runs?${q}`);
+  },
 
   getRadarDiscoveryRun: async (runId: string): Promise<RadarDiscoveryRun> =>
     unwrap(
       await apiClient.get<RadarDiscoveryRun>(`/personal-branding/radar-discovery/runs/${runId}`)
     ),
 
-  saveRadarDiscoverySuggestion: async (
-    body: SaveRadarDiscoverySuggestionInput
-  ): Promise<RadarSource> =>
+  listRadarDiscoveryCandidates: async (
+    runId: string,
+    page = 1,
+    pageSize = 20,
+    filters: RadarDiscoveryCandidateFilters = {}
+  ): Promise<RadarDiscoveryCandidateListResponse> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (filters.status) q.set('status', filters.status);
+    if (filters.verdict) q.set('verdict', filters.verdict);
+    return apiClient.get(`/personal-branding/radar-discovery/runs/${runId}/candidates?${q}`);
+  },
+
+  pauseRadarDiscoveryRun: async (runId: string): Promise<RadarDiscoveryRun> =>
     unwrap(
-      await apiClient.post<RadarSource>('/personal-branding/radar-discovery/suggestions/save', body)
+      await apiClient.post<RadarDiscoveryRun>(
+        `/personal-branding/radar-discovery/runs/${runId}/pause`,
+        {}
+      )
+    ),
+
+  resumeRadarDiscoveryRun: async (runId: string): Promise<RadarDiscoveryRun> =>
+    unwrap(
+      await apiClient.post<RadarDiscoveryRun>(
+        `/personal-branding/radar-discovery/runs/${runId}/resume`,
+        {}
+      )
+    ),
+
+  cancelRadarDiscoveryRun: async (runId: string): Promise<RadarDiscoveryRun> =>
+    unwrap(
+      await apiClient.post<RadarDiscoveryRun>(
+        `/personal-branding/radar-discovery/runs/${runId}/cancel`,
+        {}
+      )
+    ),
+
+  saveRadarDiscoveryCandidate: async (runId: string, candidateId: string): Promise<RadarSource> =>
+    unwrap(
+      await apiClient.post<RadarSource>(
+        `/personal-branding/radar-discovery/runs/${runId}/candidates/${candidateId}/save`,
+        {}
+      )
     ),
 
   listCreatorConnections: async (
@@ -755,6 +1004,39 @@ export const personalBrandingService = {
     }
     return res.data;
   },
+
+  searchConnectionContentOpportunity: async (
+    connectionId: string,
+    body: ContentOpportunitySearchInput = {}
+  ): Promise<ContentOpportunitySearchResult> =>
+    unwrap(
+      await apiClient.post<ContentOpportunitySearchResult>(
+        `/personal-branding/connections/${connectionId}/content-opportunities/search`,
+        body
+      )
+    ),
+
+  listConnectionContentOpportunities: async (
+    connectionId: string,
+    page = 1,
+    pageSize = 20
+  ): Promise<ContentOpportunityListResponse> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    return apiClient.get(
+      `/personal-branding/connections/${connectionId}/content-opportunities?${q}`
+    );
+  },
+
+  updateContentOpportunity: async (
+    opportunityId: string,
+    status: Extract<ContentOpportunityStatus, 'DISMISSED' | 'ACTIONED'>
+  ): Promise<ContentOpportunity> =>
+    unwrap(
+      await apiClient.patch<ContentOpportunity>(
+        `/personal-branding/content-opportunities/${opportunityId}`,
+        { status }
+      )
+    ),
 
   getReconFeedSettings: async (): Promise<ReconFeedSettings> =>
     unwrap(

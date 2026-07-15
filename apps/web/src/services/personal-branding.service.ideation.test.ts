@@ -45,3 +45,37 @@ describe('personalBrandingService.generateContentIdeas', () => {
     expect(result.contextStats.rejectedFeedbackCount).toBe(1);
   });
 });
+
+describe('personalBrandingService.generateTopicSuggestions', () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it('posts to topic-suggestions endpoint and unwraps nested result', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      success: true,
+      data: {
+        data: {
+          result: {
+            topics: ['How agentic AI changes delivery', 'Graph workflows for content'],
+          },
+        },
+      },
+    });
+
+    const result = await personalBrandingService.generateTopicSuggestions({
+      pillars: ['Agentic AI Development'],
+      targetAudience: 'Engineering leaders',
+      platform: 'medium',
+      count: 5,
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith('/ai/personal-branding/topic-suggestions', {
+      pillars: ['Agentic AI Development'],
+      targetAudience: 'Engineering leaders',
+      platform: 'medium',
+      count: 5,
+    });
+    expect(result.topics).toHaveLength(2);
+  });
+});

@@ -430,6 +430,8 @@ export const queryKeys = {
     timeZone: () => [...queryKeys.preferences.all, 'time-zone'] as const,
     notificationWebhook: () => [...queryKeys.preferences.all, 'notification-webhook'] as const,
     recoveryNotifications: () => [...queryKeys.preferences.all, 'recovery-notifications'] as const,
+    rolodexFollowUpNotifications: () =>
+      [...queryKeys.preferences.all, 'rolodex-follow-up-notifications'] as const,
     weeklyDashboard: () => [...queryKeys.preferences.all, 'weekly-dashboard'] as const,
     marginOfSafetyBuffer: () => [...queryKeys.preferences.all, 'margin-of-safety-buffer'] as const,
   },
@@ -466,6 +468,7 @@ export const queryKeys = {
           platform,
           profileId ?? '',
         ] as const,
+      catalog: () => [...queryKeys.personalBranding.platformRules.all(), 'catalog'] as const,
     },
     content: {
       all: () => [...queryKeys.personalBranding.all, 'content'] as const,
@@ -538,6 +541,8 @@ export const queryKeys = {
         [...queryKeys.personalBranding.radarSources.all(), 'detail', sourceId] as const,
     },
     radarSettings: () => [...queryKeys.personalBranding.all, 'radar-settings'] as const,
+    radarSuggestedCadences: () =>
+      [...queryKeys.personalBranding.all, 'radar-suggested-cadences'] as const,
     radarItems: {
       all: () => [...queryKeys.personalBranding.all, 'radar-items'] as const,
       list: (page = 1, pageSize = 50, includeFiltered = false) =>
@@ -558,8 +563,28 @@ export const queryKeys = {
     },
     radarDiscovery: {
       all: () => [...queryKeys.personalBranding.all, 'radar-discovery'] as const,
+      lists: () => [...queryKeys.personalBranding.radarDiscovery.all(), 'list'] as const,
+      list: (page = 1, pageSize = 20) =>
+        [...queryKeys.personalBranding.radarDiscovery.lists(), page, pageSize] as const,
+      details: () => [...queryKeys.personalBranding.radarDiscovery.all(), 'detail'] as const,
       detail: (runId: string) =>
-        [...queryKeys.personalBranding.radarDiscovery.all(), 'detail', runId] as const,
+        [...queryKeys.personalBranding.radarDiscovery.details(), runId] as const,
+      candidates: (runId: string) =>
+        [...queryKeys.personalBranding.radarDiscovery.all(), 'candidates', runId] as const,
+      candidateList: (
+        runId: string,
+        page = 1,
+        pageSize = 20,
+        filters?: { status?: string; verdict?: string }
+      ) =>
+        [
+          ...queryKeys.personalBranding.radarDiscovery.candidates(runId),
+          'list',
+          page,
+          pageSize,
+          filters?.status ?? 'all',
+          filters?.verdict ?? 'all',
+        ] as const,
     },
     connections: {
       all: () => [...queryKeys.personalBranding.all, 'connections'] as const,
@@ -589,6 +614,17 @@ export const queryKeys = {
     rolodexMetricLinks: () => [...queryKeys.personalBranding.all, 'rolodex-metric-links'] as const,
     connectionMetricLinks: (connectionId: string) =>
       [...queryKeys.personalBranding.all, 'connection-metric-links', connectionId] as const,
+    contentOpportunities: {
+      all: () => [...queryKeys.personalBranding.all, 'content-opportunities'] as const,
+      byConnection: (connectionId: string, page = 1, pageSize = 20) =>
+        [
+          ...queryKeys.personalBranding.contentOpportunities.all(),
+          'connection',
+          connectionId,
+          page,
+          pageSize,
+        ] as const,
+    },
     reconFeed: {
       all: () => [...queryKeys.personalBranding.all, 'recon-feed'] as const,
       settings: () => [...queryKeys.personalBranding.reconFeed.all(), 'settings'] as const,
