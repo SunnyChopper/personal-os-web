@@ -11,6 +11,14 @@ import {
   usePlannerKillSwitch,
   usePlannerRolloverDecision,
 } from '@/hooks/usePlanner';
+import {
+  plannerEmphasisClassName,
+  plannerFocusPanelClassName,
+  plannerHeadingClassName,
+  plannerLinkClassName,
+  plannerMutedClassName,
+  plannerPanelClassName,
+} from '@/lib/planner/planner-surfaces';
 import { mondayISOForDate } from '@/lib/planner/week';
 import { useToast } from '@/hooks/use-toast';
 import { addDaysISO, todayISOLocal } from '@/lib/planner/week';
@@ -166,21 +174,21 @@ export function PlannerDayFocusPanel({
   const dateChipClass = (active: boolean) =>
     active
       ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-      : 'bg-white/5 text-gray-300 hover:bg-white/10 dark:bg-gray-800/60 dark:text-gray-300';
+      : 'border border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:border-transparent dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10';
 
   return (
-    <section className="space-y-4 rounded-2xl border border-white/10 bg-gradient-to-b from-gray-900/80 to-gray-950/90 p-4 shadow-xl backdrop-blur-sm">
+    <section className={`space-y-4 ${plannerFocusPanelClassName}`}>
       <ToastContainer />
 
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 text-blue-400">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
           <CalendarDays className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold text-white">Plan a day</h2>
-          <p className="text-xs text-gray-400">
+          <h2 className={`text-base font-semibold ${plannerHeadingClassName}`}>Plan a day</h2>
+          <p className={`text-xs ${plannerMutedClassName}`}>
             Fibonacci story-point throughput for{' '}
-            <strong className="text-gray-200">{formatPrettyDate(focusDateISO)}</strong>
+            <strong className={plannerEmphasisClassName}>{formatPrettyDate(focusDateISO)}</strong>
           </p>
         </div>
       </div>
@@ -203,13 +211,13 @@ export function PlannerDayFocusPanel({
         <input
           aria-label="Plan date"
           type="date"
-          className="rounded-lg border border-white/10 bg-gray-900/60 px-2 py-1.5 text-xs text-gray-200"
+          className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-900 dark:border-white/10 dark:bg-gray-900/60 dark:text-gray-200"
           value={focusDateISO}
           onChange={(e) => onFocusDateChange(e.target.value)}
         />
         <button
           type="button"
-          className="ml-auto text-xs font-medium text-blue-400 hover:text-blue-300"
+          className={`ml-auto text-xs font-medium ${plannerLinkClassName}`}
           onClick={() => void refetch()}
         >
           Refresh
@@ -217,7 +225,7 @@ export function PlannerDayFocusPanel({
         <button
           type="button"
           disabled={busy}
-          className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
           onClick={handleKillSwitch}
           aria-label="Kill Switch — de-scope non-essential tasks for this day"
         >
@@ -226,15 +234,19 @@ export function PlannerDayFocusPanel({
         </button>
       </div>
 
-      {error ? <p className="text-sm text-red-400">{String((error as Error).message)}</p> : null}
+      {error ? (
+        <p className="text-sm text-red-600 dark:text-red-400">{String((error as Error).message)}</p>
+      ) : null}
 
-      {isLoading && !plan ? <div className="h-32 animate-pulse rounded-xl bg-white/5" /> : null}
+      {isLoading && !plan ? (
+        <div className="h-32 animate-pulse rounded-xl bg-gray-200 dark:bg-white/5" />
+      ) : null}
 
       {plan ? (
         <div className="space-y-3">
           {(plan.rolloverTasks?.length ?? 0) > 0 ? (
-            <div className="space-y-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-200/90">
+            <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 dark:border-amber-500/25 dark:bg-amber-500/5">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200/90">
                 Rolled over ({plan.rolloverTasks!.length})
               </h3>
               <div className="space-y-2">
@@ -284,18 +296,20 @@ export function PlannerDayFocusPanel({
           />
 
           {plan.existingBlocks.length > 0 ? (
-            <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               {plan.existingBlocks.length} block{plan.existingBlocks.length === 1 ? '' : 's'}{' '}
               already on this day. Committing rebuilds deterministic plans for the date.
             </p>
           ) : null}
 
-          <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          <div className={`space-y-2 p-3 ${plannerPanelClassName}`}>
+            <h3
+              className={`text-xs font-semibold uppercase tracking-wide ${plannerMutedClassName}`}
+            >
               Recommended tasks
             </h3>
             {dayBlocked ? (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 No task recommendations while this day is marked unavailable.
               </p>
             ) : (
@@ -309,7 +323,7 @@ export function PlannerDayFocusPanel({
               />
             )}
             {overCapacity ? (
-              <p className="text-xs text-amber-300">
+              <p className="text-xs text-amber-700 dark:text-amber-300">
                 Remove a task to stay within today’s capacity.
               </p>
             ) : null}
@@ -327,8 +341,8 @@ export function PlannerDayFocusPanel({
           </div>
 
           {committedDay?.blocks?.length ? (
-            <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
-              <h3 className="text-xs font-semibold text-emerald-300">
+            <div className="space-y-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/5">
+              <h3 className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
                 Planned blocks ({committedDay.blocks.length})
               </h3>
               <div className="space-y-2">

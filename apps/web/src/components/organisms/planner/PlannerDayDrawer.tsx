@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 
 import { PlannerCalendarOverlay } from '@/components/organisms/planner/PlannerCalendarOverlay';
 import { PlannerDayFocusPanel } from '@/components/organisms/planner/PlannerDayFocusPanel';
+import { plannerDrawerShellClassName, plannerMutedClassName } from '@/lib/planner/planner-surfaces';
 
 export interface PlannerDayDrawerProps {
   open: boolean;
@@ -65,16 +66,18 @@ export function PlannerDayDrawer({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-white/10 bg-gradient-to-b from-gray-900 to-gray-950 shadow-2xl"
+            className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col ${plannerDrawerShellClassName}`}
           >
-            <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-white/10">
+              <h2
+                className={`text-sm font-semibold uppercase tracking-wide ${plannerMutedClassName}`}
+              >
                 Plan day
               </h2>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
                 aria-label="Close"
               >
                 <X className="h-5 w-5" />

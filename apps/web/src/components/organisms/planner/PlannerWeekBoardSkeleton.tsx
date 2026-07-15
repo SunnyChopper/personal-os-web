@@ -1,12 +1,14 @@
+import { plannerPanelClassName } from '@/lib/planner/planner-surfaces';
+
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 function SkeletonBar({ className = '' }: { className?: string }) {
-  return <div className={`rounded bg-white/10 ${className}`} />;
+  return <div className={`rounded bg-gray-200 dark:bg-white/10 ${className}`} />;
 }
 
 function PlannerBlockCardSkeleton({ showActions = false }: { showActions?: boolean }) {
   return (
-    <div className="space-y-2 rounded-lg border border-white/10 bg-gray-900/40 p-3">
+    <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-100 p-3 dark:border-white/10 dark:bg-gray-900/40">
       <SkeletonBar className="h-2.5 w-16" />
       <SkeletonBar className="h-4 w-full" />
       <SkeletonBar className="h-4 w-4/5" />
@@ -34,8 +36,8 @@ function PlannerDayColumnSkeleton({
 }) {
   return (
     <div
-      className={`flex min-h-[200px] w-full min-w-[120px] flex-1 flex-col rounded-xl border-2 border-white/10 bg-gray-900/40 p-2 lg:min-w-0 ${
-        highlightToday ? 'ring-1 ring-white/20' : ''
+      className={`flex min-h-[200px] w-full min-w-[120px] flex-1 flex-col rounded-xl border-2 border-gray-200 bg-gray-50 p-2 lg:min-w-0 dark:border-white/10 dark:bg-gray-900/40 ${
+        highlightToday ? 'ring-1 ring-blue-300 dark:ring-white/20' : ''
       }`}
       aria-hidden
     >
@@ -78,7 +80,7 @@ const COLUMN_LAYOUT = [
 export function PlannerWeekBoardSkeleton() {
   return (
     <div
-      className="w-full animate-pulse rounded-2xl border border-white/10 bg-gradient-to-b from-gray-900/50 to-gray-950/80 p-3 shadow-inner"
+      className={`w-full animate-pulse p-3 ${plannerPanelClassName}`}
       role="status"
       aria-label="Loading week board"
     >

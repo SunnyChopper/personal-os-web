@@ -23,12 +23,12 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
   if (blocked) {
     const label = prediction.blockingContexts?.[0]?.label ?? 'Out of Office / Trip';
     return (
-      <section className="rounded-xl border border-slate-500/40 bg-slate-900/60 p-4 shadow-sm">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+      <section className="rounded-xl border border-slate-300 bg-slate-100 p-4 shadow-sm dark:border-slate-500/40 dark:bg-slate-900/60">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">
           Day unavailable
         </p>
-        <p className="mt-1 text-2xl font-bold text-slate-200">0 pts capacity</p>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-200">0 pts capacity</p>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           {label}. Auto-schedule and plan-day commits are disabled for this date.
         </p>
       </section>

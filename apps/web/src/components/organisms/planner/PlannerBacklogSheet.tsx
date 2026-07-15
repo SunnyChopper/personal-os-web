@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, X } from 'lucide-react';
 
 import { PlannerBacklogPanel } from '@/components/organisms/planner/PlannerBacklogPanel';
+import { plannerHeadingClassName, plannerMutedClassName } from '@/lib/planner/planner-surfaces';
 import type { Task } from '@/types/growth-system';
 
 export interface PlannerBacklogSheetProps {
@@ -53,18 +54,18 @@ export function PlannerBacklogSheet({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 z-40 flex max-h-[min(50vh,420px)] flex-col rounded-t-2xl border border-white/10 border-b-0 bg-gray-900 shadow-2xl"
+            className="fixed inset-x-0 bottom-0 z-40 flex max-h-[min(50vh,420px)] flex-col rounded-t-2xl border border-gray-200 border-b-0 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-900"
           >
-            <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-white/10">
               <div className="flex items-center gap-2">
                 <ChevronDown className="h-4 w-4 text-gray-500" aria-hidden />
-                <h2 className="text-sm font-semibold text-white">Backlog</h2>
-                <span className="text-xs text-gray-500">Press B to toggle</span>
+                <h2 className={`text-sm font-semibold ${plannerHeadingClassName}`}>Backlog</h2>
+                <span className={`text-xs ${plannerMutedClassName}`}>Press B to toggle</span>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
                 aria-label="Close backlog"
               >
                 <X className="h-5 w-5" />

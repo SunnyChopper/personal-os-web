@@ -17,12 +17,7 @@ import {
 import { useTasks, useHabits, useGoals } from '@/hooks/useGrowthSystem';
 import { useFitnessRecoveryRange, useUpsertRecoveryMutation } from '@/hooks/useFitness';
 import { localCalendarDate } from '@/lib/date/local-calendar';
-import {
-  differenceInCalendarDaysLocal,
-  extractDateOnly,
-  formatDateString,
-  parseDateInput,
-} from '@/utils/date-formatters';
+import { formatDateString } from '@/utils/date-formatters';
 import type { Task, Habit, Goal } from '@/types/growth-system';
 import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/routes';
@@ -30,12 +25,13 @@ import { ROUTES } from '@/routes';
 interface MorningLaunchpadProps {
   isOpen: boolean;
   onClose: () => void;
+  topTasks: Task[];
 }
 
-export function MorningLaunchpad({ isOpen, onClose }: MorningLaunchpadProps) {
+export function MorningLaunchpad({ isOpen, onClose, topTasks }: MorningLaunchpadProps) {
   return (
     <AnimatePresence>
-      {isOpen && <MorningLaunchpadContent isOpen={isOpen} onClose={onClose} />}
+      {isOpen && <MorningLaunchpadContent isOpen={isOpen} onClose={onClose} topTasks={topTasks} />}
     </AnimatePresence>
   );
 }
@@ -43,9 +39,10 @@ export function MorningLaunchpad({ isOpen, onClose }: MorningLaunchpadProps) {
 interface MorningLaunchpadContentProps {
   isOpen: boolean;
   onClose: () => void;
+  topTasks: Task[];
 }
 
-function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentProps) {
+function MorningLaunchpadContent({ isOpen, onClose, topTasks }: MorningLaunchpadContentProps) {
   const navigate = useNavigate();
   const { tasks, updateTask, completeTask } = useTasks();
   const { habits } = useHabits();
@@ -61,51 +58,20 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
   const [energyLevel, setEnergyLevel] = useState('');
 
   const handleEngage = () => {
+    if (orderedTasks.length === 0) return;
     onClose();
     setTimeout(() => {
       navigate(ROUTES.admin.focus, { state: { sessionTasks: orderedTasks } });
     }, 300);
   };
 
-  const filteredAndSortedTasks = useMemo(() => {
-    const todayKey = localCalendarDate();
-
-    const activeTasks = tasks.filter((task) => {
-      if (task.status === 'Done' || task.status === 'Cancelled') return false;
-
-      const isScheduledForToday =
-        !!task.scheduledDate && extractDateOnly(task.scheduledDate) === todayKey;
-
-      const dueDelta = task.dueDate ? differenceInCalendarDaysLocal(task.dueDate) : null;
-      const isOverdue = dueDelta !== null && dueDelta < 0;
-      const isDueToday = dueDelta === 0;
-
-      return isScheduledForToday || isOverdue || isDueToday;
-    });
-
-    const priorityOrder: Record<string, number> = { P1: 4, P2: 3, P3: 2, P4: 1 };
-
-    activeTasks.sort((a: Task, b: Task) => {
-      const priorityDiff = (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
-      if (priorityDiff !== 0) return priorityDiff;
-
-      if (a.dueDate && b.dueDate) {
-        return parseDateInput(a.dueDate).getTime() - parseDateInput(b.dueDate).getTime();
-      }
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
-
-      return 0;
-    });
-
-    return activeTasks;
-  }, [tasks]);
-
   useEffect(() => {
-    if (filteredAndSortedTasks.length > 0) {
-      setOrderedTasks(filteredAndSortedTasks);
+    if (isOpen) {
+      setOrderedTasks(topTasks);
+    } else {
+      setOrderedTasks([]);
     }
-  }, [filteredAndSortedTasks]);
+  }, [isOpen, topTasks]);
 
   const handleMoveUp = (index: number) => {
     if (index === 0) return;
@@ -178,9 +144,9 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
 
     if (taskCount === 0) {
       briefingText +=
-        'You have no tasks scheduled for today. This is a great opportunity to plan ahead, work on personal projects, or take some well-deserved rest.';
+        'You have no Top 3 focus tasks for today. Plan ahead in the Planner, or take some well-deserved rest.';
     } else {
-      briefingText += `You have ${taskCount} task${taskCount !== 1 ? 's' : ''} scheduled for today`;
+      briefingText += `You have ${taskCount} Top 3 focus task${taskCount !== 1 ? 's' : ''} for today`;
       if (highPriorityCount > 0) {
         briefingText += `, with ${highPriorityCount} high-priority item${highPriorityCount !== 1 ? 's' : ''} that need your immediate attention`;
       }
@@ -297,7 +263,7 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
                   <Target className="w-10 h-10 text-blue-400" />
                   <div>
                     <h2 className="text-4xl font-bold">Mission Control</h2>
-                    <p className="text-gray-400 text-lg">Build your session playlist</p>
+                    <p className="text-gray-400 text-lg">Your Top 3 focus tasks</p>
                   </div>
                 </div>
 
@@ -439,7 +405,7 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
                     <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto mb-4" />
                     <h3 className="text-2xl font-bold text-white mb-2">All Clear!</h3>
                     <p className="text-gray-400 mb-6">
-                      No tasks scheduled for today. Time to plan or relax!
+                      No Top 3 focus tasks for today. Plan in the Planner or add tasks.
                     </p>
                     <Link
                       to={ROUTES.admin.tasks}
@@ -604,7 +570,8 @@ function MorningLaunchpadContent({ isOpen, onClose }: MorningLaunchpadContentPro
         >
           <button
             onClick={handleEngage}
-            className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold text-xl py-6 px-8 flex items-center justify-center gap-3 transition-all hover:scale-105 active:scale-95 shadow-2xl"
+            disabled={orderedTasks.length === 0}
+            className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed disabled:opacity-60 text-white font-bold text-xl py-6 px-8 flex items-center justify-center gap-3 transition-all hover:scale-105 active:scale-95 shadow-2xl"
           >
             <Rocket className="w-8 h-8" />
             <span>Engage - Enter Focus Mode</span>
