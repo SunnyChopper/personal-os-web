@@ -24,10 +24,10 @@ export function useContentPipeline() {
   const [rejectingVariantId, setRejectingVariantId] = useState<string | null>(null);
   const [rejectCritique, setRejectCritique] = useState('');
 
-  const finalizedQ = useQuery({
-    queryKey: queryKeys.personalBranding.content.list(1, 100, 'FINALIZED'),
+  const publishedQ = useQuery({
+    queryKey: queryKeys.personalBranding.content.list(1, 100, 'PUBLISHED'),
     queryFn: async () =>
-      unwrapList(await personalBrandingService.listContentNodes(1, 100, 'FINALIZED')),
+      unwrapList(await personalBrandingService.listContentNodes(1, 100, 'PUBLISHED')),
   });
 
   const profilesQ = useQuery({
@@ -55,15 +55,15 @@ export function useContentPipeline() {
     },
   });
 
-  const finalizedNodes = finalizedQ.data ?? [];
+  const publishedNodes = publishedQ.data ?? [];
   const profiles = profilesQ.data ?? [];
   const variants = variantsQ.data ?? [];
   const activeJob = jobQ.data ?? null;
 
   useEffect(() => {
-    if (selectedContentId || finalizedNodes.length === 0) return;
-    setSelectedContentId(finalizedNodes[0].id);
-  }, [finalizedNodes, selectedContentId]);
+    if (selectedContentId || publishedNodes.length === 0) return;
+    setSelectedContentId(publishedNodes[0].id);
+  }, [publishedNodes, selectedContentId]);
 
   useEffect(() => {
     if (selectedProfileId || profiles.length === 0) return;
@@ -153,8 +153,8 @@ export function useContentPipeline() {
   };
 
   const selectedContent = useMemo(
-    () => finalizedNodes.find((n) => n.id === selectedContentId) ?? null,
-    [finalizedNodes, selectedContentId]
+    () => publishedNodes.find((n) => n.id === selectedContentId) ?? null,
+    [publishedNodes, selectedContentId]
   );
 
   const canStart =
@@ -164,7 +164,7 @@ export function useContentPipeline() {
     activeJob?.status !== 'queued';
 
   return {
-    finalizedNodes,
+    publishedNodes,
     profiles,
     variants,
     activeJob,
@@ -177,7 +177,7 @@ export function useContentPipeline() {
     togglePlatform,
     allPlatforms: ALL_PLATFORMS,
     canStart,
-    isLoading: finalizedQ.isPending || profilesQ.isPending,
+    isLoading: publishedQ.isPending || profilesQ.isPending,
     startRepurposeMutation,
     rejectVariantMutation,
     sendToSandboxMutation,

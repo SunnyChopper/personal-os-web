@@ -35,9 +35,10 @@ export default function PersonalBrandingLayout() {
   const subtitle =
     match?.[1].subtitle ??
     'Identity, content creation, pipelining, signal scraping, and creator networking.';
+  const isWorkbench = location.pathname.startsWith(ROUTES.admin.personalBrandingWorkbench);
 
   return (
-    <PageContainer className="pb-12">
+    <PageContainer width={isWorkbench ? 'full' : 'default'} className="pb-12">
       <header className="pb-6 pt-2">
         <div className="mb-2 flex items-center gap-3">
           <div className="rounded-xl bg-blue-100/80 p-2 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
