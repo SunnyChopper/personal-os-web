@@ -17,11 +17,27 @@ vi.mock('@/components/molecules/FileUploadZone', () => ({
 }));
 
 describe('ProfileExtractionDialog', () => {
-  it('disables submit until a PDF or snippet is provided', () => {
+  it('disables submit until a PDF, snippet, or X username is provided', () => {
     render(
       <ProfileExtractionDialog isOpen onClose={vi.fn()} onSubmit={vi.fn()} isSubmitting={false} />
     );
     expect(screen.getByRole('button', { name: 'Start extraction' })).toBeDisabled();
+  });
+
+  it('shows empty state for pasted snippets by default', () => {
+    render(
+      <ProfileExtractionDialog isOpen onClose={vi.fn()} onSubmit={vi.fn()} isSubmitting={false} />
+    );
+    expect(
+      screen.getByText(
+        'No text snippets added yet. Paste text directly from articles, posts, or transcripts.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText(
+        'Paste text snippet (optional when PDFs or X import are provided)'
+      )
+    ).not.toBeInTheDocument();
   });
 
   it('submits pasted snippets via onSubmit', async () => {
@@ -31,17 +47,82 @@ describe('ProfileExtractionDialog', () => {
       <ProfileExtractionDialog isOpen onClose={vi.fn()} onSubmit={onSubmit} isSubmitting={false} />
     );
 
+    await user.click(screen.getByRole('button', { name: '+ Paste a snippet' }));
     await user.type(
-      screen.getByPlaceholderText('Paste text snippet (optional when PDFs are attached)'),
+      screen.getByPlaceholderText(
+        'Paste text snippet (optional when PDFs or X import are provided)'
+      ),
       'My writing voice'
     );
     await user.click(screen.getByRole('button', { name: 'Start extraction' }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       name: null,
+      xUsername: null,
       sources: [{ title: null, url: null, text: 'My writing voice' }],
       files: undefined,
     });
+  });
+
+  it('submits X username via onSubmit', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ProfileExtractionDialog
+        isOpen
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        isSubmitting={false}
+        hasRapidApiKey
+      />
+    );
+
+    await user.type(screen.getByLabelText('X username'), 'naval');
+    await user.click(screen.getByRole('button', { name: 'Start extraction' }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: null,
+      xUsername: 'naval',
+      sources: undefined,
+      files: undefined,
+    });
+  });
+
+  it('blocks X-only submit when RapidAPI key is missing', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ProfileExtractionDialog
+        isOpen
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        isSubmitting={false}
+        hasRapidApiKey={false}
+      />
+    );
+
+    await user.type(screen.getByLabelText('X username'), 'naval');
+    expect(screen.getByRole('button', { name: 'Start extraction' })).toBeDisabled();
+    expect(
+      screen.getByText(/Configure a RapidAPI key under Rolodex → Recon Feed/i)
+    ).toBeInTheDocument();
+  });
+
+  it('returns to empty state when the last snippet is removed', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfileExtractionDialog isOpen onClose={vi.fn()} onSubmit={vi.fn()} isSubmitting={false} />
+    );
+
+    await user.click(screen.getByRole('button', { name: '+ Paste a snippet' }));
+    expect(screen.getByText('Snippet 1')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(
+      screen.getByText(
+        'No text snippets added yet. Paste text directly from articles, posts, or transcripts.'
+      )
+    ).toBeInTheDocument();
   });
 
   it('submits PDF files via onSubmit', async () => {

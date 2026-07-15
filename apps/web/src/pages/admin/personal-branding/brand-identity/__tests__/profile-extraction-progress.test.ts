@@ -32,12 +32,23 @@ describe('extractionProgressPercent', () => {
       extractionProgressPercent(
         makeJob({
           status: 'running',
-          stage: 'reading_sources',
+          stage: 'parsing_sources',
           sourceCount: 4,
           processedSourceCount: 2,
         })
       )
-    ).toBe(33);
+    ).toBe(46);
+  });
+
+  it('returns completion for succeeded_with_warnings jobs', () => {
+    expect(
+      extractionProgressPercent(
+        makeJob({
+          status: 'succeeded_with_warnings',
+          stage: 'succeeded',
+        })
+      )
+    ).toBe(100);
   });
 
   it('returns completion for succeeded jobs', () => {

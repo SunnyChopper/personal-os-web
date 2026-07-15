@@ -43,8 +43,14 @@ export default function PlatformRulesTabPanel({ brandIdentity }: PlatformRulesTa
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<PlatformRuleRecord | null>(null);
 
-  const { profiles, platformRules, createPlatformRule, updatePlatformRule, deletePlatformRule } =
-    brandIdentity;
+  const {
+    profiles,
+    platformRules,
+    platformRuleCatalog,
+    createPlatformRule,
+    updatePlatformRule,
+    deletePlatformRule,
+  } = brandIdentity;
 
   const profileList = profiles.data?.data ?? [];
   const rules = platformRules.data?.data ?? [];
@@ -80,7 +86,8 @@ export default function PlatformRulesTabPanel({ brandIdentity }: PlatformRulesTa
         <div>
           <h2 className="text-lg font-medium text-gray-900 dark:text-white">Platform Rules</h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Formatting constraints per channel. Rules without profile mappings apply universally.
+            Writing policy per channel: limits, rhetorical controls, and requirements for AI
+            generation. Rules without profile mappings apply universally.
           </p>
         </div>
         <Button type="button" size="sm" onClick={openCreate}>
@@ -92,7 +99,8 @@ export default function PlatformRulesTabPanel({ brandIdentity }: PlatformRulesTa
         <PageCard
           className={cn(emptyStateCardClassName, 'p-8 text-sm text-gray-600 dark:text-gray-400')}
         >
-          No platform rules yet. Create one to define character limits and templates.
+          No platform rules yet. Create one to define character limits, read time, and writing
+          requirements.
         </PageCard>
       )}
 
@@ -146,23 +154,39 @@ export default function PlatformRulesTabPanel({ brandIdentity }: PlatformRulesTa
                       <dd>{rule.characterLimit}</dd>
                     </div>
                   )}
-                  {rule.formatStyle && (
+                  {rule.readTimeLimitMinutes != null && (
                     <div>
-                      <dt className="text-gray-500">Format style</dt>
-                      <dd>{rule.formatStyle}</dd>
+                      <dt className="text-gray-500">Read time limit</dt>
+                      <dd>{rule.readTimeLimitMinutes} min</dd>
                     </div>
                   )}
-                  {rule.tags.length > 0 && (
+                  {rule.rhetoricalModes.length > 0 && (
                     <div className="sm:col-span-2">
-                      <dt className="text-gray-500">Tags</dt>
-                      <dd>{rule.tags.join(', ')}</dd>
+                      <dt className="text-gray-500">Modes</dt>
+                      <dd>
+                        {rule.rhetoricalModes.map((m) => `${m.mode} (${m.strength})`).join(', ')}
+                      </dd>
                     </div>
                   )}
-                  {rule.templateBody && (
+                  {rule.rhetoricalDevices.length > 0 && (
                     <div className="sm:col-span-2">
-                      <dt className="text-gray-500">Template</dt>
+                      <dt className="text-gray-500">Allowed devices</dt>
+                      <dd>{rule.rhetoricalDevices.join(', ')}</dd>
+                    </div>
+                  )}
+                  {rule.requirements && (
+                    <div className="sm:col-span-2">
+                      <dt className="text-gray-500">Requirements</dt>
                       <dd className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-                        {rule.templateBody}
+                        {rule.requirements}
+                      </dd>
+                    </div>
+                  )}
+                  {rule.needsReview && (
+                    <div className="sm:col-span-2">
+                      <dt className="text-gray-500">Review</dt>
+                      <dd className="text-amber-700 dark:text-amber-300">
+                        Legacy rule — add requirements on edit.
                       </dd>
                     </div>
                   )}
@@ -177,6 +201,7 @@ export default function PlatformRulesTabPanel({ brandIdentity }: PlatformRulesTa
         isOpen={editorOpen}
         onClose={() => setEditorOpen(false)}
         profiles={profileList}
+        catalog={platformRuleCatalog.data}
         initial={editingRule}
         isSubmitting={createPlatformRule.isPending || updatePlatformRule.isPending}
         onCreate={async (body) => {

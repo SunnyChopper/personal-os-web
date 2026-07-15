@@ -13,8 +13,11 @@ import type {
   UpdatePlatformRuleInput,
 } from '@/types/api/personal-branding.dto';
 
-const TERMINAL_EXTRACTION: ExtractionJobStatus[] = ['succeeded', 'failed'];
-const MAX_CLIENT_POLL_MS = 15 * 60 * 1000;
+const TERMINAL_EXTRACTION: ExtractionJobStatus[] = [
+  'succeeded',
+  'succeeded_with_warnings',
+  'failed',
+];
 
 /**
  * React Query bundle for Brand Identity (profiles, extraction jobs, platform rules).
@@ -30,7 +33,6 @@ export function usePersonalBrandingBrandIdentity(options?: {
   const [pollExtractionJobId, setPollExtractionJobId] = useState<string | null>(
     options?.pollExtractionJobId ?? null
   );
-  const [pollTimedOut, setPollTimedOut] = useState(false);
   const pollStartedAtRef = useRef<number | null>(null);
 
   const invalidateProfiles = useCallback(
@@ -100,23 +102,19 @@ export function usePersonalBrandingBrandIdentity(options?: {
 
   const clearExtractionJob = useCallback(() => {
     setPollExtractionJobId(null);
-    setPollTimedOut(false);
     pollStartedAtRef.current = null;
   }, []);
 
   const extractionJob = useQuery({
     queryKey: queryKeys.personalBranding.extractions.detail(pollExtractionJobId ?? ''),
     queryFn: () => personalBrandingService.getProfileExtraction(pollExtractionJobId!),
-    enabled: Boolean(pollExtractionJobId) && !pollTimedOut,
+    enabled: Boolean(pollExtractionJobId),
     refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
     refetchInterval: (query) => {
       const data = query.state.data;
       const status = data?.status;
       if (!status || TERMINAL_EXTRACTION.includes(status)) return false;
-      if (pollStartedAtRef.current && Date.now() - pollStartedAtRef.current > MAX_CLIENT_POLL_MS) {
-        return false;
-      }
       return data?.pollAfterMs ?? 2000;
     },
   });
@@ -128,6 +126,12 @@ export function usePersonalBrandingBrandIdentity(options?: {
       if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Failed to load rules');
       return res.data;
     },
+  });
+
+  const platformRuleCatalog = useQuery({
+    queryKey: queryKeys.personalBranding.platformRules.catalog(),
+    queryFn: () => personalBrandingService.getPlatformRuleCatalog(),
+    staleTime: 1000 * 60 * 60,
   });
 
   const createProfile = useMutation({
@@ -163,7 +167,6 @@ export function usePersonalBrandingBrandIdentity(options?: {
       void invalidateProfiles();
       setSelectedProfileId(accepted.profileId);
       setPollExtractionJobId(accepted.jobId);
-      setPollTimedOut(false);
       pollStartedAtRef.current = Date.now();
     },
   });
@@ -180,7 +183,6 @@ export function usePersonalBrandingBrandIdentity(options?: {
       void invalidateProfiles();
       void invalidateProfileDetail(accepted.profileId);
       setPollExtractionJobId(accepted.jobId);
-      setPollTimedOut(false);
       pollStartedAtRef.current = Date.now();
     },
   });
@@ -233,21 +235,15 @@ export function usePersonalBrandingBrandIdentity(options?: {
   useEffect(() => {
     if (pollExtractionJobId) {
       pollStartedAtRef.current = Date.now();
-      setPollTimedOut(false);
     }
   }, [pollExtractionJobId]);
 
   useEffect(() => {
     const detail = profileDetail.data;
-    if (
-      detail?.extractionJobId &&
-      !pollExtractionJobId &&
-      !pollTimedOut &&
-      detail.status === 'extracting'
-    ) {
+    if (detail?.extractionJobId && !pollExtractionJobId && detail.status === 'extracting') {
       setPollExtractionJobId(detail.extractionJobId);
     }
-  }, [profileDetail.data, pollExtractionJobId, pollTimedOut]);
+  }, [profileDetail.data, pollExtractionJobId]);
 
   useEffect(() => {
     const status = extractionJob.data?.status;
@@ -268,15 +264,6 @@ export function usePersonalBrandingBrandIdentity(options?: {
     selectedProfileId,
   ]);
 
-  useEffect(() => {
-    if (!pollExtractionJobId || pollTimedOut) return;
-    const status = extractionJob.data?.status;
-    if (status && TERMINAL_EXTRACTION.includes(status)) return;
-    if (pollStartedAtRef.current && Date.now() - pollStartedAtRef.current > MAX_CLIENT_POLL_MS) {
-      setPollTimedOut(true);
-    }
-  }, [extractionJob.dataUpdatedAt, extractionJob.data?.status, pollExtractionJobId, pollTimedOut]);
-
   return {
     profiles,
     profileDetail,
@@ -284,11 +271,11 @@ export function usePersonalBrandingBrandIdentity(options?: {
     profileOutputTests,
     extractionJob,
     platformRules,
+    platformRuleCatalog,
     selectedProfileId,
     setSelectedProfileId,
     pollExtractionJobId,
     setPollExtractionJobId,
-    pollTimedOut,
     clearExtractionJob,
     createProfile,
     updateProfile,

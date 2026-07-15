@@ -6,6 +6,7 @@ import type { ProfileExtractionJob } from '@/types/api/personal-branding.dto';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
 import {
   EXTRACTION_PIPELINE_STEPS,
+  extractionIsTerminal,
   extractionProgressPercent,
   extractionStatusLabel,
 } from './profile-extraction-progress';
@@ -13,18 +14,18 @@ import {
 interface ProfileExtractionProgressModalProps {
   isOpen: boolean;
   job: ProfileExtractionJob | undefined;
-  pollTimedOut: boolean;
   onClose: () => void;
+  failedSourcesPage?: number;
+  onFailedSourcesPageChange?: (page: number) => void;
 }
 
 export default function ProfileExtractionProgressModal({
   isOpen,
   job,
-  pollTimedOut,
   onClose,
 }: ProfileExtractionProgressModalProps) {
   const status = job?.status;
-  const isTerminal = status === 'succeeded' || status === 'failed';
+  const isTerminal = extractionIsTerminal(job);
   const percent = extractionProgressPercent(job);
   const currentStage = job?.stage ?? (status === 'queued' ? 'queued' : 'reading_sources');
   const currentStepIndex = EXTRACTION_PIPELINE_STEPS.findIndex((step) => step.id === currentStage);
@@ -65,13 +66,23 @@ export default function ProfileExtractionProgressModal({
           {job?.sourceCount != null ? (
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Sources processed: {job.processedSourceCount ?? 0}/{job.sourceCount}
+              {job.succeededSourceCount != null ? ` · succeeded ${job.succeededSourceCount}` : ''}
+              {job.failedSourceCount != null && job.failedSourceCount > 0
+                ? ` · failed ${job.failedSourceCount}`
+                : ''}
+              {job.processedChunkCount != null && job.totalChunkCount != null
+                ? ` · chunks ${job.processedChunkCount}/${job.totalChunkCount}`
+                : ''}
             </p>
           ) : null}
         </div>
 
         <ol className="space-y-2" aria-label="Extraction pipeline steps">
           {EXTRACTION_PIPELINE_STEPS.map((step, index) => {
-            const isComplete = status === 'succeeded' ? true : index < currentStepIndex;
+            const isComplete =
+              status === 'succeeded' || status === 'succeeded_with_warnings'
+                ? true
+                : index < currentStepIndex;
             const isCurrent = !isTerminal && step.id === currentStage;
             const isFailed = status === 'failed' && isCurrent;
 
@@ -107,10 +118,10 @@ export default function ProfileExtractionProgressModal({
           })}
         </ol>
 
-        {pollTimedOut && !isTerminal ? (
-          <p className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100">
-            Extraction is taking longer than expected. You can close this dialog and refresh later
-            to check status.
+        {status === 'succeeded_with_warnings' ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+            Some files could not be analyzed. The profile was built from successful sources. Review
+            failed files in the job details panel.
           </p>
         ) : null}
 
@@ -123,7 +134,9 @@ export default function ProfileExtractionProgressModal({
         <DialogFooter className="justify-end border-t-0 pt-0">
           {isTerminal ? (
             <Button type="button" size="sm" onClick={onClose}>
-              {status === 'succeeded' ? 'View profile' : 'Close'}
+              {status === 'succeeded' || status === 'succeeded_with_warnings'
+                ? 'View profile'
+                : 'Close'}
             </Button>
           ) : (
             <Button type="button" size="sm" variant="secondary" onClick={onClose}>

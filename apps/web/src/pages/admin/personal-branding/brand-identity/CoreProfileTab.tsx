@@ -4,6 +4,7 @@ import Button from '@/components/atoms/Button';
 import { FormInput } from '@/components/atoms/FormInput';
 import Dialog from '@/components/molecules/Dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useReconFeed } from '@/hooks/useReconFeed';
 import type { usePersonalBrandingBrandIdentity } from '@/hooks/usePersonalBrandingBrandIdentity';
 import StringListEditor, { FormTextarea, ToneMetricsEditor } from './BrandIdentityFormFields';
 import ProfileExtractionDialog from './ProfileExtractionDialog';
@@ -418,6 +419,7 @@ function ProfileEditor({
 
 export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
   const { showToast, ToastContainer } = useToast();
+  const { settings: reconSettings } = useReconFeed();
   const [extractionOpen, setExtractionOpen] = useState(false);
   const [extractionProgressOpen, setExtractionProgressOpen] = useState(false);
   const [localDraft, setLocalDraft] = useState<BrandProfile | null>(null);
@@ -430,7 +432,6 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
     profileVersions,
     profileOutputTests,
     extractionJob,
-    pollTimedOut,
     clearExtractionJob,
     selectedProfileId,
     setSelectedProfileId,
@@ -508,7 +509,10 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
   };
 
   const extractionInProgress =
-    Boolean(extractionStatus) && extractionStatus !== 'succeeded' && extractionStatus !== 'failed';
+    Boolean(extractionStatus) &&
+    extractionStatus !== 'succeeded' &&
+    extractionStatus !== 'succeeded_with_warnings' &&
+    extractionStatus !== 'failed';
 
   useEffect(() => {
     if (extractionInProgress) {
@@ -572,12 +576,6 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
         {extractionInProgress ? (
           <ExtractionProgressBanner job={extractionJob.data} label={extractionLabel} />
         ) : null}
-        {pollTimedOut && extractionStatus !== 'succeeded' && extractionStatus !== 'failed' && (
-          <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100">
-            Extraction is taking longer than expected. Refresh the page to resume polling, or retry
-            with fewer files.
-          </div>
-        )}
         {extractionStatus === 'failed' && extractionError && (
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40">
             <p>Extraction failed: {extractionError}</p>
@@ -722,6 +720,7 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
         isOpen={extractionOpen}
         onClose={() => setExtractionOpen(false)}
         isSubmitting={startExtraction.isPending}
+        hasRapidApiKey={reconSettings.data?.hasRapidApiKey ?? false}
         onSubmit={async (body) => {
           await startExtraction.mutateAsync(body);
           setExtractionOpen(false);
@@ -735,10 +734,10 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
           extractionProgressOpen &&
           (extractionInProgress ||
             extractionStatus === 'succeeded' ||
+            extractionStatus === 'succeeded_with_warnings' ||
             extractionStatus === 'failed')
         }
         job={extractionJob.data}
-        pollTimedOut={pollTimedOut}
         onClose={() => {
           setExtractionProgressOpen(false);
           clearExtractionJob();

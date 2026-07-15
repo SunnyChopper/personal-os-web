@@ -26,12 +26,7 @@ describe('ProfileExtractionProgressModal', () => {
     const errorMessage = 'OpenAI API error: invalid_api_key';
 
     render(
-      <ProfileExtractionProgressModal
-        isOpen
-        job={makeFailedJob(errorMessage)}
-        pollTimedOut={false}
-        onClose={onClose}
-      />
+      <ProfileExtractionProgressModal isOpen job={makeFailedJob(errorMessage)} onClose={onClose} />
     );
 
     expect(screen.getByText('Extraction failed')).toBeInTheDocument();
@@ -47,7 +42,6 @@ describe('ProfileExtractionProgressModal', () => {
       <ProfileExtractionProgressModal
         isOpen
         job={makeFailedJob('Provider unavailable')}
-        pollTimedOut={false}
         onClose={onClose}
       />
     );
