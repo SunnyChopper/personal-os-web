@@ -18,6 +18,7 @@ import type {
   ProactiveEmailTestResult,
   NotificationWebhookConfig,
   RecoveryNotificationsConfig,
+  RolodexFollowUpNotificationsConfig,
   ProactiveWebhookTestResult,
   ProactiveBrainstormResult,
   ProactiveAutomationRunsList,
@@ -963,6 +964,23 @@ class ApiClient {
     body: RecoveryNotificationsConfig
   ): Promise<ApiResponse<RecoveryNotificationsConfig>> {
     return this.put<RecoveryNotificationsConfig>('/preferences/recovery-notifications', body);
+  }
+
+  async getRolodexFollowUpNotifications(): Promise<
+    ApiResponse<RolodexFollowUpNotificationsConfig>
+  > {
+    return this.get<RolodexFollowUpNotificationsConfig>(
+      '/preferences/rolodex-follow-up-notifications'
+    );
+  }
+
+  async setRolodexFollowUpNotifications(
+    body: RolodexFollowUpNotificationsConfig
+  ): Promise<ApiResponse<RolodexFollowUpNotificationsConfig>> {
+    return this.put<RolodexFollowUpNotificationsConfig>(
+      '/preferences/rolodex-follow-up-notifications',
+      body
+    );
   }
 
   async getPreferencesWeeklyReviewDay(): Promise<ApiResponse<{ weeklyReviewDay: number }>> {

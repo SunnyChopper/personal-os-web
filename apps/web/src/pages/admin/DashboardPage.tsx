@@ -27,6 +27,7 @@ import {
   formatHiddenActiveProjectsLabel,
   getActiveProjectsWidgetView,
 } from '@/lib/growth-system/dashboard-active-projects';
+import type { Task } from '@/types/growth-system';
 
 interface StatCardProps {
   title: string;
@@ -77,6 +78,7 @@ const StatCard = ({ title, value, icon, link, description, isLoading = false }: 
 
 export default function DashboardPage() {
   const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(false);
+  const [topTasksForDay, setTopTasksForDay] = useState<Task[]>([]);
   const { isLeisureMode } = useMode();
   const { status: backendStatus } = useBackendStatus();
 
@@ -243,7 +245,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <DailyPlanningAssistant onStartDay={() => setIsLaunchpadOpen(true)} />
+        <DailyPlanningAssistant
+          onTopTasksChange={setTopTasksForDay}
+          onStartDay={() => setIsLaunchpadOpen(true)}
+        />
         {!isLeisureMode && (
           <GoalsDashboardWidget
             goals={goals}
@@ -256,7 +261,11 @@ export default function DashboardPage() {
         {!isLeisureMode && <StaleVelocityAdvisoryCard />}
       </div>
 
-      <MorningLaunchpad isOpen={isLaunchpadOpen} onClose={() => setIsLaunchpadOpen(false)} />
+      <MorningLaunchpad
+        isOpen={isLaunchpadOpen}
+        onClose={() => setIsLaunchpadOpen(false)}
+        topTasks={topTasksForDay}
+      />
 
       {!isLeisureMode ? (
         <div className="bg-white dark:bg-gray-800 p-5 rounded-lg border border-gray-200 dark:border-gray-700">
