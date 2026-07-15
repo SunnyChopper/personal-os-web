@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { CreatorConnection } from '@/types/api/personal-branding.dto';
 import type { useRolodex } from '@/hooks/useRolodex';
 import ConnectionEditorDialog from './ConnectionEditorDialog';
+import FollowUpQuickEditor from './FollowUpQuickEditor';
 import ProfileLinkBadge from './ProfileLinkBadge';
 import RelationshipPriorityBadge from './RelationshipPriorityBadge';
 import RelationshipStageBadge from './RelationshipStageBadge';
@@ -119,7 +120,27 @@ export default function ConnectionDirectoryTab({ rolodex }: ConnectionDirectoryT
                         </p>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3">{formatDate(connection.nextFollowUpAt)}</td>
+                    <td className="px-4 py-3">
+                      <FollowUpQuickEditor
+                        connection={connection}
+                        isSaving={rolodex.updateConnection.isPending}
+                        onSave={async (body) => {
+                          try {
+                            await rolodex.updateConnection.mutateAsync({
+                              id: connection.id,
+                              body,
+                            });
+                            showToast({ type: 'success', title: 'Follow-up updated' });
+                          } catch (err) {
+                            showToast({
+                              type: 'error',
+                              title: err instanceof Error ? err.message : 'Update failed',
+                            });
+                            throw err;
+                          }
+                        }}
+                      />
+                    </td>
                     <td className="px-4 py-3">{formatDate(connection.lastInteractedAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">

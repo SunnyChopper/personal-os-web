@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Play, Radar } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useReconFeed } from '@/hooks/useReconFeed';
+import { extractErrorMessage } from '@/lib/react-query/error-utils';
 import {
   RECON_POST_STATUS_LABELS,
   RECON_RECOMMENDED_ACTION_LABELS,
@@ -174,6 +175,13 @@ export default function ReconFeedTab() {
   const { showToast, ToastContainer } = useToast();
   const settings = recon.settings.data;
 
+  const loadError = useMemo(() => {
+    const queries = [recon.settings, recon.posts, recon.followSuggestions, recon.runs];
+    const failed = queries.find((q) => q.isError);
+    if (!failed?.error) return null;
+    return extractErrorMessage(failed.error, 'Failed to load Recon Feed');
+  }, [recon.settings, recon.posts, recon.followSuggestions, recon.runs]);
+
   const [enabled, setEnabled] = useState(true);
   const [minScore, setMinScore] = useState(0.5);
   const [maxPosts, setMaxPosts] = useState(5);
@@ -222,6 +230,14 @@ export default function ReconFeedTab() {
 
   return (
     <div className="space-y-8">
+      {loadError ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          {loadError}
+        </div>
+      ) : null}
       <PageCard className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

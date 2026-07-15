@@ -27,6 +27,7 @@ interface RolodexPrompterDrawerProps {
   profileId?: string | null;
   isLoading?: boolean;
   vectors: RolodexResponseVectorItem[] | null;
+  initialCreatorText?: string;
   onClose: () => void;
   onGenerate: (payload: {
     creatorText: string;
@@ -42,6 +43,7 @@ export default function RolodexPrompterDrawer({
   profileId,
   isLoading = false,
   vectors,
+  initialCreatorText = '',
   onClose,
   onGenerate,
   onUseVector,
@@ -49,6 +51,13 @@ export default function RolodexPrompterDrawer({
   const [creatorText, setCreatorText] = useState('');
   const [platform, setPlatform] = useState<BrandPlatform>('x');
   const [interactionIntent, setInteractionIntent] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setCreatorText(initialCreatorText);
+    setPlatform('x');
+    setInteractionIntent('');
+  }, [open, initialCreatorText]);
 
   useEffect(() => {
     if (!open) return;

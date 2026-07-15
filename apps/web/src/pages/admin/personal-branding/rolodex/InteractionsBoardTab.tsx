@@ -1,17 +1,20 @@
 import { useMemo, useState } from 'react';
-import { CalendarClock, MessageSquarePlus, Sparkles } from 'lucide-react';
+import { CalendarClock, MessageSquarePlus, Search, Sparkles } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { useToast } from '@/hooks/use-toast';
 import type { useRolodex } from '@/hooks/useRolodex';
 import type {
+  ContentOpportunity,
+  ContentOpportunitySearchResult,
   CreatorConnection,
   RolodexResponseVectorItem,
 } from '@/types/api/personal-branding.dto';
+import ContentOpportunityDrawer from './ContentOpportunityDrawer';
 import LogInteractionDialog from './LogInteractionDialog';
 import ProfileLinkBadge from './ProfileLinkBadge';
 import RelationshipPriorityBadge from './RelationshipPriorityBadge';
 import RolodexPrompterDrawer from './RolodexPrompterDrawer';
-import { followUpSortKey } from './rolodex-platform';
+import { followUpSortKey, hasXHandle } from './rolodex-platform';
 import {
   PageCard,
   emptyStateCardClassName,
@@ -70,18 +73,68 @@ export default function InteractionsBoardTab({
     connection: CreatorConnection;
     creatorText: string;
     vector: RolodexResponseVectorItem;
+    evidenceUrl?: string | null;
+    platform?: string | null;
+    platformPostId?: string | null;
+    channel?: string | null;
   } | null>(null);
+  const [contentSearchConnection, setContentSearchConnection] = useState<CreatorConnection | null>(
+    null
+  );
+  const [contentSearchResult, setContentSearchResult] =
+    useState<ContentOpportunitySearchResult | null>(null);
 
   const openCheckIn = (connection: CreatorConnection) => {
     setPrompterConnection(null);
     setVectors(null);
+    setContentSearchConnection(null);
+    setContentSearchResult(null);
     setCheckInConnection(connection);
   };
 
-  const openPrompter = (connection: CreatorConnection) => {
+  const openPrompter = (connection: CreatorConnection, creatorText = '') => {
     setCheckInConnection(null);
+    setContentSearchConnection(null);
+    setContentSearchResult(null);
     setPrompterConnection(connection);
     setVectors(null);
+    if (creatorText) {
+      setPendingLog({
+        connection,
+        creatorText,
+        vector: {
+          id: 'content-opportunity',
+          label: 'From search',
+          angle: 'content-opportunity',
+          draftText: '',
+          rationale: '',
+        },
+      });
+    } else {
+      setPendingLog(null);
+    }
+  };
+
+  const openContentSearch = async (connection: CreatorConnection) => {
+    setCheckInConnection(null);
+    setPrompterConnection(null);
+    setVectors(null);
+    setPendingLog(null);
+    setContentSearchConnection(connection);
+    setContentSearchResult(null);
+    try {
+      const result = await rolodex.searchContentOpportunity.mutateAsync({
+        connectionId: connection.id,
+        body: { platform: 'x', profileId: selectedProfileId ?? undefined },
+      });
+      setContentSearchResult(result);
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Content search failed',
+      });
+      setContentSearchConnection(null);
+    }
   };
 
   const handleGenerate = async (payload: {
@@ -114,11 +167,56 @@ export default function InteractionsBoardTab({
     setCheckInConnection(prompterConnection);
   };
 
+  const handleDraftFromOpportunity = (opportunity: ContentOpportunity) => {
+    if (!contentSearchConnection) return;
+    setContentSearchConnection(null);
+    setContentSearchResult(null);
+    openPrompter(contentSearchConnection, opportunity.postText);
+  };
+
+  const handleCheckInFromOpportunity = (opportunity: ContentOpportunity) => {
+    if (!contentSearchConnection) return;
+    const connection = contentSearchConnection;
+    setContentSearchConnection(null);
+    setContentSearchResult(null);
+    setPendingLog({
+      connection,
+      creatorText: opportunity.postText,
+      vector: {
+        id: 'content-opportunity',
+        label: 'From search',
+        angle: 'content-opportunity',
+        draftText: '',
+        rationale: '',
+      },
+      evidenceUrl: opportunity.postUrl ?? null,
+      platform: opportunity.platform,
+      platformPostId: opportunity.platformPostId,
+      channel: 'x',
+    });
+    setCheckInConnection(connection);
+  };
+
+  const handleDismissOpportunity = async (opportunity: ContentOpportunity) => {
+    try {
+      await rolodex.updateContentOpportunity.mutateAsync({
+        opportunityId: opportunity.id,
+        status: 'DISMISSED',
+      });
+      showToast({ type: 'success', title: 'Suggestion dismissed' });
+      setContentSearchConnection(null);
+      setContentSearchResult(null);
+    } catch (err) {
+      showToast({ type: 'error', title: err instanceof Error ? err.message : 'Dismiss failed' });
+    }
+  };
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-600 dark:text-gray-400">
-        High-value connections sorted by next follow-up, then staleness. Check in with evidence or
-        open the prompter for Brand Identity-aware reply vectors.
+        High-value connections sorted by next follow-up, then staleness. Check in with evidence,
+        find recent X content to engage with, or open the prompter for Brand Identity-aware reply
+        vectors.
       </p>
 
       {sorted.length === 0 ? (
@@ -127,63 +225,83 @@ export default function InteractionsBoardTab({
         </PageCard>
       ) : (
         <ul className="grid gap-3">
-          {sorted.map((connection) => (
-            <li
-              key={connection.id}
-              className={cn(
-                gridItemCardClassName,
-                'flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between'
-              )}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-medium text-gray-900 dark:text-white">{connection.name}</h3>
-                  <RelationshipPriorityBadge connection={connection} />
+          {sorted.map((connection) => {
+            const xEnabled = hasXHandle(connection);
+            const isSearching =
+              rolodex.searchContentOpportunity.isPending &&
+              contentSearchConnection?.id === connection.id;
+            return (
+              <li
+                key={connection.id}
+                className={cn(
+                  gridItemCardClassName,
+                  'flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between'
+                )}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-medium text-gray-900 dark:text-white">{connection.name}</h3>
+                    <RelationshipPriorityBadge connection={connection} />
+                  </div>
+                  <div className="mt-1">
+                    <ProfileLinkBadge connection={connection} />
+                  </div>
+                  {connection.desiredOutcome?.trim() ? (
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                      {connection.desiredOutcome}
+                    </p>
+                  ) : null}
+                  {connection.nextAction?.trim() ? (
+                    <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                      Next action: {connection.nextAction}
+                    </p>
+                  ) : null}
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
+                    <span className="inline-flex items-center gap-1">
+                      <CalendarClock className="size-3.5" />
+                      Follow-up: {formatFollowUp(connection.nextFollowUpAt)}
+                    </span>
+                    <span>
+                      Last interacted: {formatLastInteracted(connection.lastInteractedAt)}
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-1">
-                  <ProfileLinkBadge connection={connection} />
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={!xEnabled}
+                    title={xEnabled ? undefined : 'Add an X handle in Connection Directory'}
+                    onClick={() => void openContentSearch(connection)}
+                    className="inline-flex items-center gap-1.5"
+                  >
+                    <Search className="size-4" />
+                    {isSearching ? 'Searching…' : 'Find content'}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => openCheckIn(connection)}
+                    className="inline-flex items-center gap-1.5"
+                  >
+                    <MessageSquarePlus className="size-4" />
+                    Check in
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => openPrompter(connection)}
+                    className="inline-flex items-center gap-1.5"
+                  >
+                    <Sparkles className="size-4" />
+                    Prompter
+                  </Button>
                 </div>
-                {connection.desiredOutcome?.trim() ? (
-                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                    {connection.desiredOutcome}
-                  </p>
-                ) : null}
-                {connection.nextAction?.trim() ? (
-                  <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-                    Next action: {connection.nextAction}
-                  </p>
-                ) : null}
-                <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
-                  <span className="inline-flex items-center gap-1">
-                    <CalendarClock className="size-3.5" />
-                    Follow-up: {formatFollowUp(connection.nextFollowUpAt)}
-                  </span>
-                  <span>Last interacted: {formatLastInteracted(connection.lastInteractedAt)}</span>
-                </div>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => openCheckIn(connection)}
-                  className="inline-flex items-center gap-1.5"
-                >
-                  <MessageSquarePlus className="size-4" />
-                  Check in
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => openPrompter(connection)}
-                  className="inline-flex items-center gap-1.5"
-                >
-                  <Sparkles className="size-4" />
-                  Prompter
-                </Button>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -194,9 +312,16 @@ export default function InteractionsBoardTab({
           setPendingLog(null);
         }}
         connectionName={checkInConnection?.name ?? ''}
+        followUpCadenceDays={checkInConnection?.followUpCadenceDays}
         isSubmitting={rolodex.logInteraction.isPending}
         initialCreatorText={pendingLog?.creatorText}
-        initialResponseVectorId={pendingLog?.vector.id}
+        initialResponseVectorId={
+          pendingLog?.vector.id === 'content-opportunity' ? undefined : pendingLog?.vector.id
+        }
+        initialEvidenceUrl={pendingLog?.evidenceUrl}
+        initialChannel={pendingLog?.channel}
+        initialPlatform={pendingLog?.platform}
+        initialPlatformPostId={pendingLog?.platformPostId}
         onSubmit={async (body) => {
           if (!checkInConnection) return;
           try {
@@ -216,12 +341,29 @@ export default function InteractionsBoardTab({
         profileId={selectedProfileId}
         isLoading={rolodex.generateResponseVectors.isPending}
         vectors={vectors}
+        initialCreatorText={pendingLog?.creatorText}
         onClose={() => {
           setPrompterConnection(null);
           setVectors(null);
+          setPendingLog(null);
         }}
         onGenerate={handleGenerate}
         onUseVector={handleUseVector}
+      />
+
+      <ContentOpportunityDrawer
+        open={Boolean(contentSearchConnection)}
+        connection={contentSearchConnection}
+        isLoading={rolodex.searchContentOpportunity.isPending}
+        result={contentSearchResult}
+        onClose={() => {
+          setContentSearchConnection(null);
+          setContentSearchResult(null);
+        }}
+        onDraftReply={handleDraftFromOpportunity}
+        onLogCheckIn={handleCheckInFromOpportunity}
+        onDismiss={handleDismissOpportunity}
+        isDismissing={rolodex.updateContentOpportunity.isPending}
       />
 
       <ToastContainer />

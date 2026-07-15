@@ -7,6 +7,7 @@ import type {
   CreateCreatorConnectionInput,
   CreateTrackingMetricInput,
   RolodexResponseVectorInput,
+  ContentOpportunitySearchInput,
   UpdateCreatorConnectionInput,
   UpdateTrackingMetricInput,
 } from '@/types/api/personal-branding.dto';
@@ -115,6 +116,31 @@ export function useRolodex() {
       personalBrandingService.generateRolodexResponseVectors(body),
   });
 
+  const searchContentOpportunity = useMutation({
+    mutationFn: ({
+      connectionId,
+      body,
+    }: {
+      connectionId: string;
+      body?: ContentOpportunitySearchInput;
+    }) => personalBrandingService.searchConnectionContentOpportunity(connectionId, body),
+  });
+
+  const updateContentOpportunity = useMutation({
+    mutationFn: ({
+      opportunityId,
+      status,
+    }: {
+      opportunityId: string;
+      status: 'DISMISSED' | 'ACTIONED';
+    }) => personalBrandingService.updateContentOpportunity(opportunityId, status),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.contentOpportunities.all(),
+      });
+    },
+  });
+
   return {
     connections,
     interactionsBoard,
@@ -126,5 +152,7 @@ export function useRolodex() {
     createTrackingMetric,
     updateTrackingMetric,
     generateResponseVectors,
+    searchContentOpportunity,
+    updateContentOpportunity,
   };
 }

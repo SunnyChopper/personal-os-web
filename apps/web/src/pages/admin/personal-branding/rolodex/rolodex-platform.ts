@@ -6,6 +6,7 @@ import type {
 } from '@/types/api/personal-branding.dto';
 import type { LucideIcon } from 'lucide-react';
 import { AtSign, Briefcase, Camera, Globe, Mail, Newspaper, Video } from 'lucide-react';
+import { addCalendarDays, localCalendarDate } from '@/lib/date/local-calendar';
 
 export type RolodexPlatformId =
   | 'linkedin'
@@ -346,4 +347,49 @@ export function followUpSortKey(connection: CreatorConnection): number {
   }
   if (!connection.lastInteractedAt) return Number.MAX_SAFE_INTEGER;
   return Date.now() - new Date(connection.lastInteractedAt).getTime();
+}
+
+export function isFollowUpOverdue(nextFollowUpAt?: string | null, now: Date = new Date()): boolean {
+  if (!nextFollowUpAt) return false;
+  try {
+    return new Date(nextFollowUpAt).getTime() < now.getTime();
+  } catch {
+    return false;
+  }
+}
+
+export function toFollowUpDateInputValue(iso?: string | null): string {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toISOString().slice(0, 10);
+  } catch {
+    return '';
+  }
+}
+
+export function followUpDateInputToIso(dateInput: string): string | null {
+  const trimmed = dateInput.trim();
+  if (!trimmed) return null;
+  return new Date(`${trimmed}T12:00:00`).toISOString();
+}
+
+export function computeDefaultNextFollowUpDate(cadenceDays?: number | null): string {
+  const base = localCalendarDate();
+  if (!cadenceDays || cadenceDays < 1) return base;
+  return addCalendarDays(base, cadenceDays);
+}
+
+export function formatCadenceLabel(cadenceDays?: number | null): string | null {
+  if (!cadenceDays) return null;
+  const preset = ROLODEX_CADENCE_PRESETS.find((entry) => entry.days === cadenceDays);
+  return preset?.label ?? `Every ${cadenceDays} days`;
+}
+
+export function hasXHandle(connection: CreatorConnection): boolean {
+  const parsed = parseConnectionProfile(connection);
+  if (parsed.platformId === 'x' && parsed.handleOrUrl.trim()) {
+    return true;
+  }
+  const stored = connection.handles?.x?.trim() || connection.handles?.twitter?.trim();
+  return Boolean(stored);
 }
