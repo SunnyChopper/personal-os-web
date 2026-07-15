@@ -79,6 +79,7 @@ describe('SourceEditorDialog', () => {
       authQueryParamName: null,
       enabled: true,
       cadence: null,
+      cadenceIntervalHours: null,
       secretToken: 'rss-secret',
     });
   });
@@ -143,6 +144,8 @@ describe('SourceEditorDialog', () => {
       authQueryParamName: null,
       enabled: true,
       cadence: null,
+      cadenceIntervalHours: null,
+      secretToken: undefined,
       githubConfig: {
         owner: 'langchain-ai',
         repo: 'langgraph',
@@ -208,6 +211,7 @@ describe('SourceEditorDialog', () => {
       authQueryParamName: null,
       enabled: true,
       cadence: null,
+      cadenceIntervalHours: null,
     });
   });
 });

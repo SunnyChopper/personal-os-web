@@ -4,7 +4,10 @@ import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import type {
   CreateRadarSourceInput,
-  SaveRadarDiscoverySuggestionInput,
+  RadarDiscoveryCandidateFilters,
+  RadarDiscoveryRun,
+  RadarDiscoveryRunStatus,
+  StartRadarDiscoveryRunInput,
   UpdateRadarSettingsInput,
   UpdateRadarSourceInput,
 } from '@/types/api/personal-branding.dto';
@@ -20,7 +23,31 @@ export type RadarItemsListFilters = {
   includeFiltered?: boolean;
 };
 
+export type RadarDiscoveryCandidatesListFilters = RadarDiscoveryCandidateFilters & {
+  page?: number;
+  pageSize?: number;
+};
+
 const ACTIVE_RUN_STATUSES = new Set(['queued', 'running']);
+export const LIVE_RADAR_DISCOVERY_STATUSES = new Set<RadarDiscoveryRunStatus>([
+  'queued',
+  'running',
+  'pausing',
+  'cancelling',
+]);
+
+export function radarDiscoveryPollInterval(
+  run?: Pick<RadarDiscoveryRun, 'status' | 'pollAfterMs'> | null
+): number | false {
+  if (!run || !LIVE_RADAR_DISCOVERY_STATUSES.has(run.status)) return false;
+  return Math.max(1000, Math.min(run.pollAfterMs ?? 4000, 15000));
+}
+
+export function selectDefaultRadarDiscoveryRun(
+  runs: RadarDiscoveryRun[]
+): RadarDiscoveryRun | null {
+  return runs.find((run) => LIVE_RADAR_DISCOVERY_STATUSES.has(run.status)) ?? runs[0] ?? null;
+}
 
 /**
  * React Query bundle for Signal Radar settings, sources, and discovery.
@@ -48,6 +75,17 @@ export function useSignalRadar() {
     },
   });
 
+  const discoveryProfiles = useQuery({
+    queryKey: queryKeys.personalBranding.profiles.list(1, 100),
+    queryFn: async () => {
+      const res = await personalBrandingService.listProfiles(1, 100);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? 'Failed to load brand profiles');
+      }
+      return res.data;
+    },
+  });
+
   const updateSettings = useMutation({
     mutationFn: (body: UpdateRadarSettingsInput) =>
       personalBrandingService.updateRadarSettings(body),
@@ -68,6 +106,7 @@ export function useSignalRadar() {
       personalBrandingService.updateRadarSource(id, body),
     onSuccess: () => {
       void invalidateSources();
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarSuggestedCadences() });
     },
   });
 
@@ -79,34 +118,64 @@ export function useSignalRadar() {
   });
 
   const startDiscovery = useMutation({
-    mutationFn: () => personalBrandingService.startRadarDiscoveryRun(),
+    mutationFn: (body: StartRadarDiscoveryRunInput) =>
+      personalBrandingService.startRadarDiscoveryRun(body),
     onSuccess: (data) => {
-      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarDiscovery.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarDiscovery.lists() });
       qc.setQueryData(queryKeys.personalBranding.radarDiscovery.detail(data.runId), data);
     },
   });
 
-  const saveDiscoverySuggestion = useMutation({
-    mutationFn: (body: SaveRadarDiscoverySuggestionInput) =>
-      personalBrandingService.saveRadarDiscoverySuggestion(body),
-    onSuccess: () => {
+  const controlDiscovery = useMutation({
+    mutationFn: ({ runId, action }: { runId: string; action: 'pause' | 'resume' | 'cancel' }) => {
+      if (action === 'pause') return personalBrandingService.pauseRadarDiscoveryRun(runId);
+      if (action === 'resume') return personalBrandingService.resumeRadarDiscoveryRun(runId);
+      return personalBrandingService.cancelRadarDiscoveryRun(runId);
+    },
+    onSuccess: (run) => {
+      qc.setQueryData(queryKeys.personalBranding.radarDiscovery.detail(run.runId), run);
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarDiscovery.lists() });
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarDiscovery.candidates(run.runId),
+      });
+    },
+  });
+
+  const saveDiscoveryCandidate = useMutation({
+    mutationFn: ({ runId, candidateId }: { runId: string; candidateId: string }) =>
+      personalBrandingService.saveRadarDiscoveryCandidate(runId, candidateId),
+    onSuccess: (_source, { runId }) => {
       void invalidateSources();
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarDiscovery.candidates(runId),
+      });
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarDiscovery.detail(runId),
+      });
     },
   });
 
   return {
     settings,
     sources,
+    discoveryProfiles,
     updateSettings,
     createSource,
     updateSource,
     deleteSource,
     startDiscovery,
-    saveDiscoverySuggestion,
+    controlDiscovery,
+    saveDiscoveryCandidate,
+    suggestedCadences: useQuery({
+      queryKey: queryKeys.personalBranding.radarSuggestedCadences(),
+      queryFn: () => personalBrandingService.getRadarSuggestedCadences(),
+      enabled: false,
+    }),
   };
 }
 
 export function useSignalRadarItems(filters: RadarItemsListFilters = {}) {
+  const qc = useQueryClient();
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 50;
   const includeFiltered = filters.includeFiltered ?? false;
@@ -120,7 +189,15 @@ export function useSignalRadarItems(filters: RadarItemsListFilters = {}) {
     },
   });
 
-  return { items };
+  const updateItemRelevance = useMutation({
+    mutationFn: ({ itemId, relevant }: { itemId: string; relevant: boolean }) =>
+      personalBrandingService.updateRadarItemRelevance(itemId, relevant),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarItems.all() });
+    },
+  });
+
+  return { items, updateItemRelevance };
 }
 
 export function useSignalRadarRuns(filters: RadarRunsListFilters = {}) {
@@ -175,11 +252,66 @@ export function useSignalRadarDiscoveryRun(runId: string | null) {
     queryKey: queryKeys.personalBranding.radarDiscovery.detail(runId ?? ''),
     queryFn: () => personalBrandingService.getRadarDiscoveryRun(runId!),
     enabled: Boolean(runId),
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status && ACTIVE_RUN_STATUSES.has(status) ? 4000 : false;
-    },
+    refetchInterval: (query) => radarDiscoveryPollInterval(query.state.data),
   });
 
   return { detail };
+}
+
+export function useSignalRadarDiscoveryRuns(filters: RadarRunsListFilters = {}) {
+  const page = filters.page ?? 1;
+  const pageSize = filters.pageSize ?? 20;
+  const runs = useQuery({
+    queryKey: queryKeys.personalBranding.radarDiscovery.list(page, pageSize),
+    queryFn: async () => {
+      const res = await personalBrandingService.listRadarDiscoveryRuns(page, pageSize);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? 'Failed to load discovery runs');
+      }
+      return res.data;
+    },
+    refetchInterval: (query) => {
+      const activeRun = (query.state.data?.data ?? []).find((run) =>
+        LIVE_RADAR_DISCOVERY_STATUSES.has(run.status)
+      );
+      return radarDiscoveryPollInterval(activeRun);
+    },
+  });
+  return { runs };
+}
+
+export function useSignalRadarDiscoveryCandidates(
+  runId: string | null,
+  filters: RadarDiscoveryCandidatesListFilters = {},
+  run?: RadarDiscoveryRun | null
+) {
+  const page = filters.page ?? 1;
+  const pageSize = filters.pageSize ?? 20;
+  const queryFilters: RadarDiscoveryCandidateFilters = {
+    status: filters.status,
+    verdict: filters.verdict,
+  };
+  const candidates = useQuery({
+    queryKey: queryKeys.personalBranding.radarDiscovery.candidateList(
+      runId ?? '',
+      page,
+      pageSize,
+      queryFilters
+    ),
+    queryFn: async () => {
+      const res = await personalBrandingService.listRadarDiscoveryCandidates(
+        runId!,
+        page,
+        pageSize,
+        queryFilters
+      );
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? 'Failed to load discovery candidates');
+      }
+      return res.data;
+    },
+    enabled: Boolean(runId),
+    refetchInterval: () => radarDiscoveryPollInterval(run),
+  });
+  return { candidates };
 }
