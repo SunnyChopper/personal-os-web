@@ -3,7 +3,8 @@ import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
 import { Select } from '@/components/atoms/Select';
 import { Textarea } from '@/components/atoms/Textarea';
-import { formFieldClassName } from '@/components/atoms/FormInput';
+import { FormInput } from '@/components/atoms/FormInput';
+import { FormField } from '@/components/molecules/FormField';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
 import type {
   BrandPlatform,
@@ -73,32 +74,35 @@ export default function ContentTemplateFormModal({
       size="lg"
     >
       <fieldset disabled={isSubmitting} className="space-y-4 disabled:opacity-60">
-        <label className="block text-sm text-gray-700 dark:text-gray-300">
-          Title
-          <input
+        <FormField label="Title" htmlFor="content-template-title" required>
+          <FormInput
+            id="content-template-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className={`${formFieldClassName} mt-1`}
+            className="w-full"
             placeholder="e.g. Problem → Insight → CTA blog"
+            required
           />
-        </label>
-        <label className="block text-sm text-gray-700 dark:text-gray-300">
-          Description
+        </FormField>
+
+        <FormField label="Description" htmlFor="content-template-description">
           <Textarea
+            id="content-template-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
-            className={`${formFieldClassName} mt-1 resize-y`}
+            className="w-full resize-y"
             placeholder="When to use this template"
           />
-        </label>
+        </FormField>
+
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="block text-sm text-gray-700 dark:text-gray-300">
-            Content type
+          <FormField label="Content type" htmlFor="content-template-content-type">
             <Select
+              id="content-template-content-type"
               value={contentType}
               onChange={(e) => setContentType(e.target.value as ContentType | '')}
-              className={`${formFieldClassName} mt-1`}
+              className="w-full"
             >
               <option value="">Any</option>
               {CONTENT_TYPES.map((type) => (
@@ -107,13 +111,14 @@ export default function ContentTemplateFormModal({
                 </option>
               ))}
             </Select>
-          </label>
-          <label className="block text-sm text-gray-700 dark:text-gray-300">
-            Platform
+          </FormField>
+
+          <FormField label="Platform" htmlFor="content-template-platform">
             <Select
+              id="content-template-platform"
               value={platform}
               onChange={(e) => setPlatform(e.target.value as BrandPlatform | '')}
-              className={`${formFieldClassName} mt-1`}
+              className="w-full"
             >
               <option value="">Any</option>
               {PLATFORMS.map((p) => (
@@ -122,27 +127,31 @@ export default function ContentTemplateFormModal({
                 </option>
               ))}
             </Select>
-          </label>
+          </FormField>
         </div>
-        <label className="block text-sm text-gray-700 dark:text-gray-300">
-          Template body
+
+        <FormField label="Template body" htmlFor="content-template-body" required>
           <Textarea
+            id="content-template-body"
             value={templateBody}
             onChange={(e) => setTemplateBody(e.target.value)}
             rows={10}
-            className={`${formFieldClassName} mt-1 resize-y font-mono text-xs`}
+            className="w-full resize-y font-mono text-xs"
             placeholder={'# [Title]\n\n## [Hook]\n...\n\n## [CTA]'}
+            required
           />
-        </label>
-        <label className="block text-sm text-gray-700 dark:text-gray-300">
-          Tags
-          <input
+        </FormField>
+
+        <FormField label="Tags" htmlFor="content-template-tags" hint="Separated by commas">
+          <FormInput
+            id="content-template-tags"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
-            className={`${formFieldClassName} mt-1`}
+            className="w-full"
             placeholder="comma-separated"
           />
-        </label>
+        </FormField>
+
         <DialogFooter>
           <Button type="button" size="sm" variant="secondary" onClick={onClose}>
             Cancel

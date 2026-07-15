@@ -14,6 +14,7 @@ import type {
   ContentType,
 } from '@/types/api/personal-branding.dto';
 import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
+import type { ApproveIdeaGenerateRequest } from './ApproveIdeaGenerateModal';
 import type { NewDraftAiRequest, NewDraftTemplateResult } from './NewDraftWizardModal';
 import { layoutTemplateForContentType } from './content-workbench-templates';
 import { UNTITLED_DRAFT_LABEL } from './content-workbench-constants';
@@ -52,6 +53,8 @@ export function useContentWorkbench() {
   const [vaultItemLabels, setVaultItemLabels] = useState<Record<string, string>>({});
   const [newDraftWizardOpen, setNewDraftWizardOpen] = useState(false);
   const [titlePromptOpen, setTitlePromptOpen] = useState(false);
+  const [approvingIdea, setApprovingIdea] = useState<ContentIdea | null>(null);
+  const [approveError, setApproveError] = useState<string | null>(null);
 
   const contentQ = useQuery({
     queryKey: queryKeys.personalBranding.content.list(1, 100),
@@ -86,12 +89,20 @@ export function useContentWorkbench() {
   const ideas = ideasQ.data?.data ?? [];
 
   const ideationIdeas = useMemo(
-    () => ideas.filter((idea) => idea.sourceType !== 'VAULT_EXTRACTED'),
+    () =>
+      ideas.filter(
+        (idea) => idea.sourceType !== 'VAULT_EXTRACTED' && idea.sourceType !== 'RADAR_INGESTED'
+      ),
     [ideas]
   );
 
   const vaultIdeas = useMemo(
     () => ideas.filter((idea) => idea.sourceType === 'VAULT_EXTRACTED'),
+    [ideas]
+  );
+
+  const trendIdeas = useMemo(
+    () => ideas.filter((idea) => idea.sourceType === 'RADAR_INGESTED'),
     [ideas]
   );
 
@@ -207,12 +218,20 @@ export function useContentWorkbench() {
   });
 
   const approveIdeaMutation = useMutation({
-    mutationFn: (ideaId: string) => personalBrandingService.approveContentIdea(ideaId),
+    mutationFn: (request: ApproveIdeaGenerateRequest) =>
+      personalBrandingService.approveContentIdea(request.ideaId, {
+        brandProfileId: request.brandProfileId,
+        templateId: request.templateId,
+        platform: request.platform,
+      }),
+    onMutate: () => setApproveError(null),
     onSuccess: ({ draft }) => {
+      setApprovingIdea(null);
       loadDraft(draft);
       setActiveTab('sandbox');
       void invalidateWorkbench();
     },
+    onError: (err: Error) => setApproveError(err.message),
   });
 
   const generateIdeasMutation = useMutation({
@@ -388,6 +407,7 @@ export function useContentWorkbench() {
     ideas,
     ideationIdeas,
     vaultIdeas,
+    trendIdeas,
     activeDraftId,
     activeContentStatus,
     editorTitle,
@@ -420,6 +440,10 @@ export function useContentWorkbench() {
     assetPromptsMutation,
     rejectingIdea,
     setRejectingIdea,
+    approvingIdea,
+    setApprovingIdea,
+    approveError,
+    setApproveError,
     profilesQ,
     brandProfiles,
     selectedProfileId,

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import SubModuleTabShell from '../SubModuleTabShell';
+import ApproveIdeaGenerateModal from './ApproveIdeaGenerateModal';
 import ContentTemplateFormModal from './ContentTemplateFormModal';
 import ContentTemplatesTab from './ContentTemplatesTab';
 import IdeationEngineTab from './IdeationEngineTab';
@@ -9,6 +10,7 @@ import RetryTemplateModal from './RetryTemplateModal';
 import SandboxWorkspaceTab from './SandboxWorkspaceTab';
 import TitlePromptModal from './TitlePromptModal';
 import VaultExtractorTab from './VaultExtractorTab';
+import TrendIdeasTab from './TrendIdeasTab';
 import { useContentTemplates } from './useContentTemplates';
 import { useContentWorkbench } from './useContentWorkbench';
 
@@ -16,6 +18,7 @@ const TABS = [
   { id: 'sandbox', label: 'Sandbox Workspace' },
   { id: 'ideation', label: 'Ideation Engine' },
   { id: 'vault-extractor', label: 'Vault Extractor' },
+  { id: 'trend-ideas', label: 'Trend Ideas' },
   { id: 'content-templates', label: 'Content Templates' },
 ] as const;
 
@@ -47,7 +50,7 @@ export default function ContentWorkbenchPage() {
                 isLoading={wb.ideasQ.isPending}
                 approvingId={
                   wb.approveIdeaMutation.isPending
-                    ? (wb.approveIdeaMutation.variables ?? null)
+                    ? (wb.approveIdeaMutation.variables?.ideaId ?? null)
                     : null
                 }
                 profiles={wb.brandProfiles}
@@ -62,7 +65,7 @@ export default function ContentWorkbenchPage() {
                 generateError={wb.generateError}
                 lastGenerationStats={wb.lastGenerationStats}
                 onGenerate={() => wb.generateIdeasMutation.mutate()}
-                onApprove={(ideaId) => wb.approveIdeaMutation.mutate(ideaId)}
+                onApprove={(idea) => wb.setApprovingIdea(idea)}
                 onReject={(idea) => wb.setRejectingIdea(idea)}
               />
             );
@@ -75,7 +78,7 @@ export default function ContentWorkbenchPage() {
                 isLoading={wb.ideasQ.isPending}
                 approvingId={
                   wb.approveIdeaMutation.isPending
-                    ? (wb.approveIdeaMutation.variables ?? null)
+                    ? (wb.approveIdeaMutation.variables?.ideaId ?? null)
                     : null
                 }
                 profiles={wb.brandProfiles}
@@ -92,7 +95,23 @@ export default function ContentWorkbenchPage() {
                 generateError={wb.vaultGenerateError}
                 lastGenerationStats={wb.lastVaultGenerationStats}
                 onGenerate={() => wb.generateVaultIdeasMutation.mutate()}
-                onApprove={(ideaId) => wb.approveIdeaMutation.mutate(ideaId)}
+                onApprove={(idea) => wb.setApprovingIdea(idea)}
+                onReject={(idea) => wb.setRejectingIdea(idea)}
+              />
+            );
+          }
+
+          if (activeTab === 'trend-ideas') {
+            return (
+              <TrendIdeasTab
+                ideas={wb.trendIdeas}
+                isLoading={wb.ideasQ.isPending}
+                approvingId={
+                  wb.approveIdeaMutation.isPending
+                    ? (wb.approveIdeaMutation.variables?.ideaId ?? null)
+                    : null
+                }
+                onApprove={(idea) => wb.setApprovingIdea(idea)}
                 onReject={(idea) => wb.setRejectingIdea(idea)}
               />
             );
@@ -105,6 +124,23 @@ export default function ContentWorkbenchPage() {
                 candidates={ct.candidates}
                 templatesLoading={ct.templatesQ.isPending}
                 candidatesLoading={ct.candidatesQ.isPending}
+                profiles={wb.brandProfiles}
+                profilesLoading={wb.profilesQ.isPending}
+                selectedProfileId={wb.selectedProfileId}
+                onProfileChange={wb.setSelectedProfileId}
+                brainstormBrief={ct.brainstormBrief}
+                onBrainstormBriefChange={ct.setBrainstormBrief}
+                brainstormContentType={ct.brainstormContentType}
+                onBrainstormContentTypeChange={ct.setBrainstormContentType}
+                brainstormPlatform={ct.brainstormPlatform}
+                onBrainstormPlatformChange={ct.setBrainstormPlatform}
+                isBrainstorming={ct.brainstormMutation.isPending}
+                brainstormError={ct.brainstormError}
+                lastBrainstormStats={ct.lastBrainstormStats}
+                onBrainstorm={() => {
+                  if (!wb.selectedProfileId) return;
+                  ct.brainstormMutation.mutate(wb.selectedProfileId);
+                }}
                 sourceKind={ct.sourceKind}
                 onSourceKindChange={ct.setSourceKind}
                 sourceUrl={ct.sourceUrl}
@@ -186,6 +222,21 @@ export default function ContentWorkbenchPage() {
             />
           );
         }}
+      />
+
+      <ApproveIdeaGenerateModal
+        idea={wb.approvingIdea}
+        defaultBrandProfileId={wb.selectedProfileId}
+        profiles={wb.brandProfiles}
+        profilesLoading={wb.profilesQ.isPending}
+        isSubmitting={wb.approveIdeaMutation.isPending}
+        errorMessage={wb.approveError}
+        onClose={() => {
+          if (wb.approveIdeaMutation.isPending) return;
+          wb.setApprovingIdea(null);
+          wb.setApproveError(null);
+        }}
+        onSubmit={(request) => wb.approveIdeaMutation.mutate(request)}
       />
 
       <NewDraftWizardModal

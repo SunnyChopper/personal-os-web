@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Loader2, PanelLeft, Plus, Sparkles, Trash2 } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
-import { linkAccentClassName } from '../personal-branding-ui';
+import { linkAccentClassName, statusPillClassName } from '../personal-branding-ui';
 import MarkdownEditor from '@/components/molecules/MarkdownEditor';
 import { cn } from '@/lib/utils';
 import type {
@@ -142,93 +142,108 @@ export default function SandboxWorkspaceTab({
         </SidebarCard>
       ) : null}
 
-      <PageCard className="flex min-w-0 flex-col gap-4 p-4 sm:p-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={onToggleDrawer}
-            className="inline-flex items-center gap-2"
-            aria-label="Toggle content library"
-          >
-            <PanelLeft size={16} />
-            Content
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={onNewDraft}
-            className="inline-flex items-center gap-2"
-          >
-            <Plus size={16} />
-            New draft
-          </Button>
+      <PageCard className="flex min-w-0 flex-col gap-3 p-4 sm:p-6">
+        <div
+          role="toolbar"
+          aria-label="Draft actions"
+          className="flex flex-nowrap items-center gap-2 overflow-x-auto border-b border-gray-200 pb-3 dark:border-gray-700"
+        >
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={onToggleDrawer}
+              className="inline-flex shrink-0 items-center gap-1.5"
+              aria-label="Toggle content library"
+            >
+              <PanelLeft size={16} className="shrink-0" />
+              <span className="hidden sm:inline">Content</span>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={onNewDraft}
+              className="inline-flex shrink-0 items-center gap-1.5"
+            >
+              <Plus size={16} className="shrink-0" />
+              <span className="hidden sm:inline">New draft</span>
+            </Button>
+          </div>
           <input
             value={editorTitle}
             onChange={(e) => onTitleChange(e.target.value)}
             placeholder="Draft title"
-            className="min-w-[200px] flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+            className="min-w-0 w-full flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
           />
-          <span className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-400">
-            {CONTENT_TYPE_LABELS[contentType]}
-          </span>
-          <Button type="button" size="sm" onClick={onSaveDraft} disabled={isSaving}>
-            {isSaving ? 'Saving…' : isDirty ? 'Save draft' : 'Saved'}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => setDeleteModalOpen(true)}
-            disabled={deleteDisabled}
-            className="inline-flex items-center gap-2 border-red-300 text-red-700 hover:border-red-400 hover:bg-red-50 hover:text-red-800 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
-            aria-label="Delete draft"
-          >
-            {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-            Delete
-          </Button>
-          {isPublished ? (
+          <div className="flex shrink-0 flex-nowrap items-center gap-2">
+            <span className={statusPillClassName('neutral')}>
+              {CONTENT_TYPE_LABELS[contentType]}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              onClick={onSaveDraft}
+              disabled={isSaving}
+              className="shrink-0"
+            >
+              {isSaving ? 'Saving…' : isDirty ? 'Save draft' : 'Saved'}
+            </Button>
             <Button
               type="button"
               size="sm"
               variant="secondary"
-              onClick={() => setStatusChangeModal('unpublish')}
-              disabled={statusChangePending || !activeDraftId}
+              onClick={() => setDeleteModalOpen(true)}
+              disabled={deleteDisabled}
+              className="inline-flex shrink-0 items-center border-red-300 px-2 text-red-700 hover:border-red-400 hover:bg-red-50 hover:text-red-800 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
+              aria-label="Delete draft"
             >
-              {isUnpublishing ? 'Moving…' : 'Move to draft'}
+              {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
             </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => setStatusChangeModal('publish')}
-              disabled={statusChangePending || !editorTitle.trim()}
-            >
-              {isPublishing ? 'Publishing…' : 'Mark published'}
-            </Button>
-          )}
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={onGenerateAssetPrompts}
-            disabled={isGeneratingAssets || !editorBody.trim()}
-            className="inline-flex items-center gap-2"
-          >
-            {isGeneratingAssets ? (
-              <Loader2 size={16} className="animate-spin" />
+            {isPublished ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setStatusChangeModal('unpublish')}
+                disabled={statusChangePending || !activeDraftId}
+                className="shrink-0"
+              >
+                {isUnpublishing ? 'Moving…' : 'Move to draft'}
+              </Button>
             ) : (
-              <Sparkles size={16} />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setStatusChangeModal('publish')}
+                disabled={statusChangePending || !editorTitle.trim()}
+                className="shrink-0"
+              >
+                {isPublishing ? 'Publishing…' : 'Publish'}
+              </Button>
             )}
-            Generate asset prompts
-          </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={onGenerateAssetPrompts}
+              disabled={isGeneratingAssets || !editorBody.trim()}
+              className="inline-flex shrink-0 items-center gap-1.5"
+            >
+              {isGeneratingAssets ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Sparkles size={16} />
+              )}
+              <span className="hidden md:inline">Assets</span>
+            </Button>
+          </div>
         </div>
 
         <div className="min-h-[480px] flex-1">
-          <MarkdownEditor value={editorBody} onChange={onBodyChange} minHeight="480px" />
+          <MarkdownEditor value={editorBody} onChange={onBodyChange} minHeight="480px" fullWidth />
         </div>
 
         {assetPrompts ? (

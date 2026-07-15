@@ -16,6 +16,7 @@ import {
 } from '../PersonalBrandingPageTemplate';
 import { cn } from '@/lib/utils';
 import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
+import { ContentIdeaWhyCreateSection } from './ContentIdeaWhyCreateSection';
 
 const ALL_PLATFORMS = Object.keys(BRAND_PLATFORM_LABELS) as BrandPlatform[];
 
@@ -37,7 +38,7 @@ interface VaultExtractorTabProps {
   generateError: string | null;
   lastGenerationStats: ContentIdeaGenerationContextStats | null;
   onGenerate: () => void;
-  onApprove: (ideaId: string) => void;
+  onApprove: (idea: ContentIdea) => void;
   onReject: (idea: ContentIdea) => void;
 }
 
@@ -214,6 +215,7 @@ export default function VaultExtractorTab({
                     {idea.summary}
                   </p>
                 ) : null}
+                {idea.rationale ? <ContentIdeaWhyCreateSection rationale={idea.rationale} /> : null}
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
                   {idea.targetPlatform ? (
                     <span>{BRAND_PLATFORM_LABELS[idea.targetPlatform]}</span>
@@ -236,11 +238,11 @@ export default function VaultExtractorTab({
                   <Button
                     type="button"
                     size="sm"
-                    onClick={() => onApprove(idea.id)}
+                    onClick={() => onApprove(idea)}
                     disabled={approvingId === idea.id}
                     className="flex-1"
                   >
-                    {approvingId === idea.id ? 'Opening…' : 'Approve & open in Sandbox'}
+                    {approvingId === idea.id ? 'Generating…' : 'Generate draft & open in Sandbox'}
                   </Button>
                   <Button
                     type="button"

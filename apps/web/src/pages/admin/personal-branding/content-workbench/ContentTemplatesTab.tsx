@@ -1,10 +1,15 @@
 import { Loader2, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import Button from '@/components/atoms/Button';
+import { Select } from '@/components/atoms/Select';
+import { Textarea } from '@/components/atoms/Textarea';
 import type {
   BrandPlatform,
+  BrandProfile,
   ContentTemplate,
+  ContentTemplateBrainstormContextStats,
   ContentTemplateCandidate,
   ContentTemplateExtractionContextStats,
+  ContentTemplateSourceType,
   ContentType,
   TemplateSourceKind,
 } from '@/types/api/personal-branding.dto';
@@ -15,17 +20,41 @@ import {
   gridItemCardClassName,
 } from '../PersonalBrandingPageTemplate';
 import { cn } from '@/lib/utils';
+import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
 
 const SOURCE_KIND_OPTIONS: { id: TemplateSourceKind; label: string; disabled?: boolean }[] = [
   { id: 'GENERIC_URL', label: 'Generic URL' },
   { id: 'MEDIUM_ARTICLE', label: 'Medium article' },
 ];
 
+const ALL_PLATFORMS = Object.keys(BRAND_PLATFORM_LABELS) as BrandPlatform[];
+const ALL_CONTENT_TYPES = Object.keys(CONTENT_TYPE_LABELS) as ContentType[];
+
+const SOURCE_TYPE_LABELS: Record<ContentTemplateSourceType, string> = {
+  MANUAL: 'Manual',
+  EXTRACTED: 'Extracted',
+  BRAINSTORMED: 'Brainstormed',
+};
+
 interface ContentTemplatesTabProps {
   templates: ContentTemplate[];
   candidates: ContentTemplateCandidate[];
   templatesLoading: boolean;
   candidatesLoading: boolean;
+  profiles: BrandProfile[];
+  profilesLoading: boolean;
+  selectedProfileId: string | null;
+  onProfileChange: (profileId: string) => void;
+  brainstormBrief: string;
+  onBrainstormBriefChange: (value: string) => void;
+  brainstormContentType: ContentType | '';
+  onBrainstormContentTypeChange: (value: ContentType | '') => void;
+  brainstormPlatform: BrandPlatform | '';
+  onBrainstormPlatformChange: (value: BrandPlatform | '') => void;
+  isBrainstorming: boolean;
+  brainstormError: string | null;
+  lastBrainstormStats: ContentTemplateBrainstormContextStats | null;
+  onBrainstorm: () => void;
   sourceKind: TemplateSourceKind;
   onSourceKindChange: (kind: TemplateSourceKind) => void;
   sourceUrl: string;
@@ -59,11 +88,30 @@ function formatOptionalLabel(
   return parts.length > 0 ? parts.join(' · ') : 'Any format / platform';
 }
 
+function candidateOriginLabel(candidate: ContentTemplateCandidate): string | null {
+  if (!candidate.sourceType) return 'Extracted';
+  return SOURCE_TYPE_LABELS[candidate.sourceType];
+}
+
 export default function ContentTemplatesTab({
   templates,
   candidates,
   templatesLoading,
   candidatesLoading,
+  profiles,
+  profilesLoading,
+  selectedProfileId,
+  onProfileChange,
+  brainstormBrief,
+  onBrainstormBriefChange,
+  brainstormContentType,
+  onBrainstormContentTypeChange,
+  brainstormPlatform,
+  onBrainstormPlatformChange,
+  isBrainstorming,
+  brainstormError,
+  lastBrainstormStats,
+  onBrainstorm,
   sourceKind,
   onSourceKindChange,
   sourceUrl,
@@ -86,6 +134,9 @@ export default function ContentTemplatesTab({
   onReject,
   onRetry,
 }: ContentTemplatesTabProps) {
+  const selectedProfile = profiles.find((p) => p.id === selectedProfileId) ?? null;
+  const profileReady = selectedProfile ? isBrandProfileReadyForIdeation(selectedProfile) : false;
+  const canBrainstorm = Boolean(selectedProfileId && profileReady && !isBrainstorming);
   const canExtract = Boolean(sourceUrl.trim()) && !isExtracting;
 
   return (
@@ -109,7 +160,8 @@ export default function ContentTemplatesTab({
         ) : templates.length === 0 ? (
           <div className={emptyStateCardClassName}>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              No saved templates yet. Create one manually or extract from a URL below.
+              No saved templates yet. Create one manually, brainstorm with AI, or extract from a URL
+              below.
             </p>
           </div>
         ) : (
@@ -121,6 +173,9 @@ export default function ContentTemplatesTab({
                     <h3 className="font-medium text-gray-900 dark:text-white">{template.title}</h3>
                     <p className="text-xs text-gray-500">
                       {formatOptionalLabel(template.contentType, template.platform)}
+                      {template.sourceType !== 'MANUAL' ? (
+                        <> · {SOURCE_TYPE_LABELS[template.sourceType]}</>
+                      ) : null}
                     </p>
                   </div>
                   <div className="flex gap-1">
@@ -152,6 +207,121 @@ export default function ContentTemplatesTab({
             ))}
           </div>
         )}
+      </PageCard>
+
+      <PageCard className="space-y-4">
+        <div>
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white">AI brainstorm</h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            Propose reusable structural templates from your Brand Identity. Rejected templates
+            inform future brainstorm and extraction runs.
+          </p>
+        </div>
+
+        {profilesLoading ? (
+          <p className="text-sm text-gray-500">Loading brand profiles…</p>
+        ) : profiles.length === 0 ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+            Create a Brand Identity profile with core pillars and a target audience before
+            brainstorming templates.
+          </p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium text-gray-700 dark:text-gray-300">Brand profile</span>
+              <Select
+                value={selectedProfileId ?? ''}
+                onChange={(e) => onProfileChange(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+              >
+                {profiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name}
+                    {!isBrandProfileReadyForIdeation(profile) ? ' (needs pillars + audience)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </label>
+
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium text-gray-700 dark:text-gray-300">
+                Preferred platform <span className="font-normal text-gray-500">(optional)</span>
+              </span>
+              <Select
+                value={brainstormPlatform}
+                onChange={(e) =>
+                  onBrainstormPlatformChange((e.target.value as BrandPlatform) || '')
+                }
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+              >
+                <option value="">Any platform</option>
+                {ALL_PLATFORMS.map((platform) => (
+                  <option key={platform} value={platform}>
+                    {BRAND_PLATFORM_LABELS[platform]}
+                  </option>
+                ))}
+              </Select>
+            </label>
+
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium text-gray-700 dark:text-gray-300">
+                Preferred content type <span className="font-normal text-gray-500">(optional)</span>
+              </span>
+              <Select
+                value={brainstormContentType}
+                onChange={(e) =>
+                  onBrainstormContentTypeChange((e.target.value as ContentType) || '')
+                }
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+              >
+                <option value="">Any content type</option>
+                {ALL_CONTENT_TYPES.map((contentType) => (
+                  <option key={contentType} value={contentType}>
+                    {CONTENT_TYPE_LABELS[contentType]}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
+        )}
+
+        <label className="block space-y-1.5 text-sm">
+          <span className="font-medium text-gray-700 dark:text-gray-300">
+            Brief <span className="font-normal text-gray-500">(optional)</span>
+          </span>
+          <Textarea
+            value={brainstormBrief}
+            onChange={(e) => onBrainstormBriefChange(e.target.value)}
+            rows={3}
+            placeholder="e.g. Thread templates that turn pillar insights into numbered takeaways"
+            className="w-full"
+          />
+        </label>
+
+        {brainstormError ? (
+          <p className="text-sm text-red-600 dark:text-red-400">{brainstormError}</p>
+        ) : null}
+        {lastBrainstormStats ? (
+          <p className="text-xs text-gray-500">
+            Last brainstorm used {lastBrainstormStats.rejectedFeedbackCount} rejection feedback
+            entries.
+          </p>
+        ) : null}
+
+        <Button
+          type="button"
+          size="sm"
+          disabled={!canBrainstorm}
+          onClick={onBrainstorm}
+          className="inline-flex items-center gap-2"
+        >
+          {isBrainstorming ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Sparkles size={16} />
+          )}
+          {isBrainstorming ? 'Brainstorming…' : 'Brainstorm templates'}
+        </Button>
       </PageCard>
 
       <PageCard className="space-y-4">
@@ -267,7 +437,8 @@ export default function ContentTemplatesTab({
         ) : candidates.length === 0 ? (
           <div className={emptyStateCardClassName}>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              No pending template candidates. Run extraction above to generate proposals.
+              No pending template candidates. Run brainstorm or extraction above to generate
+              proposals.
             </p>
           </div>
         ) : (
@@ -278,6 +449,9 @@ export default function ContentTemplatesTab({
                   <h3 className="font-medium text-gray-900 dark:text-white">{candidate.title}</h3>
                   <p className="text-xs text-gray-500">
                     {formatOptionalLabel(candidate.contentType, candidate.platform)}
+                    {candidateOriginLabel(candidate) ? (
+                      <> · {candidateOriginLabel(candidate)}</>
+                    ) : null}
                   </p>
                 </div>
                 {candidate.description ? (
