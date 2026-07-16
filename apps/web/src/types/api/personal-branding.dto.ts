@@ -25,7 +25,8 @@ export const CONTENT_VARIANT_DISTRIBUTION_STATUS_LABELS: Record<
 };
 export type RadarSourceType = 'RSS' | 'API' | 'GITHUB_REPO';
 export type RadarAuthScheme = 'BEARER' | 'HEADER' | 'QUERY' | 'NONE';
-export type RadarSyncCadence = 'EVERY_N_HOURS' | 'DAILY' | 'WEEKLY' | 'MANUAL_ONLY';
+export type SyncCadence = 'EVERY_N_HOURS' | 'DAILY' | 'WEEKLY' | 'MANUAL_ONLY';
+export type RadarSyncCadence = SyncCadence;
 export type RadarItemType =
   | 'ARTICLE'
   | 'REPOSITORY'
@@ -36,14 +37,16 @@ export type RadarItemType =
 export type RadarGithubEventType = 'COMMITS' | 'RELEASES' | 'ISSUES' | 'PULL_REQUESTS';
 export type RadarGithubReleaseFilter = 'ALL' | 'MAJOR_ONLY' | 'MINOR_AND_ABOVE';
 
-export const RADAR_SYNC_CADENCE_LABELS: Record<RadarSyncCadence, string> = {
+export const SYNC_CADENCE_LABELS: Record<SyncCadence, string> = {
   EVERY_N_HOURS: 'Every x hours',
   DAILY: 'Daily',
   WEEKLY: 'Weekly',
   MANUAL_ONLY: 'Manual only',
 };
 
-export const RADAR_SYNC_WEEKDAY_LABELS: Record<number, string> = {
+export const RADAR_SYNC_CADENCE_LABELS: Record<RadarSyncCadence, string> = SYNC_CADENCE_LABELS;
+
+export const SYNC_WEEKDAY_LABELS: Record<number, string> = {
   0: 'Monday',
   1: 'Tuesday',
   2: 'Wednesday',
@@ -52,6 +55,8 @@ export const RADAR_SYNC_WEEKDAY_LABELS: Record<number, string> = {
   5: 'Saturday',
   6: 'Sunday',
 };
+
+export const RADAR_SYNC_WEEKDAY_LABELS: Record<number, string> = SYNC_WEEKDAY_LABELS;
 
 export const RADAR_SOURCE_TYPE_LABELS: Record<RadarSourceType, string> = {
   RSS: 'RSS feed',
@@ -194,6 +199,18 @@ export interface CreateProfileExtractionInput {
   model?: string | null;
 }
 
+/** Client-side telemetry while starting an extraction session (S3 upload phase). */
+export interface ProfileExtractionClientProgress {
+  phase: 'uploading' | 'registering_sources' | 'starting' | 'done';
+  filesCompleted: number;
+  filesTotal: number;
+  bytesUploaded: number;
+  bytesTotal: number;
+  jobId?: string;
+  profileId?: string;
+  sourceTypesHint?: ProfileExtractionSourceType[];
+}
+
 /** Submit payload for extraction dialog (JSON and/or PDF uploads). */
 export interface StartProfileExtractionInput {
   name?: string | null;
@@ -210,6 +227,7 @@ export interface ProfileExtractionJob {
   status: ExtractionJobStatus;
   stage?: ExtractionJobStage | null;
   message?: string | null;
+  sourceTypes?: ProfileExtractionSourceType[] | null;
   sourceCount?: number | null;
   processedSourceCount?: number | null;
   succeededSourceCount?: number | null;
@@ -466,6 +484,7 @@ export interface ContentNode {
   sourceRefId?: string | null;
   sourceIdeaId?: string | null;
   contentType?: ContentType | null;
+  platform?: BrandPlatform | null;
   assetPrompts?: Record<string, unknown> | null;
   tags: string[];
   userId: string;
@@ -481,6 +500,7 @@ export interface CreateContentNodeInput {
   sourceRefId?: string | null;
   sourceIdeaId?: string | null;
   contentType?: ContentType | null;
+  platform?: BrandPlatform | null;
   tags?: string[];
 }
 
@@ -489,6 +509,7 @@ export interface UpdateContentNodeInput {
   body?: string | null;
   status?: ContentStatus;
   contentType?: ContentType | null;
+  platform?: BrandPlatform | null;
   assetPrompts?: Record<string, unknown> | null;
   tags?: string[] | null;
 }
@@ -576,6 +597,31 @@ export interface ContentIdeaGenerationContextStats {
 export interface GenerateContentIdeasResult {
   ideas: ContentIdea[];
   contextStats: ContentIdeaGenerationContextStats;
+}
+
+export type ContentIdeationJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+export interface ContentIdeationJobStart {
+  jobId: string;
+  status: ContentIdeationJobStatus;
+  pollAfterMs: number;
+}
+
+export interface ContentIdeationJob {
+  jobId: string;
+  status: ContentIdeationJobStatus;
+  stage?: string | null;
+  message?: string | null;
+  pollAfterMs?: number | null;
+  error?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  result?: GenerateContentIdeasResult | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
 }
 
 export interface GenerateTopicSuggestionsInput {
@@ -753,10 +799,6 @@ export interface ContentTemplateSettings {
   hasMediumApiKey: boolean;
 }
 
-export interface UpdateContentTemplateSettingsInput {
-  mediumApiKey?: string | null;
-}
-
 export interface BlogImagePromptRow {
   placement: string;
   prompt: string;
@@ -804,16 +846,27 @@ export interface StartRepurposeInput {
   model?: string | null;
 }
 
-export interface StartRepurposeAccepted {
+export interface StartRepurposeJobAccepted {
   jobId: string;
-  sourceContentId: string;
+  platform: BrandPlatform;
   status: RepurposeJobStatus;
+}
+
+export interface StartRepurposeAccepted {
+  sourceContentId: string;
+  jobs: StartRepurposeJobAccepted[];
+}
+
+export interface RepurposeJobList {
+  data: RepurposeJob[];
+  total: number;
 }
 
 export interface RepurposeJob {
   jobId: string;
   sourceContentId: string;
   brandProfileId: string;
+  platform: BrandPlatform;
   targetPlatforms: BrandPlatform[];
   status: RepurposeJobStatus;
   stage?: string | null;
@@ -1048,6 +1101,28 @@ export type RadarDiscoveryRunStatus =
   | 'completed'
   | 'failed';
 
+export type RadarDiscoveryProbeStatus =
+  | 'unprobed'
+  | 'verified_feed'
+  | 'verified_api'
+  | 'no_feed'
+  | 'error';
+
+export type RadarDiscoveryContentKind = 'feed' | 'api' | 'article' | 'unknown';
+
+export type RadarDiscoveryExtractionStatus =
+  | 'skipped'
+  | 'extracted'
+  | 'failed'
+  | 'budget_exhausted';
+
+export interface RadarDiscoveryExtractedEndpoint {
+  url: string;
+  sourceType: RadarSourceType;
+  label?: string | null;
+  verified: boolean;
+}
+
 export type RadarDiscoveryCandidateVerdict = 'relevant' | 'not_relevant';
 
 export type RadarDiscoveryCandidateStatus =
@@ -1125,10 +1200,22 @@ export interface RadarDiscoveryCandidate {
   matchedTopics: string[];
   sourceType?: RadarSourceType | null;
   endpoint?: string | null;
+  resolvedEndpoint?: string | null;
   suggestedName?: string | null;
+  contentKind?: RadarDiscoveryContentKind | null;
+  probeStatus?: RadarDiscoveryProbeStatus | null;
+  extractedEndpoints?: RadarDiscoveryExtractedEndpoint[];
+  extractionStatus?: RadarDiscoveryExtractionStatus | null;
   duplicateStatus: string;
   error?: string | null;
   savedSourceId?: string | null;
+  savedItemId?: string | null;
+  userNotASource?: boolean | null;
+  userNotASourceMarkedAt?: string | null;
+  parentCandidateId?: string | null;
+  origin?: string | null;
+  latestParseJobId?: string | null;
+  parseStatus?: string | null;
   userId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -1139,6 +1226,45 @@ export interface RadarDiscoveryCandidate {
 export interface RadarDiscoveryCandidateFilters {
   status?: string;
   verdict?: RadarDiscoveryCandidateVerdict;
+}
+
+export type RadarDiscoveryParseJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+export type RadarDiscoveryParseJobPhase =
+  | 'queued'
+  | 'loading_page'
+  | 'extracting'
+  | 'probing'
+  | 'persisting'
+  | 'succeeded'
+  | 'failed';
+
+export interface RadarDiscoveryParseJobStart {
+  jobId: string;
+  status: RadarDiscoveryParseJobStatus;
+  pollAfterMs: number;
+}
+
+export interface RadarDiscoveryParseJob {
+  jobId: string;
+  runId: string;
+  candidateId: string;
+  pageUrl: string;
+  status: RadarDiscoveryParseJobStatus;
+  phase?: RadarDiscoveryParseJobPhase | null;
+  currentActivity?: string | null;
+  pollAfterMs?: number | null;
+  error?: string | null;
+  extractedEndpoints?: RadarDiscoveryExtractedEndpoint[];
+  createdCandidateIds: string[];
+  proposedCount: number;
+  verifiedCount: number;
+  userId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  heartbeatAt?: string | null;
 }
 
 export type RelationshipPriority = 'strategic' | 'active' | 'nurture' | 'watch';
@@ -1381,9 +1507,109 @@ export interface ContentOpportunity {
   confidence?: number | null;
   status: ContentOpportunityStatus;
   searchRunId: string;
+  dismissalFeedbackText?: string | null;
+  dismissalFeedbackCategory?: string | null;
+  suggestedReplyParams?: SuggestedReplyParams | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type ReplyGenerationMode = 'SIMPLE' | 'AGENT';
+
+export type ReplyRunStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED';
+
+export type ReplySuggestionStatus = 'SUGGESTED' | 'ACCEPTED' | 'REJECTED';
+
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+export interface SuggestedReplyParams {
+  mode: ReplyGenerationMode;
+  researchEnabled: boolean;
+  intelligenceTier?: string;
+  reasoningEffort?: ReasoningEffort | string | null;
+  suggestionCount: number;
+  provider?: string | null;
+  model?: string | null;
+}
+
+export interface CreateReplyRunInput {
+  connectionId: string;
+  opportunityId?: string | null;
+  platform: BrandPlatform;
+  creatorText: string;
+  profileId?: string | null;
+  interactionIntent?: string | null;
+  mode: ReplyGenerationMode;
+  researchEnabled?: boolean;
+  provider?: string | null;
+  model?: string | null;
+  reasoningEffort?: string | null;
+  suggestionCount?: number;
+  suggestedParamsJson?: Record<string, unknown> | null;
+}
+
+export interface ReplySuggestion {
+  id: string;
+  runId: string;
+  connectionId: string;
+  label: string;
+  angle: string;
+  draftText: string;
+  rationale: string;
+  researchCitationsJson?: unknown;
+  status: ReplySuggestionStatus;
+  rejectionFeedbackText?: string | null;
+  rejectionFeedbackCategory?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReplyRun {
+  id: string;
+  connectionId: string;
+  opportunityId?: string | null;
+  platform: string;
+  creatorText: string;
+  interactionIntent?: string | null;
+  mode: ReplyGenerationMode;
+  researchEnabled: boolean;
+  provider?: string | null;
+  model?: string | null;
+  reasoningEffort?: string | null;
+  suggestionCount: number;
+  suggestedParamsJson?: Record<string, unknown> | null;
+  status: ReplyRunStatus;
+  error?: string | null;
+  confidence?: number | null;
+  providerUsed?: string | null;
+  modelUsed?: string | null;
+  startedAt?: string | null;
+  heartbeatAt?: string | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  suggestions: ReplySuggestion[];
+}
+
+export interface UpdateReplySuggestionInput {
+  status: Extract<ReplySuggestionStatus, 'ACCEPTED' | 'REJECTED'>;
+  feedbackText?: string | null;
+  feedbackCategory?: string | null;
+}
+
+export interface ReplyGenerationDraft {
+  mode: ReplyGenerationMode;
+  researchEnabled: boolean;
+  catalogModelId: string;
+  reasoningEffort?: string | null;
+  suggestionCount: number;
+}
+
+export interface UpdateContentOpportunityInput {
+  status: Extract<ContentOpportunityStatus, 'DISMISSED' | 'ACTIONED'>;
+  feedbackText?: string | null;
+  feedbackCategory?: string | null;
 }
 
 export interface ContentOpportunitySearchInput {
@@ -1411,6 +1637,31 @@ export type ContentOpportunityListResponse = ApiResponse<
 
 export type ReconPostStatus = 'NEW' | 'REVIEWED' | 'ACTIONED' | 'DISMISSED';
 export type ReconFollowSuggestionStatus = 'NEW' | 'ADDED' | 'DISMISSED';
+export type ReconEntityType = 'person' | 'company' | 'product' | 'community' | 'media' | 'other';
+
+export type FollowConfidenceVerdict = 'REJECTED' | 'CONFIRMED';
+
+export interface FollowConfidenceFactor {
+  key: string;
+  label: string;
+  score: number;
+  weight: number;
+  note: string;
+}
+
+export interface FollowConfidenceExplanation {
+  summary: string;
+  factors: FollowConfidenceFactor[];
+  method: string;
+  generatedAt: string;
+}
+
+export interface FollowConfidenceFeedback {
+  verdict: FollowConfidenceVerdict;
+  feedbackText?: string | null;
+  suggestedConfidence?: number | null;
+  createdAt: string;
+}
 
 export const RECON_POST_STATUS_LABELS: Record<ReconPostStatus, string> = {
   NEW: 'New',
@@ -1427,12 +1678,28 @@ export const RECON_RECOMMENDED_ACTION_LABELS: Record<string, string> = {
   skip: 'Skip',
 };
 
+export const RECON_ENTITY_TYPE_LABELS: Record<ReconEntityType, string> = {
+  person: 'Person',
+  company: 'Company',
+  product: 'Product',
+  community: 'Community',
+  media: 'Media',
+  other: 'Other',
+};
+
 export interface ReconFeedSettings {
   enabled: boolean;
+  syncCadence: SyncCadence;
+  syncStartTime: string;
+  syncEndTime?: string | null;
+  syncTimezone: string;
+  syncIntervalHours?: number | null;
+  syncDayOfWeek?: number | null;
   minRelevanceScore: number;
   maxPostsPerConnection: number;
   hasRapidApiKey: boolean;
   lastRunAt?: string | null;
+  nextDueAt?: string | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -1440,9 +1707,14 @@ export interface ReconFeedSettings {
 
 export interface UpdateReconFeedSettingsInput {
   enabled?: boolean;
+  syncCadence?: SyncCadence;
+  syncStartTime?: string | null;
+  syncEndTime?: string | null;
+  syncTimezone?: string | null;
+  syncIntervalHours?: number | null;
+  syncDayOfWeek?: number | null;
   minRelevanceScore?: number;
   maxPostsPerConnection?: number;
-  rapidApiKey?: string | null;
 }
 
 export interface ReconPost {
@@ -1476,12 +1748,27 @@ export interface FollowSuggestion {
   profileUrl?: string | null;
   rationale?: string | null;
   confidence?: number | null;
+  confidenceExplanation?: FollowConfidenceExplanation | null;
+  confidenceFeedback?: FollowConfidenceFeedback | null;
   sharedConnectionIds: string[];
+  entityType?: ReconEntityType | null;
   status: ReconFollowSuggestionStatus;
   runId?: string | null;
+  dismissalFeedbackText?: string | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ReconRunActivityEntry {
+  at: string;
+  kind: string;
+  connectionId?: string | null;
+  handle?: string | null;
+  platformPostId?: string | null;
+  score?: number | null;
+  rationale?: string | null;
+  message?: string | null;
 }
 
 export interface ReconRunSummary {
@@ -1498,6 +1785,13 @@ export interface ReconRunSummary {
   errorSummary?: string | null;
   startedAt?: string | null;
   finishedAt?: string | null;
+  phase?: string | null;
+  currentActivity?: string | null;
+  heartbeatAt?: string | null;
+  pausedAt?: string | null;
+  activityLog?: ReconRunActivityEntry[];
+  pollAfterMs?: number;
+  cursorConnectionIndex?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -1514,6 +1808,23 @@ export interface UpdateReconPostInput {
 
 export interface UpdateFollowSuggestionInput {
   status: ReconFollowSuggestionStatus;
+  feedbackText?: string | null;
+  connection?: CreateCreatorConnectionInput | null;
+}
+
+export interface FollowSuggestionConnectionDraft {
+  suggestionId: string;
+  draft: CreateCreatorConnectionInput;
+  draftSummary?: string | null;
+  source: 'ai' | 'heuristic';
+}
+
+export type FollowSuggestionConnectionDraftResponse = ApiResponse<FollowSuggestionConnectionDraft>;
+
+export interface SubmitFollowConfidenceFeedbackInput {
+  verdict: FollowConfidenceVerdict;
+  feedbackText?: string | null;
+  suggestedConfidence?: number | null;
 }
 
 export type BrandConfigResponse = ApiResponse<BrandConfig>;

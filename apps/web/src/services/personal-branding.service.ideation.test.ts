@@ -79,3 +79,38 @@ describe('personalBrandingService.generateTopicSuggestions', () => {
     expect(result.topics).toHaveLength(2);
   });
 });
+
+describe('personalBrandingService.generateRadarExtractedIdeas', () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it('starts async radar ideation job and returns job ack', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      success: true,
+      data: {
+        jobId: 'job-1',
+        status: 'queued',
+        pollAfterMs: 2000,
+      },
+    });
+
+    const result = await personalBrandingService.generateRadarExtractedIdeas({
+      brandProfileId: 'profile-1',
+      radarItemIds: ['radar-1'],
+      targetPlatform: 'linkedin',
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/ai/personal-branding/content-ideas/generate-from-radar',
+      {
+        brandProfileId: 'profile-1',
+        radarItemIds: ['radar-1'],
+        targetPlatform: 'linkedin',
+      }
+    );
+    expect(result.jobId).toBe('job-1');
+    expect(result.status).toBe('queued');
+    expect(result.pollAfterMs).toBe(2000);
+  });
+});
