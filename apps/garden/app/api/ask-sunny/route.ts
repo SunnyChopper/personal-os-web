@@ -72,7 +72,8 @@ export async function POST(req: NextRequest) {
   }
   const client = new OpenAI({ apiKey: key });
   const completion = await client.chat.completions.create({
-    model: process.env.PUBLIC_GARDEN_CHAT_MODEL || 'gpt-4o-mini',
+    model: process.env.PUBLIC_GARDEN_CHAT_MODEL || 'gpt-5.4-nano',
+    reasoning_effort: 'medium',
     max_tokens: 512,
     temperature: 0.3,
     messages: [
