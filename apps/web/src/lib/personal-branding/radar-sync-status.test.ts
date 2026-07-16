@@ -39,4 +39,18 @@ describe('describeRadarSyncSchedule', () => {
     expect(status.isManualOnly).toBe(true);
     expect(status.isOverdue).toBe(false);
   });
+
+  it('formats labels in the requested IANA timezone', () => {
+    const status = describeRadarSyncSchedule(
+      {
+        syncCadence: 'DAILY',
+        nextDueAt: '2026-07-16T08:00:00.000Z',
+        lastRunAt: '2026-07-15T08:00:00.000Z',
+      },
+      now,
+      'America/Chicago'
+    );
+    expect(status.nextDueLabel).toMatch(/3:00:00 AM/);
+    expect(status.lastRunLabel).toMatch(/3:00:00 AM/);
+  });
 });

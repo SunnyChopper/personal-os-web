@@ -23,9 +23,15 @@ interface RadarDiscoveryCandidateReviewProps {
   isLoading?: boolean;
   error?: Error | null;
   savingCandidateId?: string | null;
+  addingCandidateId?: string | null;
+  markingCandidateId?: string | null;
+  parsingCandidateId?: string | null;
   onFilterChange: (filter: RadarDiscoveryCandidateFilter) => void;
   onPageChange: (page: number) => void;
   onSave: (candidateId: string) => void;
+  onAddAsItem: (candidateId: string) => void;
+  onMarkNotASource: (candidateId: string) => void;
+  onParseSources: (candidateId: string) => void;
 }
 
 export default function RadarDiscoveryCandidateReview({
@@ -35,9 +41,15 @@ export default function RadarDiscoveryCandidateReview({
   isLoading = false,
   error,
   savingCandidateId = null,
+  addingCandidateId = null,
+  markingCandidateId = null,
+  parsingCandidateId = null,
   onFilterChange,
   onPageChange,
   onSave,
+  onAddAsItem,
+  onMarkNotASource,
+  onParseSources,
 }: RadarDiscoveryCandidateReviewProps) {
   const rows = candidates?.data ?? [];
   const totalPages = Math.max(
@@ -89,15 +101,23 @@ export default function RadarDiscoveryCandidateReview({
             No candidates match this filter yet.
           </div>
         ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {rows.map((candidate) => (
-              <RadarDiscoveryCandidateCard
-                key={candidate.id}
-                candidate={candidate}
-                isSaving={savingCandidateId === candidate.id}
-                onSave={() => onSave(candidate.id)}
-              />
-            ))}
+          <div className="max-h-[70vh] overflow-y-auto rounded-lg pr-1">
+            <div className="grid gap-4 xl:grid-cols-2">
+              {rows.map((candidate) => (
+                <RadarDiscoveryCandidateCard
+                  key={candidate.id}
+                  candidate={candidate}
+                  isSaving={savingCandidateId === candidate.id}
+                  isAddingAsItem={addingCandidateId === candidate.id}
+                  isMarkingNotASource={markingCandidateId === candidate.id}
+                  isParsingSources={parsingCandidateId === candidate.id}
+                  onSave={() => onSave(candidate.id)}
+                  onAddAsItem={() => onAddAsItem(candidate.id)}
+                  onMarkNotASource={() => onMarkNotASource(candidate.id)}
+                  onParseSources={() => onParseSources(candidate.id)}
+                />
+              ))}
+            </div>
           </div>
         )}
 

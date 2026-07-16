@@ -5,6 +5,7 @@ import RadarDiscoveryCandidateReview from '@/components/organisms/personal-brand
 import RadarDiscoveryHistory from '@/components/organisms/personal-branding/RadarDiscoveryHistory';
 import RadarDiscoveryRunMonitor from '@/components/organisms/personal-branding/RadarDiscoveryRunMonitor';
 import RadarDiscoverySetupDialog from '@/components/organisms/personal-branding/RadarDiscoverySetupDialog';
+import { useRadarDiscoveryParseJob } from '@/hooks/useRadarDiscoveryParseJob';
 import { useToast } from '@/hooks/use-toast';
 import {
   selectDefaultRadarDiscoveryRun,
@@ -13,12 +14,14 @@ import {
   useSignalRadarDiscoveryRuns,
   type useSignalRadar,
 } from '@/hooks/useSignalRadar';
+import { queryKeys } from '@/lib/react-query/query-keys';
 import {
   filterDiscoveryCandidates,
   radarDiscoveryCandidateFilterParams,
   type RadarDiscoveryCandidateFilter,
 } from '@/lib/personal-branding/radar-discovery';
 import type { StartRadarDiscoveryRunInput } from '@/types/api/personal-branding.dto';
+import { useQueryClient } from '@tanstack/react-query';
 
 type SignalRadarHook = ReturnType<typeof useSignalRadar>;
 
@@ -28,6 +31,7 @@ interface RadarDiscoveryPanelProps {
 
 export default function RadarDiscoveryPanel({ signalRadar }: RadarDiscoveryPanelProps) {
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const [setupOpen, setSetupOpen] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -35,6 +39,11 @@ export default function RadarDiscoveryPanel({ signalRadar }: RadarDiscoveryPanel
   const [candidateFilter, setCandidateFilter] = useState<RadarDiscoveryCandidateFilter>('all');
   const [pendingAction, setPendingAction] = useState<'pause' | 'resume' | 'cancel' | null>(null);
   const [savingCandidateId, setSavingCandidateId] = useState<string | null>(null);
+  const [addingCandidateId, setAddingCandidateId] = useState<string | null>(null);
+  const [markingCandidateId, setMarkingCandidateId] = useState<string | null>(null);
+  const [parsingCandidateId, setParsingCandidateId] = useState<string | null>(null);
+  const [activeParseJobId, setActiveParseJobId] = useState<string | null>(null);
+  const [activeParseRunId, setActiveParseRunId] = useState<string | null>(null);
 
   const { runs } = useSignalRadarDiscoveryRuns({ page: historyPage, pageSize: 10 });
   const runRows = useMemo(() => runs.data?.data ?? [], [runs.data?.data]);
@@ -67,6 +76,56 @@ export default function RadarDiscoveryPanel({ signalRadar }: RadarDiscoveryPanel
       hasMore: false,
     };
   }, [candidateFilter, candidates.data]);
+
+  useRadarDiscoveryParseJob(
+    activeParseJobId,
+    async (job) => {
+      const runId = activeParseRunId ?? job.runId;
+      if (runId) {
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.personalBranding.radarDiscovery.candidates(runId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.personalBranding.radarDiscovery.detail(runId),
+        });
+      }
+      setActiveParseJobId(null);
+      setActiveParseRunId(null);
+      setParsingCandidateId(null);
+      if (job.status === 'succeeded') {
+        showToast({
+          type: 'success',
+          title:
+            job.verifiedCount > 0
+              ? `Found ${job.verifiedCount} verified source${job.verifiedCount === 1 ? '' : 's'}`
+              : 'Parse complete',
+          message:
+            job.verifiedCount > 0
+              ? 'New candidates were added to the review list.'
+              : (job.currentActivity ??
+                'No verified RSS or API endpoints were found on this page.'),
+        });
+        return;
+      }
+      if (job.status === 'failed') {
+        showToast({
+          type: 'error',
+          title: 'Parse failed',
+          message: job.error ?? job.currentActivity ?? 'Could not parse sources from this page.',
+        });
+      }
+    },
+    () => {
+      setActiveParseJobId(null);
+      setActiveParseRunId(null);
+      setParsingCandidateId(null);
+      showToast({
+        type: 'info',
+        title: 'Parse still running',
+        message: 'The job is taking longer than expected. Refresh candidate review shortly.',
+      });
+    }
+  );
 
   const handleStart = async (input: StartRadarDiscoveryRunInput) => {
     try {
@@ -140,6 +199,79 @@ export default function RadarDiscoveryPanel({ signalRadar }: RadarDiscoveryPanel
     }
   };
 
+  const handleAddAsItem = async (candidateId: string) => {
+    if (!selectedRunId) return;
+    setAddingCandidateId(candidateId);
+    try {
+      await signalRadar.addDiscoveryCandidateAsItem.mutateAsync({
+        runId: selectedRunId,
+        candidateId,
+      });
+      showToast({
+        type: 'success',
+        title: 'Added to Trend Stream',
+        message: 'The article is now available as a Trend Stream card.',
+      });
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Could not add Trend Stream card',
+        message: error instanceof Error ? error.message : 'Please try again.',
+      });
+    } finally {
+      setAddingCandidateId(null);
+    }
+  };
+
+  const handleMarkNotASource = async (candidateId: string) => {
+    if (!selectedRunId) return;
+    setMarkingCandidateId(candidateId);
+    try {
+      await signalRadar.markDiscoveryCandidateNotASource.mutateAsync({
+        runId: selectedRunId,
+        candidateId,
+      });
+      showToast({
+        type: 'success',
+        title: 'Marked not a source',
+        message: 'Future discovery runs will skip this and similar results.',
+      });
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Could not mark candidate',
+        message: error instanceof Error ? error.message : 'Please try again.',
+      });
+    } finally {
+      setMarkingCandidateId(null);
+    }
+  };
+
+  const handleParseSources = async (candidateId: string) => {
+    if (!selectedRunId) return;
+    setParsingCandidateId(candidateId);
+    try {
+      const job = await signalRadar.parseDiscoveryCandidateSources.mutateAsync({
+        runId: selectedRunId,
+        candidateId,
+      });
+      setActiveParseJobId(job.jobId);
+      setActiveParseRunId(selectedRunId);
+      showToast({
+        type: 'success',
+        title: 'Parse queued',
+        message: 'Reading page content and searching for RSS feeds and APIs.',
+      });
+    } catch (error) {
+      setParsingCandidateId(null);
+      showToast({
+        type: 'error',
+        title: 'Could not start parse',
+        message: error instanceof Error ? error.message : 'Please try again.',
+      });
+    }
+  };
+
   const profiles = signalRadar.discoveryProfiles.data?.data ?? [];
   const canConfigureDiscovery = signalRadar.settings.data?.hasTavilyKey === true;
 
@@ -192,12 +324,18 @@ export default function RadarDiscoveryPanel({ signalRadar }: RadarDiscoveryPanel
             isLoading={candidates.isLoading || candidates.isFetching}
             error={candidates.error instanceof Error ? candidates.error : null}
             savingCandidateId={savingCandidateId}
+            addingCandidateId={addingCandidateId}
+            markingCandidateId={markingCandidateId}
+            parsingCandidateId={parsingCandidateId}
             onFilterChange={(filter) => {
               setCandidateFilter(filter);
               setCandidatePage(1);
             }}
             onPageChange={setCandidatePage}
             onSave={(candidateId) => void handleSave(candidateId)}
+            onAddAsItem={(candidateId) => void handleAddAsItem(candidateId)}
+            onMarkNotASource={(candidateId) => void handleMarkNotASource(candidateId)}
+            onParseSources={(candidateId) => void handleParseSources(candidateId)}
           />
         </>
       ) : null}

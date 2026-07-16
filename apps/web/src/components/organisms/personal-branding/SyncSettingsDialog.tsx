@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import Dialog from '@/components/molecules/Dialog';
 import Button from '@/components/atoms/Button';
 import { Select } from '@/components/atoms/Select';
 import { useToast } from '@/hooks/use-toast';
+import { useProactiveSettings } from '@/hooks/useProactive';
 import type { useSignalRadar } from '@/hooks/useSignalRadar';
 import {
   RADAR_SYNC_CADENCE_LABELS,
@@ -14,6 +15,7 @@ import {
   type UpdateRadarSourceInput,
 } from '@/types/api/personal-branding.dto';
 import { DialogFooter } from '@/pages/admin/personal-branding/PersonalBrandingPageTemplate';
+import { formatDateTimeInTimeZone } from '@/utils/date-formatters';
 
 type SignalRadarHook = ReturnType<typeof useSignalRadar>;
 
@@ -21,15 +23,6 @@ const BROWSER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const DEFAULT_SYNC_START_TIME = '08:00';
 const DEFAULT_SYNC_INTERVAL_HOURS = 6;
 const DEFAULT_SYNC_DAY_OF_WEEK = 0;
-
-function formatDate(value?: string | null): string {
-  if (!value) return '—';
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return value;
-  }
-}
 
 type SourceOverrideState = {
   cadence: RadarSyncCadence | '';
@@ -58,8 +51,14 @@ export default function SyncSettingsDialog({
   signalRadar,
 }: SyncSettingsDialogProps) {
   const { showToast } = useToast();
+  const { timeZone: timeZonePrefQ } = useProactiveSettings();
   const settings = signalRadar.settings.data;
   const sources = (signalRadar.sources.data?.data ?? []).filter((s) => s.enabled);
+
+  const effectiveTimeZone = useMemo(
+    () => timeZonePrefQ.data?.timeZone || settings?.syncTimezone || BROWSER_TIMEZONE,
+    [settings?.syncTimezone, timeZonePrefQ.data?.timeZone]
+  );
 
   const [syncCadence, setSyncCadence] = useState<RadarSyncCadence>('DAILY');
   const [syncStartTime, setSyncStartTime] = useState(DEFAULT_SYNC_START_TIME);
@@ -108,7 +107,7 @@ export default function SyncSettingsDialog({
       await signalRadar.updateSettings.mutateAsync({
         syncCadence,
         syncStartTime: syncCadence === 'MANUAL_ONLY' ? null : syncStartTime,
-        syncTimezone: syncCadence === 'MANUAL_ONLY' ? null : BROWSER_TIMEZONE,
+        syncTimezone: syncCadence === 'MANUAL_ONLY' ? null : effectiveTimeZone,
         syncIntervalHours: syncCadence === 'EVERY_N_HOURS' ? syncIntervalHours : null,
         syncDayOfWeek: syncCadence === 'WEEKLY' ? syncDayOfWeek : null,
       });
@@ -258,13 +257,14 @@ export default function SyncSettingsDialog({
                   onChange={(e) => setSyncStartTime(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
                 />
-                <p className="mt-1 text-xs text-gray-500">Local time ({BROWSER_TIMEZONE})</p>
+                <p className="mt-1 text-xs text-gray-500">Local time ({effectiveTimeZone})</p>
               </div>
             ) : null}
           </div>
           {settings ? (
             <p className="text-xs text-gray-500">
-              Last run {formatDate(settings.lastRunAt)} · Next due {formatDate(settings.nextDueAt)}
+              Last run {formatDateTimeInTimeZone(settings.lastRunAt, effectiveTimeZone)} · Next due{' '}
+              {formatDateTimeInTimeZone(settings.nextDueAt, effectiveTimeZone)}
             </p>
           ) : null}
         </section>
@@ -296,7 +296,8 @@ export default function SyncSettingsDialog({
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">{source.name}</p>
                         <p className="text-xs text-gray-500">
-                          Last scraped {formatDate(source.lastScrapedAt)}
+                          Last scraped{' '}
+                          {formatDateTimeInTimeZone(source.lastScrapedAt, effectiveTimeZone)}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">

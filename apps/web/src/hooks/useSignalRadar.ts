@@ -155,6 +155,43 @@ export function useSignalRadar() {
     },
   });
 
+  const addDiscoveryCandidateAsItem = useMutation({
+    mutationFn: ({ runId, candidateId }: { runId: string; candidateId: string }) =>
+      personalBrandingService.addRadarDiscoveryCandidateAsItem(runId, candidateId),
+    onSuccess: (_item, { runId }) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarItems.all() });
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarDiscovery.candidates(runId),
+      });
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarDiscovery.detail(runId),
+      });
+    },
+  });
+
+  const markDiscoveryCandidateNotASource = useMutation({
+    mutationFn: ({ runId, candidateId }: { runId: string; candidateId: string }) =>
+      personalBrandingService.markRadarDiscoveryCandidateNotASource(runId, candidateId),
+    onSuccess: (_candidate, { runId }) => {
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarDiscovery.candidates(runId),
+      });
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarDiscovery.detail(runId),
+      });
+    },
+  });
+
+  const parseDiscoveryCandidateSources = useMutation({
+    mutationFn: ({ runId, candidateId }: { runId: string; candidateId: string }) =>
+      personalBrandingService.startRadarDiscoveryCandidateParseSources(runId, candidateId),
+    onSuccess: (_job, { runId }) => {
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarDiscovery.candidates(runId),
+      });
+    },
+  });
+
   return {
     settings,
     sources,
@@ -166,6 +203,9 @@ export function useSignalRadar() {
     startDiscovery,
     controlDiscovery,
     saveDiscoveryCandidate,
+    addDiscoveryCandidateAsItem,
+    markDiscoveryCandidateNotASource,
+    parseDiscoveryCandidateSources,
     suggestedCadences: useQuery({
       queryKey: queryKeys.personalBranding.radarSuggestedCadences(),
       queryFn: () => personalBrandingService.getRadarSuggestedCadences(),

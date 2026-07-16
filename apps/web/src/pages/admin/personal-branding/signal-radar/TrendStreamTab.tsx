@@ -11,6 +11,7 @@ import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
 import { linkAccentClassName } from '../personal-branding-ui';
 import { useToast } from '@/hooks/use-toast';
+import { useContentIdeationJob } from '@/hooks/useContentIdeationJob';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import { ROUTES } from '@/routes';
@@ -202,13 +203,12 @@ function RadarItemCard({
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
         {item.sourceName ? <span>{item.sourceName}</span> : null}
         {item.publishedAt ? <span>{formatDate(item.publishedAt)}</span> : null}
-        <span>{(item.relevanceScore * 100).toFixed(0)}% relevance</span>
         {typeof item.aiRelevanceScore === 'number' ? (
           <span
             className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200"
             title={item.aiRationale ?? undefined}
           >
-            AI {(item.aiRelevanceScore * 100).toFixed(0)}%
+            AI Relevance: {(item.aiRelevanceScore * 100).toFixed(0)}%
           </span>
         ) : null}
       </div>
@@ -256,6 +256,7 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [brainstormOpen, setBrainstormOpen] = useState(false);
   const [brainstormError, setBrainstormError] = useState<string | null>(null);
+  const [brainstormJobId, setBrainstormJobId] = useState<string | null>(null);
 
   const profilesQ = useQuery({
     queryKey: queryKeys.personalBranding.profiles.list(1, 50),
@@ -309,18 +310,48 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
       });
     },
     onMutate: () => setBrainstormError(null),
-    onSuccess: async (result) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.personalBranding.ideas.all() });
-      setSelectedItemIds([]);
-      setBrainstormOpen(false);
-      showToast({
-        type: 'success',
-        title: `Generated ${result.ideas.length} content idea${result.ideas.length === 1 ? '' : 's'}`,
-      });
-      navigate(`${ROUTES.admin.personalBrandingWorkbench}?tab=trend-ideas`);
+    onSuccess: (start) => {
+      setBrainstormJobId(start.jobId);
     },
     onError: (err: Error) => setBrainstormError(err.message),
   });
+
+  const ideationJob = useContentIdeationJob(
+    brainstormJobId,
+    async (job) => {
+      if (job.status === 'succeeded' && job.result) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.personalBranding.ideas.all() });
+        setSelectedItemIds([]);
+        setBrainstormJobId(null);
+        setBrainstormOpen(false);
+        showToast({
+          type: 'success',
+          title: `Generated ${job.result.ideas.length} content idea${job.result.ideas.length === 1 ? '' : 's'}`,
+        });
+        navigate(`${ROUTES.admin.personalBrandingWorkbench}?tab=trend-ideas`);
+        return;
+      }
+      if (job.status === 'failed') {
+        setBrainstormJobId(null);
+        setBrainstormError(job.error ?? job.message ?? 'Content ideation failed');
+      }
+    },
+    () => {
+      setBrainstormJobId(null);
+      setBrainstormError(
+        'Content ideation is still running but took longer than expected. Check Trend Ideas shortly or retry.'
+      );
+    }
+  );
+
+  const isBrainstorming =
+    brainstormMutation.isPending ||
+    Boolean(
+      brainstormJobId &&
+      (!ideationJob.data ||
+        ideationJob.data.status === 'queued' ||
+        ideationJob.data.status === 'running')
+    );
 
   const toggleItemSelection = (itemId: string) => {
     setSelectedItemIds((current) => {
@@ -576,12 +607,13 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
         profiles={brandProfiles}
         profilesLoading={profilesQ.isPending}
         defaultBrandProfileId={defaultProfileId}
-        isSubmitting={brainstormMutation.isPending}
+        isSubmitting={isBrainstorming}
+        progressMessage={ideationJob.data?.message ?? null}
         errorMessage={brainstormError}
         onClose={() => {
-          if (brainstormMutation.isPending) return;
           setBrainstormOpen(false);
           setBrainstormError(null);
+          setBrainstormJobId(null);
         }}
         onSubmit={(request) => brainstormMutation.mutate(request)}
       />

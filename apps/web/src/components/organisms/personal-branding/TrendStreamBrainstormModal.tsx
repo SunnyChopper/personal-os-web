@@ -26,6 +26,7 @@ interface TrendStreamBrainstormModalProps {
   profilesLoading: boolean;
   defaultBrandProfileId: string | null;
   isSubmitting: boolean;
+  progressMessage?: string | null;
   errorMessage: string | null;
   onClose: () => void;
   onSubmit: (request: TrendStreamBrainstormRequest) => void;
@@ -40,6 +41,7 @@ export default function TrendStreamBrainstormModal({
   profilesLoading,
   defaultBrandProfileId,
   isSubmitting,
+  progressMessage,
   errorMessage,
   onClose,
   onSubmit,
@@ -196,7 +198,13 @@ export default function TrendStreamBrainstormModal({
           )}
 
           {errorMessage ? (
-            <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+            <p className="whitespace-pre-line text-sm text-red-600 dark:text-red-400">
+              {errorMessage}
+            </p>
+          ) : null}
+
+          {isSubmitting && progressMessage ? (
+            <p className="text-sm text-gray-600 dark:text-gray-400">{progressMessage}</p>
           ) : null}
 
           <div className="flex justify-end gap-2 pt-2">
