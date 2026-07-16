@@ -173,6 +173,8 @@ describe('ObservabilityPage execution detail', () => {
       inputTokens: 12453,
       outputTokens: 412,
       totalTokens: 12865,
+      cachedTokens: 8000,
+      cacheCreationTokens: 1200,
       inputCostUsd: 0.0124,
       outputCostUsd: 0.0008,
       totalCostUsd: 0.0132,
@@ -189,6 +191,8 @@ describe('ObservabilityPage execution detail', () => {
       expect(dialog.textContent).toContain('12,453 (97% input share)');
       expect(dialog.textContent).toContain('412');
       expect(dialog.textContent).toContain('12,865');
+      expect(dialog.textContent).toContain('Cached: 8,000');
+      expect(dialog.textContent).toContain('Cache write: 1,200');
       expect(dialog.textContent).toContain('$0.0124');
       expect(dialog.textContent).toContain('$0.0008');
     });
@@ -556,6 +560,29 @@ describe('ObservabilityPage investigate thread', () => {
         })
       );
     });
+  });
+
+  it('renders feature column for personal branding executions', async () => {
+    const user = userEvent.setup();
+    vi.mocked(observabilityService.listExecutions).mockResolvedValue({
+      ...emptyPage,
+      data: [
+        {
+          id: 'exec-pb',
+          occurredAt: new Date().toISOString(),
+          module: 'personal_branding',
+          feature: 'contentIdeation',
+          provider: 'anthropic',
+          model: 'claude-sonnet-4-6',
+          status: 'succeeded',
+        },
+      ],
+      total: 1,
+    });
+    renderPage('/admin/assistant/observability?tab=executions');
+    await user.click(screen.getByRole('tab', { name: /execution log/i }));
+    expect(await screen.findByText('contentIdeation')).toBeInTheDocument();
+    expect(screen.getByText('personal_branding')).toBeInTheDocument();
   });
 
   it('shows Open in Sandbox disabled for non-assistant executions', async () => {

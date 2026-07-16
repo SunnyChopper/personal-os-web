@@ -49,6 +49,8 @@ export interface ObservabilityExecutionRow {
   inputTokens?: number | null;
   outputTokens?: number | null;
   totalTokens?: number | null;
+  cachedTokens?: number | null;
+  cacheCreationTokens?: number | null;
   totalCostUsd?: number | null;
   latencyMs?: number | null;
   responsePreview?: string | null;
