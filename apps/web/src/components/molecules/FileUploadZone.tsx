@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Upload, File, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCollapsibleList } from '@/hooks/useCollapsibleList';
 
 interface FileUploadZoneProps {
   onFilesSelected: (files: File[]) => void;
@@ -29,9 +30,16 @@ export default function FileUploadZone({
 }: FileUploadZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [isExpanded, setIsExpanded] = useState(false);
   const [sizeError, setSizeError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const {
+    visibleItems: visibleFiles,
+    hiddenCount: hiddenFileCount,
+    hasCollapsibleList,
+    isExpanded,
+    toggle,
+    collapse,
+  } = useCollapsibleList(selectedFiles, COLLAPSED_FILE_PREVIEW_COUNT);
 
   const maxBytes = maxSizeMB * 1024 * 1024;
 
@@ -89,7 +97,7 @@ export default function FileUploadZone({
 
     if (merged.length > 0) {
       setSelectedFiles(merged);
-      setIsExpanded(false);
+      collapse();
       onFilesSelected(merged);
     }
   };
@@ -101,7 +109,7 @@ export default function FileUploadZone({
 
     if (merged.length > 0) {
       setSelectedFiles(merged);
-      setIsExpanded(false);
+      collapse();
       onFilesSelected(merged);
     }
   };
@@ -115,16 +123,9 @@ export default function FileUploadZone({
     setSelectedFiles(newFiles);
     onFilesSelected(newFiles);
     if (newFiles.length <= COLLAPSED_FILE_PREVIEW_COUNT) {
-      setIsExpanded(false);
+      collapse();
     }
   };
-
-  const hasCollapsibleList = selectedFiles.length > COLLAPSED_FILE_PREVIEW_COUNT;
-  const hiddenFileCount = selectedFiles.length - COLLAPSED_FILE_PREVIEW_COUNT;
-  const visibleFiles =
-    hasCollapsibleList && !isExpanded
-      ? selectedFiles.slice(0, COLLAPSED_FILE_PREVIEW_COUNT)
-      : selectedFiles;
 
   const renderFileRow = (file: File, index: number) => (
     <div
@@ -198,7 +199,7 @@ export default function FileUploadZone({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsExpanded((prev) => !prev);
+                  toggle();
                 }}
                 className="flex-shrink-0 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
               >
@@ -219,7 +220,7 @@ export default function FileUploadZone({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setIsExpanded(true);
+                toggle();
               }}
               className="w-full rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 transition hover:border-gray-400 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:bg-gray-800/50"
             >
