@@ -92,6 +92,28 @@ export function formatDateString(
   return parsed.toLocaleDateString('en-US', options);
 }
 
+const PLATFORM_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  dateStyle: 'short',
+  timeStyle: 'medium',
+};
+
+/**
+ * Format a UTC ISO timestamp in a specific IANA timezone (e.g. platform preference).
+ */
+export function formatDateTimeInTimeZone(iso: string | null | undefined, timeZone: string): string {
+  if (!iso) return '—';
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      ...PLATFORM_DATETIME_OPTIONS,
+      timeZone,
+    }).format(parsed);
+  } catch {
+    return parsed.toLocaleString();
+  }
+}
+
 const LOCAL_CLOCK_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
   hour: 'numeric',
   minute: '2-digit',
