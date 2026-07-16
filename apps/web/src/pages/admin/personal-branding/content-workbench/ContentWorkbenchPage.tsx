@@ -145,11 +145,7 @@ export default function ContentWorkbenchPage() {
                 onSourceKindChange={ct.setSourceKind}
                 sourceUrl={ct.sourceUrl}
                 onSourceUrlChange={ct.setSourceUrl}
-                mediumApiKey={ct.mediumApiKey}
-                onMediumApiKeyChange={ct.setMediumApiKey}
                 hasMediumApiKey={ct.settingsQ.data?.hasMediumApiKey ?? false}
-                isSavingSettings={ct.saveSettingsMutation.isPending}
-                onSaveMediumApiKey={() => ct.saveSettingsMutation.mutate(ct.mediumApiKey)}
                 isExtracting={ct.extractMutation.isPending}
                 extractError={ct.extractError}
                 lastExtractionStats={ct.lastExtractionStats}
@@ -196,6 +192,8 @@ export default function ContentWorkbenchPage() {
               editorBody={wb.editorBody}
               onBodyChange={wb.handleEditorBodyChange}
               contentType={wb.contentType}
+              draftPlatform={wb.draftPlatform}
+              onDraftPlatformChange={wb.setDraftPlatform}
               assetPrompts={wb.assetPrompts}
               isDirty={wb.isDirty}
               isSaving={wb.saveDraftMutation.isPending}

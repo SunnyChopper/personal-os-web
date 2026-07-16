@@ -18,6 +18,7 @@ type WizardStep = 'contentType' | 'approach' | 'templateDetail' | 'aiDetail';
 export interface NewDraftTemplateResult {
   contentType: ContentType;
   title: string;
+  platform?: BrandPlatform | null;
 }
 
 export interface NewDraftAiRequest {
@@ -49,7 +50,7 @@ export default function NewDraftWizardModal({
   const [step, setStep] = useState<WizardStep>('contentType');
   const [contentType, setContentType] = useState<ContentType>('DEEP_DIVE_BLOG');
   const [title, setTitle] = useState('');
-  const [platform, setPlatform] = useState<BrandPlatform>('linkedin');
+  const [platform, setPlatform] = useState<BrandPlatform | ''>('');
   const [brandProfileId, setBrandProfileId] = useState('');
   const [topic, setTopic] = useState('');
   const [templateId, setTemplateId] = useState('');
@@ -81,7 +82,7 @@ export default function NewDraftWizardModal({
     setStep('contentType');
     setContentType('DEEP_DIVE_BLOG');
     setTitle('');
-    setPlatform('linkedin');
+    setPlatform('');
     setBrandProfileId('');
     setTopic('');
     setTemplateId('');
@@ -198,6 +199,21 @@ export default function NewDraftWizardModal({
               className={`${formFieldClassName} mt-1`}
             />
           </label>
+          <label className="block text-sm text-gray-700 dark:text-gray-300">
+            Target platform <span className="font-normal text-gray-500">(optional)</span>
+            <Select
+              value={platform}
+              onChange={(e) => setPlatform(e.target.value as BrandPlatform | '')}
+              className={`${formFieldClassName} mt-1`}
+            >
+              <option value="">No specific platform</option>
+              {PLATFORMS.map((p) => (
+                <option key={p} value={p}>
+                  {BRAND_PLATFORM_LABELS[p]}
+                </option>
+              ))}
+            </Select>
+          </label>
           <div className="flex justify-between pt-2">
             <Button type="button" size="sm" variant="secondary" onClick={handleBack}>
               Back
@@ -206,7 +222,11 @@ export default function NewDraftWizardModal({
               type="button"
               size="sm"
               onClick={() => {
-                onStartFromTemplate({ contentType, title: title.trim() });
+                onStartFromTemplate({
+                  contentType,
+                  title: title.trim(),
+                  platform: platform || null,
+                });
                 onClose();
               }}
             >
@@ -258,7 +278,7 @@ export default function NewDraftWizardModal({
                 <label className="block text-sm text-gray-700 dark:text-gray-300">
                   Target platform
                   <Select
-                    value={platform}
+                    value={platform || 'linkedin'}
                     onChange={(e) => setPlatform(e.target.value as BrandPlatform)}
                     className={`${formFieldClassName} mt-1`}
                   >
@@ -303,14 +323,18 @@ export default function NewDraftWizardModal({
                 if (trimmedTopic) {
                   onGenerateWithAi({
                     contentType,
-                    platform,
+                    platform: (platform || 'linkedin') as BrandPlatform,
                     brandProfileId,
                     topic: trimmedTopic,
                     templateId: templateId || undefined,
                   });
                   return;
                 }
-                onStartFromTemplate({ contentType, title: '' });
+                onStartFromTemplate({
+                  contentType,
+                  title: '',
+                  platform: platform || null,
+                });
                 onClose();
               }}
               className="inline-flex items-center gap-2"

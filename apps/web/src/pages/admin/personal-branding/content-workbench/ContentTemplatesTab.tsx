@@ -59,11 +59,7 @@ interface ContentTemplatesTabProps {
   onSourceKindChange: (kind: TemplateSourceKind) => void;
   sourceUrl: string;
   onSourceUrlChange: (url: string) => void;
-  mediumApiKey: string;
-  onMediumApiKeyChange: (key: string) => void;
   hasMediumApiKey: boolean;
-  isSavingSettings: boolean;
-  onSaveMediumApiKey: () => void;
   isExtracting: boolean;
   extractError: string | null;
   lastExtractionStats: ContentTemplateExtractionContextStats | null;
@@ -116,11 +112,7 @@ export default function ContentTemplatesTab({
   onSourceKindChange,
   sourceUrl,
   onSourceUrlChange,
-  mediumApiKey,
-  onMediumApiKeyChange,
   hasMediumApiKey,
-  isSavingSettings,
-  onSaveMediumApiKey,
   isExtracting,
   extractError,
   lastExtractionStats,
@@ -368,27 +360,11 @@ export default function ContentTemplatesTab({
         {sourceKind === 'MEDIUM_ARTICLE' ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
             <p>
-              Medium extraction uses your RapidAPI Medium reader key.
-              {hasMediumApiKey ? ' A key is configured.' : ' Add a key below to enable extraction.'}
+              Medium extraction uses the platform RapidAPI integration.
+              {hasMediumApiKey
+                ? ' The integration is configured.'
+                : ' RapidAPI is not configured at the platform level — contact your operator.'}
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <input
-                type="password"
-                value={mediumApiKey}
-                onChange={(e) => onMediumApiKeyChange(e.target.value)}
-                placeholder="RapidAPI key"
-                className="min-w-[220px] flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={isSavingSettings}
-                onClick={onSaveMediumApiKey}
-              >
-                {isSavingSettings ? 'Saving…' : hasMediumApiKey ? 'Update key' : 'Save key'}
-              </Button>
-            </div>
           </div>
         ) : null}
 

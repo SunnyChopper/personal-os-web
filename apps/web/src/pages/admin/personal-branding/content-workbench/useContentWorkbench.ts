@@ -37,6 +37,7 @@ export function useContentWorkbench() {
   const [editorTitle, setEditorTitle] = useState('');
   const [editorBody, setEditorBody] = useState('');
   const [contentType, setContentType] = useState<ContentType>('DEEP_DIVE_BLOG');
+  const [draftPlatform, setDraftPlatform] = useState<BrandPlatform | null>(null);
   const [assetPrompts, setAssetPrompts] = useState<AssetPromptsResult | null>(null);
   const [rejectingIdea, setRejectingIdea] = useState<ContentIdea | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -112,6 +113,7 @@ export function useContentWorkbench() {
     setEditorTitle(node.title);
     setEditorBody(node.body ?? '');
     setContentType(node.contentType ?? 'DEEP_DIVE_BLOG');
+    setDraftPlatform(node.platform ?? null);
     setAssetPrompts((node.assetPrompts as AssetPromptsResult | null) ?? null);
     setIsDirty(false);
   }, []);
@@ -170,6 +172,7 @@ export function useContentWorkbench() {
         title: resolvedTitle,
         body: editorBody,
         contentType,
+        platform: draftPlatform,
       };
       if (activeDraftId) {
         return personalBrandingService.updateContentNode(activeDraftId, body);
@@ -317,6 +320,7 @@ export function useContentWorkbench() {
       setActiveDraftId(null);
       setActiveContentStatus(null);
       setContentType(request.contentType);
+      setDraftPlatform(request.platform);
       setEditorTitle(result.title);
       setEditorBody(result.body);
       setAssetPrompts(null);
@@ -351,6 +355,7 @@ export function useContentWorkbench() {
   const startFromTemplate = (result: NewDraftTemplateResult) => {
     setActiveDraftId(null);
     setContentType(result.contentType);
+    setDraftPlatform(result.platform ?? null);
     setEditorTitle(result.title);
     setEditorBody(layoutTemplateForContentType(result.contentType));
     setAssetPrompts(null);
@@ -381,6 +386,7 @@ export function useContentWorkbench() {
     setActiveContentStatus(null);
     setEditorTitle('');
     setEditorBody('');
+    setDraftPlatform(null);
     setAssetPrompts(null);
     setIsDirty(false);
     const next = new URLSearchParams(searchParams);
@@ -418,6 +424,11 @@ export function useContentWorkbench() {
     editorBody,
     handleEditorBodyChange,
     contentType,
+    draftPlatform,
+    setDraftPlatform: (value: BrandPlatform | null) => {
+      setDraftPlatform(value);
+      setIsDirty(true);
+    },
     assetPrompts,
     isDirty,
     loadDraft,

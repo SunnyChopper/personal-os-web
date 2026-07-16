@@ -19,7 +19,6 @@ export function useContentTemplates() {
   const queryClient = useQueryClient();
   const [sourceKind, setSourceKind] = useState<TemplateSourceKind>('GENERIC_URL');
   const [sourceUrl, setSourceUrl] = useState('');
-  const [mediumApiKey, setMediumApiKey] = useState('');
   const [brainstormBrief, setBrainstormBrief] = useState('');
   const [brainstormContentType, setBrainstormContentType] = useState<ContentType | ''>('');
   const [brainstormPlatform, setBrainstormPlatform] = useState<BrandPlatform | ''>('');
@@ -162,19 +161,6 @@ export function useContentTemplates() {
     },
   });
 
-  const saveSettingsMutation = useMutation({
-    mutationFn: (key: string) =>
-      personalBrandingService.updateContentTemplateSettings({
-        mediumApiKey: key.trim() || null,
-      }),
-    onSuccess: async () => {
-      setMediumApiKey('');
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.personalBranding.contentTemplateSettings(),
-      });
-    },
-  });
-
   return {
     templatesQ,
     candidatesQ,
@@ -185,8 +171,6 @@ export function useContentTemplates() {
     setSourceKind,
     sourceUrl,
     setSourceUrl,
-    mediumApiKey,
-    setMediumApiKey,
     brainstormBrief,
     setBrainstormBrief,
     brainstormContentType,
@@ -213,6 +197,5 @@ export function useContentTemplates() {
     approveCandidateMutation,
     rejectCandidateMutation,
     retryCandidateMutation,
-    saveSettingsMutation,
   };
 }
