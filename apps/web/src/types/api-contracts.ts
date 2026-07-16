@@ -432,6 +432,12 @@ export interface RolodexFollowUpNotificationsConfig {
   channelWebhookEnabled: boolean;
 }
 
+export interface ReconFeedContentNotificationsConfig {
+  enabled: boolean;
+  channelEmailEnabled: boolean;
+  channelWebhookEnabled: boolean;
+}
+
 export interface ProactiveWebhookTestResult {
   deliveredTo: string;
   deployedStage: string;

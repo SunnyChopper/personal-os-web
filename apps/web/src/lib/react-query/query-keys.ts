@@ -432,6 +432,8 @@ export const queryKeys = {
     recoveryNotifications: () => [...queryKeys.preferences.all, 'recovery-notifications'] as const,
     rolodexFollowUpNotifications: () =>
       [...queryKeys.preferences.all, 'rolodex-follow-up-notifications'] as const,
+    reconFeedContentNotifications: () =>
+      [...queryKeys.preferences.all, 'recon-feed-notifications'] as const,
     weeklyDashboard: () => [...queryKeys.preferences.all, 'weekly-dashboard'] as const,
     marginOfSafetyBuffer: () => [...queryKeys.preferences.all, 'margin-of-safety-buffer'] as const,
   },
@@ -484,6 +486,13 @@ export const queryKeys = {
         [...queryKeys.personalBranding.content.all(), 'detail', contentId] as const,
       variants: (contentId: string) =>
         [...queryKeys.personalBranding.content.all(), 'variants', contentId] as const,
+      repurposeJobs: (contentId: string, status?: string) =>
+        [
+          ...queryKeys.personalBranding.content.all(),
+          'repurpose-jobs',
+          contentId,
+          status ?? 'all',
+        ] as const,
       repurposeJob: (contentId: string, jobId: string) =>
         [...queryKeys.personalBranding.content.all(), 'repurpose-job', contentId, jobId] as const,
     },
@@ -497,6 +506,11 @@ export const queryKeys = {
           pageSize,
           status ?? 'GENERATED',
         ] as const,
+    },
+    ideationJobs: {
+      all: () => [...queryKeys.personalBranding.all, 'content-ideation-jobs'] as const,
+      detail: (jobId: string) =>
+        [...queryKeys.personalBranding.ideationJobs.all(), 'detail', jobId] as const,
     },
     rejectedFeedback: {
       all: () => [...queryKeys.personalBranding.all, 'rejected-ideas-feedback'] as const,
@@ -585,6 +599,11 @@ export const queryKeys = {
           filters?.status ?? 'all',
           filters?.verdict ?? 'all',
         ] as const,
+      parseJobs: {
+        all: () => [...queryKeys.personalBranding.radarDiscovery.all(), 'parse-jobs'] as const,
+        detail: (jobId: string) =>
+          [...queryKeys.personalBranding.radarDiscovery.parseJobs.all(), jobId] as const,
+      },
     },
     connections: {
       all: () => [...queryKeys.personalBranding.all, 'connections'] as const,
@@ -616,6 +635,8 @@ export const queryKeys = {
       [...queryKeys.personalBranding.all, 'connection-metric-links', connectionId] as const,
     contentOpportunities: {
       all: () => [...queryKeys.personalBranding.all, 'content-opportunities'] as const,
+      board: (status = 'SUGGESTED') =>
+        [...queryKeys.personalBranding.contentOpportunities.all(), 'board', status] as const,
       byConnection: (connectionId: string, page = 1, pageSize = 20) =>
         [
           ...queryKeys.personalBranding.contentOpportunities.all(),
@@ -624,6 +645,11 @@ export const queryKeys = {
           page,
           pageSize,
         ] as const,
+    },
+    replyRuns: {
+      all: () => [...queryKeys.personalBranding.all, 'reply-runs'] as const,
+      detail: (runId: string) =>
+        [...queryKeys.personalBranding.replyRuns.all(), 'detail', runId] as const,
     },
     reconFeed: {
       all: () => [...queryKeys.personalBranding.all, 'recon-feed'] as const,
@@ -638,6 +664,8 @@ export const queryKeys = {
         ] as const,
       runs: (page = 1, pageSize = 20) =>
         [...queryKeys.personalBranding.reconFeed.all(), 'runs', page, pageSize] as const,
+      runDetail: (runId: string) =>
+        [...queryKeys.personalBranding.reconFeed.all(), 'run', runId] as const,
     },
   },
 
