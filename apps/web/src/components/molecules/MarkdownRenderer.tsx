@@ -36,6 +36,8 @@ interface MarkdownRendererProps {
   contentKey?: string;
   /** Inject `data-source-line` on block elements for split-editor scroll sync (default false). */
   annotateSourceLines?: boolean;
+  /** When true, YouTube links render as iframe embeds in preview (default false). */
+  richEmbeds?: boolean;
 }
 
 export default function MarkdownRenderer({
@@ -46,6 +48,7 @@ export default function MarkdownRenderer({
   variant = 'default',
   contentKey,
   annotateSourceLines = false,
+  richEmbeds = false,
 }: MarkdownRendererProps) {
   const codeRefs = useRef<Map<string, HTMLPreElement>>(new Map());
   const { mathLoaded, prismLoaded, Prism } = useMarkdownPlugins(content);
@@ -288,13 +291,18 @@ export default function MarkdownRenderer({
   // This is safe and intentional - components need access to refs to generate consistent IDs.
   const defaultComponents = useMemo(
     () =>
-      createDefaultMarkdownComponents(MarkdownContentWrapper, codeComponent, {
-        h1: createHeadingComponent(1) as Components['h1'],
-        h2: createHeadingComponent(2) as Components['h2'],
-        h3: createHeadingComponent(3) as Components['h3'],
-        h4: createHeadingComponent(4) as Components['h4'],
-      }),
-    [createHeadingComponent, codeComponent]
+      createDefaultMarkdownComponents(
+        MarkdownContentWrapper,
+        codeComponent,
+        {
+          h1: createHeadingComponent(1) as Components['h1'],
+          h2: createHeadingComponent(2) as Components['h2'],
+          h3: createHeadingComponent(3) as Components['h3'],
+          h4: createHeadingComponent(4) as Components['h4'],
+        },
+        { richEmbeds }
+      ),
+    [createHeadingComponent, codeComponent, richEmbeds]
   );
 
   // Merge custom components with defaults (custom takes precedence)

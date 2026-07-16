@@ -14,6 +14,7 @@ import {
   ArrowDownUp,
   Check,
   AlertCircle,
+  MonitorPlay,
 } from 'lucide-react';
 import type { AutosaveStatus } from '@/hooks/markdown/useMarkdownAutosave';
 import { cn } from '@/lib/utils';
@@ -28,6 +29,7 @@ import {
 import { Textarea } from '@/components/atoms/Textarea';
 
 const FOLLOW_STORAGE_KEY = 'markdown-editor-follow-mode';
+const RICH_EMBEDS_STORAGE_KEY = 'markdown-editor-rich-embeds';
 
 type ViewMode = 'split' | 'edit' | 'preview';
 
@@ -43,6 +45,8 @@ interface MarkdownEditorProps {
   autosaveStatus?: AutosaveStatus;
   autosaveLastSavedAt?: number | null;
   autosaveErrorMessage?: string | null;
+  /** Show rich-embeds toggle (YouTube iframe preview). Sandbox Workspace only. */
+  enableRichEmbedsToggle?: boolean;
 }
 
 function formatAutosaveTimeAgo(timestampMs: number, nowMs: number): string {
@@ -152,6 +156,7 @@ export default function MarkdownEditor({
   autosaveStatus,
   autosaveLastSavedAt = null,
   autosaveErrorMessage = null,
+  enableRichEmbedsToggle = false,
 }: MarkdownEditorProps) {
   // Default to 'edit' mode on mobile, 'split' on desktop
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -172,6 +177,19 @@ export default function MarkdownEditor({
   useEffect(() => {
     window.localStorage.setItem(FOLLOW_STORAGE_KEY, followMode ? '1' : '0');
   }, [followMode]);
+
+  const [richEmbedsEnabled, setRichEmbedsEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = window.localStorage.getItem(RICH_EMBEDS_STORAGE_KEY);
+    return stored === null ? true : stored === '1';
+  });
+
+  useEffect(() => {
+    if (!enableRichEmbedsToggle) return;
+    window.localStorage.setItem(RICH_EMBEDS_STORAGE_KEY, richEmbedsEnabled ? '1' : '0');
+  }, [enableRichEmbedsToggle, richEmbedsEnabled]);
+
+  const richEmbedsActive = enableRichEmbedsToggle && richEmbedsEnabled;
 
   // Update mobile state on resize
   useEffect(() => {
@@ -507,6 +525,23 @@ export default function MarkdownEditor({
             >
               <Eye size={16} />
             </button>
+            {enableRichEmbedsToggle && (
+              <button
+                type="button"
+                onClick={() => setRichEmbedsEnabled((v) => !v)}
+                className={cn(
+                  'flex-shrink-0 p-2 min-h-[32px] min-w-[32px] flex items-center justify-center rounded transition',
+                  richEmbedsEnabled
+                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
+                )}
+                title="Rich embeds (YouTube preview)"
+                aria-label="Rich embeds (YouTube preview)"
+                aria-pressed={richEmbedsEnabled}
+              >
+                <MonitorPlay size={16} />
+              </button>
+            )}
             {onEnterReaderMode && (
               <button
                 type="button"
@@ -570,7 +605,11 @@ export default function MarkdownEditor({
                 <Loader className="w-8 h-8 animate-spin text-gray-400" />
               </div>
             ) : value.trim() ? (
-              <MarkdownRenderer content={value} annotateSourceLines={showSplitChrome} />
+              <MarkdownRenderer
+                content={value}
+                annotateSourceLines={showSplitChrome}
+                richEmbeds={richEmbedsActive}
+              />
             ) : (
               <p className="text-gray-400 dark:text-gray-500 italic">{placeholder}</p>
             )}

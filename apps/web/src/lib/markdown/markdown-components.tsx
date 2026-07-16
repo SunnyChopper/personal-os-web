@@ -2,6 +2,8 @@ import React, { createContext, useContext } from 'react';
 import type { Components } from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { MarkdownCheckboxInput } from '@/lib/markdown/markdown-checkbox-input';
+import YouTubeEmbed from '@/components/atoms/YouTubeEmbed';
+import { parseYouTubeVideoId } from '@/lib/markdown/youtube-embed';
 
 type ContentWrapper = (props: {
   children: React.ReactNode;
@@ -189,14 +191,24 @@ export function createTableComponents(ContentWrapper: ContentWrapper): {
   };
 }
 
+export interface MarkdownComponentOptions {
+  richEmbeds?: boolean;
+}
+
 /**
  * Create link component for markdown rendering.
  */
-export function createLinkComponent(): {
+export function createLinkComponent(options: MarkdownComponentOptions = {}): {
   a: Components['a'];
 } {
+  const { richEmbeds = false } = options;
+
   return {
     a({ className, href, children, ...props }) {
+      if (richEmbeds && href && parseYouTubeVideoId(href)) {
+        return <YouTubeEmbed href={href} caption={children} className={className} />;
+      }
+
       return (
         <a
           href={href}
@@ -255,13 +267,14 @@ export function createDefaultMarkdownComponents(
     h2?: Components['h2'];
     h3?: Components['h3'];
     h4?: Components['h4'];
-  }
+  },
+  options: MarkdownComponentOptions = {}
 ): Partial<Components> {
   return {
     ...createListComponents(ContentWrapper),
     ...createTextComponents(ContentWrapper),
     ...createTableComponents(ContentWrapper),
-    ...createLinkComponent(),
+    ...createLinkComponent(options),
     ...createInputComponent(),
     ...createBlockquoteComponent(ContentWrapper),
     ...headingComponents,
