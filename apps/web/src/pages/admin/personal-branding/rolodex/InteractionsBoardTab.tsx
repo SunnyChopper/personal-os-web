@@ -1,14 +1,19 @@
 import { useMemo, useState } from 'react';
 import { CalendarClock, MessageSquarePlus, Search, Sparkles } from 'lucide-react';
 import Button from '@/components/atoms/Button';
+import RejectWithFeedbackModal from '@/components/molecules/personal-branding/RejectWithFeedbackModal';
 import { useToast } from '@/hooks/use-toast';
 import type { useRolodex } from '@/hooks/useRolodex';
 import type {
   ContentOpportunity,
   ContentOpportunitySearchResult,
   CreatorConnection,
-  RolodexResponseVectorItem,
+  ReplyGenerationDraft,
+  ReplyRun,
+  ReplySuggestion,
 } from '@/types/api/personal-branding.dto';
+import { useRolodexReplyRuns } from '@/hooks/useRolodexReplyRuns';
+import ConnectionContentSuggestions from './ConnectionContentSuggestions';
 import ContentOpportunityDrawer from './ContentOpportunityDrawer';
 import LogInteractionDialog from './LogInteractionDialog';
 import ProfileLinkBadge from './ProfileLinkBadge';
@@ -68,11 +73,13 @@ export default function InteractionsBoardTab({
 
   const [checkInConnection, setCheckInConnection] = useState<CreatorConnection | null>(null);
   const [prompterConnection, setPrompterConnection] = useState<CreatorConnection | null>(null);
-  const [vectors, setVectors] = useState<RolodexResponseVectorItem[] | null>(null);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const replyRuns = useRolodexReplyRuns(activeRunId);
+  const activeRun: ReplyRun | null | undefined = replyRuns.query.data;
   const [pendingLog, setPendingLog] = useState<{
     connection: CreatorConnection;
     creatorText: string;
-    vector: RolodexResponseVectorItem;
+    vector: { id: string; label: string; angle: string; draftText: string; rationale: string };
     evidenceUrl?: string | null;
     platform?: string | null;
     platformPostId?: string | null;
@@ -83,10 +90,28 @@ export default function InteractionsBoardTab({
   );
   const [contentSearchResult, setContentSearchResult] =
     useState<ContentOpportunitySearchResult | null>(null);
+  const [pendingOpportunityAction, setPendingOpportunityAction] = useState<{
+    id: string;
+    type: 'complete' | 'dismiss';
+  } | null>(null);
+  const [dismissingOpportunity, setDismissingOpportunity] = useState<ContentOpportunity | null>(
+    null
+  );
+
+  const opportunitiesByConnection = useMemo(() => {
+    const items = rolodex.activeContentOpportunities.data?.data ?? [];
+    const grouped = new Map<string, ContentOpportunity[]>();
+    for (const opportunity of items) {
+      const existing = grouped.get(opportunity.connectionId) ?? [];
+      existing.push(opportunity);
+      grouped.set(opportunity.connectionId, existing);
+    }
+    return grouped;
+  }, [rolodex.activeContentOpportunities.data?.data]);
 
   const openCheckIn = (connection: CreatorConnection) => {
     setPrompterConnection(null);
-    setVectors(null);
+    setActiveRunId(null);
     setContentSearchConnection(null);
     setContentSearchResult(null);
     setCheckInConnection(connection);
@@ -97,7 +122,7 @@ export default function InteractionsBoardTab({
     setContentSearchConnection(null);
     setContentSearchResult(null);
     setPrompterConnection(connection);
-    setVectors(null);
+    setActiveRunId(null);
     if (creatorText) {
       setPendingLog({
         connection,
@@ -115,10 +140,93 @@ export default function InteractionsBoardTab({
     }
   };
 
+  const startReplyGeneration = async (
+    connection: CreatorConnection,
+    payload: {
+      opportunityId?: string | null;
+      creatorText: string;
+      platform: import('@/types/api/personal-branding.dto').BrandPlatform;
+      interactionIntent?: string;
+    },
+    draft: ReplyGenerationDraft,
+    resolved: { provider: string; model: string }
+  ) => {
+    try {
+      const run = await replyRuns.startRun.mutateAsync({
+        connectionId: connection.id,
+        opportunityId: payload.opportunityId,
+        platform: payload.platform,
+        creatorText: payload.creatorText,
+        profileId: selectedProfileId ?? undefined,
+        interactionIntent: payload.interactionIntent,
+        mode: draft.mode,
+        researchEnabled: draft.researchEnabled,
+        provider: resolved.provider,
+        model: resolved.model,
+        reasoningEffort: draft.reasoningEffort ?? undefined,
+        suggestionCount: draft.suggestionCount,
+        suggestedParamsJson: draft as unknown as Record<string, unknown>,
+      });
+      setActiveRunId(run.id);
+      if (draft.mode === 'AGENT') {
+        showToast({ type: 'info', title: 'Agent run started — drafting in background' });
+      }
+    } catch (err) {
+      showToast({ type: 'error', title: err instanceof Error ? err.message : 'Generation failed' });
+    }
+  };
+
+  const handleAcceptSuggestion = async (
+    connection: CreatorConnection,
+    opportunity: ContentOpportunity | null,
+    suggestion: ReplySuggestion,
+    creatorText: string
+  ) => {
+    try {
+      await replyRuns.updateSuggestion.mutateAsync({
+        suggestionId: suggestion.id,
+        body: { status: 'ACCEPTED' },
+      });
+      await navigator.clipboard.writeText(suggestion.draftText);
+      showToast({ type: 'success', title: 'Draft copied — log your interaction' });
+      setContentSearchConnection(null);
+      setContentSearchResult(null);
+      setPrompterConnection(null);
+      setActiveRunId(null);
+      setPendingLog({
+        connection,
+        creatorText,
+        vector: suggestion,
+        evidenceUrl: opportunity?.postUrl ?? null,
+        platform: opportunity?.platform ?? 'x',
+        platformPostId: opportunity?.platformPostId ?? null,
+        channel: opportunity?.platform ?? 'x',
+      });
+      setCheckInConnection(connection);
+    } catch (err) {
+      showToast({ type: 'error', title: err instanceof Error ? err.message : 'Accept failed' });
+    }
+  };
+
+  const handleRejectSuggestion = async (
+    suggestion: ReplySuggestion,
+    feedbackText: string | null
+  ) => {
+    try {
+      await replyRuns.updateSuggestion.mutateAsync({
+        suggestionId: suggestion.id,
+        body: { status: 'REJECTED', feedbackText },
+      });
+      showToast({ type: 'success', title: 'Feedback saved for future runs' });
+    } catch (err) {
+      showToast({ type: 'error', title: err instanceof Error ? err.message : 'Reject failed' });
+    }
+  };
+
   const openContentSearch = async (connection: CreatorConnection) => {
     setCheckInConnection(null);
     setPrompterConnection(null);
-    setVectors(null);
+    setActiveRunId(null);
     setPendingLog(null);
     setContentSearchConnection(connection);
     setContentSearchResult(null);
@@ -137,46 +245,25 @@ export default function InteractionsBoardTab({
     }
   };
 
-  const handleGenerate = async (payload: {
-    creatorText: string;
-    platform: import('@/types/api/personal-branding.dto').BrandPlatform;
-    interactionIntent?: string;
-  }) => {
-    if (!prompterConnection) return;
-    try {
-      const result = await rolodex.generateResponseVectors.mutateAsync({
-        connectionId: prompterConnection.id,
-        creatorText: payload.creatorText,
-        platform: payload.platform,
-        profileId: selectedProfileId ?? undefined,
-        interactionIntent: payload.interactionIntent,
-      });
-      setVectors(result.vectors);
-    } catch (err) {
-      showToast({ type: 'error', title: err instanceof Error ? err.message : 'Generation failed' });
-    }
+  const handleDraftFromOpportunity = (
+    connection: CreatorConnection,
+    opportunity: ContentOpportunity
+  ) => {
+    setContentSearchConnection(connection);
+    setContentSearchResult({
+      outcome: 'found',
+      platform: opportunity.platform,
+      candidatesConsidered: 0,
+      candidatesExcluded: 0,
+      opportunity,
+    });
+    setActiveRunId(null);
   };
 
-  const handleUseVector = (vector: RolodexResponseVectorItem, creatorText: string) => {
-    if (!prompterConnection) return;
-    void navigator.clipboard.writeText(vector.draftText);
-    showToast({ type: 'success', title: 'Draft copied to clipboard' });
-    setPrompterConnection(null);
-    setVectors(null);
-    setPendingLog({ connection: prompterConnection, creatorText, vector });
-    setCheckInConnection(prompterConnection);
-  };
-
-  const handleDraftFromOpportunity = (opportunity: ContentOpportunity) => {
-    if (!contentSearchConnection) return;
-    setContentSearchConnection(null);
-    setContentSearchResult(null);
-    openPrompter(contentSearchConnection, opportunity.postText);
-  };
-
-  const handleCheckInFromOpportunity = (opportunity: ContentOpportunity) => {
-    if (!contentSearchConnection) return;
-    const connection = contentSearchConnection;
+  const handleCheckInFromOpportunity = (
+    connection: CreatorConnection,
+    opportunity: ContentOpportunity
+  ) => {
     setContentSearchConnection(null);
     setContentSearchResult(null);
     setPendingLog({
@@ -197,17 +284,50 @@ export default function InteractionsBoardTab({
     setCheckInConnection(connection);
   };
 
-  const handleDismissOpportunity = async (opportunity: ContentOpportunity) => {
+  const handleCompleteOpportunity = async (
+    _connection: CreatorConnection,
+    opportunity: ContentOpportunity
+  ) => {
+    setPendingOpportunityAction({ id: opportunity.id, type: 'complete' });
     try {
       await rolodex.updateContentOpportunity.mutateAsync({
         opportunityId: opportunity.id,
+        status: 'ACTIONED',
+      });
+      showToast({ type: 'success', title: 'Suggestion marked complete' });
+      setContentSearchConnection(null);
+      setContentSearchResult(null);
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Could not mark complete',
+      });
+    } finally {
+      setPendingOpportunityAction(null);
+    }
+  };
+
+  const requestDismissOpportunity = (opportunity: ContentOpportunity) => {
+    setDismissingOpportunity(opportunity);
+  };
+
+  const submitDismissOpportunity = async (feedbackText: string | null) => {
+    if (!dismissingOpportunity) return;
+    setPendingOpportunityAction({ id: dismissingOpportunity.id, type: 'dismiss' });
+    try {
+      await rolodex.updateContentOpportunity.mutateAsync({
+        opportunityId: dismissingOpportunity.id,
         status: 'DISMISSED',
+        feedbackText,
       });
       showToast({ type: 'success', title: 'Suggestion dismissed' });
+      setDismissingOpportunity(null);
       setContentSearchConnection(null);
       setContentSearchResult(null);
     } catch (err) {
       showToast({ type: 'error', title: err instanceof Error ? err.message : 'Dismiss failed' });
+    } finally {
+      setPendingOpportunityAction(null);
     }
   };
 
@@ -230,6 +350,11 @@ export default function InteractionsBoardTab({
             const isSearching =
               rolodex.searchContentOpportunity.isPending &&
               contentSearchConnection?.id === connection.id;
+            const savedOpportunities = opportunitiesByConnection.get(connection.id) ?? [];
+            const completingOpportunityId =
+              pendingOpportunityAction?.type === 'complete' ? pendingOpportunityAction.id : null;
+            const dismissingOpportunityId =
+              pendingOpportunityAction?.type === 'dismiss' ? pendingOpportunityAction.id : null;
             return (
               <li
                 key={connection.id}
@@ -265,6 +390,19 @@ export default function InteractionsBoardTab({
                       Last interacted: {formatLastInteracted(connection.lastInteractedAt)}
                     </span>
                   </div>
+                  <ConnectionContentSuggestions
+                    opportunities={savedOpportunities}
+                    onDraftReply={(opportunity) =>
+                      handleDraftFromOpportunity(connection, opportunity)
+                    }
+                    onLogCheckIn={(opportunity) =>
+                      handleCheckInFromOpportunity(connection, opportunity)
+                    }
+                    onComplete={(opportunity) => handleCompleteOpportunity(connection, opportunity)}
+                    onRequestDismiss={requestDismissOpportunity}
+                    completingOpportunityId={completingOpportunityId}
+                    dismissingOpportunityId={dismissingOpportunityId}
+                  />
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <Button
@@ -339,31 +477,98 @@ export default function InteractionsBoardTab({
         open={Boolean(prompterConnection)}
         connection={prompterConnection}
         profileId={selectedProfileId}
-        isLoading={rolodex.generateResponseVectors.isPending}
-        vectors={vectors}
+        activeRun={activeRun ?? null}
+        isGenerating={replyRuns.startRun.isPending}
+        isUpdatingSuggestion={replyRuns.updateSuggestion.isPending}
         initialCreatorText={pendingLog?.creatorText}
         onClose={() => {
           setPrompterConnection(null);
-          setVectors(null);
+          setActiveRunId(null);
           setPendingLog(null);
         }}
-        onGenerate={handleGenerate}
-        onUseVector={handleUseVector}
+        onGenerate={(payload, draft, resolved) => {
+          if (!prompterConnection) return;
+          void startReplyGeneration(prompterConnection, payload, draft, resolved);
+        }}
+        onAcceptSuggestion={(suggestion, creatorText) => {
+          if (!prompterConnection) return;
+          void handleAcceptSuggestion(prompterConnection, null, suggestion, creatorText);
+        }}
+        onRejectSuggestion={(suggestion, feedback) => {
+          void handleRejectSuggestion(suggestion, feedback);
+        }}
       />
 
       <ContentOpportunityDrawer
         open={Boolean(contentSearchConnection)}
         connection={contentSearchConnection}
+        profileId={selectedProfileId}
         isLoading={rolodex.searchContentOpportunity.isPending}
         result={contentSearchResult}
+        activeRun={activeRun ?? null}
+        isGenerating={replyRuns.startRun.isPending}
+        isUpdatingSuggestion={replyRuns.updateSuggestion.isPending}
         onClose={() => {
           setContentSearchConnection(null);
           setContentSearchResult(null);
+          setActiveRunId(null);
         }}
-        onDraftReply={handleDraftFromOpportunity}
-        onLogCheckIn={handleCheckInFromOpportunity}
-        onDismiss={handleDismissOpportunity}
-        isDismissing={rolodex.updateContentOpportunity.isPending}
+        onGenerateReply={(opportunity, draft, resolved) => {
+          if (!contentSearchConnection) return;
+          void startReplyGeneration(
+            contentSearchConnection,
+            {
+              opportunityId: opportunity.id,
+              creatorText: opportunity.postText,
+              platform:
+                (opportunity.platform as import('@/types/api/personal-branding.dto').BrandPlatform) ??
+                'x',
+            },
+            draft,
+            resolved
+          );
+        }}
+        onAcceptSuggestion={(opportunity, suggestion) => {
+          if (!contentSearchConnection) return;
+          void handleAcceptSuggestion(
+            contentSearchConnection,
+            opportunity,
+            suggestion,
+            opportunity.postText
+          );
+        }}
+        onRejectSuggestion={(_opportunity, suggestion, feedback) => {
+          void handleRejectSuggestion(suggestion, feedback);
+        }}
+        onLogCheckIn={(opportunity) => {
+          if (!contentSearchConnection) return;
+          handleCheckInFromOpportunity(contentSearchConnection, opportunity);
+        }}
+        onComplete={(opportunity) => {
+          if (!contentSearchConnection) return;
+          void handleCompleteOpportunity(contentSearchConnection, opportunity);
+        }}
+        onRequestDismiss={requestDismissOpportunity}
+        isCompleting={
+          pendingOpportunityAction?.type === 'complete' &&
+          contentSearchResult?.opportunity?.id === pendingOpportunityAction.id
+        }
+        isDismissing={
+          pendingOpportunityAction?.type === 'dismiss' &&
+          contentSearchResult?.opportunity?.id === pendingOpportunityAction.id
+        }
+      />
+
+      <RejectWithFeedbackModal
+        isOpen={Boolean(dismissingOpportunity)}
+        title="Dismiss suggestion"
+        submitLabel="Dismiss"
+        promptText="Tell the system why this post isn't worth engaging with so future 'Find content' runs can improve."
+        isSubmitting={rolodex.updateContentOpportunity.isPending}
+        onClose={() => setDismissingOpportunity(null)}
+        onSubmit={(feedbackText) => {
+          void submitDismissOpportunity(feedbackText);
+        }}
       />
 
       <ToastContainer />

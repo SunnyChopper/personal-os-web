@@ -1,5 +1,6 @@
 import type {
   CreatorConnection,
+  ReconEntityType,
   RelationshipPriority,
   RelationshipStage,
   RelationshipType,
@@ -336,6 +337,23 @@ export function stageBadgeClassName(stage?: RelationshipStage | null): string {
       return 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200';
     case 'paused':
       return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+    default:
+      return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+  }
+}
+
+export function entityTypeBadgeClassName(entityType?: ReconEntityType | null): string {
+  switch (entityType) {
+    case 'person':
+      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200';
+    case 'company':
+      return 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200';
+    case 'product':
+      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
+    case 'community':
+      return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200';
+    case 'media':
+      return 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-200';
     default:
       return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
   }

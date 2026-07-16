@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarClock } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { FormInput } from '@/components/atoms/FormInput';
@@ -50,7 +51,14 @@ export default function FollowUpQuickEditor({
   const [open, setOpen] = useState(false);
   const [cadenceDays, setCadenceDays] = useState('');
   const [nextDate, setNextDate] = useState('');
+  const [panelRect, setPanelRect] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const overdue = isFollowUpOverdue(connection.nextFollowUpAt);
   const cadenceLabel = formatCadenceLabel(connection.followUpCadenceDays);
 
@@ -65,12 +73,52 @@ export default function FollowUpQuickEditor({
     );
   }, [open, connection]);
 
+  const updatePanelRect = () => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const margin = 8;
+    const panelWidth = 288;
+    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+    const left = Math.min(Math.max(margin, rect.left), viewportWidth - panelWidth - margin);
+    setPanelRect({
+      top: rect.bottom + margin,
+      left,
+      width: panelWidth,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelRect(null);
+      return;
+    }
+    updatePanelRect();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleReposition = () => updatePanelRect();
+    window.addEventListener('resize', handleReposition);
+    window.visualViewport?.addEventListener('resize', handleReposition);
+    window.visualViewport?.addEventListener('scroll', handleReposition);
+    document.addEventListener('scroll', handleReposition, true);
+    return () => {
+      window.removeEventListener('resize', handleReposition);
+      window.visualViewport?.removeEventListener('resize', handleReposition);
+      window.visualViewport?.removeEventListener('scroll', handleReposition);
+      document.removeEventListener('scroll', handleReposition, true);
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const handleClick = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false);
+      const target = event.target as Node;
+      if (containerRef.current?.contains(target) || panelRef.current?.contains(target)) {
+        return;
       }
+      setOpen(false);
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -93,9 +141,96 @@ export default function FollowUpQuickEditor({
 
   const displayLabel = triggerLabel ?? formatFollowUpDisplay(connection.nextFollowUpAt);
 
+  const panelStyle: CSSProperties | null =
+    open && panelRect
+      ? {
+          position: 'fixed',
+          top: panelRect.top,
+          left: panelRect.left,
+          width: panelRect.width,
+          zIndex: 100,
+        }
+      : null;
+
+  const panelContent = (
+    <div
+      ref={panelRef}
+      style={panelStyle ?? undefined}
+      className="rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+    >
+      <p className="text-sm font-medium text-gray-900 dark:text-white">Follow-up schedule</p>
+      {cadenceLabel ? (
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          Current cadence: {cadenceLabel}
+        </p>
+      ) : null}
+
+      <div className="mt-3">
+        <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+          Cadence (days)
+        </label>
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {ROLODEX_CADENCE_PRESETS.map((preset) => {
+            const selected = cadenceDays === String(preset.days);
+            return (
+              <button
+                key={preset.days}
+                type="button"
+                onClick={() => handleCadenceSelect(preset.days)}
+                className={cn(
+                  selectableChipClassName(selected),
+                  'rounded-full px-2.5 py-1 text-xs'
+                )}
+                aria-pressed={selected}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+        <FormInput
+          type="number"
+          min={1}
+          max={365}
+          value={cadenceDays}
+          onChange={(event) => {
+            const value = event.target.value;
+            setCadenceDays(value);
+            const parsed = Number.parseInt(value, 10);
+            if (!Number.isNaN(parsed) && parsed > 0) {
+              setNextDate(computeDefaultNextFollowUpDate(parsed));
+            }
+          }}
+          placeholder="Custom days"
+        />
+      </div>
+
+      <div className="mt-3">
+        <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+          Next follow-up
+        </label>
+        <FormInput
+          type="date"
+          value={nextDate}
+          onChange={(event) => setNextDate(event.target.value)}
+        />
+      </div>
+
+      <div className="mt-3 flex justify-end gap-2">
+        <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+        <Button type="button" size="sm" disabled={isSaving} onClick={() => void handleSave()}>
+          {isSaving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="relative" ref={containerRef}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
@@ -116,76 +251,9 @@ export default function FollowUpQuickEditor({
         {variant === 'table' ? <CalendarClock className="size-3.5 shrink-0 opacity-60" /> : null}
       </button>
 
-      {open ? (
-        <div className="absolute left-0 z-30 mt-1 w-72 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-          <p className="text-sm font-medium text-gray-900 dark:text-white">Follow-up schedule</p>
-          {cadenceLabel ? (
-            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              Current cadence: {cadenceLabel}
-            </p>
-          ) : null}
-
-          <div className="mt-3">
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
-              Cadence (days)
-            </label>
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {ROLODEX_CADENCE_PRESETS.map((preset) => {
-                const selected = cadenceDays === String(preset.days);
-                return (
-                  <button
-                    key={preset.days}
-                    type="button"
-                    onClick={() => handleCadenceSelect(preset.days)}
-                    className={cn(
-                      selectableChipClassName(selected),
-                      'rounded-full px-2.5 py-1 text-xs'
-                    )}
-                    aria-pressed={selected}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-            <FormInput
-              type="number"
-              min={1}
-              max={365}
-              value={cadenceDays}
-              onChange={(event) => {
-                const value = event.target.value;
-                setCadenceDays(value);
-                const parsed = Number.parseInt(value, 10);
-                if (!Number.isNaN(parsed) && parsed > 0) {
-                  setNextDate(computeDefaultNextFollowUpDate(parsed));
-                }
-              }}
-              placeholder="Custom days"
-            />
-          </div>
-
-          <div className="mt-3">
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
-              Next follow-up
-            </label>
-            <FormInput
-              type="date"
-              value={nextDate}
-              onChange={(event) => setNextDate(event.target.value)}
-            />
-          </div>
-
-          <div className="mt-3 flex justify-end gap-2">
-            <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" size="sm" disabled={isSaving} onClick={() => void handleSave()}>
-              {isSaving ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      {open && panelRect && panelStyle && typeof document !== 'undefined'
+        ? createPortal(panelContent, document.body)
+        : null}
     </div>
   );
 }

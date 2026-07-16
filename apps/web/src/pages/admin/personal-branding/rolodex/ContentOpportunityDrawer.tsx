@@ -1,23 +1,45 @@
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ExternalLink, MessageSquarePlus, Search, Sparkles, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
 import Button from '@/components/atoms/Button';
+import ReplyGenerationPanel from '@/components/molecules/personal-branding/ReplyGenerationPanel';
+import ReplySuggestionsList from '@/components/molecules/personal-branding/ReplySuggestionsList';
 import type {
   ContentOpportunity,
   ContentOpportunitySearchResult,
   CreatorConnection,
+  ReplyGenerationDraft,
+  ReplyRun,
+  ReplySuggestion,
 } from '@/types/api/personal-branding.dto';
+import SuggestedContentCard from './SuggestedContentCard';
 
 interface ContentOpportunityDrawerProps {
   open: boolean;
   connection: CreatorConnection | null;
+  profileId?: string | null;
   isLoading?: boolean;
   result: ContentOpportunitySearchResult | null;
+  activeRun?: ReplyRun | null;
+  isGenerating?: boolean;
+  isUpdatingSuggestion?: boolean;
   onClose: () => void;
-  onDraftReply: (opportunity: ContentOpportunity) => void;
+  onGenerateReply: (
+    opportunity: ContentOpportunity,
+    draft: ReplyGenerationDraft,
+    resolved: { provider: string; model: string }
+  ) => void;
+  onAcceptSuggestion: (opportunity: ContentOpportunity, suggestion: ReplySuggestion) => void;
+  onRejectSuggestion: (
+    opportunity: ContentOpportunity,
+    suggestion: ReplySuggestion,
+    feedbackText: string | null
+  ) => void;
   onLogCheckIn: (opportunity: ContentOpportunity) => void;
-  onDismiss: (opportunity: ContentOpportunity) => void;
+  onComplete: (opportunity: ContentOpportunity) => void;
+  onRequestDismiss: (opportunity: ContentOpportunity) => void;
+  isCompleting?: boolean;
   isDismissing?: boolean;
 }
 
@@ -42,23 +64,23 @@ function outcomeTitle(outcome: ContentOpportunitySearchResult['outcome']): strin
   }
 }
 
-function formatAngle(angle?: string | null): string {
-  if (!angle?.trim()) return 'Engagement';
-  return angle
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
 export default function ContentOpportunityDrawer({
   open,
   connection,
+  profileId: _profileId,
   isLoading = false,
   result,
+  activeRun,
+  isGenerating = false,
+  isUpdatingSuggestion = false,
   onClose,
-  onDraftReply,
+  onGenerateReply,
+  onAcceptSuggestion,
+  onRejectSuggestion,
   onLogCheckIn,
-  onDismiss,
+  onComplete,
+  onRequestDismiss,
+  isCompleting = false,
   isDismissing = false,
 }: ContentOpportunityDrawerProps) {
   useEffect(() => {
@@ -84,6 +106,9 @@ export default function ContentOpportunityDrawer({
   if (!connection) return null;
 
   const opportunity = result?.opportunity ?? null;
+  const suggestions = activeRun?.suggestions ?? [];
+  const showRunProgress =
+    isGenerating || activeRun?.status === 'QUEUED' || activeRun?.status === 'RUNNING';
 
   return (
     <AnimatePresence>
@@ -158,26 +183,44 @@ export default function ContentOpportunityDrawer({
                   </div>
 
                   {opportunity ? (
-                    <article className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
-                          {formatAngle(opportunity.socialCapitalAngle)}
-                        </span>
-                        {opportunity.recommendedAction ? (
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            Suggested: {opportunity.recommendedAction}
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-100">
-                        {opportunity.postText}
-                      </p>
-                      {opportunity.rationale ? (
-                        <p className="text-sm text-gray-600 dark:text-gray-300">
-                          {opportunity.rationale}
-                        </p>
+                    <>
+                      <SuggestedContentCard
+                        opportunity={opportunity}
+                        onDraftReply={() => undefined}
+                        onLogCheckIn={onLogCheckIn}
+                        onComplete={onComplete}
+                        onRequestDismiss={onRequestDismiss}
+                        isCompleting={isCompleting}
+                        isDismissing={isDismissing}
+                        hideDraftReply
+                      />
+
+                      <ReplyGenerationPanel
+                        suggestedParams={opportunity.suggestedReplyParams}
+                        disabled={showRunProgress}
+                        isGenerating={showRunProgress}
+                        onGenerate={(draft, resolved) =>
+                          onGenerateReply(opportunity, draft, resolved)
+                        }
+                      />
+
+                      {showRunProgress && !suggestions.length ? (
+                        <div className="flex justify-center py-6">
+                          <AIThinkingIndicator message="Drafting replies…" size="lg" />
+                        </div>
                       ) : null}
-                    </article>
+
+                      {activeRun?.status === 'FAILED' && activeRun.error ? (
+                        <p className="text-sm text-red-600 dark:text-red-400">{activeRun.error}</p>
+                      ) : null}
+
+                      <ReplySuggestionsList
+                        suggestions={suggestions}
+                        isUpdating={isUpdatingSuggestion}
+                        onAccept={(s) => onAcceptSuggestion(opportunity, s)}
+                        onReject={(s, feedback) => onRejectSuggestion(opportunity, s, feedback)}
+                      />
+                    </>
                   ) : null}
                 </div>
               ) : (
@@ -186,53 +229,6 @@ export default function ContentOpportunityDrawer({
                 </p>
               )}
             </div>
-
-            {opportunity ? (
-              <footer className="flex flex-wrap gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-700">
-                {opportunity.postUrl ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="inline-flex items-center gap-1.5"
-                    onClick={() =>
-                      window.open(opportunity.postUrl!, '_blank', 'noopener,noreferrer')
-                    }
-                  >
-                    <ExternalLink className="size-4" />
-                    Open on X
-                  </Button>
-                ) : null}
-                <Button
-                  type="button"
-                  size="sm"
-                  className="inline-flex items-center gap-1.5"
-                  onClick={() => onDraftReply(opportunity)}
-                >
-                  <Sparkles className="size-4" />
-                  Draft reply
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="inline-flex items-center gap-1.5"
-                  onClick={() => onLogCheckIn(opportunity)}
-                >
-                  <MessageSquarePlus className="size-4" />
-                  Log check-in
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={isDismissing}
-                  onClick={() => onDismiss(opportunity)}
-                >
-                  {isDismissing ? 'Dismissing…' : 'Dismiss'}
-                </Button>
-              </footer>
-            ) : null}
           </motion.aside>
         </>
       ) : null}
