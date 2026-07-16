@@ -2,18 +2,27 @@ import { Loader2 } from 'lucide-react';
 import Dialog from '@/components/molecules/Dialog';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
-import type { ProfileExtractionJob } from '@/types/api/personal-branding.dto';
+import type {
+  ProfileExtractionClientProgress,
+  ProfileExtractionJob,
+} from '@/types/api/personal-branding.dto';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
 import {
-  EXTRACTION_PIPELINE_STEPS,
+  extractionEffectiveStage,
   extractionIsTerminal,
+  extractionPipelineSteps,
   extractionProgressPercent,
   extractionStatusLabel,
+  formatUploadProgressDetail,
+  isClientExtractionPhaseActive,
+  resolveExtractionPipelineVariant,
+  resolveExtractionSourceTypes,
 } from './profile-extraction-progress';
 
 interface ProfileExtractionProgressModalProps {
   isOpen: boolean;
   job: ProfileExtractionJob | undefined;
+  clientUploadProgress?: ProfileExtractionClientProgress | null;
   onClose: () => void;
   failedSourcesPage?: number;
   onFailedSourcesPageChange?: (page: number) => void;
@@ -22,25 +31,25 @@ interface ProfileExtractionProgressModalProps {
 export default function ProfileExtractionProgressModal({
   isOpen,
   job,
+  clientUploadProgress,
   onClose,
 }: ProfileExtractionProgressModalProps) {
   const status = job?.status;
-  const isTerminal = extractionIsTerminal(job);
-  const percent = extractionProgressPercent(job);
-  const currentStage = job?.stage ?? (status === 'queued' ? 'queued' : 'reading_sources');
-  const currentStepIndex = EXTRACTION_PIPELINE_STEPS.findIndex((step) => step.id === currentStage);
+  const isTerminal =
+    extractionIsTerminal(job) && !isClientExtractionPhaseActive(clientUploadProgress);
+  const sourceTypes = resolveExtractionSourceTypes(job, clientUploadProgress);
+  const pipelineSteps = extractionPipelineSteps(resolveExtractionPipelineVariant(sourceTypes));
+  const percent = extractionProgressPercent(job, clientUploadProgress);
+  const currentStage = extractionEffectiveStage(job, clientUploadProgress);
+  const currentStepIndex = pipelineSteps.findIndex((step) => step.id === currentStage);
+  const uploadDetail = formatUploadProgressDetail(clientUploadProgress);
 
   return (
-    <Dialog
-      isOpen={isOpen}
-      onClose={() => {
-        if (isTerminal) onClose();
-      }}
-      title="Extracting profile from sources"
-      size="md"
-    >
+    <Dialog isOpen={isOpen} onClose={onClose} title="Extracting profile from sources" size="md">
       <div className="space-y-5">
-        <p className="text-sm text-gray-600 dark:text-gray-400">{extractionStatusLabel(job)}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          {extractionStatusLabel(job, clientUploadProgress)}
+        </p>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs font-medium text-gray-600 dark:text-gray-400">
@@ -78,7 +87,7 @@ export default function ProfileExtractionProgressModal({
         </div>
 
         <ol className="space-y-2" aria-label="Extraction pipeline steps">
-          {EXTRACTION_PIPELINE_STEPS.map((step, index) => {
+          {pipelineSteps.map((step, index) => {
             const isComplete =
               status === 'succeeded' || status === 'succeeded_with_warnings'
                 ? true
@@ -112,7 +121,12 @@ export default function ProfileExtractionProgressModal({
                     index + 1
                   )}
                 </span>
-                <span className="font-medium">{step.label}</span>
+                <div className="min-w-0">
+                  <span className="font-medium">{step.label}</span>
+                  {isCurrent && step.id === 'uploading' && uploadDetail ? (
+                    <p className="text-xs opacity-80">{uploadDetail}</p>
+                  ) : null}
+                </div>
               </li>
             );
           })}

@@ -9,6 +9,7 @@ import type {
   StartProfileExtractionInput,
   StartProfileExtractionRerunInput,
   ExtractionJobStatus,
+  ProfileExtractionClientProgress,
   UpdateBrandProfileInput,
   UpdatePlatformRuleInput,
 } from '@/types/api/personal-branding.dto';
@@ -33,6 +34,8 @@ export function usePersonalBrandingBrandIdentity(options?: {
   const [pollExtractionJobId, setPollExtractionJobId] = useState<string | null>(
     options?.pollExtractionJobId ?? null
   );
+  const [clientExtractionProgress, setClientExtractionProgress] =
+    useState<ProfileExtractionClientProgress | null>(null);
   const pollStartedAtRef = useRef<number | null>(null);
 
   const invalidateProfiles = useCallback(
@@ -102,6 +105,7 @@ export function usePersonalBrandingBrandIdentity(options?: {
 
   const clearExtractionJob = useCallback(() => {
     setPollExtractionJobId(null);
+    setClientExtractionProgress(null);
     pollStartedAtRef.current = null;
   }, []);
 
@@ -162,12 +166,31 @@ export function usePersonalBrandingBrandIdentity(options?: {
 
   const startExtraction = useMutation({
     mutationFn: (body: StartProfileExtractionInput) =>
-      personalBrandingService.startProfileExtractionFromDialog(body),
+      personalBrandingService.startProfileExtractionFromDialog(body, {
+        onProgress: (progress) => {
+          if (progress.phase === 'done') {
+            setClientExtractionProgress(null);
+          } else {
+            setClientExtractionProgress(progress);
+          }
+          if (progress.jobId) {
+            setPollExtractionJobId(progress.jobId);
+            pollStartedAtRef.current = Date.now();
+          }
+          if (progress.profileId) {
+            setSelectedProfileId(progress.profileId);
+          }
+        },
+      }),
     onSuccess: (accepted) => {
       void invalidateProfiles();
       setSelectedProfileId(accepted.profileId);
       setPollExtractionJobId(accepted.jobId);
       pollStartedAtRef.current = Date.now();
+      setClientExtractionProgress(null);
+    },
+    onError: () => {
+      setClientExtractionProgress(null);
     },
   });
 
@@ -270,6 +293,7 @@ export function usePersonalBrandingBrandIdentity(options?: {
     profileVersions,
     profileOutputTests,
     extractionJob,
+    clientExtractionProgress,
     platformRules,
     platformRuleCatalog,
     selectedProfileId,

@@ -4,12 +4,17 @@ import Button from '@/components/atoms/Button';
 import { FormInput } from '@/components/atoms/FormInput';
 import Dialog from '@/components/molecules/Dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useCollapsibleList } from '@/hooks/useCollapsibleList';
 import { useReconFeed } from '@/hooks/useReconFeed';
 import type { usePersonalBrandingBrandIdentity } from '@/hooks/usePersonalBrandingBrandIdentity';
 import StringListEditor, { FormTextarea, ToneMetricsEditor } from './BrandIdentityFormFields';
 import ProfileExtractionDialog from './ProfileExtractionDialog';
 import ProfileExtractionProgressModal from './ProfileExtractionProgressModal';
-import { extractionProgressPercent } from './profile-extraction-progress';
+import {
+  extractionProgressPercent,
+  extractionStatusLabel,
+  isClientExtractionPhaseActive,
+} from './profile-extraction-progress';
 import ProfileLiveOutputTestPanel, { type ProfileFormSnapshot } from './ProfileLiveOutputTestPanel';
 import ProfileVersionHistory from './ProfileVersionHistory';
 import { LOCAL_DRAFT_PROFILE_ID } from './brand-identity.constants';
@@ -19,6 +24,7 @@ import type {
   BrandProfileStatus,
   BrandProfileVersion,
   GenerateProfileOutputTestInput,
+  ProfileExtractionClientProgress,
   ProfileExtractionJob,
   ProfileExtractionSource,
 } from '@/types/api/personal-branding.dto';
@@ -54,27 +60,6 @@ function createEmptyDraftProfile(): BrandProfile {
   };
 }
 
-function extractionStatusLabel(job: ProfileExtractionJob | undefined): string {
-  if (!job) return '';
-  if (job.message?.trim()) return job.message;
-  switch (job.stage) {
-    case 'queued':
-      return 'Queued';
-    case 'reading_sources':
-      return 'Reading PDFs';
-    case 'analyzing':
-      return 'Analyzing with LLM';
-    case 'saving':
-      return 'Saving profile';
-    case 'failed':
-      return 'Failed';
-    case 'succeeded':
-      return 'Completed';
-    default:
-      return job.status === 'running' ? 'Running extraction' : job.status;
-  }
-}
-
 function formatBytes(size?: number | null): string {
   if (size == null) return '';
   if (size < 1024) return `${size} B`;
@@ -83,57 +68,85 @@ function formatBytes(size?: number | null): string {
 }
 
 function ExtractionSourcesSection({ sources }: { sources: ProfileExtractionSource[] }) {
+  const { visibleItems, hiddenCount, hasCollapsibleList, isExpanded, toggle } = useCollapsibleList(
+    sources,
+    3
+  );
+
   if (!sources.length) return null;
+
   return (
     <section className="mt-6 rounded-lg border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-900/40">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-        Extraction sources
-      </h3>
-      <ul className="space-y-3">
-        {sources.map((source) => (
-          <li
-            key={source.id}
-            className="rounded-md border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-950/50"
+      <h3 className="mb-3 flex items-center justify-between text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <span>Extraction sources ({sources.length})</span>
+        {hasCollapsibleList && (
+          <button
+            type="button"
+            onClick={toggle}
+            className="text-xs font-medium normal-case text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">
-                  {source.title || source.fileName || 'Untitled source'}
-                </p>
-                <p className="text-xs uppercase tracking-wide text-gray-500">
-                  {source.sourceType}
-                  {source.fileSizeBytes != null ? ` · ${formatBytes(source.fileSizeBytes)}` : ''}
-                  {source.textTruncated ? ' · excerpt truncated' : ''}
-                </p>
-                {source.url && (
-                  <p className="mt-1 truncate text-xs text-blue-700 dark:text-blue-300">
-                    {source.url}
+            {isExpanded ? 'Show fewer' : `Show ${hiddenCount} more`}
+          </button>
+        )}
+      </h3>
+      <ul
+        className={cn(
+          'space-y-3',
+          hasCollapsibleList && isExpanded && 'max-h-96 overflow-y-auto pr-1'
+        )}
+      >
+        {visibleItems.map((source) => {
+          const displayTitle = source.title || source.fileName || 'Untitled source';
+          return (
+            <li
+              key={source.id}
+              className="rounded-md border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-950/50"
+            >
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                <div className="min-w-0">
+                  <p
+                    className="truncate font-medium text-gray-900 dark:text-white"
+                    title={displayTitle}
+                  >
+                    {displayTitle}
                   </p>
-                )}
+                  <p className="text-xs uppercase tracking-wide text-gray-500">
+                    {source.sourceType}
+                    {source.fileSizeBytes != null ? ` · ${formatBytes(source.fileSizeBytes)}` : ''}
+                    {source.textTruncated ? ' · excerpt truncated' : ''}
+                  </p>
+                  {source.url && (
+                    <p className="mt-1 truncate text-xs text-blue-700 dark:text-blue-300">
+                      {source.url}
+                    </p>
+                  )}
+                </div>
+                <div className="w-28 shrink-0 text-right">
+                  {source.downloadUrl && (
+                    <a
+                      href={source.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-blue-700 hover:underline dark:text-blue-300"
+                    >
+                      Download PDF
+                    </a>
+                  )}
+                </div>
               </div>
-              {source.downloadUrl && (
-                <a
-                  href={source.downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-xs font-medium text-blue-700 hover:underline dark:text-blue-300"
-                >
-                  Download PDF
-                </a>
+              {source.textExcerpt && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-gray-600 dark:text-gray-400">
+                    View extracted excerpt
+                  </summary>
+                  <p className="mt-2 whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+                    {source.textExcerpt}
+                  </p>
+                </details>
               )}
-            </div>
-            {source.textExcerpt && (
-              <details className="mt-2">
-                <summary className="cursor-pointer text-xs text-gray-600 dark:text-gray-400">
-                  View extracted excerpt
-                </summary>
-                <p className="mt-2 whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-                  {source.textExcerpt}
-                </p>
-              </details>
-            )}
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -153,11 +166,15 @@ function ProfileFormSection({ title, children }: { title: string; children: Reac
 function ExtractionProgressBanner({
   job,
   label,
+  clientProgress,
+  onShowProgress,
 }: {
   job: ProfileExtractionJob | undefined;
   label: string;
+  clientProgress?: ProfileExtractionClientProgress | null;
+  onShowProgress?: () => void;
 }) {
-  const percent = extractionProgressPercent(job);
+  const percent = extractionProgressPercent(job, clientProgress);
 
   return (
     <div className="mb-4 space-y-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
@@ -165,7 +182,14 @@ function ExtractionProgressBanner({
         <p>
           Extraction: <strong>{label}</strong>
         </p>
-        <span className="text-xs font-semibold tabular-nums">{percent}%</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold tabular-nums">{percent}%</span>
+          {onShowProgress ? (
+            <Button type="button" size="sm" variant="secondary" onClick={onShowProgress}>
+              Show progress
+            </Button>
+          ) : null}
+        </div>
       </div>
       <div
         className="h-2 overflow-hidden rounded-full bg-amber-100 dark:bg-amber-900/40"
@@ -432,6 +456,7 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
     profileVersions,
     profileOutputTests,
     extractionJob,
+    clientExtractionProgress,
     clearExtractionJob,
     selectedProfileId,
     setSelectedProfileId,
@@ -458,7 +483,8 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
 
   const extractionStatus = extractionJob.data?.status;
   const extractionError = extractionJob.data?.error;
-  const extractionLabel = extractionStatusLabel(extractionJob.data);
+  const extractionLabel = extractionStatusLabel(extractionJob.data, clientExtractionProgress);
+  const clientExtractionActive = isClientExtractionPhaseActive(clientExtractionProgress);
   const hasLocalDraft = localDraft !== null;
   const isSaving = isLocalDraftSelected ? createProfile.isPending : updateProfile.isPending;
 
@@ -509,16 +535,11 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
   };
 
   const extractionInProgress =
-    Boolean(extractionStatus) &&
-    extractionStatus !== 'succeeded' &&
-    extractionStatus !== 'succeeded_with_warnings' &&
-    extractionStatus !== 'failed';
-
-  useEffect(() => {
-    if (extractionInProgress) {
-      setExtractionProgressOpen(true);
-    }
-  }, [extractionInProgress]);
+    clientExtractionActive ||
+    (Boolean(extractionStatus) &&
+      extractionStatus !== 'succeeded' &&
+      extractionStatus !== 'succeeded_with_warnings' &&
+      extractionStatus !== 'failed');
 
   return (
     <TwoColumnLayout>
@@ -574,7 +595,12 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
 
       <PageCard>
         {extractionInProgress ? (
-          <ExtractionProgressBanner job={extractionJob.data} label={extractionLabel} />
+          <ExtractionProgressBanner
+            job={extractionJob.data}
+            label={extractionLabel}
+            clientProgress={clientExtractionProgress}
+            onShowProgress={() => setExtractionProgressOpen(true)}
+          />
         ) : null}
         {extractionStatus === 'failed' && extractionError && (
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40">
@@ -722,25 +748,36 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
         isSubmitting={startExtraction.isPending}
         hasRapidApiKey={reconSettings.data?.hasRapidApiKey ?? false}
         onSubmit={async (body) => {
-          await startExtraction.mutateAsync(body);
           setExtractionOpen(false);
           setExtractionProgressOpen(true);
-          showToast({ type: 'success', title: 'Extraction started' });
+          try {
+            await startExtraction.mutateAsync(body);
+            showToast({ type: 'success', title: 'Extraction started' });
+          } catch (err) {
+            showToast({
+              type: 'error',
+              title: err instanceof Error ? err.message : 'Extraction failed',
+            });
+          }
         }}
       />
 
       <ProfileExtractionProgressModal
         isOpen={
           extractionProgressOpen &&
-          (extractionInProgress ||
+          (clientExtractionActive ||
+            extractionInProgress ||
             extractionStatus === 'succeeded' ||
             extractionStatus === 'succeeded_with_warnings' ||
             extractionStatus === 'failed')
         }
         job={extractionJob.data}
+        clientUploadProgress={clientExtractionProgress}
         onClose={() => {
           setExtractionProgressOpen(false);
-          clearExtractionJob();
+          if (!extractionInProgress) {
+            clearExtractionJob();
+          }
         }}
       />
       <ToastContainer />
