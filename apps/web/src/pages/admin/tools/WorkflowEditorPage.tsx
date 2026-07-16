@@ -42,7 +42,7 @@ const PALETTE: { ntype: string; label: string; config: Record<string, unknown> }
     config: {
       systemPrompt: 'You are a helpful assistant.',
       userPromptTemplate: 'Summarize: {{ steps.n-fetch.output.body }}',
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.4-nano',
     },
   },
   { ntype: 'action.dbRead', label: 'DB read (tool)', config: { toolName: 'list_tasks', args: {} } },
