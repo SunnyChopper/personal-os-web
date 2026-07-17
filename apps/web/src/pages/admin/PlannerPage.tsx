@@ -23,6 +23,17 @@ import {
 import { isPlannerDayBlocked, manualBlockingContextForDate } from '@/lib/planner/blocked-days';
 import { isDraftBlockId } from '@/lib/planner/draft';
 import {
+  plannerChipButtonClassName,
+  plannerChipClassName,
+  plannerEmphasisClassName,
+  plannerErrorBannerClassName,
+  plannerHeadingClassName,
+  plannerLinkClassName,
+  plannerMutedClassName,
+  plannerPanelClassName,
+  plannerSubtleClassName,
+} from '@/lib/planner/planner-surfaces';
+import {
   addDaysISO,
   mondayISO,
   mondayISOForDate,
@@ -270,41 +281,47 @@ export default function PlannerPage() {
     <div className="mx-auto max-w-[1680px] space-y-5 p-4 pb-10">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-600/20 text-blue-400 ring-1 ring-white/10">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-600/20 text-blue-600 ring-1 ring-gray-200 dark:text-blue-400 dark:ring-white/10">
             <LayoutGrid className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">Planner</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-400">
+            <h1 className={`text-2xl font-bold tracking-tight ${plannerHeadingClassName}`}>
+              Planner
+            </h1>
+            <div
+              className={`mt-1 flex flex-wrap items-center gap-2 text-sm ${plannerMutedClassName}`}
+            >
               <span>
                 Week of {weekStart}
                 {week?.timeZone ? ` · ${week.timeZone}` : ''}
               </span>
               {week?.velocity ? (
                 <>
-                  <span className="text-gray-600">|</span>
+                  <span className="text-gray-300 dark:text-gray-600">|</span>
                   <span>
                     Daily Capacity:{' '}
-                    <span className="font-medium text-gray-200">
+                    <span className={`font-medium ${plannerEmphasisClassName}`}>
                       {week.velocity.dailyCapacityStoryPoints}pts
                     </span>
                   </span>
-                  <span className="text-gray-600">|</span>
+                  <span className="text-gray-300 dark:text-gray-600">|</span>
                   <span>
                     Trailing Avg:{' '}
-                    <span className="font-medium text-gray-200">
+                    <span className={`font-medium ${plannerEmphasisClassName}`}>
                       {week.velocity.trailingWeeklyAverageStoryPoints}pts
                     </span>
                   </span>
-                  <span className="text-gray-600">|</span>
+                  <span className="text-gray-300 dark:text-gray-600">|</span>
                   <span>
                     Burn Rate:{' '}
-                    <span className="font-medium text-gray-200">{week.velocity.dailyBurnRate}</span>
+                    <span className={`font-medium ${plannerEmphasisClassName}`}>
+                      {week.velocity.dailyBurnRate}
+                    </span>
                   </span>
-                  <span className="text-gray-600">|</span>
+                  <span className="text-gray-300 dark:text-gray-600">|</span>
                   <span>
                     Confidence:{' '}
-                    <span className="font-medium capitalize text-gray-200">
+                    <span className={`font-medium capitalize ${plannerEmphasisClassName}`}>
                       {week.velocity.confidence}
                     </span>
                   </span>
@@ -314,10 +331,10 @@ export default function PlannerPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
+        <div className={`flex items-center gap-1 rounded-xl p-1 ${plannerChipClassName}`}>
           <button
             type="button"
-            className="rounded-lg p-2 text-gray-300 transition hover:bg-white/10 hover:text-white disabled:opacity-40 disabled:pointer-events-none"
+            className={`${plannerChipButtonClassName} rounded-lg p-2 text-gray-600 hover:bg-gray-200 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white`}
             disabled={navDisabled}
             onClick={() => setWeekStart((ws) => addDaysISO(ws, -7))}
             aria-label="Previous week"
@@ -326,7 +343,7 @@ export default function PlannerPage() {
           </button>
           <button
             type="button"
-            className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-200 transition hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none"
+            className={`${plannerChipButtonClassName} rounded-lg px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-white/10`}
             disabled={navDisabled}
             onClick={() => {
               const mon = mondayISO(new Date());
@@ -338,7 +355,7 @@ export default function PlannerPage() {
           </button>
           <button
             type="button"
-            className="rounded-lg p-2 text-gray-300 transition hover:bg-white/10 hover:text-white disabled:opacity-40 disabled:pointer-events-none"
+            className={`${plannerChipButtonClassName} rounded-lg p-2 text-gray-600 hover:bg-gray-200 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white`}
             disabled={navDisabled}
             onClick={() => setWeekStart((ws) => addDaysISO(ws, 7))}
             aria-label="Next week"
@@ -358,7 +375,7 @@ export default function PlannerPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white disabled:opacity-40 disabled:pointer-events-none"
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition disabled:opacity-40 disabled:pointer-events-none ${plannerChipClassName} hover:bg-gray-200 dark:hover:bg-white/10 dark:hover:text-white`}
             disabled={navDisabled}
             onClick={() => setIsBacklogOpen((prev) => !prev)}
             aria-expanded={isBacklogOpen}
@@ -366,13 +383,13 @@ export default function PlannerPage() {
           >
             <ListTodo className="h-4 w-4" />
             {isBacklogOpen ? 'Close backlog' : 'Open backlog'}
-            <kbd className="ml-1 rounded border border-white/10 bg-black/30 px-1.5 py-0.5 text-[10px] font-medium text-gray-400">
+            <kbd className="ml-1 rounded border border-gray-300 bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:border-white/10 dark:bg-black/30 dark:text-gray-400">
               B
             </kbd>
           </button>
           <button
             type="button"
-            className="text-sm font-medium text-blue-400 hover:text-blue-300 disabled:opacity-40 disabled:pointer-events-none"
+            className={`text-sm font-medium disabled:opacity-40 disabled:pointer-events-none ${plannerLinkClassName}`}
             disabled={navDisabled}
             onClick={() => void refetch()}
           >
@@ -382,7 +399,7 @@ export default function PlannerPage() {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">
+        <div className={plannerErrorBannerClassName}>
           Failed to load planner: {(error as Error).message}
         </div>
       ) : null}
@@ -390,16 +407,20 @@ export default function PlannerPage() {
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
+            <h2
+              className={`text-sm font-semibold uppercase tracking-wide ${plannerMutedClassName}`}
+            >
               Week board
             </h2>
-            <p className="text-xs text-gray-500">Click a day to open planning details</p>
+            <p className={`text-xs ${plannerSubtleClassName}`}>
+              Click a day to open planning details
+            </p>
           </div>
 
           {isLoading && !week ? <PlannerWeekBoardSkeleton /> : null}
 
           {week ? (
-            <div className="w-full rounded-2xl border border-white/10 bg-gradient-to-b from-gray-900/50 to-gray-950/80 p-3 shadow-inner">
+            <div className={`w-full p-3 ${plannerPanelClassName}`}>
               {isDrafting && draftBlocks ? (
                 <PlannerDraftBanner
                   draftBlocks={draftBlocks}

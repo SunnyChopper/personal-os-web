@@ -1,18 +1,26 @@
-import { useEffect, useState } from 'react';
-import { Loader2, Play, Radar } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
 import Button from '@/components/atoms/Button';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
+import FollowSuggestionConfidenceModal from '@/components/molecules/personal-branding/FollowSuggestionConfidenceModal';
+import RejectWithFeedbackModal from '@/components/molecules/personal-branding/RejectWithFeedbackModal';
+import ReconFeedRunMonitor from '@/components/organisms/personal-branding/ReconFeedRunMonitor';
+import type { Toast } from '@/hooks/use-toast';
 import { useReconFeed } from '@/hooks/useReconFeed';
+import { extractErrorMessage } from '@/lib/react-query/error-utils';
+import { cn } from '@/lib/utils';
+import type {
+  CreateCreatorConnectionInput,
+  FollowSuggestion,
+  ReconPost,
+  ReconPostStatus,
+} from '@/types/api/personal-branding.dto';
 import {
   RECON_POST_STATUS_LABELS,
   RECON_RECOMMENDED_ACTION_LABELS,
-  type ReconPost,
-  type ReconPostStatus,
-  type FollowSuggestion,
 } from '@/types/api/personal-branding.dto';
 import { PageCard } from '../PersonalBrandingPageTemplate';
 import { linkAccentClassName } from '../personal-branding-ui';
+import ConnectionEditorDialog from './ConnectionEditorDialog';
+import EntityTypeBadge from './EntityTypeBadge';
 
 function formatDate(value?: string | null): string {
   if (!value) return '—';
@@ -107,36 +115,56 @@ function ReconPostRow({
 function FollowSuggestionRow({
   suggestion,
   isUpdating,
+  isProposing,
   onAdd,
   onDismiss,
+  onOpenConfidence,
 }: {
   suggestion: FollowSuggestion;
   isUpdating: boolean;
+  isProposing: boolean;
   onAdd: () => void;
   onDismiss: () => void;
+  onOpenConfidence: () => void;
 }) {
   const sharedCount = suggestion.sharedConnectionIds.length;
+  const hasConfidence = suggestion.confidence !== null && suggestion.confidence !== undefined;
   return (
     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h4 className="font-medium text-gray-900 dark:text-white">
-            {suggestion.displayName ?? `@${suggestion.xUsername}`}
-          </h4>
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="font-medium text-gray-900 dark:text-white">
+              {suggestion.displayName ?? `@${suggestion.xUsername}`}
+            </h4>
+            <EntityTypeBadge entityType={suggestion.entityType} />
+          </div>
           <p className="mt-1 text-xs text-gray-500">
             @{suggestion.xUsername}
             {suggestion.followersCount !== null && suggestion.followersCount !== undefined
               ? ` · ${suggestion.followersCount.toLocaleString()} followers`
               : ''}
             {sharedCount > 0 ? ` · followed by ${sharedCount} tracked connection(s)` : ''}
-            {suggestion.confidence !== null && suggestion.confidence !== undefined
-              ? ` · ${(suggestion.confidence * 100).toFixed(0)}% confidence`
-              : ''}
+            {hasConfidence ? (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  onClick={onOpenConfidence}
+                  className={cn(
+                    'font-medium underline decoration-dotted underline-offset-2',
+                    linkAccentClassName
+                  )}
+                >
+                  {(suggestion.confidence! * 100).toFixed(0)}% confidence
+                </button>
+              </>
+            ) : null}
           </p>
         </div>
         <div className="flex gap-1">
-          <Button type="button" size="sm" disabled={isUpdating} onClick={onAdd}>
-            Add to directory
+          <Button type="button" size="sm" disabled={isUpdating || isProposing} onClick={onAdd}>
+            {isProposing ? 'Preparing…' : 'Add to directory'}
           </Button>
           <Button
             type="button"
@@ -169,171 +197,183 @@ function FollowSuggestionRow({
   );
 }
 
-export default function ReconFeedTab() {
+function PaginatedReconListPanel({
+  loadedCount,
+  total,
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
+  children,
+}: {
+  loadedCount: number;
+  total: number;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  onLoadMore: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Showing {loadedCount} of {total}
+      </p>
+      <div className="max-h-[32rem] overflow-y-auto pr-1">
+        <div className="grid gap-3">{children}</div>
+      </div>
+      {hasNextPage ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={isFetchingNextPage}
+          onClick={onLoadMore}
+        >
+          {isFetchingNextPage ? 'Loading…' : 'Load more'}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+interface ReconFeedTabProps {
+  showToast: (toast: Omit<Toast, 'id'>) => void;
+}
+
+export default function ReconFeedTab({ showToast }: ReconFeedTabProps) {
   const recon = useReconFeed();
-  const { showToast, ToastContainer } = useToast();
-  const settings = recon.settings.data;
+  const [confidenceSuggestionId, setConfidenceSuggestionId] = useState<string | null>(null);
 
-  const [enabled, setEnabled] = useState(true);
-  const [minScore, setMinScore] = useState(0.5);
-  const [maxPosts, setMaxPosts] = useState(5);
-  const [rapidApiKey, setRapidApiKey] = useState('');
+  const confidenceSuggestion = useMemo(() => {
+    if (!confidenceSuggestionId) return null;
+    return recon.followSuggestions.items.find((row) => row.id === confidenceSuggestionId) ?? null;
+  }, [confidenceSuggestionId, recon.followSuggestions.items]);
 
-  useEffect(() => {
-    if (!settings) return;
-    setEnabled(settings.enabled);
-    setMinScore(settings.minRelevanceScore);
-    setMaxPosts(settings.maxPostsPerConnection);
-  }, [settings]);
+  const loadError = useMemo(() => {
+    const queries = [recon.posts, recon.followSuggestions, recon.runs];
+    const failed = queries.find((q) => q.isError);
+    if (!failed?.error) return null;
+    return extractErrorMessage(failed.error, 'Failed to load Recon Feed');
+  }, [recon.posts, recon.followSuggestions, recon.runs]);
 
-  const posts = recon.posts.data?.data ?? [];
-  const suggestions = recon.followSuggestions.data?.data ?? [];
+  const posts = recon.posts.items;
+  const suggestions = recon.followSuggestions.items;
   const runs = recon.runs.data?.data ?? [];
+  const [dismissingSuggestion, setDismissingSuggestion] = useState<FollowSuggestion | null>(null);
+  const [addingSuggestion, setAddingSuggestion] = useState<FollowSuggestion | null>(null);
+  const [connectionPrefill, setConnectionPrefill] = useState<CreateCreatorConnectionInput | null>(
+    null
+  );
+  const [connectionDraftSummary, setConnectionDraftSummary] = useState<string | null>(null);
+  const [connectionEditorOpen, setConnectionEditorOpen] = useState(false);
+  const [proposingSuggestionId, setProposingSuggestionId] = useState<string | null>(null);
+  const [pendingRunAction, setPendingRunAction] = useState<'pause' | 'resume' | 'cancel' | null>(
+    null
+  );
 
-  const handleSaveSettings = async () => {
-    try {
-      const body: Parameters<typeof recon.updateSettings.mutateAsync>[0] = {
-        enabled,
-        minRelevanceScore: minScore,
-        maxPostsPerConnection: maxPosts,
-      };
-      if (rapidApiKey.trim()) {
-        body.rapidApiKey = rapidApiKey.trim();
-      }
-      await recon.updateSettings.mutateAsync(body);
-      setRapidApiKey('');
-      showToast({ type: 'success', title: 'Recon Feed settings saved' });
-    } catch (err) {
-      showToast({ type: 'error', title: err instanceof Error ? err.message : 'Save failed' });
-    }
+  const closeConnectionEditor = () => {
+    setConnectionEditorOpen(false);
+    setAddingSuggestion(null);
+    setConnectionPrefill(null);
+    setConnectionDraftSummary(null);
   };
 
-  const handleStartRun = async () => {
+  const handleAddSuggestion = async (suggestion: FollowSuggestion) => {
+    setProposingSuggestionId(suggestion.id);
     try {
-      await recon.startRun.mutateAsync();
-      showToast({ type: 'success', title: 'Recon Feed run started' });
+      const proposal = await recon.proposeFollowSuggestionConnection.mutateAsync(suggestion.id);
+      setAddingSuggestion(suggestion);
+      setConnectionPrefill(proposal.draft);
+      setConnectionDraftSummary(proposal.draftSummary ?? null);
+      setConnectionEditorOpen(true);
     } catch (err) {
       showToast({
         type: 'error',
-        title: err instanceof Error ? err.message : 'Run failed to start',
+        title: err instanceof Error ? err.message : 'Could not prepare connection draft',
       });
+    } finally {
+      setProposingSuggestionId(null);
+    }
+  };
+
+  const submitAddedConnection = async (body: CreateCreatorConnectionInput) => {
+    if (!addingSuggestion) return;
+    try {
+      await recon.updateFollowSuggestion.mutateAsync({
+        suggestionId: addingSuggestion.id,
+        body: { status: 'ADDED', connection: body },
+      });
+      showToast({ type: 'success', title: 'Added to Connection Directory' });
+      closeConnectionEditor();
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Add failed',
+      });
+      throw err;
+    }
+  };
+
+  const submitDismissSuggestion = async (feedbackText: string | null) => {
+    if (!dismissingSuggestion) return;
+    try {
+      await recon.updateFollowSuggestion.mutateAsync({
+        suggestionId: dismissingSuggestion.id,
+        body: { status: 'DISMISSED', feedbackText },
+      });
+      setDismissingSuggestion(null);
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Dismiss failed',
+      });
+    }
+  };
+
+  const handleRunControl = async (action: 'pause' | 'resume' | 'cancel') => {
+    if (!recon.activeRunId) return;
+    setPendingRunAction(action);
+    try {
+      await recon.controlRun.mutateAsync({ runId: recon.activeRunId, action });
+      showToast({
+        type: 'success',
+        title:
+          action === 'pause'
+            ? 'Recon run pausing'
+            : action === 'resume'
+              ? 'Recon run resumed'
+              : 'Recon run cancelling',
+      });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Run control failed',
+      });
+    } finally {
+      setPendingRunAction(null);
     }
   };
 
   return (
     <div className="space-y-8">
-      <PageCard className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recon settings</h2>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              Pull X posts for Connection Directory entries with an X handle. Requires a RapidAPI
-              Twitter / X API key.
-            </p>
-          </div>
-          <span
-            className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs',
-              settings?.hasRapidApiKey
-                ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-300'
-                : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400'
-            )}
-          >
-            <Radar className="size-3.5" aria-hidden />
-            <span className="font-medium">RapidAPI</span>
-            <span className="rounded px-1.5 py-0.5 font-medium">
-              {settings?.hasRapidApiKey ? 'Connected' : 'Not configured'}
-            </span>
-          </span>
+      {loadError ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          {loadError}
         </div>
+      ) : null}
 
-        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-            className="rounded border-gray-300"
-          />
-          Enable daily scheduled ingest
-        </label>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Min relevance score
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={1}
-              step={0.05}
-              value={minScore}
-              onChange={(e) => setMinScore(Number(e.target.value))}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Max posts per connection
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={40}
-              value={maxPosts}
-              onChange={(e) => setMaxPosts(Number(e.target.value))}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              RapidAPI key
-            </label>
-            <input
-              type="password"
-              value={rapidApiKey}
-              onChange={(e) => setRapidApiKey(e.target.value)}
-              placeholder={
-                settings?.hasRapidApiKey ? '•••••••• (leave blank to keep)' : 'Paste key'
-              }
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-            />
-          </div>
-        </div>
-
-        {settings ? (
-          <p className="text-xs text-gray-500">Last run {formatDate(settings.lastRunAt)}</p>
-        ) : null}
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => void handleSaveSettings()}
-            disabled={recon.updateSettings.isPending}
-          >
-            {recon.updateSettings.isPending ? (
-              <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
-            ) : null}
-            Save settings
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => void handleStartRun()}
-            disabled={recon.startRun.isPending || !settings?.hasRapidApiKey}
-            className="inline-flex items-center gap-2"
-          >
-            {recon.startRun.isPending ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-            ) : (
-              <Play className="size-4" aria-hidden />
-            )}
-            Run now
-          </Button>
-        </div>
-      </PageCard>
+      {recon.activeRunId ? (
+        <ReconFeedRunMonitor
+          run={recon.activeRun.data}
+          isLoading={recon.activeRun.isLoading}
+          pendingAction={pendingRunAction}
+          onPause={() => void handleRunControl('pause')}
+          onResume={() => void handleRunControl('resume')}
+          onCancel={() => void handleRunControl('cancel')}
+        />
+      ) : null}
 
       <PageCard className="space-y-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Scored feed</h2>
@@ -345,7 +385,13 @@ export default function ReconFeedTab() {
             No recon posts yet. Run ingest after adding X handles.
           </p>
         ) : (
-          <div className="grid gap-3">
+          <PaginatedReconListPanel
+            loadedCount={posts.length}
+            total={recon.posts.total}
+            hasNextPage={Boolean(recon.posts.hasNextPage)}
+            isFetchingNextPage={recon.posts.isFetchingNextPage}
+            onLoadMore={() => void recon.posts.fetchNextPage()}
+          >
             {posts.map((post) => (
               <ReconPostRow
                 key={post.id}
@@ -363,7 +409,7 @@ export default function ReconFeedTab() {
                 }}
               />
             ))}
-          </div>
+          </PaginatedReconListPanel>
         )}
       </PageCard>
 
@@ -375,44 +421,62 @@ export default function ReconFeedTab() {
         {suggestions.length === 0 ? (
           <p className="text-sm text-gray-500">No follow suggestions yet.</p>
         ) : (
-          <div className="grid gap-3">
+          <PaginatedReconListPanel
+            loadedCount={suggestions.length}
+            total={recon.followSuggestions.total}
+            hasNextPage={Boolean(recon.followSuggestions.hasNextPage)}
+            isFetchingNextPage={recon.followSuggestions.isFetchingNextPage}
+            onLoadMore={() => void recon.followSuggestions.fetchNextPage()}
+          >
             {suggestions.map((suggestion) => (
               <FollowSuggestionRow
                 key={suggestion.id}
                 suggestion={suggestion}
                 isUpdating={recon.updateFollowSuggestion.isPending}
-                onAdd={async () => {
-                  try {
-                    await recon.updateFollowSuggestion.mutateAsync({
-                      suggestionId: suggestion.id,
-                      body: { status: 'ADDED' },
-                    });
-                    showToast({ type: 'success', title: 'Added to Connection Directory' });
-                  } catch (err) {
-                    showToast({
-                      type: 'error',
-                      title: err instanceof Error ? err.message : 'Add failed',
-                    });
-                  }
-                }}
-                onDismiss={async () => {
-                  try {
-                    await recon.updateFollowSuggestion.mutateAsync({
-                      suggestionId: suggestion.id,
-                      body: { status: 'DISMISSED' },
-                    });
-                  } catch (err) {
-                    showToast({
-                      type: 'error',
-                      title: err instanceof Error ? err.message : 'Dismiss failed',
-                    });
-                  }
-                }}
+                isProposing={proposingSuggestionId === suggestion.id}
+                onOpenConfidence={() => setConfidenceSuggestionId(suggestion.id)}
+                onAdd={() => void handleAddSuggestion(suggestion)}
+                onDismiss={() => setDismissingSuggestion(suggestion)}
               />
             ))}
-          </div>
+          </PaginatedReconListPanel>
         )}
       </PageCard>
+
+      <FollowSuggestionConfidenceModal
+        isOpen={confidenceSuggestionId !== null}
+        suggestion={confidenceSuggestion}
+        isExplaining={recon.explainFollowSuggestionConfidence.isPending}
+        isSubmittingFeedback={recon.submitFollowSuggestionConfidenceFeedback.isPending}
+        onClose={() => setConfidenceSuggestionId(null)}
+        onExplain={async () => {
+          if (!confidenceSuggestionId) return;
+          try {
+            await recon.explainFollowSuggestionConfidence.mutateAsync(confidenceSuggestionId);
+            showToast({ type: 'success', title: 'Confidence explanation generated' });
+          } catch (err) {
+            showToast({
+              type: 'error',
+              title: err instanceof Error ? err.message : 'Explain failed',
+            });
+          }
+        }}
+        onSubmitFeedback={async (body) => {
+          if (!confidenceSuggestionId) return;
+          try {
+            await recon.submitFollowSuggestionConfidenceFeedback.mutateAsync({
+              suggestionId: confidenceSuggestionId,
+              body,
+            });
+            showToast({ type: 'success', title: 'Calibration feedback saved' });
+          } catch (err) {
+            showToast({
+              type: 'error',
+              title: err instanceof Error ? err.message : 'Feedback failed',
+            });
+          }
+        }}
+      />
 
       <PageCard className="space-y-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Run history</h2>
@@ -441,6 +505,9 @@ export default function ReconFeedTab() {
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">
                     Finished
                   </th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">
+                    Error
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
@@ -454,6 +521,9 @@ export default function ReconFeedTab() {
                     <td className="px-4 py-3">{run.followSuggestionsCreated}</td>
                     <td className="px-4 py-3">{run.apiCallsUsed}</td>
                     <td className="px-4 py-3">{formatDate(run.finishedAt)}</td>
+                    <td className="max-w-xs truncate px-4 py-3 text-xs text-red-600 dark:text-red-300">
+                      {run.errorSummary || '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -462,7 +532,40 @@ export default function ReconFeedTab() {
         )}
       </PageCard>
 
-      <ToastContainer />
+      <RejectWithFeedbackModal
+        isOpen={Boolean(dismissingSuggestion)}
+        title="Dismiss suggestion"
+        submitLabel="Dismiss"
+        subjectLabel={
+          dismissingSuggestion
+            ? (dismissingSuggestion.displayName ?? `@${dismissingSuggestion.xUsername}`)
+            : undefined
+        }
+        promptText="Tell the system why this account isn't a good follow so future Recon Feed runs can improve."
+        isSubmitting={recon.updateFollowSuggestion.isPending}
+        onClose={() => setDismissingSuggestion(null)}
+        onSubmit={(feedbackText) => {
+          void submitDismissSuggestion(feedbackText);
+        }}
+      />
+
+      <ConnectionEditorDialog
+        isOpen={connectionEditorOpen}
+        onClose={closeConnectionEditor}
+        prefill={connectionPrefill}
+        title="Add suggested connection"
+        subtitle={
+          addingSuggestion
+            ? `Review AI-suggested defaults for @${addingSuggestion.xUsername} before adding to your directory.`
+            : null
+        }
+        draftSummary={connectionDraftSummary}
+        isSubmitting={recon.updateFollowSuggestion.isPending}
+        onCreate={submitAddedConnection}
+        onUpdate={async () => {
+          /* create-only flow from recon suggestions */
+        }}
+      />
     </div>
   );
 }

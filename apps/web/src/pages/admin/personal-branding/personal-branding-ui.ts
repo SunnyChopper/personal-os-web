@@ -28,12 +28,17 @@ export function statusPillClassName(tone: StatusPillTone, className?: string): s
 }
 
 /** Toggle / option chip used in dialogs (platform pickers, relationship type, etc.). */
-export function selectableChipClassName(selected: boolean, className?: string): string {
+export function selectableChipClassName(
+  selected: boolean,
+  className?: string,
+  disabled?: boolean
+): string {
   return cn(
     'rounded-lg border px-3 py-2 text-sm font-medium transition',
     selected
       ? 'border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-950/50 dark:text-blue-100'
       : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800',
+    disabled && 'pointer-events-none cursor-not-allowed opacity-50',
     className
   );
 }

@@ -26,7 +26,7 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
   const navigate = useNavigate();
   const { showToast, ToastContainer } = useToast();
 
-  const isMissingContent = pipeline.finalizedNodes.length === 0;
+  const isMissingContent = pipeline.publishedNodes.length === 0;
   const isMissingProfile = pipeline.profiles.length === 0;
 
   const goToWorkbench = () => navigate(`${ROUTES.admin.personalBrandingWorkbench}?tab=sandbox`);
@@ -56,7 +56,7 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
       <PageCard>
         <h2 className="text-lg font-medium text-gray-900 dark:text-white">Platform Repurposer</h2>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          Select finalized workbench content, choose a brand profile, and generate native platform
+          Select published workbench content, choose a brand profile, and generate native platform
           variants.
         </p>
 
@@ -92,23 +92,31 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
         ) : (
           <>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <label className="block text-sm">
-                <span className="font-medium text-gray-700 dark:text-gray-300">
+              <div className="block text-sm">
+                <label className="font-medium text-gray-700 dark:text-gray-300">
                   Source content <span className="text-red-500">*</span>
-                </span>
+                </label>
                 <Select
                   required
                   value={pipeline.selectedContentId ?? ''}
                   onChange={(e) => pipeline.setSelectedContentId(e.target.value || null)}
                   className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-950"
                 >
-                  {pipeline.finalizedNodes.map((node) => (
+                  {pipeline.publishedNodes.map((node) => (
                     <option key={node.id} value={node.id}>
                       {node.title}
                     </option>
                   ))}
                 </Select>
-              </label>
+                {pipeline.sourcePlatform ? (
+                  <p className="mt-1.5 text-xs text-gray-600 dark:text-gray-400">
+                    Originally published on{' '}
+                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                      {BRAND_PLATFORM_LABELS[pipeline.sourcePlatform]}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
 
               <label className="block text-sm">
                 <span className="font-medium text-gray-700 dark:text-gray-300">
@@ -136,12 +144,21 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
               <div className="mt-2 flex flex-wrap gap-2">
                 {pipeline.allPlatforms.map((platform) => {
                   const selected = pipeline.targetPlatforms.includes(platform);
+                  const isSourcePlatform = platform === pipeline.sourcePlatform;
                   return (
                     <button
                       key={platform}
                       type="button"
+                      disabled={isSourcePlatform}
+                      title={isSourcePlatform ? 'Same as source platform' : undefined}
                       onClick={() => pipeline.togglePlatform(platform)}
-                      className={cn(selectableChipClassName(selected), 'rounded-full px-3 py-1.5')}
+                      className={cn(
+                        selectableChipClassName(
+                          selected,
+                          'rounded-full px-3 py-1.5',
+                          isSourcePlatform
+                        )
+                      )}
                     >
                       {BRAND_PLATFORM_LABELS[platform]}
                     </button>
@@ -169,19 +186,35 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
               Generate variants
             </Button>
 
-            {pipeline.activeJob ? (
-              <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-900/50">
-                <div className="font-medium text-gray-900 dark:text-white">
-                  Job {pipeline.activeJob.status}
-                </div>
-                {pipeline.activeJob.message ? (
-                  <p className="mt-1 text-gray-600 dark:text-gray-400">
-                    {pipeline.activeJob.message}
-                  </p>
-                ) : null}
-                {pipeline.activeJob.error ? (
-                  <p className="mt-1 text-red-600 dark:text-red-400">{pipeline.activeJob.error}</p>
-                ) : null}
+            {pipeline.visibleJobs.length > 0 ? (
+              <div className="mt-4 space-y-2">
+                {pipeline.visibleJobs.map((job) => {
+                  const isInFlight = job.status === 'queued' || job.status === 'running';
+                  return (
+                    <div
+                      key={job.jobId}
+                      className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-900/50"
+                    >
+                      <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white">
+                        {isInFlight ? (
+                          <Loader2
+                            size={14}
+                            className="animate-spin text-blue-600 dark:text-blue-400"
+                          />
+                        ) : null}
+                        <span>{BRAND_PLATFORM_LABELS[job.platform]}</span>
+                        <span className="text-gray-500 dark:text-gray-400">·</span>
+                        <span className="capitalize">{job.status}</span>
+                      </div>
+                      {job.message ? (
+                        <p className="mt-1 text-gray-600 dark:text-gray-400">{job.message}</p>
+                      ) : null}
+                      {job.error ? (
+                        <p className="mt-1 text-red-600 dark:text-red-400">{job.error}</p>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
           </>
@@ -269,7 +302,10 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
                       type="button"
                       size="sm"
                       onClick={() => pipeline.regeneratePlatformMutation.mutate(variant.platform)}
-                      disabled={pipeline.regeneratePlatformMutation.isPending}
+                      disabled={
+                        pipeline.regeneratePlatformMutation.isPending ||
+                        pipeline.inFlightJobs.some((job) => job.platform === variant.platform)
+                      }
                     >
                       Regenerate
                     </Button>

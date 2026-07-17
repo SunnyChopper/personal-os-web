@@ -44,6 +44,7 @@ export type AIFeature =
   | 'noteExtract'
   | 'noteAnalyze'
   | 'contentIdeation'
+  | 'brandTopicBrainstorm'
   | 'projectLabIdeation';
 
 export interface FeatureProviderConfig {
@@ -107,7 +108,7 @@ export const AI_FEATURE_GROUPS: { id: string; label: string; features: AIFeature
   {
     id: 'personal-branding',
     label: 'Personal branding',
-    features: ['contentIdeation'],
+    features: ['contentIdeation', 'brandTopicBrainstorm'],
   },
   {
     id: 'notes',
@@ -171,6 +172,7 @@ export const AI_FEATURE_DISPLAY_NAMES: Record<AIFeature, string> = {
   noteExtract: 'Note Content Extraction',
   noteAnalyze: 'Note Content Analysis',
   contentIdeation: 'Content Ideation Engine',
+  brandTopicBrainstorm: 'Brand Topic Brainstorm',
   projectLabIdeation: 'Project Labs Ideation',
 };
 
@@ -219,5 +221,6 @@ export const DEFAULT_FEATURE_PROVIDERS: Record<AIFeature, FeatureProviderConfig>
   noteExtract: { provider: 'anthropic', model: 'claude-haiku-4-5' },
   noteAnalyze: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
   contentIdeation: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+  brandTopicBrainstorm: { provider: 'anthropic', model: 'claude-haiku-4-5' },
   projectLabIdeation: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
 };

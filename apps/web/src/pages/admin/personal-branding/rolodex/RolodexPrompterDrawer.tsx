@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sparkles, X } from 'lucide-react';
 import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
-import Button from '@/components/atoms/Button';
+import ReplyGenerationPanel from '@/components/molecules/personal-branding/ReplyGenerationPanel';
+import ReplySuggestionsList from '@/components/molecules/personal-branding/ReplySuggestionsList';
 import { FormTextarea } from '../PersonalBrandingFormFields';
 import {
   BRAND_PLATFORM_LABELS,
   type BrandPlatform,
   type CreatorConnection,
-  type RolodexResponseVectorItem,
+  type ReplyGenerationDraft,
+  type ReplyRun,
+  type ReplySuggestion,
 } from '@/types/api/personal-branding.dto';
 import { Select } from '@/components/atoms/Select';
 
@@ -25,30 +28,47 @@ interface RolodexPrompterDrawerProps {
   open: boolean;
   connection: CreatorConnection | null;
   profileId?: string | null;
-  isLoading?: boolean;
-  vectors: RolodexResponseVectorItem[] | null;
+  activeRun?: ReplyRun | null;
+  isGenerating?: boolean;
+  isUpdatingSuggestion?: boolean;
+  initialCreatorText?: string;
   onClose: () => void;
-  onGenerate: (payload: {
-    creatorText: string;
-    platform: BrandPlatform;
-    interactionIntent?: string;
-  }) => void;
-  onUseVector: (vector: RolodexResponseVectorItem, creatorText: string) => void;
+  onGenerate: (
+    payload: {
+      creatorText: string;
+      platform: BrandPlatform;
+      interactionIntent?: string;
+    },
+    draft: ReplyGenerationDraft,
+    resolved: { provider: string; model: string }
+  ) => void;
+  onAcceptSuggestion: (suggestion: ReplySuggestion, creatorText: string) => void;
+  onRejectSuggestion: (suggestion: ReplySuggestion, feedbackText: string | null) => void;
 }
 
 export default function RolodexPrompterDrawer({
   open,
   connection,
   profileId,
-  isLoading = false,
-  vectors,
+  activeRun,
+  isGenerating = false,
+  isUpdatingSuggestion = false,
+  initialCreatorText = '',
   onClose,
   onGenerate,
-  onUseVector,
+  onAcceptSuggestion,
+  onRejectSuggestion,
 }: RolodexPrompterDrawerProps) {
   const [creatorText, setCreatorText] = useState('');
   const [platform, setPlatform] = useState<BrandPlatform>('x');
   const [interactionIntent, setInteractionIntent] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setCreatorText(initialCreatorText);
+    setPlatform('x');
+    setInteractionIntent('');
+  }, [open, initialCreatorText]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,6 +91,10 @@ export default function RolodexPrompterDrawer({
   }, [open]);
 
   if (!connection) return null;
+
+  const suggestions = activeRun?.suggestions ?? [];
+  const showRunProgress =
+    isGenerating || activeRun?.status === 'QUEUED' || activeRun?.status === 'RUNNING';
 
   return (
     <AnimatePresence>
@@ -118,41 +142,6 @@ export default function RolodexPrompterDrawer({
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
-              {connection.desiredOutcome ||
-              connection.valueExchange ||
-              connection.nextAction ||
-              (connection.conversationAngles?.length ?? 0) > 0 ? (
-                <section className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-200">
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Relationship context
-                  </h3>
-                  {connection.desiredOutcome ? (
-                    <p className="mb-2">
-                      <span className="text-gray-500 dark:text-gray-400">Outcome: </span>
-                      {connection.desiredOutcome}
-                    </p>
-                  ) : null}
-                  {connection.valueExchange ? (
-                    <p className="mb-2">
-                      <span className="text-gray-500 dark:text-gray-400">Offer: </span>
-                      {connection.valueExchange}
-                    </p>
-                  ) : null}
-                  {connection.nextAction ? (
-                    <p className="mb-2">
-                      <span className="text-gray-500 dark:text-gray-400">Next action: </span>
-                      {connection.nextAction}
-                    </p>
-                  ) : null}
-                  {(connection.conversationAngles?.length ?? 0) > 0 ? (
-                    <p>
-                      <span className="text-gray-500 dark:text-gray-400">Angles: </span>
-                      {connection.conversationAngles.join(' · ')}
-                    </p>
-                  ) : null}
-                </section>
-              ) : null}
-
               <div>
                 <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   Platform
@@ -193,21 +182,21 @@ export default function RolodexPrompterDrawer({
                 />
               </div>
 
-              <Button
-                type="button"
-                size="sm"
-                disabled={!creatorText.trim() || isLoading}
-                onClick={() =>
-                  onGenerate({
-                    creatorText: creatorText.trim(),
-                    platform,
-                    interactionIntent: interactionIntent.trim() || undefined,
-                  })
+              <ReplyGenerationPanel
+                disabled={!creatorText.trim() || showRunProgress}
+                isGenerating={showRunProgress}
+                onGenerate={(draft, resolved) =>
+                  onGenerate(
+                    {
+                      creatorText: creatorText.trim(),
+                      platform,
+                      interactionIntent: interactionIntent.trim() || undefined,
+                    },
+                    draft,
+                    resolved
+                  )
                 }
-                className="w-full"
-              >
-                Generate 3 vectors
-              </Button>
+              />
 
               {profileId ? (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -215,46 +204,22 @@ export default function RolodexPrompterDrawer({
                 </p>
               ) : null}
 
-              {isLoading ? (
+              {showRunProgress && !suggestions.length ? (
                 <div className="flex justify-center py-8">
-                  <AIThinkingIndicator message="Crafting vectors…" size="lg" />
+                  <AIThinkingIndicator message="Crafting replies…" size="lg" />
                 </div>
               ) : null}
 
-              {vectors?.length === 3 ? (
-                <div className="space-y-3">
-                  {vectors.map((vector) => (
-                    <article
-                      key={vector.id}
-                      className="rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
-                    >
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <h3 className="font-medium text-gray-900 dark:text-white">
-                          {vector.label}
-                        </h3>
-                        <span className="text-xs text-blue-600 dark:text-blue-400">
-                          {vector.angle}
-                        </span>
-                      </div>
-                      <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-                        {vector.draftText}
-                      </p>
-                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        {vector.rationale}
-                      </p>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => onUseVector(vector, creatorText)}
-                        className="mt-3"
-                      >
-                        Copy & log
-                      </Button>
-                    </article>
-                  ))}
-                </div>
+              {activeRun?.status === 'FAILED' && activeRun.error ? (
+                <p className="text-sm text-red-600 dark:text-red-400">{activeRun.error}</p>
               ) : null}
+
+              <ReplySuggestionsList
+                suggestions={suggestions}
+                isUpdating={isUpdatingSuggestion}
+                onAccept={(s) => onAcceptSuggestion(s, creatorText.trim())}
+                onReject={onRejectSuggestion}
+              />
             </div>
           </motion.aside>
         </>

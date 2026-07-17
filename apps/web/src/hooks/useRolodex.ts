@@ -7,6 +7,7 @@ import type {
   CreateCreatorConnectionInput,
   CreateTrackingMetricInput,
   RolodexResponseVectorInput,
+  ContentOpportunitySearchInput,
   UpdateCreatorConnectionInput,
   UpdateTrackingMetricInput,
 } from '@/types/api/personal-branding.dto';
@@ -91,6 +92,9 @@ export function useRolodex() {
     onSuccess: () => {
       void invalidateConnections();
       void invalidateInteractions();
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.contentOpportunities.all(),
+      });
     },
   });
 
@@ -115,10 +119,61 @@ export function useRolodex() {
       personalBrandingService.generateRolodexResponseVectors(body),
   });
 
+  const searchContentOpportunity = useMutation({
+    mutationFn: ({
+      connectionId,
+      body,
+    }: {
+      connectionId: string;
+      body?: ContentOpportunitySearchInput;
+    }) => personalBrandingService.searchConnectionContentOpportunity(connectionId, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.contentOpportunities.all(),
+      });
+    },
+  });
+
+  const updateContentOpportunity = useMutation({
+    mutationFn: ({
+      opportunityId,
+      status,
+      feedbackText,
+      feedbackCategory,
+    }: {
+      opportunityId: string;
+      status: 'DISMISSED' | 'ACTIONED';
+      feedbackText?: string | null;
+      feedbackCategory?: string | null;
+    }) =>
+      personalBrandingService.updateContentOpportunity(opportunityId, {
+        status,
+        feedbackText,
+        feedbackCategory,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.contentOpportunities.all(),
+      });
+    },
+  });
+
+  const activeContentOpportunities = useQuery({
+    queryKey: queryKeys.personalBranding.contentOpportunities.board('SUGGESTED'),
+    queryFn: async () => {
+      const res = await personalBrandingService.listRolodexContentOpportunities('SUGGESTED');
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? 'Failed to load content opportunities');
+      }
+      return res.data;
+    },
+  });
+
   return {
     connections,
     interactionsBoard,
     trackingMetrics,
+    activeContentOpportunities,
     createConnection,
     updateConnection,
     deleteConnection,
@@ -126,5 +181,7 @@ export function useRolodex() {
     createTrackingMetric,
     updateTrackingMetric,
     generateResponseVectors,
+    searchContentOpportunity,
+    updateContentOpportunity,
   };
 }

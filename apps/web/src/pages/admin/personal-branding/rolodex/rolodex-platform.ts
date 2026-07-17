@@ -1,11 +1,13 @@
 import type {
   CreatorConnection,
+  ReconEntityType,
   RelationshipPriority,
   RelationshipStage,
   RelationshipType,
 } from '@/types/api/personal-branding.dto';
 import type { LucideIcon } from 'lucide-react';
 import { AtSign, Briefcase, Camera, Globe, Mail, Newspaper, Video } from 'lucide-react';
+import { addCalendarDays, localCalendarDate } from '@/lib/date/local-calendar';
 
 export type RolodexPlatformId =
   | 'linkedin'
@@ -340,10 +342,72 @@ export function stageBadgeClassName(stage?: RelationshipStage | null): string {
   }
 }
 
+export function entityTypeBadgeClassName(entityType?: ReconEntityType | null): string {
+  switch (entityType) {
+    case 'person':
+      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200';
+    case 'company':
+      return 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200';
+    case 'product':
+      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
+    case 'community':
+      return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200';
+    case 'media':
+      return 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-200';
+    default:
+      return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+  }
+}
+
 export function followUpSortKey(connection: CreatorConnection): number {
   if (connection.nextFollowUpAt) {
     return new Date(connection.nextFollowUpAt).getTime();
   }
   if (!connection.lastInteractedAt) return Number.MAX_SAFE_INTEGER;
   return Date.now() - new Date(connection.lastInteractedAt).getTime();
+}
+
+export function isFollowUpOverdue(nextFollowUpAt?: string | null, now: Date = new Date()): boolean {
+  if (!nextFollowUpAt) return false;
+  try {
+    return new Date(nextFollowUpAt).getTime() < now.getTime();
+  } catch {
+    return false;
+  }
+}
+
+export function toFollowUpDateInputValue(iso?: string | null): string {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toISOString().slice(0, 10);
+  } catch {
+    return '';
+  }
+}
+
+export function followUpDateInputToIso(dateInput: string): string | null {
+  const trimmed = dateInput.trim();
+  if (!trimmed) return null;
+  return new Date(`${trimmed}T12:00:00`).toISOString();
+}
+
+export function computeDefaultNextFollowUpDate(cadenceDays?: number | null): string {
+  const base = localCalendarDate();
+  if (!cadenceDays || cadenceDays < 1) return base;
+  return addCalendarDays(base, cadenceDays);
+}
+
+export function formatCadenceLabel(cadenceDays?: number | null): string | null {
+  if (!cadenceDays) return null;
+  const preset = ROLODEX_CADENCE_PRESETS.find((entry) => entry.days === cadenceDays);
+  return preset?.label ?? `Every ${cadenceDays} days`;
+}
+
+export function hasXHandle(connection: CreatorConnection): boolean {
+  const parsed = parseConnectionProfile(connection);
+  if (parsed.platformId === 'x' && parsed.handleOrUrl.trim()) {
+    return true;
+  }
+  const stored = connection.handles?.x?.trim() || connection.handles?.twitter?.trim();
+  return Boolean(stored);
 }

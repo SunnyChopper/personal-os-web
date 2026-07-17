@@ -39,6 +39,24 @@ export function formatApiError(
     }
   }
 
+  // Object-shaped details (e.g. requestId, exceptionType from INTERNAL_ERROR)
+  if (error.details && typeof error.details === 'object' && !Array.isArray(error.details)) {
+    const record = error.details as Record<string, unknown>;
+    const lines: string[] = [];
+    const baseMessage = error.message || 'An unexpected error occurred. Please try again.';
+    lines.push(baseMessage);
+    if (error.code) {
+      lines.push(`Code: ${error.code}`);
+    }
+    if (typeof record.requestId === 'string' && record.requestId.trim()) {
+      lines.push(`Reference: ${record.requestId.trim()}`);
+    }
+    if (typeof record.exceptionType === 'string' && record.exceptionType.trim()) {
+      lines.push(`Type: ${record.exceptionType.trim()}`);
+    }
+    return lines.join('\n');
+  }
+
   // Fallback to error message or code
   return (
     error.message || (error as ApiError).code || 'An unexpected error occurred. Please try again.'

@@ -18,6 +18,8 @@ import type {
   ProactiveEmailTestResult,
   NotificationWebhookConfig,
   RecoveryNotificationsConfig,
+  RolodexFollowUpNotificationsConfig,
+  ReconFeedContentNotificationsConfig,
   ProactiveWebhookTestResult,
   ProactiveBrainstormResult,
   ProactiveAutomationRunsList,
@@ -963,6 +965,38 @@ class ApiClient {
     body: RecoveryNotificationsConfig
   ): Promise<ApiResponse<RecoveryNotificationsConfig>> {
     return this.put<RecoveryNotificationsConfig>('/preferences/recovery-notifications', body);
+  }
+
+  async getRolodexFollowUpNotifications(): Promise<
+    ApiResponse<RolodexFollowUpNotificationsConfig>
+  > {
+    return this.get<RolodexFollowUpNotificationsConfig>(
+      '/preferences/rolodex-follow-up-notifications'
+    );
+  }
+
+  async setRolodexFollowUpNotifications(
+    body: RolodexFollowUpNotificationsConfig
+  ): Promise<ApiResponse<RolodexFollowUpNotificationsConfig>> {
+    return this.put<RolodexFollowUpNotificationsConfig>(
+      '/preferences/rolodex-follow-up-notifications',
+      body
+    );
+  }
+
+  async getReconFeedContentNotifications(): Promise<
+    ApiResponse<ReconFeedContentNotificationsConfig>
+  > {
+    return this.get<ReconFeedContentNotificationsConfig>('/preferences/recon-feed-notifications');
+  }
+
+  async setReconFeedContentNotifications(
+    body: ReconFeedContentNotificationsConfig
+  ): Promise<ApiResponse<ReconFeedContentNotificationsConfig>> {
+    return this.put<ReconFeedContentNotificationsConfig>(
+      '/preferences/recon-feed-notifications',
+      body
+    );
   }
 
   async getPreferencesWeeklyReviewDay(): Promise<ApiResponse<{ weeklyReviewDay: number }>> {

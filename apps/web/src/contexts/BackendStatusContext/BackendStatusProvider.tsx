@@ -7,12 +7,14 @@ import { apiClient } from '@/lib/api-client';
 import { fetchPlainGetHealth } from '@/lib/public-health-fetch';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { extractApiError } from '@/lib/react-query/error-utils';
+import { useDeferredIdleReady } from '@/lib/startup/use-deferred-idle';
 
 interface BackendStatusProviderProps {
   children: ReactNode;
 }
 
 export function BackendStatusProvider({ children }: BackendStatusProviderProps) {
+  const healthCheckReady = useDeferredIdleReady();
   // Implement health check directly in provider to avoid circular dependency
   // This cannot use useBackendHealth because that hook depends on useBackendStatus
   const { data, isLoading, error, refetch } = useQuery({
@@ -49,7 +51,7 @@ export function BackendStatusProvider({ children }: BackendStatusProviderProps) 
         return tryTasksFallback();
       }
     },
-    enabled: true,
+    enabled: healthCheckReady,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,

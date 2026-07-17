@@ -218,7 +218,7 @@ export default function ObservabilityPage() {
   const [moduleFilter, setModuleFilter] = useState('');
   const [modelFilter, setModelFilter] = useState('');
   const [providerFilter, setProviderFilter] = useState('');
-  const [groupBy, setGroupBy] = useState<'module' | 'model' | 'provider'>('module');
+  const [groupBy, setGroupBy] = useState<'module' | 'model' | 'provider' | 'feature'>('module');
   const [hoveredBurnIndex, setHoveredBurnIndex] = useState<number | null>(null);
 
   const burnShared = useMemo(
@@ -291,6 +291,7 @@ export default function ObservabilityPage() {
 
   const [execPage, setExecPage] = useState(1);
   const [execModule, setExecModule] = useState('');
+  const [execFeature, setExecFeature] = useState('');
   const [execModel, setExecModel] = useState('');
   const [execProvider, setExecProvider] = useState('');
   const [execStatus, setExecStatus] = useState('');
@@ -338,6 +339,7 @@ export default function ObservabilityPage() {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       module: execModule.trim() || undefined,
+      feature: execFeature.trim() || undefined,
       model: execModel.trim() || undefined,
       provider: execProvider.trim() || undefined,
       status: execStatus.trim() || undefined,
@@ -352,6 +354,7 @@ export default function ObservabilityPage() {
       startDate,
       endDate,
       execModule,
+      execFeature,
       execModel,
       execProvider,
       execStatus,
@@ -658,6 +661,7 @@ export default function ObservabilityPage() {
                     onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
                   >
                     <option value="module">Module</option>
+                    <option value="feature">Feature</option>
                     <option value="model">Model</option>
                     <option value="provider">Provider</option>
                   </Select>
@@ -743,6 +747,7 @@ export default function ObservabilityPage() {
               {(
                 [
                   ['module', execModule, setExecModule],
+                  ['feature', execFeature, setExecFeature],
                   ['model', execModel, setExecModel],
                   ['provider', execProvider, setExecProvider],
                   ['status', execStatus, setExecStatus],
@@ -773,6 +778,7 @@ export default function ObservabilityPage() {
                   <tr className="text-left text-gray-500 border-b border-gray-200 dark:border-gray-700">
                     <th className="p-2">Time</th>
                     <th className="p-2">Module</th>
+                    <th className="p-2">Feature</th>
                     <th className="p-2">Model</th>
                     <th className="p-2">Status</th>
                     <th className="p-2">Cost</th>
@@ -782,14 +788,14 @@ export default function ObservabilityPage() {
                 <tbody>
                   {listQ.isLoading && (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                      <td colSpan={7} className="p-8 text-center text-gray-500">
                         <Loader2 className="h-6 w-6 animate-spin inline" /> Loading…
                       </td>
                     </tr>
                   )}
                   {listQ.isError && (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-red-600 text-sm">
+                      <td colSpan={7} className="p-8 text-center text-red-600 text-sm">
                         Failed to load executions.
                       </td>
                     </tr>
@@ -806,6 +812,9 @@ export default function ObservabilityPage() {
                           {new Date(row.occurredAt).toLocaleString()}
                         </td>
                         <td className="p-2 font-mono text-xs">{row.module}</td>
+                        <td className="p-2 font-mono text-xs text-gray-600">
+                          {row.feature?.trim() ? row.feature : '—'}
+                        </td>
                         <td className="p-2 font-mono text-xs">{row.model}</td>
                         <td className="p-2 text-xs">
                           <StatusBadge status={row.status} size="sm" />

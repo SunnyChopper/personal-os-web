@@ -1,48 +1,91 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { usePersonalBrandingBrandIdentity } from '@/hooks/usePersonalBrandingBrandIdentity';
 import { useRolodex } from '@/hooks/useRolodex';
 import { useReconFeed } from '@/hooks/useReconFeed';
+import { useRolodexFollowUpAlerts } from '@/hooks/useRolodexFollowUpAlerts';
+import { useReconFeedContentAlerts } from '@/hooks/useReconFeedContentAlerts';
+import { useToast } from '@/hooks/use-toast';
 import SubModuleTabShell from '../SubModuleTabShell';
 import ConnectionDirectoryTab from './ConnectionDirectoryTab';
 import InteractionsBoardTab from './InteractionsBoardTab';
 import ReconFeedTab from './ReconFeedTab';
+import RolodexSettingsTab from './RolodexSettingsTab';
 
 const TABS = [
   { id: 'interactions', label: 'Interactions Board' },
   { id: 'directory', label: 'Connection Directory' },
   { id: 'recon-feed', label: 'Recon Feed' },
+  { id: 'settings', label: 'Settings' },
 ] as const;
 
+type RolodexTabId = (typeof TABS)[number]['id'];
+
+const VALID_TAB_IDS = new Set<string>(TABS.map((tab) => tab.id));
+
+function resolveTabId(raw: string | null): RolodexTabId {
+  if (raw && VALID_TAB_IDS.has(raw)) {
+    return raw as RolodexTabId;
+  }
+  return 'interactions';
+}
+
 export default function RolodexPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = resolveTabId(searchParams.get('tab'));
+  const [activeTab, setActiveTab] = useState<RolodexTabId>(tabFromUrl);
+
   const rolodex = useRolodex();
   const reconFeed = useReconFeed();
+  const { followUpAlertsQ } = useRolodexFollowUpAlerts();
+  const { contentAlertsQ } = useReconFeedContentAlerts();
   const brandIdentity = usePersonalBrandingBrandIdentity();
   const selectedProfileId = brandIdentity.selectedProfileId;
+  const { showToast, ToastContainer } = useToast();
+
+  useEffect(() => {
+    setActiveTab(tabFromUrl);
+  }, [tabFromUrl]);
 
   const isLoading =
     rolodex.connections.isPending ||
     rolodex.interactionsBoard.isPending ||
     rolodex.trackingMetrics.isPending ||
-    reconFeed.settings.isPending;
+    reconFeed.settings.isPending ||
+    followUpAlertsQ.isPending ||
+    contentAlertsQ.isPending;
 
   const profileId = useMemo(() => selectedProfileId, [selectedProfileId]);
 
+  const handleTabChange = (tabId: string) => {
+    const nextTab = resolveTabId(tabId);
+    setActiveTab(nextTab);
+    setSearchParams({ tab: nextTab }, { replace: true });
+  };
+
   return (
-    <SubModuleTabShell
-      tabs={TABS}
-      defaultTabId="interactions"
-      ariaLabel="Rolodex sections"
-      isLoading={isLoading}
-      skeletonLayout="single-column"
-      renderPanel={(activeTab) =>
-        activeTab === 'directory' ? (
-          <ConnectionDirectoryTab rolodex={rolodex} />
-        ) : activeTab === 'recon-feed' ? (
-          <ReconFeedTab />
-        ) : (
-          <InteractionsBoardTab rolodex={rolodex} selectedProfileId={profileId} />
-        )
-      }
-    />
+    <div className="space-y-4">
+      <SubModuleTabShell
+        tabs={TABS}
+        defaultTabId="interactions"
+        ariaLabel="Rolodex sections"
+        isLoading={isLoading}
+        skeletonLayout="single-column"
+        activeTabId={activeTab}
+        onTabChange={handleTabChange}
+        renderPanel={(currentTab) =>
+          currentTab === 'directory' ? (
+            <ConnectionDirectoryTab rolodex={rolodex} />
+          ) : currentTab === 'recon-feed' ? (
+            <ReconFeedTab showToast={showToast} />
+          ) : currentTab === 'settings' ? (
+            <RolodexSettingsTab showToast={showToast} />
+          ) : (
+            <InteractionsBoardTab rolodex={rolodex} selectedProfileId={profileId} />
+          )
+        }
+      />
+      <ToastContainer />
+    </div>
   );
 }

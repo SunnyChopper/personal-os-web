@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   buildHandles,
   buildProfileUrl,
+  computeDefaultNextFollowUpDate,
   followUpSortKey,
   getProfileDisplay,
+  isFollowUpOverdue,
   parseConnectionProfile,
   priorityBadgeClassName,
   resolveRelationshipPriority,
@@ -104,5 +106,15 @@ describe('rolodex-platform', () => {
       lastInteractedAt: '2020-01-01T00:00:00Z',
     };
     expect(followUpSortKey(soon)).toBeLessThan(followUpSortKey(later));
+  });
+
+  it('detects overdue follow-ups', () => {
+    expect(isFollowUpOverdue('2020-01-01T00:00:00Z', new Date('2026-01-01T00:00:00Z'))).toBe(true);
+    expect(isFollowUpOverdue('2030-01-01T00:00:00Z', new Date('2026-01-01T00:00:00Z'))).toBe(false);
+    expect(isFollowUpOverdue(null)).toBe(false);
+  });
+
+  it('computes default next follow-up from cadence', () => {
+    expect(computeDefaultNextFollowUpDate(7)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

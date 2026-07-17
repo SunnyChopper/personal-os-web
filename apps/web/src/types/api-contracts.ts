@@ -426,6 +426,18 @@ export interface RecoveryNotificationsConfig {
   channelWebhookEnabled: boolean;
 }
 
+export interface RolodexFollowUpNotificationsConfig {
+  enabled: boolean;
+  channelEmailEnabled: boolean;
+  channelWebhookEnabled: boolean;
+}
+
+export interface ReconFeedContentNotificationsConfig {
+  enabled: boolean;
+  channelEmailEnabled: boolean;
+  channelWebhookEnabled: boolean;
+}
+
 export interface ProactiveWebhookTestResult {
   deliveredTo: string;
   deployedStage: string;

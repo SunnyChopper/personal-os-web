@@ -6,15 +6,24 @@ import { Select } from '@/components/atoms/Select';
 import { FormTextarea } from '../PersonalBrandingFormFields';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
 import type { CreateConnectionInteractionInput } from '@/types/api/personal-branding.dto';
-import { ROLODEX_PLATFORMS } from './rolodex-platform';
+import {
+  ROLODEX_PLATFORMS,
+  computeDefaultNextFollowUpDate,
+  followUpDateInputToIso,
+} from './rolodex-platform';
 
 interface LogInteractionDialogProps {
   isOpen: boolean;
   onClose: () => void;
   connectionName: string;
+  followUpCadenceDays?: number | null;
   isSubmitting?: boolean;
   initialCreatorText?: string;
   initialResponseVectorId?: string;
+  initialEvidenceUrl?: string | null;
+  initialChannel?: string | null;
+  initialPlatform?: string | null;
+  initialPlatformPostId?: string | null;
   onSubmit: (body: CreateConnectionInteractionInput) => Promise<void>;
 }
 
@@ -22,23 +31,30 @@ export default function LogInteractionDialog({
   isOpen,
   onClose,
   connectionName,
+  followUpCadenceDays = null,
   isSubmitting = false,
   initialCreatorText = '',
   initialResponseVectorId,
+  initialEvidenceUrl = '',
+  initialChannel = '',
+  initialPlatform = null,
+  initialPlatformPostId = null,
   onSubmit,
 }: LogInteractionDialogProps) {
   const [evidenceUrl, setEvidenceUrl] = useState('');
   const [description, setDescription] = useState('');
   const [channel, setChannel] = useState('');
   const [creatorText, setCreatorText] = useState('');
+  const [nextFollowUpAt, setNextFollowUpAt] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
-    setEvidenceUrl('');
+    setEvidenceUrl(initialEvidenceUrl ?? '');
     setDescription('');
-    setChannel('');
+    setChannel(initialChannel ?? '');
     setCreatorText(initialCreatorText);
-  }, [isOpen, initialCreatorText]);
+    setNextFollowUpAt(computeDefaultNextFollowUpDate(followUpCadenceDays));
+  }, [isOpen, initialCreatorText, followUpCadenceDays, initialEvidenceUrl, initialChannel]);
 
   const canSubmit = Boolean(evidenceUrl.trim() || description.trim());
 
@@ -52,6 +68,9 @@ export default function LogInteractionDialog({
       description: description.trim() || null,
       creatorText: creatorText.trim() || null,
       responseVectorId: initialResponseVectorId ?? null,
+      nextFollowUpAt: followUpDateInputToIso(nextFollowUpAt),
+      platform: initialPlatform,
+      platformPostId: initialPlatformPostId,
     });
     onClose();
   };
@@ -99,6 +118,21 @@ export default function LogInteractionDialog({
               onChange={(e) => setCreatorText(e.target.value)}
               placeholder="Their post or message you responded to"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Next follow-up</label>
+            <FormInput
+              type="date"
+              className="w-full"
+              value={nextFollowUpAt}
+              onChange={(e) => setNextFollowUpAt(e.target.value)}
+            />
+            {followUpCadenceDays ? (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Defaults to {followUpCadenceDays} days from today based on your cadence. Adjust if
+                needed.
+              </p>
+            ) : null}
           </div>
         </fieldset>
         <DialogFooter>

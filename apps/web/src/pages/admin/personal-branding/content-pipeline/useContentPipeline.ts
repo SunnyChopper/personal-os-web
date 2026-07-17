@@ -8,11 +8,17 @@ import type {
   BrandPlatform,
   ContentNode,
   ContentVariantDistributionStatus,
+  RepurposeJob,
   RepurposeJobStatus,
 } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS } from '@/types/api/personal-branding.dto';
 
 const ALL_PLATFORMS = Object.keys(BRAND_PLATFORM_LABELS) as BrandPlatform[];
+const IN_FLIGHT_JOB_STATUSES: RepurposeJobStatus[] = ['queued', 'running'];
+
+function hasInFlightJobs(jobs: RepurposeJob[] | undefined): boolean {
+  return (jobs ?? []).some((job) => IN_FLIGHT_JOB_STATUSES.includes(job.status));
+}
 
 export function useContentPipeline() {
   const queryClient = useQueryClient();
@@ -20,14 +26,13 @@ export function useContentPipeline() {
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string>('');
   const [targetPlatforms, setTargetPlatforms] = useState<BrandPlatform[]>(['linkedin', 'x']);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [rejectingVariantId, setRejectingVariantId] = useState<string | null>(null);
   const [rejectCritique, setRejectCritique] = useState('');
 
-  const finalizedQ = useQuery({
-    queryKey: queryKeys.personalBranding.content.list(1, 100, 'FINALIZED'),
+  const publishedQ = useQuery({
+    queryKey: queryKeys.personalBranding.content.list(1, 100, 'PUBLISHED'),
     queryFn: async () =>
-      unwrapList(await personalBrandingService.listContentNodes(1, 100, 'FINALIZED')),
+      unwrapList(await personalBrandingService.listContentNodes(1, 100, 'PUBLISHED')),
   });
 
   const profilesQ = useQuery({
@@ -35,35 +40,29 @@ export function useContentPipeline() {
     queryFn: async () => unwrapPaginated(await personalBrandingService.listProfiles(1, 100)),
   });
 
+  const jobsQ = useQuery({
+    queryKey: queryKeys.personalBranding.content.repurposeJobs(selectedContentId ?? ''),
+    queryFn: () => personalBrandingService.listRepurposeJobs(selectedContentId!),
+    enabled: Boolean(selectedContentId),
+    refetchInterval: (query) => (hasInFlightJobs(query.state.data) ? 1500 : false),
+  });
+
   const variantsQ = useQuery({
     queryKey: queryKeys.personalBranding.content.variants(selectedContentId ?? ''),
     queryFn: () => personalBrandingService.listContentVariants(selectedContentId!),
     enabled: Boolean(selectedContentId),
+    refetchInterval: () => (hasInFlightJobs(jobsQ.data) ? 1500 : false),
   });
 
-  const jobQ = useQuery({
-    queryKey: queryKeys.personalBranding.content.repurposeJob(
-      selectedContentId ?? '',
-      activeJobId ?? ''
-    ),
-    queryFn: () => personalBrandingService.getRepurposeJob(selectedContentId!, activeJobId!),
-    enabled: Boolean(selectedContentId && activeJobId),
-    refetchInterval: (query) => {
-      const status = query.state.data?.status as RepurposeJobStatus | undefined;
-      if (!status || status === 'succeeded' || status === 'failed') return false;
-      return 1500;
-    },
-  });
-
-  const finalizedNodes = finalizedQ.data ?? [];
+  const publishedNodes = publishedQ.data ?? [];
   const profiles = profilesQ.data ?? [];
   const variants = variantsQ.data ?? [];
-  const activeJob = jobQ.data ?? null;
+  const repurposeJobs = jobsQ.data ?? [];
 
   useEffect(() => {
-    if (selectedContentId || finalizedNodes.length === 0) return;
-    setSelectedContentId(finalizedNodes[0].id);
-  }, [finalizedNodes, selectedContentId]);
+    if (selectedContentId || publishedNodes.length === 0) return;
+    setSelectedContentId(publishedNodes[0].id);
+  }, [publishedNodes, selectedContentId]);
 
   useEffect(() => {
     if (selectedProfileId || profiles.length === 0) return;
@@ -71,21 +70,14 @@ export function useContentPipeline() {
     setSelectedProfileId(active.id);
   }, [profiles, selectedProfileId]);
 
-  useEffect(() => {
-    if (!activeJob) return;
-    if (activeJob.status === 'succeeded' || activeJob.status === 'failed') {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.personalBranding.content.variants(selectedContentId ?? ''),
-      });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.personalBranding.content.all() });
-    }
-  }, [activeJob, queryClient, selectedContentId]);
-
   const invalidatePipeline = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.personalBranding.content.all() }),
       queryClient.invalidateQueries({
         queryKey: queryKeys.personalBranding.content.variants(selectedContentId ?? ''),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.personalBranding.content.repurposeJobs(selectedContentId ?? ''),
       }),
     ]);
   }, [queryClient, selectedContentId]);
@@ -96,8 +88,8 @@ export function useContentPipeline() {
         brandProfileId: selectedProfileId,
         targetPlatforms,
       }),
-    onSuccess: (accepted) => {
-      setActiveJobId(accepted.jobId);
+    onSuccess: async () => {
+      await invalidatePipeline();
     },
   });
 
@@ -127,8 +119,8 @@ export function useContentPipeline() {
         brandProfileId: selectedProfileId,
         targetPlatforms: [platform],
       }),
-    onSuccess: (accepted) => {
-      setActiveJobId(accepted.jobId);
+    onSuccess: async () => {
+      await invalidatePipeline();
     },
   });
 
@@ -146,38 +138,92 @@ export function useContentPipeline() {
     },
   });
 
+  const selectedContent = useMemo(
+    () => publishedNodes.find((n) => n.id === selectedContentId) ?? null,
+    [publishedNodes, selectedContentId]
+  );
+
+  const sourcePlatform = selectedContent?.platform ?? null;
+
+  useEffect(() => {
+    if (!sourcePlatform) return;
+    setTargetPlatforms((prev) =>
+      prev.includes(sourcePlatform) ? prev.filter((p) => p !== sourcePlatform) : prev
+    );
+  }, [sourcePlatform]);
+
   const togglePlatform = (platform: BrandPlatform) => {
+    if (platform === sourcePlatform) return;
     setTargetPlatforms((prev) =>
       prev.includes(platform) ? prev.filter((p) => p !== platform) : [...prev, platform]
     );
   };
 
-  const selectedContent = useMemo(
-    () => finalizedNodes.find((n) => n.id === selectedContentId) ?? null,
-    [finalizedNodes, selectedContentId]
+  const inFlightJobs = useMemo(
+    () => repurposeJobs.filter((job) => IN_FLIGHT_JOB_STATUSES.includes(job.status)),
+    [repurposeJobs]
+  );
+
+  const recentTerminalJobs = useMemo(() => {
+    const latestByPlatform = new Map<BrandPlatform, RepurposeJob>();
+    for (const job of repurposeJobs) {
+      const existing = latestByPlatform.get(job.platform);
+      if (!existing || job.createdAt > existing.createdAt) {
+        latestByPlatform.set(job.platform, job);
+      }
+    }
+    return [...latestByPlatform.values()].filter(
+      (job) => job.status === 'succeeded' || job.status === 'failed'
+    );
+  }, [repurposeJobs]);
+
+  const visibleJobs = useMemo(() => {
+    const byId = new Map<string, RepurposeJob>();
+    for (const job of [...inFlightJobs, ...recentTerminalJobs]) {
+      byId.set(job.jobId, job);
+    }
+    return [...byId.values()].sort((a, b) => {
+      const platformOrder = BRAND_PLATFORM_LABELS[a.platform].localeCompare(
+        BRAND_PLATFORM_LABELS[b.platform]
+      );
+      if (platformOrder !== 0) return platformOrder;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+  }, [inFlightJobs, recentTerminalJobs]);
+
+  const busyPlatforms = useMemo(
+    () =>
+      new Set(
+        inFlightJobs
+          .map((job) => job.platform)
+          .filter((platform) => targetPlatforms.includes(platform))
+      ),
+    [inFlightJobs, targetPlatforms]
   );
 
   const canStart =
     Boolean(selectedContentId && selectedProfileId && targetPlatforms.length > 0) &&
     !startRepurposeMutation.isPending &&
-    activeJob?.status !== 'running' &&
-    activeJob?.status !== 'queued';
+    busyPlatforms.size === 0;
 
   return {
-    finalizedNodes,
+    publishedNodes,
     profiles,
     variants,
-    activeJob,
+    repurposeJobs,
+    visibleJobs,
+    inFlightJobs,
     selectedContentId,
     setSelectedContentId,
     selectedContent,
+    sourcePlatform,
     selectedProfileId,
     setSelectedProfileId,
     targetPlatforms,
     togglePlatform,
     allPlatforms: ALL_PLATFORMS,
     canStart,
-    isLoading: finalizedQ.isPending || profilesQ.isPending,
+    isLoading: publishedQ.isPending || profilesQ.isPending,
     startRepurposeMutation,
     rejectVariantMutation,
     sendToSandboxMutation,

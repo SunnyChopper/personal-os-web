@@ -16,7 +16,7 @@ import { Link } from 'react-router-dom';
 import { ROUTES } from '@/routes';
 import { usePlannerWeek } from '@/hooks/usePlanner';
 import { mondayISO, todayISOLocal } from '@/lib/planner/week';
-import { differenceInCalendarDaysLocal, extractDateOnly } from '@/utils/date-formatters';
+import { selectTop3TasksForToday } from '@/lib/planner/select-top3-tasks-for-today';
 
 interface DailyPlan {
   topTasks: Task[];
@@ -28,9 +28,13 @@ interface DailyPlan {
 
 interface DailyPlanningAssistantProps {
   onStartDay?: () => void;
+  onTopTasksChange?: (tasks: Task[]) => void;
 }
 
-export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantProps) {
+export function DailyPlanningAssistant({
+  onStartDay,
+  onTopTasksChange,
+}: DailyPlanningAssistantProps) {
   const [plan, setPlan] = useState<DailyPlan | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -59,7 +63,6 @@ export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantPro
   } | null>(null);
 
   const generateDailyPlan = useCallback(async () => {
-    // Calculate data signatures to detect actual changes
     // Actionable on-deck work only — exclude Backlog (capture bucket, not scheduled work).
     const activeTasks = tasks
       .filter((t: Task) => t.status === 'Not Started' || t.status === 'In Progress')
@@ -98,56 +101,12 @@ export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantPro
     else if (hour < 18) energyLevel = 'afternoon';
     else energyLevel = 'evening';
 
-    const scoredTasks = activeTasks.map((task: Task) => {
-      let score = 0;
-
-      if (task.priority === 'P1') score += 40;
-      else if (task.priority === 'P2') score += 30;
-      else if (task.priority === 'P3') score += 20;
-      else score += 10;
-
-      if (task.dueDate) {
-        const daysUntilDue = differenceInCalendarDaysLocal(task.dueDate, today);
-        if (daysUntilDue !== null) {
-          if (daysUntilDue <= 0) score += 50;
-          else if (daysUntilDue <= 2) score += 30;
-          else if (daysUntilDue <= 7) score += 10;
-        }
-      }
-
-      if (task.scheduledDate && extractDateOnly(task.scheduledDate) === todayKey) {
-        score += 25;
-      }
-
-      if (task.size === 1) score += 15;
-      else if (task.size && task.size <= 3) score += 10;
-      else if (task.size && task.size <= 5) score += 5;
-
-      return { task, score };
+    const topTasks = selectTop3TasksForToday(tasks, plannerWeek, {
+      todayKey,
+      referenceDate: today,
     });
 
-    type ScoredTask = { task: Task; score: number };
-    scoredTasks.sort((a: ScoredTask, b: ScoredTask) => b.score - a.score);
-    const fallbackTop = scoredTasks.slice(0, 3).map((s: ScoredTask) => s.task);
-
     const todayDay = plannerWeek?.days.find((d) => d.date === todayKey);
-    const plannerTop: Task[] = [];
-    if (todayDay) {
-      const ids: string[] = [];
-      if (todayDay.oneThingTaskId) ids.push(todayDay.oneThingTaskId);
-      todayDay.blocks.forEach((b) => {
-        if (b.taskId) ids.push(b.taskId);
-      });
-      const seen = new Set<string>();
-      for (const id of ids) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        const t = tasks.find((x: Task) => x.id === id);
-        if (t && activeTasks.some((a: Task) => a.id === id)) plannerTop.push(t);
-        if (plannerTop.length >= 3) break;
-      }
-    }
-    const topTasks = plannerTop.length > 0 ? plannerTop : fallbackTop;
 
     const capHint = todayDay?.isBlocked
       ? ' Today is marked Out of Office / Trip — scheduling capacity is 0.'
@@ -171,9 +130,11 @@ export function DailyPlanningAssistant({ onStartDay }: DailyPlanningAssistantPro
       briefing,
     });
 
+    onTopTasksChange?.(topTasks);
+
     setIsGeneratingPlan(false);
     hasGenerated.current = true;
-  }, [tasks, habits, metrics, plannerWeek]);
+  }, [tasks, habits, metrics, plannerWeek, onTopTasksChange]);
 
   useEffect(() => {
     // Only generate once data is loaded (not in error state) or after initial load

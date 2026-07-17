@@ -213,6 +213,7 @@ export default function SourceEditorDialog({
   const [clearSecret, setClearSecret] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [cadence, setCadence] = useState<RadarSyncCadence | ''>('');
+  const [cadenceIntervalHours, setCadenceIntervalHours] = useState(6);
   const [githubOwner, setGithubOwner] = useState('');
   const [githubRepo, setGithubRepo] = useState('');
   const [githubEventTypes, setGithubEventTypes] = useState<RadarGithubEventType[]>(['COMMITS']);
@@ -235,6 +236,7 @@ export default function SourceEditorDialog({
       setClearSecret(false);
       setEnabled(initial.enabled);
       setCadence((initial.cadence as RadarSyncCadence | null) ?? '');
+      setCadenceIntervalHours(initial.cadenceIntervalHours ?? 6);
       setGithubOwner(initial.githubConfig?.owner ?? '');
       setGithubRepo(initial.githubConfig?.repo ?? '');
       setGithubEventTypes(initial.githubConfig?.eventTypes ?? ['COMMITS']);
@@ -253,6 +255,7 @@ export default function SourceEditorDialog({
       setClearSecret(false);
       setEnabled(true);
       setCadence('');
+      setCadenceIntervalHours(6);
       setGithubOwner('');
       setGithubRepo('');
       setGithubEventTypes(['COMMITS']);
@@ -299,6 +302,7 @@ export default function SourceEditorDialog({
         authQueryParamName: null,
         enabled,
         cadence: cadence || null,
+        cadenceIntervalHours: cadence === 'EVERY_N_HOURS' ? cadenceIntervalHours : null,
         githubConfig: {
           owner,
           repo,
@@ -320,6 +324,7 @@ export default function SourceEditorDialog({
       authQueryParamName: authQueryParamName.trim() || null,
       enabled,
       cadence: cadence || null,
+      cadenceIntervalHours: cadence === 'EVERY_N_HOURS' ? cadenceIntervalHours : null,
     };
   };
 
@@ -592,6 +597,23 @@ export default function SourceEditorDialog({
                   ))}
                 </Select>
               </FormField>
+
+              {cadence === 'EVERY_N_HOURS' ? (
+                <FormField
+                  label="Interval (hours)"
+                  htmlFor="radar-source-cadence-interval"
+                  hint="Used when per-source cadence is every N hours."
+                >
+                  <FormInput
+                    id="radar-source-cadence-interval"
+                    type="number"
+                    min={1}
+                    max={168}
+                    value={cadenceIntervalHours}
+                    onChange={(e) => setCadenceIntervalHours(Number(e.target.value))}
+                  />
+                </FormField>
+              ) : null}
 
               <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <FormCheckbox checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />

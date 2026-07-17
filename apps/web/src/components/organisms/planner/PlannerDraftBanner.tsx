@@ -1,4 +1,9 @@
 import Button from '@/components/atoms/Button';
+import {
+  plannerDraftBannerClassName,
+  plannerDraftBannerMutedClassName,
+  plannerDraftBannerTitleClassName,
+} from '@/lib/planner/planner-surfaces';
 import type { PlannerProposedBlock } from '@/types/planner';
 
 export interface PlannerDraftBannerProps {
@@ -27,13 +32,13 @@ export function PlannerDraftBanner({
     <div
       role="region"
       aria-label="Auto-schedule draft confirmation"
-      className="sticky top-0 z-20 mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-400/40 bg-indigo-950/90 px-4 py-3 shadow-lg backdrop-blur-sm"
+      className={`sticky top-0 z-20 mb-3 flex flex-wrap items-center justify-between gap-3 ${plannerDraftBannerClassName}`}
     >
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-indigo-100">Review auto-schedule draft</p>
-        <p className="text-xs text-indigo-200/80">{summary}</p>
+        <p className={plannerDraftBannerTitleClassName}>Review auto-schedule draft</p>
+        <p className={plannerDraftBannerMutedClassName}>{summary}</p>
         {commitError ? (
-          <p className="mt-1 text-xs text-red-300" role="alert">
+          <p className="mt-1 text-xs text-red-600 dark:text-red-300" role="alert">
             {commitError}
           </p>
         ) : null}

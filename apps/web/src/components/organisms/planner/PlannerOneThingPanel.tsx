@@ -3,6 +3,11 @@ import { Moon } from 'lucide-react';
 
 import Button from '@/components/atoms/Button';
 import { useOneThing, useSetOneThing, useSuggestOneThing } from '@/hooks/usePlanner';
+import {
+  plannerFeaturePanelClassName,
+  plannerHeadingClassName,
+  plannerMutedClassName,
+} from '@/lib/planner/planner-surfaces';
 import { addDaysISO, todayISOLocal } from '@/lib/planner/week';
 import type { OneThingCandidate } from '@/types/planner';
 
@@ -77,16 +82,19 @@ export function PlannerOneThingPanel({ onSaved }: PlannerOneThingPanelProps) {
 
   return (
     <section
-      className="space-y-3 rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/40 to-gray-950/60 p-4 shadow-lg backdrop-blur-sm"
+      className={`space-y-3 p-4 ${plannerFeaturePanelClassName}`}
       aria-labelledby="planner-one-thing-heading"
     >
       <div className="flex items-start gap-2">
         <Moon className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
         <div>
-          <h2 id="planner-one-thing-heading" className="text-base font-semibold text-white">
+          <h2
+            id="planner-one-thing-heading"
+            className={`text-base font-semibold ${plannerHeadingClassName}`}
+          >
             One thing for tomorrow
           </h2>
-          <p className="text-sm text-gray-400">
+          <p className={`text-sm ${plannerMutedClassName}`}>
             Pick a single focus task for <strong>{tomorrow}</strong>. It pins on that day in the
             week below.
           </p>
@@ -112,7 +120,7 @@ export function PlannerOneThingPanel({ onSaved }: PlannerOneThingPanelProps) {
             onClick={() => setSelected(primaryCandidate.taskId)}
             className={`w-full text-left rounded-xl border-2 p-4 transition ${
               selected === primaryCandidate.taskId
-                ? 'border-indigo-400 bg-indigo-950/50 shadow-md ring-1 ring-indigo-500/30'
+                ? 'border-indigo-400 bg-indigo-50 shadow-md ring-1 ring-indigo-500/30 dark:bg-indigo-950/50'
                 : 'border-indigo-500/40 bg-white/80 dark:bg-gray-900/60 hover:border-indigo-400/60'
             }`}
           >
@@ -169,7 +177,7 @@ export function PlannerOneThingPanel({ onSaved }: PlannerOneThingPanelProps) {
       )}
 
       {lockedTaskId && !isLoading && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-3 space-y-1">
+        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 space-y-1 dark:border-emerald-500/30 dark:bg-emerald-950/20">
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
             Locked for tomorrow
           </p>

@@ -1,3 +1,8 @@
+import {
+  plannerEmphasisClassName,
+  plannerListItemClassName,
+  plannerMutedClassName,
+} from '@/lib/planner/planner-surfaces';
 import type { Task } from '@/types/growth-system';
 
 export interface PlannerBacklogPanelProps {
@@ -16,17 +21,15 @@ export function PlannerBacklogPanel({ tasks, scheduledTaskIds }: PlannerBacklogP
 
   return (
     <div className="min-h-0">
-      <p className="mb-3 text-xs text-gray-400">
-        Unscheduled active tasks. Use <strong className="text-gray-300">Auto-schedule</strong> to
-        place blocks from the model. Drag-and-drop onto days coming soon.
+      <p className={`mb-3 text-xs ${plannerMutedClassName}`}>
+        Unscheduled active tasks. Use{' '}
+        <strong className={plannerEmphasisClassName}>Auto-schedule</strong> to place blocks from the
+        model. Drag-and-drop onto days coming soon.
       </p>
       <ul className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
         {backlog.slice(0, 60).map((t) => (
-          <li
-            key={t.id}
-            className="truncate rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-gray-200"
-          >
-            <span className="font-medium text-gray-400">{t.priority}</span> · {t.title}
+          <li key={t.id} className={`truncate ${plannerListItemClassName}`}>
+            <span className={`font-medium ${plannerMutedClassName}`}>{t.priority}</span> · {t.title}
           </li>
         ))}
         {backlog.length === 0 && (

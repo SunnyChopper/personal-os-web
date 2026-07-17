@@ -51,7 +51,7 @@ export const observabilityService = {
   async getBurnBreakdown(filters?: {
     startDate?: string;
     endDate?: string;
-    groupBy?: 'module' | 'model' | 'provider';
+    groupBy?: 'module' | 'model' | 'provider' | 'feature';
   }): Promise<ObservabilityBurnBreakdown> {
     const res = await apiClient.get<ObservabilityBurnBreakdown>(
       `/observability/burn/breakdown${searchFromRecord((filters ?? {}) as Record<string, string | number | undefined>)}`
@@ -82,6 +82,7 @@ export const observabilityService = {
     startDate?: string;
     endDate?: string;
     module?: string;
+    feature?: string;
     model?: string;
     provider?: string;
     status?: string;

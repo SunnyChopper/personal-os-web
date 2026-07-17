@@ -90,6 +90,16 @@ export default function ExecutionDetailMetadata({
                   <span className="block text-gray-500">
                     Total: {formatObservabilityTokenCount(detail.totalTokens)}
                   </span>
+                  {detail.cachedTokens != null && (
+                    <span className="block text-gray-500">
+                      Cached: {formatObservabilityTokenCount(detail.cachedTokens)}
+                    </span>
+                  )}
+                  {detail.cacheCreationTokens != null && (
+                    <span className="block text-gray-500">
+                      Cache write: {formatObservabilityTokenCount(detail.cacheCreationTokens)}
+                    </span>
+                  )}
                 </span>
               }
             />

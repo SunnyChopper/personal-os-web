@@ -23,7 +23,7 @@ export default function SignalRadarPage() {
         activeTab === 'sources' ? (
           <SourceManagementTab signalRadar={signalRadar} />
         ) : (
-          <TrendStreamTab />
+          <TrendStreamTab signalRadar={signalRadar} />
         )
       }
     />

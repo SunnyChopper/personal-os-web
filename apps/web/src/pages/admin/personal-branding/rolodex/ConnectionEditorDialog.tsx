@@ -33,6 +33,10 @@ interface ConnectionEditorDialogProps {
   isOpen: boolean;
   onClose: () => void;
   initial?: CreatorConnection | null;
+  prefill?: Partial<CreateCreatorConnectionInput> | null;
+  title?: string;
+  subtitle?: string | null;
+  draftSummary?: string | null;
   isSubmitting?: boolean;
   onCreate: (body: CreateCreatorConnectionInput) => Promise<void>;
   onUpdate: (id: string, body: UpdateCreatorConnectionInput) => Promise<void>;
@@ -74,6 +78,10 @@ export default function ConnectionEditorDialog({
   isOpen,
   onClose,
   initial,
+  prefill,
+  title,
+  subtitle,
+  draftSummary,
   isSubmitting = false,
   onCreate,
   onUpdate,
@@ -121,6 +129,25 @@ export default function ConnectionEditorDialog({
       setTagsRaw((initial.tags ?? []).join(', '));
       setPersonalContext(initial.personalContext ?? '');
       setNotes(initial.notes ?? '');
+    } else if (prefill) {
+      const xHandle = prefill.handles?.x ?? '';
+      setName(prefill.name ?? '');
+      setPlatformId(xHandle ? 'x' : null);
+      setHandleOrUrl(xHandle.replace(/^@/, ''));
+      setRelationshipType(prefill.relationshipType ?? '');
+      setRelationshipPriority(prefill.relationshipPriority ?? '');
+      setRelationshipStage(prefill.relationshipStage ?? '');
+      setDesiredOutcome(prefill.desiredOutcome ?? '');
+      setValueExchange(prefill.valueExchange ?? '');
+      setFollowUpCadenceDays(
+        prefill.followUpCadenceDays != null ? String(prefill.followUpCadenceDays) : ''
+      );
+      setNextFollowUpAt(toDateInputValue(prefill.nextFollowUpAt));
+      setNextAction(prefill.nextAction ?? '');
+      setConversationAnglesRaw((prefill.conversationAngles ?? []).join('\n'));
+      setTagsRaw((prefill.tags ?? []).join(', '));
+      setPersonalContext(prefill.personalContext ?? '');
+      setNotes(prefill.notes ?? '');
     } else {
       setName('');
       setPlatformId(null);
@@ -138,7 +165,7 @@ export default function ConnectionEditorDialog({
       setPersonalContext('');
       setNotes('');
     }
-  }, [isOpen, initial]);
+  }, [isOpen, initial, prefill]);
 
   const toggleQuickTag = (tag: string) => {
     const tags = parseTags(tagsRaw);
@@ -196,10 +223,16 @@ export default function ConnectionEditorDialog({
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title={initial ? 'Edit connection' : 'New connection'}
+      title={title ?? (initial ? 'Edit connection' : 'New connection')}
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
+        {draftSummary ? (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200">
+            {draftSummary}
+          </div>
+        ) : null}
+        {subtitle ? <p className="text-sm text-gray-600 dark:text-gray-400">{subtitle}</p> : null}
         <fieldset disabled={isSubmitting} className="space-y-6">
           <div className="space-y-4">
             {sectionTitle('Identity', 'Who they are and where you engage them')}

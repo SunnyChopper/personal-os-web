@@ -2,44 +2,54 @@ import { Loader2 } from 'lucide-react';
 import Dialog from '@/components/molecules/Dialog';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
-import type { ProfileExtractionJob } from '@/types/api/personal-branding.dto';
+import type {
+  ProfileExtractionClientProgress,
+  ProfileExtractionJob,
+} from '@/types/api/personal-branding.dto';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
 import {
-  EXTRACTION_PIPELINE_STEPS,
+  extractionEffectiveStage,
+  extractionIsTerminal,
+  extractionPipelineSteps,
   extractionProgressPercent,
   extractionStatusLabel,
+  formatUploadProgressDetail,
+  isClientExtractionPhaseActive,
+  resolveExtractionPipelineVariant,
+  resolveExtractionSourceTypes,
 } from './profile-extraction-progress';
 
 interface ProfileExtractionProgressModalProps {
   isOpen: boolean;
   job: ProfileExtractionJob | undefined;
-  pollTimedOut: boolean;
+  clientUploadProgress?: ProfileExtractionClientProgress | null;
   onClose: () => void;
+  failedSourcesPage?: number;
+  onFailedSourcesPageChange?: (page: number) => void;
 }
 
 export default function ProfileExtractionProgressModal({
   isOpen,
   job,
-  pollTimedOut,
+  clientUploadProgress,
   onClose,
 }: ProfileExtractionProgressModalProps) {
   const status = job?.status;
-  const isTerminal = status === 'succeeded' || status === 'failed';
-  const percent = extractionProgressPercent(job);
-  const currentStage = job?.stage ?? (status === 'queued' ? 'queued' : 'reading_sources');
-  const currentStepIndex = EXTRACTION_PIPELINE_STEPS.findIndex((step) => step.id === currentStage);
+  const isTerminal =
+    extractionIsTerminal(job) && !isClientExtractionPhaseActive(clientUploadProgress);
+  const sourceTypes = resolveExtractionSourceTypes(job, clientUploadProgress);
+  const pipelineSteps = extractionPipelineSteps(resolveExtractionPipelineVariant(sourceTypes));
+  const percent = extractionProgressPercent(job, clientUploadProgress);
+  const currentStage = extractionEffectiveStage(job, clientUploadProgress);
+  const currentStepIndex = pipelineSteps.findIndex((step) => step.id === currentStage);
+  const uploadDetail = formatUploadProgressDetail(clientUploadProgress);
 
   return (
-    <Dialog
-      isOpen={isOpen}
-      onClose={() => {
-        if (isTerminal) onClose();
-      }}
-      title="Extracting profile from sources"
-      size="md"
-    >
+    <Dialog isOpen={isOpen} onClose={onClose} title="Extracting profile from sources" size="md">
       <div className="space-y-5">
-        <p className="text-sm text-gray-600 dark:text-gray-400">{extractionStatusLabel(job)}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          {extractionStatusLabel(job, clientUploadProgress)}
+        </p>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs font-medium text-gray-600 dark:text-gray-400">
@@ -65,13 +75,23 @@ export default function ProfileExtractionProgressModal({
           {job?.sourceCount != null ? (
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Sources processed: {job.processedSourceCount ?? 0}/{job.sourceCount}
+              {job.succeededSourceCount != null ? ` · succeeded ${job.succeededSourceCount}` : ''}
+              {job.failedSourceCount != null && job.failedSourceCount > 0
+                ? ` · failed ${job.failedSourceCount}`
+                : ''}
+              {job.processedChunkCount != null && job.totalChunkCount != null
+                ? ` · chunks ${job.processedChunkCount}/${job.totalChunkCount}`
+                : ''}
             </p>
           ) : null}
         </div>
 
         <ol className="space-y-2" aria-label="Extraction pipeline steps">
-          {EXTRACTION_PIPELINE_STEPS.map((step, index) => {
-            const isComplete = status === 'succeeded' ? true : index < currentStepIndex;
+          {pipelineSteps.map((step, index) => {
+            const isComplete =
+              status === 'succeeded' || status === 'succeeded_with_warnings'
+                ? true
+                : index < currentStepIndex;
             const isCurrent = !isTerminal && step.id === currentStage;
             const isFailed = status === 'failed' && isCurrent;
 
@@ -101,16 +121,21 @@ export default function ProfileExtractionProgressModal({
                     index + 1
                   )}
                 </span>
-                <span className="font-medium">{step.label}</span>
+                <div className="min-w-0">
+                  <span className="font-medium">{step.label}</span>
+                  {isCurrent && step.id === 'uploading' && uploadDetail ? (
+                    <p className="text-xs opacity-80">{uploadDetail}</p>
+                  ) : null}
+                </div>
               </li>
             );
           })}
         </ol>
 
-        {pollTimedOut && !isTerminal ? (
-          <p className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100">
-            Extraction is taking longer than expected. You can close this dialog and refresh later
-            to check status.
+        {status === 'succeeded_with_warnings' ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+            Some files could not be analyzed. The profile was built from successful sources. Review
+            failed files in the job details panel.
           </p>
         ) : null}
 
@@ -123,7 +148,9 @@ export default function ProfileExtractionProgressModal({
         <DialogFooter className="justify-end border-t-0 pt-0">
           {isTerminal ? (
             <Button type="button" size="sm" onClick={onClose}>
-              {status === 'succeeded' ? 'View profile' : 'Close'}
+              {status === 'succeeded' || status === 'succeeded_with_warnings'
+                ? 'View profile'
+                : 'Close'}
             </Button>
           ) : (
             <Button type="button" size="sm" variant="secondary" onClick={onClose}>

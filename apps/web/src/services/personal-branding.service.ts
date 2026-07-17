@@ -1,5 +1,8 @@
 import { apiClient } from '@/lib/api-client';
+import { uploadToS3WithProgress } from '@/lib/upload-to-s3-with-progress';
+import { formatApiFailure } from '@/utils/api-error-formatter';
 import type {
+  ApproveContentIdeaInput,
   ApproveContentIdeaResult,
   ApproveContentTemplateCandidateInput,
   ApproveContentTemplateCandidateResult,
@@ -16,6 +19,8 @@ import type {
   StartProfileExtractionRerunInput,
   PaginatedPersonalBranding,
   ContentIdea,
+  ContentIdeationJob,
+  ContentIdeationJobStart,
   ContentNode,
   ContentNodeListResponse,
   ContentStatus,
@@ -36,19 +41,37 @@ import type {
   CreateProfileExtractionAccepted,
   CreateProfileExtractionInput,
   StartProfileExtractionInput,
+  ProfileExtractionClientProgress,
+  ProfileExtractionSourceType,
   CreateRadarSourceInput,
   CreateTrackingMetricInput,
   ConnectionInteractionBoardListResponse,
   ConnectionInteractionListResponse,
   ConnectionInteractionLog,
   ConnectionMetricLinks,
+  ContentOpportunity,
+  ContentOpportunityListResponse,
+  ContentOpportunitySearchInput,
+  ContentOpportunitySearchResult,
+  ContentOpportunityStatus,
+  UpdateContentOpportunityInput,
   CreatorConnection,
   CreatorConnectionListResponse,
   EffectivePlatformRules,
+  PlatformRuleCatalog,
   PlatformRuleRecord,
   PlatformRulesListResponse,
   ProfileExtractionJob,
+  ProfileExtractionSourceRunListResponse,
+  ProfileExtractionUploadSlot,
+  RadarDiscoveryCandidate,
+  RadarDiscoveryCandidateFilters,
+  RadarDiscoveryCandidateListResponse,
+  RadarDiscoveryParseJob,
+  RadarDiscoveryParseJobStart,
   RadarDiscoveryRun,
+  RadarDiscoveryRunListResponse,
+  RadarItem,
   RadarItemListResponse,
   RadarRunDetail,
   RadarRunListResponse,
@@ -56,8 +79,10 @@ import type {
   RadarSettings,
   RadarSource,
   RadarSourceListResponse,
-  SaveRadarDiscoverySuggestionInput,
+  RadarSuggestedCadences,
+  StartRadarDiscoveryRunInput,
   FollowSuggestion,
+  FollowSuggestionConnectionDraft,
   FollowSuggestionListResponse,
   ReconFeedSettings,
   ReconPost,
@@ -66,19 +91,26 @@ import type {
   ReconRunStartAccepted,
   ReconRunSummary,
   UpdateFollowSuggestionInput,
+  SubmitFollowConfidenceFeedbackInput,
   UpdateReconFeedSettingsInput,
   UpdateReconPostInput,
   GenerateContentIdeasInput,
+  GenerateContentIdeasResult,
+  GenerateTopicSuggestionsInput,
+  GenerateTopicSuggestionsResult,
   GenerateVaultIdeasInput,
+  GenerateRadarIdeasInput,
   ExtractContentTemplatesInput,
   ExtractContentTemplatesResult,
-  GenerateContentIdeasResult,
+  BrainstormContentTemplatesInput,
+  BrainstormContentTemplatesResult,
   RejectContentIdeaInput,
   RejectContentTemplateCandidateInput,
   RetryContentTemplateCandidateInput,
   RejectVariantInput,
   RejectedIdeaFeedback,
   RepurposeJob,
+  RepurposeJobList,
   SendToSandboxResult,
   StartRepurposeAccepted,
   StartRepurposeInput,
@@ -86,12 +118,15 @@ import type {
   RolodexMetricLinksResponse,
   RolodexResponseVectorInput,
   RolodexResponseVectorsResult,
+  CreateReplyRunInput,
+  ReplyRun,
+  ReplySuggestion,
+  UpdateReplySuggestionInput,
   TrackingMetric,
   TrackingMetricListResponse,
   UpdateBrandProfileInput,
   UpdateContentNodeInput,
   UpdateContentTemplateInput,
-  UpdateContentTemplateSettingsInput,
   UpdateCreatorConnectionInput,
   UpdatePlatformRuleInput,
   UpdateRadarSettingsInput,
@@ -104,6 +139,54 @@ function unwrap<T>(res: { success: boolean; data?: T; error?: { message?: string
     throw new Error(res.error?.message ?? 'Request failed');
   }
   return res.data;
+}
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size));
+  }
+  return out;
+}
+
+async function mapWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<void>
+): Promise<void> {
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      await worker(items[index]!, index);
+    }
+  });
+  await Promise.all(runners);
+}
+
+const UPLOAD_SLOT_BATCH = 50;
+const UPLOAD_CONCURRENCY = 4;
+
+const EXTRACTION_SOURCE_TYPE_ORDER: ProfileExtractionSourceType[] = [
+  'pdf',
+  'text',
+  'url',
+  'x_profile',
+];
+
+function buildExtractionSourceTypesHint(
+  filesCount: number,
+  pasted: StartProfileExtractionInput['sources'],
+  xUsername: string
+): ProfileExtractionSourceType[] {
+  const types = new Set<ProfileExtractionSourceType>();
+  if (filesCount > 0) types.add('pdf');
+  if (xUsername) types.add('x_profile');
+  for (const source of pasted ?? []) {
+    types.add(source.url?.trim() ? 'url' : 'text');
+  }
+  return EXTRACTION_SOURCE_TYPE_ORDER.filter((type) => types.has(type));
 }
 
 export const personalBrandingService = {
@@ -148,7 +231,7 @@ export const personalBrandingService = {
     if (input.name?.trim()) form.append('name', input.name.trim());
     if (input.provider?.trim()) form.append('provider', input.provider.trim());
     if (input.model?.trim()) form.append('model', input.model.trim());
-    const pasted = (input.sources ?? []).filter((s) => s.text.trim());
+    const pasted = (input.sources ?? []).filter((s) => (s.text ?? '').trim());
     if (pasted.length) {
       form.append(
         'sourcesJson',
@@ -156,7 +239,7 @@ export const personalBrandingService = {
           pasted.map((s) => ({
             title: s.title?.trim() || null,
             url: s.url?.trim() || null,
-            text: s.text.trim(),
+            text: (s.text ?? '').trim(),
           }))
         )
       );
@@ -169,21 +252,173 @@ export const personalBrandingService = {
   },
 
   startProfileExtractionFromDialog: async (
-    input: StartProfileExtractionInput
+    input: StartProfileExtractionInput,
+    options?: { onProgress?: (progress: ProfileExtractionClientProgress) => void }
   ): Promise<CreateProfileExtractionAccepted> => {
-    if (input.files?.length) {
-      return personalBrandingService.startProfileExtractionUpload(input);
+    const pasted = (input.sources ?? []).filter((s) => (s.text ?? '').trim());
+    const files = input.files ?? [];
+    const xUsername = (input.xUsername ?? '').trim().replace(/^@+/, '');
+    if (!files.length && !pasted.length && !xUsername) {
+      throw new Error('Add at least one PDF, pasted snippet, or X username.');
     }
-    const sources = (input.sources ?? []).filter((s) => s.text.trim());
-    if (!sources.length) {
-      throw new Error('Add at least one PDF or pasted snippet.');
+
+    const onProgress = options?.onProgress;
+    const bytesTotal = files.reduce((sum, file) => sum + file.size, 0);
+    const fileBytesLoaded = new Array(files.length).fill(0);
+    let filesCompleted = 0;
+    let jobId = '';
+    let profileId = '';
+    const sourceTypesHint = buildExtractionSourceTypesHint(files.length, pasted, xUsername);
+
+    const emitProgress = (
+      phase: ProfileExtractionClientProgress['phase'],
+      overrides: Partial<ProfileExtractionClientProgress> = {}
+    ) => {
+      onProgress?.({
+        phase,
+        filesCompleted,
+        filesTotal: files.length,
+        bytesUploaded: fileBytesLoaded.reduce((sum, value) => sum + value, 0),
+        bytesTotal,
+        jobId: jobId || undefined,
+        profileId: profileId || undefined,
+        sourceTypesHint,
+        ...overrides,
+      });
+    };
+
+    const session = unwrap(
+      await apiClient.post<ProfileExtractionJob>(
+        '/personal-branding/profile-extractions/sessions',
+        {
+          name: input.name,
+          provider: input.provider,
+          model: input.model,
+        }
+      )
+    );
+    jobId = session.jobId;
+    profileId = session.profileId;
+
+    if (files.length > 0) {
+      emitProgress('uploading');
     }
-    return personalBrandingService.startProfileExtraction({
-      name: input.name,
-      sources,
-      provider: input.provider,
-      model: input.model,
+
+    let globalFileIndex = 0;
+    for (const batch of chunkArray(files, UPLOAD_SLOT_BATCH)) {
+      const batchStartIndex = globalFileIndex;
+      const slotRes = await apiClient.post<{ slots: ProfileExtractionUploadSlot[] }>(
+        `/personal-branding/profile-extractions/${jobId}/upload-urls`,
+        {
+          files: batch.map((file, index) => ({
+            fileName: file.name,
+            mimeType: file.type || 'application/pdf',
+            fileSizeBytes: file.size,
+            clientUploadId: `${file.name}-${file.size}-${index}`,
+          })),
+        }
+      );
+      const slots = unwrap(slotRes).slots;
+      const byClientId = new Map(
+        slots.map((slot) => [slot.clientUploadId ?? slot.sourceId, slot] as const)
+      );
+
+      await mapWithConcurrency(batch, UPLOAD_CONCURRENCY, async (file, index) => {
+        const globalIndex = batchStartIndex + index;
+        const clientId = `${file.name}-${file.size}-${index}`;
+        const slot = byClientId.get(clientId) ?? slots[index];
+        if (!slot) throw new Error(`Missing upload slot for ${file.name}`);
+
+        await uploadToS3WithProgress(slot.uploadUrl, file, (pct) => {
+          fileBytesLoaded[globalIndex] = Math.round((pct / 100) * file.size);
+          emitProgress('uploading');
+        });
+
+        fileBytesLoaded[globalIndex] = file.size;
+        filesCompleted += 1;
+        emitProgress('uploading');
+      });
+
+      globalFileIndex += batch.length;
+
+      await apiClient.post(`/personal-branding/profile-extractions/${jobId}/uploads/complete`, {
+        sourceIds: slots.map((slot) => slot.sourceId),
+      });
+    }
+
+    if (pasted.length || xUsername) {
+      emitProgress('registering_sources', {
+        filesCompleted: files.length,
+        bytesUploaded: bytesTotal,
+      });
+    }
+
+    for (const batch of chunkArray(pasted, UPLOAD_SLOT_BATCH)) {
+      await apiClient.post(`/personal-branding/profile-extractions/${jobId}/sources`, {
+        sources: batch.map((s) => ({
+          title: s.title?.trim() || null,
+          url: s.url?.trim() || null,
+          text: (s.text ?? '').trim(),
+        })),
+      });
+    }
+
+    if (xUsername) {
+      await apiClient.post(`/personal-branding/profile-extractions/${jobId}/sources`, {
+        sources: [
+          {
+            sourceType: 'x_profile',
+            xUsername,
+            title: `@${xUsername}`,
+            url: `https://x.com/${xUsername}`,
+          },
+        ],
+      });
+    }
+
+    emitProgress('starting', {
+      filesCompleted: files.length,
+      bytesUploaded: bytesTotal,
     });
+
+    const started = unwrap(
+      await apiClient.post<ProfileExtractionJob>(
+        `/personal-branding/profile-extractions/${jobId}/start`,
+        {
+          provider: input.provider,
+          model: input.model,
+        }
+      )
+    );
+
+    emitProgress('done', {
+      filesCompleted: files.length,
+      bytesUploaded: bytesTotal,
+    });
+
+    return {
+      jobId: started.jobId,
+      profileId: started.profileId,
+      status: started.status,
+    };
+  },
+
+  listProfileExtractionSources: async (
+    jobId: string,
+    page = 1,
+    pageSize = 50,
+    status?: string
+  ): Promise<ProfileExtractionSourceRunListResponse> => {
+    const q = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    if (status) q.set('status', status);
+    return unwrap(
+      await apiClient.get<ProfileExtractionSourceRunListResponse>(
+        `/personal-branding/profile-extractions/${jobId}/sources?${q}`
+      )
+    );
   },
 
   getProfileExtraction: async (jobId: string): Promise<ProfileExtractionJob> =>
@@ -266,6 +501,9 @@ export const personalBrandingService = {
     await apiClient.delete(`/personal-branding/platform-rules/rules/${ruleId}`);
   },
 
+  getPlatformRuleCatalog: async (): Promise<PlatformRuleCatalog> =>
+    unwrap(await apiClient.get<PlatformRuleCatalog>('/personal-branding/platform-rules/catalog')),
+
   getEffectivePlatformRules: async (
     platform: string,
     profileId?: string
@@ -315,6 +553,14 @@ export const personalBrandingService = {
         body
       )
     ),
+
+  listRepurposeJobs: async (contentId: string, status?: string): Promise<RepurposeJob[]> => {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    const res = await apiClient.get<RepurposeJobList>(
+      `/personal-branding/content/${contentId}/repurpose-jobs${query}`
+    );
+    return unwrap(res).data;
+  },
 
   getRepurposeJob: async (contentId: string, jobId: string): Promise<RepurposeJob> =>
     unwrap(
@@ -373,11 +619,14 @@ export const personalBrandingService = {
   createContentIdea: async (body: CreateContentIdeaInput): Promise<ContentIdea> =>
     unwrap(await apiClient.post<ContentIdea>('/personal-branding/content-ideas', body)),
 
-  approveContentIdea: async (ideaId: string): Promise<ApproveContentIdeaResult> =>
+  approveContentIdea: async (
+    ideaId: string,
+    body: ApproveContentIdeaInput
+  ): Promise<ApproveContentIdeaResult> =>
     unwrap(
       await apiClient.post<ApproveContentIdeaResult>(
         `/personal-branding/content-ideas/${ideaId}/approve`,
-        {}
+        body
       )
     ),
 
@@ -411,6 +660,19 @@ export const personalBrandingService = {
     return res.data.data.result;
   },
 
+  generateTopicSuggestions: async (
+    body: GenerateTopicSuggestionsInput
+  ): Promise<GenerateTopicSuggestionsResult> => {
+    const res = await apiClient.post<{ data: { result: GenerateTopicSuggestionsResult } }>(
+      '/ai/personal-branding/topic-suggestions',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to brainstorm topics');
+    }
+    return res.data.data.result;
+  },
+
   generateVaultExtractedIdeas: async (
     body: GenerateVaultIdeasInput
   ): Promise<GenerateContentIdeasResult> => {
@@ -423,6 +685,24 @@ export const personalBrandingService = {
     }
     return res.data.data.result;
   },
+
+  generateRadarExtractedIdeas: async (
+    body: GenerateRadarIdeasInput
+  ): Promise<ContentIdeationJobStart> => {
+    const res = await apiClient.post<ContentIdeationJobStart>(
+      '/ai/personal-branding/content-ideas/generate-from-radar',
+      body
+    );
+    if (!res.success || !res.data?.jobId) {
+      throw new Error(formatApiFailure(res.error, 'Failed to start Trend Stream content ideation'));
+    }
+    return res.data;
+  },
+
+  getContentIdeationJob: async (jobId: string): Promise<ContentIdeationJob> =>
+    unwrap(
+      await apiClient.get<ContentIdeationJob>(`/personal-branding/content-ideas/jobs/${jobId}`)
+    ),
 
   generateAssetPrompts: async (body: {
     title: string;
@@ -532,7 +812,20 @@ export const personalBrandingService = {
       body
     );
     if (!res.success || !res.data?.data?.result) {
-      throw new Error(res.error?.message ?? 'Failed to extract content templates');
+      throw new Error(formatApiFailure(res.error, 'Failed to extract content templates'));
+    }
+    return res.data.data.result;
+  },
+
+  brainstormContentTemplates: async (
+    body: BrainstormContentTemplatesInput
+  ): Promise<BrainstormContentTemplatesResult> => {
+    const res = await apiClient.post<{ data: { result: BrainstormContentTemplatesResult } }>(
+      '/ai/personal-branding/content-templates/brainstorm',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(formatApiFailure(res.error, 'Failed to brainstorm content templates'));
     }
     return res.data.data.result;
   },
@@ -546,7 +839,7 @@ export const personalBrandingService = {
       body
     );
     if (!res.success || !res.data?.data?.result) {
-      throw new Error(res.error?.message ?? 'Failed to retry content template');
+      throw new Error(formatApiFailure(res.error, 'Failed to retry content template'));
     }
     return res.data.data.result;
   },
@@ -554,16 +847,6 @@ export const personalBrandingService = {
   getContentTemplateSettings: async (): Promise<ContentTemplateSettings> =>
     unwrap(
       await apiClient.get<ContentTemplateSettings>('/personal-branding/content-template-settings')
-    ),
-
-  updateContentTemplateSettings: async (
-    body: UpdateContentTemplateSettingsInput
-  ): Promise<ContentTemplateSettings> =>
-    unwrap(
-      await apiClient.patch<ContentTemplateSettings>(
-        '/personal-branding/content-template-settings',
-        body
-      )
     ),
 
   listRadarSources: async (page = 1, pageSize = 50): Promise<RadarSourceListResponse> => {
@@ -586,6 +869,13 @@ export const personalBrandingService = {
     await apiClient.delete(`/personal-branding/radar-sources/${sourceId}`);
   },
 
+  getRadarSuggestedCadences: async (): Promise<RadarSuggestedCadences> =>
+    unwrap(
+      await apiClient.get<RadarSuggestedCadences>(
+        '/personal-branding/radar-sources/suggested-cadences'
+      )
+    ),
+
   getRadarSettings: async (): Promise<RadarSettings> =>
     unwrap(await apiClient.get<RadarSettings>('/personal-branding/radar-settings')),
 
@@ -605,6 +895,13 @@ export const personalBrandingService = {
     return apiClient.get(`/personal-branding/radar-items?${q}`);
   },
 
+  updateRadarItemRelevance: async (itemId: string, relevant: boolean): Promise<RadarItem> =>
+    unwrap(
+      await apiClient.patch<RadarItem>(`/personal-branding/radar-items/${itemId}/relevance`, {
+        relevant,
+      })
+    ),
+
   startRadarRun: async (): Promise<RadarRunStartAccepted> =>
     unwrap(await apiClient.post<RadarRunStartAccepted>('/personal-branding/radar-runs', {})),
 
@@ -616,19 +913,106 @@ export const personalBrandingService = {
   getRadarRun: async (runId: string): Promise<RadarRunDetail> =>
     unwrap(await apiClient.get<RadarRunDetail>(`/personal-branding/radar-runs/${runId}`)),
 
-  startRadarDiscoveryRun: async (): Promise<RadarDiscoveryRun> =>
-    unwrap(await apiClient.post<RadarDiscoveryRun>('/personal-branding/radar-discovery/runs', {})),
+  startRadarDiscoveryRun: async (body: StartRadarDiscoveryRunInput): Promise<RadarDiscoveryRun> =>
+    unwrap(
+      await apiClient.post<RadarDiscoveryRun>('/personal-branding/radar-discovery/runs', body)
+    ),
+
+  listRadarDiscoveryRuns: async (
+    page = 1,
+    pageSize = 20
+  ): Promise<RadarDiscoveryRunListResponse> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    return apiClient.get(`/personal-branding/radar-discovery/runs?${q}`);
+  },
 
   getRadarDiscoveryRun: async (runId: string): Promise<RadarDiscoveryRun> =>
     unwrap(
       await apiClient.get<RadarDiscoveryRun>(`/personal-branding/radar-discovery/runs/${runId}`)
     ),
 
-  saveRadarDiscoverySuggestion: async (
-    body: SaveRadarDiscoverySuggestionInput
-  ): Promise<RadarSource> =>
+  listRadarDiscoveryCandidates: async (
+    runId: string,
+    page = 1,
+    pageSize = 20,
+    filters: RadarDiscoveryCandidateFilters = {}
+  ): Promise<RadarDiscoveryCandidateListResponse> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (filters.status) q.set('status', filters.status);
+    if (filters.verdict) q.set('verdict', filters.verdict);
+    return apiClient.get(`/personal-branding/radar-discovery/runs/${runId}/candidates?${q}`);
+  },
+
+  pauseRadarDiscoveryRun: async (runId: string): Promise<RadarDiscoveryRun> =>
     unwrap(
-      await apiClient.post<RadarSource>('/personal-branding/radar-discovery/suggestions/save', body)
+      await apiClient.post<RadarDiscoveryRun>(
+        `/personal-branding/radar-discovery/runs/${runId}/pause`,
+        {}
+      )
+    ),
+
+  resumeRadarDiscoveryRun: async (runId: string): Promise<RadarDiscoveryRun> =>
+    unwrap(
+      await apiClient.post<RadarDiscoveryRun>(
+        `/personal-branding/radar-discovery/runs/${runId}/resume`,
+        {}
+      )
+    ),
+
+  cancelRadarDiscoveryRun: async (runId: string): Promise<RadarDiscoveryRun> =>
+    unwrap(
+      await apiClient.post<RadarDiscoveryRun>(
+        `/personal-branding/radar-discovery/runs/${runId}/cancel`,
+        {}
+      )
+    ),
+
+  saveRadarDiscoveryCandidate: async (runId: string, candidateId: string): Promise<RadarSource> =>
+    unwrap(
+      await apiClient.post<RadarSource>(
+        `/personal-branding/radar-discovery/runs/${runId}/candidates/${candidateId}/save`,
+        {}
+      )
+    ),
+
+  addRadarDiscoveryCandidateAsItem: async (
+    runId: string,
+    candidateId: string
+  ): Promise<RadarItem> =>
+    unwrap(
+      await apiClient.post<RadarItem>(
+        `/personal-branding/radar-discovery/runs/${runId}/candidates/${candidateId}/add-as-item`,
+        {}
+      )
+    ),
+
+  markRadarDiscoveryCandidateNotASource: async (
+    runId: string,
+    candidateId: string
+  ): Promise<RadarDiscoveryCandidate> =>
+    unwrap(
+      await apiClient.post<RadarDiscoveryCandidate>(
+        `/personal-branding/radar-discovery/runs/${runId}/candidates/${candidateId}/not-a-source`,
+        {}
+      )
+    ),
+
+  startRadarDiscoveryCandidateParseSources: async (
+    runId: string,
+    candidateId: string
+  ): Promise<RadarDiscoveryParseJobStart> =>
+    unwrap(
+      await apiClient.post<RadarDiscoveryParseJobStart>(
+        `/personal-branding/radar-discovery/runs/${runId}/candidates/${candidateId}/parse-sources`,
+        {}
+      )
+    ),
+
+  getRadarDiscoveryParseJob: async (jobId: string): Promise<RadarDiscoveryParseJob> =>
+    unwrap(
+      await apiClient.get<RadarDiscoveryParseJob>(
+        `/personal-branding/radar-discovery/parse-jobs/${jobId}`
+      )
     ),
 
   listCreatorConnections: async (
@@ -756,6 +1140,87 @@ export const personalBrandingService = {
     return res.data;
   },
 
+  startReplyRun: async (body: CreateReplyRunInput): Promise<ReplyRun> => {
+    const res = await apiClient.post<{ result?: ReplyRun } & ReplyRun>(
+      '/personal-branding/rolodex/reply-runs',
+      body
+    );
+    if (!res.success || !res.data) {
+      throw new Error(res.error?.message ?? 'Failed to start reply generation');
+    }
+    const payload = res.data;
+    if ('result' in payload && payload.result) {
+      return payload.result;
+    }
+    return payload as ReplyRun;
+  },
+
+  getReplyRun: async (runId: string): Promise<ReplyRun> =>
+    unwrap(await apiClient.get<ReplyRun>(`/personal-branding/rolodex/reply-runs/${runId}`)),
+
+  updateReplySuggestion: async (
+    suggestionId: string,
+    body: UpdateReplySuggestionInput
+  ): Promise<ReplySuggestion> =>
+    unwrap(
+      await apiClient.patch<ReplySuggestion>(
+        `/personal-branding/rolodex/reply-suggestions/${suggestionId}`,
+        body
+      )
+    ),
+
+  searchConnectionContentOpportunity: async (
+    connectionId: string,
+    body: ContentOpportunitySearchInput = {}
+  ): Promise<ContentOpportunitySearchResult> =>
+    unwrap(
+      await apiClient.post<ContentOpportunitySearchResult>(
+        `/personal-branding/connections/${connectionId}/content-opportunities/search`,
+        body
+      )
+    ),
+
+  listConnectionContentOpportunities: async (
+    connectionId: string,
+    page = 1,
+    pageSize = 20,
+    status?: ContentOpportunityStatus
+  ): Promise<ContentOpportunityListResponse> => {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (status) q.set('status', status);
+    return apiClient.get(
+      `/personal-branding/connections/${connectionId}/content-opportunities?${q}`
+    );
+  },
+
+  listRolodexContentOpportunities: async (
+    status: ContentOpportunityStatus = 'SUGGESTED',
+    page = 1,
+    pageSize = 100
+  ): Promise<ContentOpportunityListResponse> => {
+    const q = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+      status,
+    });
+    return apiClient.get(`/personal-branding/rolodex/content-opportunities?${q}`);
+  },
+
+  updateContentOpportunity: async (
+    opportunityId: string,
+    input: UpdateContentOpportunityInput
+  ): Promise<ContentOpportunity> =>
+    unwrap(
+      await apiClient.patch<ContentOpportunity>(
+        `/personal-branding/content-opportunities/${opportunityId}`,
+        {
+          status: input.status,
+          feedbackText: input.feedbackText ?? undefined,
+          feedbackCategory: input.feedbackCategory ?? undefined,
+        }
+      )
+    ),
+
   getReconFeedSettings: async (): Promise<ReconFeedSettings> =>
     unwrap(
       await apiClient.get<ReconFeedSettings>('/personal-branding/rolodex/recon-feed/settings')
@@ -810,6 +1275,35 @@ export const personalBrandingService = {
       )
     ),
 
+  proposeFollowSuggestionConnection: async (
+    suggestionId: string
+  ): Promise<FollowSuggestionConnectionDraft> =>
+    unwrap(
+      await apiClient.post<FollowSuggestionConnectionDraft>(
+        `/personal-branding/rolodex/recon-feed/follow-suggestions/${suggestionId}/propose-connection`,
+        {}
+      )
+    ),
+
+  explainFollowSuggestionConfidence: async (suggestionId: string): Promise<FollowSuggestion> =>
+    unwrap(
+      await apiClient.post<FollowSuggestion>(
+        `/personal-branding/rolodex/recon-feed/follow-suggestions/${suggestionId}/explain-confidence`,
+        {}
+      )
+    ),
+
+  submitFollowSuggestionConfidenceFeedback: async (
+    suggestionId: string,
+    body: SubmitFollowConfidenceFeedbackInput
+  ): Promise<FollowSuggestion> =>
+    unwrap(
+      await apiClient.post<FollowSuggestion>(
+        `/personal-branding/rolodex/recon-feed/follow-suggestions/${suggestionId}/confidence-feedback`,
+        body
+      )
+    ),
+
   startReconRun: async (): Promise<ReconRunStartAccepted> =>
     unwrap(await apiClient.post<ReconRunStartAccepted>('/personal-branding/recon-runs', {})),
 
@@ -820,4 +1314,19 @@ export const personalBrandingService = {
 
   getReconRun: async (runId: string): Promise<ReconRunSummary> =>
     unwrap(await apiClient.get<ReconRunSummary>(`/personal-branding/recon-runs/${runId}`)),
+
+  pauseReconRun: async (runId: string): Promise<ReconRunSummary> =>
+    unwrap(
+      await apiClient.post<ReconRunSummary>(`/personal-branding/recon-runs/${runId}/pause`, {})
+    ),
+
+  resumeReconRun: async (runId: string): Promise<ReconRunSummary> =>
+    unwrap(
+      await apiClient.post<ReconRunSummary>(`/personal-branding/recon-runs/${runId}/resume`, {})
+    ),
+
+  cancelReconRun: async (runId: string): Promise<ReconRunSummary> =>
+    unwrap(
+      await apiClient.post<ReconRunSummary>(`/personal-branding/recon-runs/${runId}/cancel`, {})
+    ),
 };

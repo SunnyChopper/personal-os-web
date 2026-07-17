@@ -3,14 +3,19 @@ import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
 import { FormInput } from '@/components/atoms/FormInput';
-import StringListEditor, { FormTextarea } from './BrandIdentityFormFields';
+import { FormTextarea } from './BrandIdentityFormFields';
 import ProfileMultiSelect from './ProfileMultiSelect';
+import RhetoricalModeSelector from '@/components/molecules/personal-branding/RhetoricalModeSelector';
+import RhetoricalDeviceSelector from '@/components/molecules/personal-branding/RhetoricalDeviceSelector';
 import {
   BRAND_PLATFORM_LABELS,
   type BrandPlatform,
   type BrandProfile,
   type CreatePlatformRuleInput,
+  type PlatformRuleCatalog,
   type PlatformRuleRecord,
+  type RhetoricalDeviceId,
+  type RhetoricalModeSetting,
   type UpdatePlatformRuleInput,
 } from '@/types/api/personal-branding.dto';
 import { BrandPlatformIcon } from '@/components/atoms/BrandPlatformIcon';
@@ -28,6 +33,7 @@ interface PlatformRuleEditorDialogProps {
   isOpen: boolean;
   onClose: () => void;
   profiles: BrandProfile[];
+  catalog: PlatformRuleCatalog | undefined;
   initial?: PlatformRuleRecord | null;
   onCreate: (body: CreatePlatformRuleInput) => Promise<void>;
   onUpdate: (id: string, body: UpdatePlatformRuleInput) => Promise<void>;
@@ -38,6 +44,7 @@ export default function PlatformRuleEditorDialog({
   isOpen,
   onClose,
   profiles,
+  catalog,
   initial,
   onCreate,
   onUpdate,
@@ -46,10 +53,12 @@ export default function PlatformRuleEditorDialog({
   const [platform, setPlatform] = useState<BrandPlatform>('linkedin');
   const [name, setName] = useState('');
   const [characterLimit, setCharacterLimit] = useState('');
-  const [formatStyle, setFormatStyle] = useState('');
-  const [templateBody, setTemplateBody] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
+  const [readTimeLimitMinutes, setReadTimeLimitMinutes] = useState('');
+  const [requirements, setRequirements] = useState('');
+  const [rhetoricalModes, setRhetoricalModes] = useState<RhetoricalModeSetting[]>([]);
+  const [rhetoricalDevices, setRhetoricalDevices] = useState<RhetoricalDeviceId[]>([]);
   const [profileIds, setProfileIds] = useState<string[]>([]);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -57,31 +66,44 @@ export default function PlatformRuleEditorDialog({
       setPlatform(initial.platform);
       setName(initial.name ?? '');
       setCharacterLimit(initial.characterLimit != null ? String(initial.characterLimit) : '');
-      setFormatStyle(initial.formatStyle ?? '');
-      setTemplateBody(initial.templateBody ?? '');
-      setTags(initial.tags ?? []);
+      setReadTimeLimitMinutes(
+        initial.readTimeLimitMinutes != null ? String(initial.readTimeLimitMinutes) : ''
+      );
+      setRequirements(initial.requirements ?? '');
+      setRhetoricalModes(initial.rhetoricalModes ?? []);
+      setRhetoricalDevices(initial.rhetoricalDevices ?? []);
       setProfileIds(initial.profileIds ?? []);
     } else {
       setPlatform('linkedin');
       setName('');
       setCharacterLimit('');
-      setFormatStyle('');
-      setTemplateBody('');
-      setTags([]);
+      setReadTimeLimitMinutes('');
+      setRequirements('');
+      setRhetoricalModes([]);
+      setRhetoricalDevices([]);
       setProfileIds([]);
     }
+    setValidationError(null);
   }, [isOpen, initial]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedRequirements = requirements.trim();
+    if (!trimmedRequirements) {
+      setValidationError('Requirements are required.');
+      return;
+    }
+    setValidationError(null);
     const limit = characterLimit.trim() ? Number(characterLimit) : null;
+    const readMinutes = readTimeLimitMinutes.trim() ? Number(readTimeLimitMinutes) : null;
     const body = {
       platform,
       name: name.trim() || null,
       characterLimit: limit,
-      formatStyle: formatStyle.trim() || null,
-      templateBody: templateBody.trim() || null,
-      tags,
+      readTimeLimitMinutes: readMinutes,
+      rhetoricalModes,
+      rhetoricalDevices,
+      requirements: trimmedRequirements,
       profileIds,
     };
     if (initial) {
@@ -119,26 +141,68 @@ export default function PlatformRuleEditorDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium">Character limit</label>
+              <label className="mb-1 block text-sm font-medium">Character limit (optional)</label>
               <FormInput
                 type="number"
-                min={0}
+                min={1}
                 value={characterLimit}
                 onChange={(e) => setCharacterLimit(e.target.value)}
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Format style</label>
-              <FormInput value={formatStyle} onChange={(e) => setFormatStyle(e.target.value)} />
+              <label className="mb-1 block text-sm font-medium">
+                Read time limit in minutes (optional)
+              </label>
+              <FormInput
+                type="number"
+                min={1}
+                value={readTimeLimitMinutes}
+                onChange={(e) => setReadTimeLimitMinutes(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-500">Enforced at 200 words per minute.</p>
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium">Template body</label>
-            <FormTextarea value={templateBody} onChange={(e) => setTemplateBody(e.target.value)} />
+            <label className="mb-1 block text-sm font-medium" htmlFor="platform-rule-requirements">
+              Requirements <span className="text-red-600">*</span>
+            </label>
+            <FormTextarea
+              id="platform-rule-requirements"
+              value={requirements}
+              onChange={(e) => setRequirements(e.target.value)}
+              rows={4}
+              placeholder="Writing constraints injected into the AI system prompt (tone, structure, must-include elements)."
+            />
+            {initial?.needsReview && (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                Legacy rule: add requirements before saving.
+              </p>
+            )}
+            {validationError && (
+              <p className="mt-1 text-sm text-red-600" role="alert">
+                {validationError}
+              </p>
+            )}
           </div>
 
-          <StringListEditor label="Tags" values={tags} onChange={setTags} placeholder="Add tag" />
+          {catalog && (
+            <>
+              <RhetoricalModeSelector
+                catalog={catalog.modes}
+                strengths={catalog.strengths}
+                value={rhetoricalModes}
+                onChange={setRhetoricalModes}
+                disabled={isSubmitting}
+              />
+              <RhetoricalDeviceSelector
+                catalog={catalog.devices}
+                value={rhetoricalDevices}
+                onChange={setRhetoricalDevices}
+                disabled={isSubmitting}
+              />
+            </>
+          )}
 
           <ProfileMultiSelect
             profiles={profiles}

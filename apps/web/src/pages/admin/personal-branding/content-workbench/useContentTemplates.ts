@@ -4,9 +4,12 @@ import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import type {
   ApproveContentTemplateCandidateInput,
+  BrandPlatform,
   ContentTemplate,
+  ContentTemplateBrainstormContextStats,
   ContentTemplateCandidate,
   ContentTemplateExtractionContextStats,
+  ContentType,
   CreateContentTemplateInput,
   TemplateSourceKind,
   UpdateContentTemplateInput,
@@ -16,10 +19,15 @@ export function useContentTemplates() {
   const queryClient = useQueryClient();
   const [sourceKind, setSourceKind] = useState<TemplateSourceKind>('GENERIC_URL');
   const [sourceUrl, setSourceUrl] = useState('');
-  const [mediumApiKey, setMediumApiKey] = useState('');
+  const [brainstormBrief, setBrainstormBrief] = useState('');
+  const [brainstormContentType, setBrainstormContentType] = useState<ContentType | ''>('');
+  const [brainstormPlatform, setBrainstormPlatform] = useState<BrandPlatform | ''>('');
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [brainstormError, setBrainstormError] = useState<string | null>(null);
   const [lastExtractionStats, setLastExtractionStats] =
     useState<ContentTemplateExtractionContextStats | null>(null);
+  const [lastBrainstormStats, setLastBrainstormStats] =
+    useState<ContentTemplateBrainstormContextStats | null>(null);
   const [rejectingCandidate, setRejectingCandidate] = useState<ContentTemplateCandidate | null>(
     null
   );
@@ -99,6 +107,23 @@ export function useContentTemplates() {
     onError: (err: Error) => setExtractError(err.message),
   });
 
+  const brainstormMutation = useMutation({
+    mutationFn: (brandProfileId: string) =>
+      personalBrandingService.brainstormContentTemplates({
+        brandProfileId,
+        brief: brainstormBrief.trim() || null,
+        contentType: brainstormContentType || null,
+        platform: brainstormPlatform || null,
+        count: 3,
+      }),
+    onMutate: () => setBrainstormError(null),
+    onSuccess: async (result) => {
+      setLastBrainstormStats(result.contextStats);
+      await invalidateTemplates();
+    },
+    onError: (err: Error) => setBrainstormError(err.message),
+  });
+
   const approveCandidateMutation = useMutation({
     mutationFn: ({
       candidateId,
@@ -136,19 +161,6 @@ export function useContentTemplates() {
     },
   });
 
-  const saveSettingsMutation = useMutation({
-    mutationFn: (key: string) =>
-      personalBrandingService.updateContentTemplateSettings({
-        mediumApiKey: key.trim() || null,
-      }),
-    onSuccess: async () => {
-      setMediumApiKey('');
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.personalBranding.contentTemplateSettings(),
-      });
-    },
-  });
-
   return {
     templatesQ,
     candidatesQ,
@@ -159,10 +171,16 @@ export function useContentTemplates() {
     setSourceKind,
     sourceUrl,
     setSourceUrl,
-    mediumApiKey,
-    setMediumApiKey,
+    brainstormBrief,
+    setBrainstormBrief,
+    brainstormContentType,
+    setBrainstormContentType,
+    brainstormPlatform,
+    setBrainstormPlatform,
     extractError,
+    brainstormError,
     lastExtractionStats,
+    lastBrainstormStats,
     rejectingCandidate,
     setRejectingCandidate,
     retryingCandidate,
@@ -175,9 +193,9 @@ export function useContentTemplates() {
     updateTemplateMutation,
     deleteTemplateMutation,
     extractMutation,
+    brainstormMutation,
     approveCandidateMutation,
     rejectCandidateMutation,
     retryCandidateMutation,
-    saveSettingsMutation,
   };
 }
