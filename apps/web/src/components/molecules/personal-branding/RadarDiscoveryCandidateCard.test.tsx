@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -23,65 +24,76 @@ const candidate: RadarDiscoveryCandidate = {
   contentKind: 'feed',
 };
 
+function renderCard(props: Partial<ComponentProps<typeof RadarDiscoveryCandidateCard>> = {}) {
+  const handlers = {
+    onSave: vi.fn(),
+    onAddAsItem: vi.fn(),
+    onMarkNotASource: vi.fn(),
+    onDismiss: vi.fn(),
+    onParseSources: vi.fn(),
+  };
+
+  render(<RadarDiscoveryCandidateCard candidate={candidate} {...handlers} {...props} />);
+
+  return handlers;
+}
+
 describe('RadarDiscoveryCandidateCard', () => {
   it('allows a relevant unsaved candidate to be saved', async () => {
     const user = userEvent.setup();
-    const onSave = vi.fn();
-    render(
-      <RadarDiscoveryCandidateCard
-        candidate={candidate}
-        onSave={onSave}
-        onAddAsItem={vi.fn()}
-        onMarkNotASource={vi.fn()}
-        onParseSources={vi.fn()}
-      />
-    );
+    const { onSave } = renderCard();
 
     await user.click(screen.getByRole('button', { name: 'Save source' }));
 
     expect(onSave).toHaveBeenCalledOnce();
     expect(screen.getByText('91% confidence')).toBeInTheDocument();
-    expect(screen.getByText(/Verified RSS endpoint/)).toBeInTheDocument();
+    expect(screen.queryByText(/Verified RSS endpoint/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show reasoning' })).toBeInTheDocument();
   });
 
-  it('disables saving for a not-relevant candidate and offers Trend Stream action', async () => {
+  it('reveals rationale behind Show reasoning disclosure', async () => {
     const user = userEvent.setup();
-    const onAddAsItem = vi.fn();
-    render(
-      <RadarDiscoveryCandidateCard
-        candidate={{
-          ...candidate,
-          verdict: 'not_relevant',
-          endpoint: null,
-          resolvedEndpoint: null,
-          sourceType: null,
-          probeStatus: 'no_feed',
-          contentKind: 'article',
-        }}
-        onSave={vi.fn()}
-        onAddAsItem={onAddAsItem}
-        onMarkNotASource={vi.fn()}
-        onParseSources={vi.fn()}
-      />
-    );
+    renderCard();
 
-    expect(screen.getByRole('button', { name: 'Save source' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Show reasoning' }));
+    expect(screen.getByText(/Verified RSS endpoint/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hide reasoning' })).toBeInTheDocument();
+  });
+
+  it('hides Save for not-relevant candidates and offers Trend Stream action', async () => {
+    const user = userEvent.setup();
+    const { onAddAsItem } = renderCard({
+      candidate: {
+        ...candidate,
+        verdict: 'not_relevant',
+        endpoint: null,
+        resolvedEndpoint: null,
+        sourceType: null,
+        probeStatus: 'no_feed',
+        contentKind: 'article',
+      },
+    });
+
+    expect(screen.queryByRole('button', { name: 'Save source' })).not.toBeInTheDocument();
+    expect(screen.getByText('Not Relevant')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add as Trend Stream card' }));
     expect(onAddAsItem).toHaveBeenCalledOnce();
   });
 
+  it('formats duplicate status badges without underscores', () => {
+    renderCard({
+      candidate: {
+        ...candidate,
+        duplicateStatus: 'not_applicable',
+      },
+    });
+
+    expect(screen.getByText('Not Applicable')).toBeInTheDocument();
+  });
+
   it('opens confirm modal from kebab menu and calls onMarkNotASource', async () => {
     const user = userEvent.setup();
-    const onMarkNotASource = vi.fn();
-    render(
-      <RadarDiscoveryCandidateCard
-        candidate={candidate}
-        onSave={vi.fn()}
-        onAddAsItem={vi.fn()}
-        onMarkNotASource={onMarkNotASource}
-        onParseSources={vi.fn()}
-      />
-    );
+    const { onMarkNotASource } = renderCard();
 
     await user.click(screen.getByRole('button', { name: 'Candidate options' }));
     await user.click(screen.getByRole('menuitem', { name: 'Not a source' }));
@@ -91,20 +103,26 @@ describe('RadarDiscoveryCandidateCard', () => {
     expect(onMarkNotASource).toHaveBeenCalledOnce();
   });
 
+  it('opens discard confirm modal and calls onDismiss', async () => {
+    const user = userEvent.setup();
+    const { onDismiss } = renderCard();
+
+    await user.click(screen.getByRole('button', { name: 'Candidate options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Discard candidate' }));
+    expect(screen.getByRole('heading', { name: 'Discard candidate?' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Discard candidate' }));
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
   it('shows marked state and disables actions when userNotASource is true', () => {
-    render(
-      <RadarDiscoveryCandidateCard
-        candidate={{
-          ...candidate,
-          userNotASource: true,
-          userNotASourceMarkedAt: '2026-07-15T00:00:00Z',
-        }}
-        onSave={vi.fn()}
-        onAddAsItem={vi.fn()}
-        onMarkNotASource={vi.fn()}
-        onParseSources={vi.fn()}
-      />
-    );
+    renderCard({
+      candidate: {
+        ...candidate,
+        userNotASource: true,
+        userNotASourceMarkedAt: '2026-07-15T00:00:00Z',
+      },
+    });
 
     expect(screen.getByText('Not a source')).toBeInTheDocument();
     expect(screen.getByText('Marked not a source')).toBeInTheDocument();
@@ -114,16 +132,7 @@ describe('RadarDiscoveryCandidateCard', () => {
 
   it('calls onParseSources from kebab menu', async () => {
     const user = userEvent.setup();
-    const onParseSources = vi.fn();
-    render(
-      <RadarDiscoveryCandidateCard
-        candidate={candidate}
-        onSave={vi.fn()}
-        onAddAsItem={vi.fn()}
-        onMarkNotASource={vi.fn()}
-        onParseSources={onParseSources}
-      />
-    );
+    const { onParseSources } = renderCard();
 
     await user.click(screen.getByRole('button', { name: 'Candidate options' }));
     await user.click(screen.getByRole('menuitem', { name: 'Read and parse sources' }));

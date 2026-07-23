@@ -3,6 +3,7 @@ import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
 import { Textarea } from '@/components/atoms/Textarea';
 import { DialogFooter } from '@/pages/admin/personal-branding/PersonalBrandingPageTemplate';
+import { cn } from '@/lib/utils';
 import type {
   FollowConfidenceVerdict,
   FollowSuggestion,
@@ -15,6 +16,10 @@ const CONFIDENCE_BLURB =
 function formatConfidencePercent(value?: number | null): string {
   if (value === null || value === undefined) return '—';
   return `${Math.round(value * 100)}%`;
+}
+
+function verdictLabel(verdict: FollowConfidenceVerdict): string {
+  return verdict === 'CONFIRMED' ? 'Confirmed' : 'Rejected';
 }
 
 function factorBarClass(score: number): string {
@@ -44,13 +49,30 @@ export default function FollowSuggestionConfidenceModal({
 }: FollowSuggestionConfidenceModalProps) {
   const [feedbackText, setFeedbackText] = useState('');
   const [suggestedPercent, setSuggestedPercent] = useState('');
+  const [pendingVerdict, setPendingVerdict] = useState<FollowConfidenceVerdict | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       setFeedbackText('');
       setSuggestedPercent('');
+      setPendingVerdict(null);
+      return;
     }
-  }, [isOpen, suggestion?.id]);
+
+    const feedback = suggestion?.confidenceFeedback;
+    setFeedbackText(feedback?.feedbackText ?? '');
+    setSuggestedPercent(
+      feedback?.suggestedConfidence != null
+        ? String(Math.round(feedback.suggestedConfidence * 100))
+        : ''
+    );
+  }, [isOpen, suggestion?.id, suggestion?.confidenceFeedback?.createdAt]);
+
+  useEffect(() => {
+    if (!isSubmittingFeedback) {
+      setPendingVerdict(null);
+    }
+  }, [isSubmittingFeedback]);
 
   if (!suggestion) return null;
 
@@ -58,7 +80,9 @@ export default function FollowSuggestionConfidenceModal({
   const label = suggestion.displayName ?? `@${handle}`;
   const explanation = suggestion.confidenceExplanation;
   const existingFeedback = suggestion.confidenceFeedback;
+  const savedVerdict = existingFeedback?.verdict ?? null;
   const sharedCount = suggestion.sharedConnectionIds.length;
+  const inputsDisabled = isSubmittingFeedback;
 
   const handleSubmit = (verdict: FollowConfidenceVerdict) => {
     const trimmed = feedbackText.trim();
@@ -67,12 +91,16 @@ export default function FollowSuggestionConfidenceModal({
       parsedPercent === null || Number.isNaN(parsedPercent)
         ? null
         : Math.min(100, Math.max(0, parsedPercent)) / 100;
+    setPendingVerdict(verdict);
     onSubmitFeedback({
       verdict,
       feedbackText: trimmed || null,
       suggestedConfidence,
     });
   };
+
+  const confirmVariant = savedVerdict === 'CONFIRMED' ? 'primary' : 'secondary';
+  const rejectIsSelected = savedVerdict === 'REJECTED';
 
   return (
     <Dialog isOpen={isOpen} onClose={onClose} title="Confidence breakdown" size="lg">
@@ -150,7 +178,7 @@ export default function FollowSuggestionConfidenceModal({
         {existingFeedback ? (
           <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-900/60">
             <p className="font-medium text-gray-900 dark:text-white">
-              Your calibration: {existingFeedback.verdict}
+              Your calibration: {verdictLabel(existingFeedback.verdict)}
             </p>
             {existingFeedback.suggestedConfidence != null ? (
               <p className="mt-1 text-gray-600 dark:text-gray-400">
@@ -162,6 +190,7 @@ export default function FollowSuggestionConfidenceModal({
                 {existingFeedback.feedbackText}
               </p>
             ) : null}
+            <p className="mt-2 text-xs text-gray-500">You can change this below.</p>
           </div>
         ) : null}
 
@@ -170,8 +199,9 @@ export default function FollowSuggestionConfidenceModal({
             Calibrate this confidence
           </h4>
           <p className="text-xs text-gray-500">
-            Reject or confirm the score so future suggestions learn from your judgment. This does
-            not dismiss the suggestion.
+            {existingFeedback
+              ? 'Update your verdict or feedback to override the saved calibration. This still does not dismiss the suggestion.'
+              : 'Reject or confirm the score so future suggestions learn from your judgment. This does not dismiss the suggestion.'}
           </p>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Feedback <span className="font-normal text-gray-500">(optional)</span>
@@ -180,6 +210,7 @@ export default function FollowSuggestionConfidenceModal({
             value={feedbackText}
             onChange={(e) => setFeedbackText(e.target.value)}
             rows={3}
+            disabled={inputsDisabled}
             placeholder='e.g. "Too generic for my niche" or "Strong agentic-AI overlap"'
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           />
@@ -191,6 +222,7 @@ export default function FollowSuggestionConfidenceModal({
               max={100}
               value={suggestedPercent}
               onChange={(e) => setSuggestedPercent(e.target.value)}
+              disabled={inputsDisabled}
               placeholder="40"
               className="mx-1 w-16 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900"
             />
@@ -199,26 +231,42 @@ export default function FollowSuggestionConfidenceModal({
         </div>
 
         <DialogFooter>
-          <Button type="button" size="sm" variant="secondary" onClick={onClose}>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={inputsDisabled}
+            onClick={onClose}
+          >
             Close
           </Button>
           <Button
             type="button"
             size="sm"
-            variant="secondary"
-            disabled={isSubmittingFeedback}
+            variant={confirmVariant}
+            disabled={inputsDisabled}
             onClick={() => handleSubmit('CONFIRMED')}
+            className={cn(
+              savedVerdict === 'CONFIRMED' &&
+                'ring-2 ring-primary ring-offset-2 dark:ring-offset-gray-900'
+            )}
           >
-            Confirm score
+            {isSubmittingFeedback && pendingVerdict === 'CONFIRMED' ? 'Saving…' : 'Confirm score'}
           </Button>
           <Button
             type="button"
             size="sm"
-            disabled={isSubmittingFeedback}
+            variant={savedVerdict === 'CONFIRMED' ? 'secondary' : 'primary'}
+            disabled={inputsDisabled}
             onClick={() => handleSubmit('REJECTED')}
-            className="bg-red-600 hover:bg-red-700"
+            className={cn(
+              savedVerdict !== 'CONFIRMED' && 'bg-red-600 hover:bg-red-700',
+              rejectIsSelected && 'ring-2 ring-red-500 ring-offset-2 dark:ring-offset-gray-900'
+            )}
           >
-            Reject confidence
+            {isSubmittingFeedback && pendingVerdict === 'REJECTED'
+              ? 'Saving…'
+              : 'Reject confidence'}
           </Button>
         </DialogFooter>
       </div>

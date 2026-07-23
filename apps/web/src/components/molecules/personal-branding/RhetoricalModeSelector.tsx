@@ -21,6 +21,8 @@ interface RhetoricalModeSelectorProps {
   value: RhetoricalModeSetting[];
   onChange: (next: RhetoricalModeSetting[]) => void;
   disabled?: boolean;
+  hideLegend?: boolean;
+  density?: 'comfortable' | 'compact';
 }
 
 export default function RhetoricalModeSelector({
@@ -29,7 +31,10 @@ export default function RhetoricalModeSelector({
   value,
   onChange,
   disabled = false,
+  hideLegend = false,
+  density = 'comfortable',
 }: RhetoricalModeSelectorProps) {
+  const compact = density === 'compact';
   const selectedIds = new Set(value.map((entry) => entry.mode));
 
   const toggleMode = (modeId: RhetoricalModeId) => {
@@ -45,11 +50,13 @@ export default function RhetoricalModeSelector({
   };
 
   return (
-    <fieldset disabled={disabled} className="space-y-3">
-      <legend className="text-sm font-medium text-gray-900 dark:text-white">
-        Rhetorical modes
-      </legend>
-      <ul className="space-y-3">
+    <fieldset disabled={disabled} className={cn(compact ? 'space-y-2' : 'space-y-3')}>
+      {!hideLegend && (
+        <legend className="text-sm font-medium text-gray-900 dark:text-white">
+          Rhetorical modes
+        </legend>
+      )}
+      <ul className={cn('grid gap-2 sm:grid-cols-2', compact && 'gap-1.5')}>
         {catalog.map((entry) => {
           const checked = selectedIds.has(entry.id as RhetoricalModeId);
           const current = value.find((v) => v.mode === entry.id);
@@ -57,7 +64,8 @@ export default function RhetoricalModeSelector({
             <li
               key={entry.id}
               className={cn(
-                'rounded-lg border p-3',
+                'rounded-lg border',
+                compact ? 'p-2' : 'p-3',
                 checked
                   ? 'border-blue-300 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-950/20'
                   : 'border-gray-200 dark:border-gray-700'
@@ -72,20 +80,27 @@ export default function RhetoricalModeSelector({
                   aria-describedby={`mode-${entry.id}-desc`}
                 />
                 <span>
-                  <span className="font-medium text-gray-900 dark:text-white">{entry.label}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {entry.label}
+                  </span>
                   <p
                     id={`mode-${entry.id}-desc`}
-                    className="mt-1 text-sm text-gray-600 dark:text-gray-400"
+                    className={cn(
+                      'mt-1 text-gray-600 dark:text-gray-400',
+                      compact && !checked ? 'text-xs line-clamp-2' : 'text-sm'
+                    )}
                   >
                     {entry.definition}
                   </p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                    When enabled: {entry.enabledEffect}
-                  </p>
+                  {checked && (
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+                      When enabled: {entry.enabledEffect}
+                    </p>
+                  )}
                 </span>
               </label>
               {checked && current && (
-                <div className="mt-3 pl-6">
+                <div className={cn(compact ? 'mt-2 pl-6' : 'mt-3 pl-6')}>
                   <label htmlFor={`mode-strength-${entry.id}`} className="text-xs font-medium">
                     Strength
                   </label>

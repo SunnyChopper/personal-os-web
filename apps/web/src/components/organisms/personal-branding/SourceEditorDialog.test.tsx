@@ -1,7 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SourceEditorDialog from './SourceEditorDialog';
+
+const previewRadarSource = vi.fn();
+
+vi.mock('@/services/personal-branding.service', () => ({
+  personalBrandingService: {
+    previewRadarSource: (...args: unknown[]) => previewRadarSource(...args),
+  },
+}));
 
 vi.mock('@/components/molecules/Dialog', () => ({
   default: ({
@@ -22,6 +30,10 @@ vi.mock('@/components/molecules/Dialog', () => ({
 }));
 
 describe('SourceEditorDialog', () => {
+  beforeEach(() => {
+    previewRadarSource.mockReset();
+  });
+
   it('starts on the Identify step with Next disabled until name is entered', () => {
     render(<SourceEditorDialog isOpen onClose={vi.fn()} onCreate={vi.fn()} onUpdate={vi.fn()} />);
 
@@ -95,6 +107,47 @@ describe('SourceEditorDialog', () => {
     expect(screen.getByLabelText(/Endpoint URL/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'GET' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'POST' })).toBeInTheDocument();
+    expect(screen.getByText('Response format')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'JSON' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'XML' })).toBeInTheDocument();
+  });
+
+  it('submits API create payload with responseFormat', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    render(<SourceEditorDialog isOpen onClose={vi.fn()} onCreate={onCreate} onUpdate={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/Name/), 'XML Trends');
+    await user.click(screen.getByRole('button', { name: 'API endpoint' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.type(screen.getByLabelText(/Endpoint URL/), 'https://api.example.com/trends.xml');
+    await user.click(screen.getByRole('button', { name: 'XML' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Create source' }));
+
+    expect(onCreate).toHaveBeenCalledWith({
+      name: 'XML Trends',
+      sourceType: 'API',
+      endpoint: 'https://api.example.com/trends.xml',
+      httpMethod: 'GET',
+      responseFormat: 'XML',
+      authScheme: 'BEARER',
+      authHeaderName: null,
+      authQueryParamName: null,
+      enabled: true,
+      cadence: null,
+      cadenceIntervalHours: null,
+      secretToken: undefined,
+    });
+  });
+
+  it('does not show response format for RSS sources', async () => {
+    const user = userEvent.setup();
+    render(<SourceEditorDialog isOpen onClose={vi.fn()} onCreate={vi.fn()} onUpdate={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/Name/), 'RSS only');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.queryByText('Response format')).not.toBeInTheDocument();
   });
 
   it('hides API auth fields after switching back to RSS on step 1', async () => {
@@ -213,5 +266,55 @@ describe('SourceEditorDialog', () => {
       cadence: null,
       cadenceIntervalHours: null,
     });
+  });
+
+  it('shows Preview for RSS feeds and renders preview cards and XML tabs', async () => {
+    const user = userEvent.setup();
+    previewRadarSource.mockResolvedValue({
+      rawXml: '<rss><channel><title>Test</title></channel></rss>',
+      rawXmlTruncated: false,
+      itemCount: 1,
+      items: [
+        {
+          title: 'Preview article',
+          summary: 'Preview summary',
+          url: 'https://example.com/1',
+          itemType: 'ARTICLE',
+        },
+      ],
+    });
+
+    render(<SourceEditorDialog isOpen onClose={vi.fn()} onCreate={vi.fn()} onUpdate={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/Name/), 'HN');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    const feedInput = screen.getByLabelText(/Feed URL/);
+    expect(feedInput).toHaveClass('w-full');
+    expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
+
+    await user.type(feedInput, 'https://example.com/feed.xml');
+    await user.click(screen.getByRole('button', { name: 'Preview' }));
+
+    expect(previewRadarSource).toHaveBeenCalledWith({
+      endpoint: 'https://example.com/feed.xml',
+      sourceId: undefined,
+      secretToken: undefined,
+    });
+    expect(screen.getByText('Preview article')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'XML' })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'XML' }));
+    expect(screen.getByText(/<rss>/)).toBeInTheDocument();
+  });
+
+  it('does not show Preview for API sources', async () => {
+    const user = userEvent.setup();
+    render(<SourceEditorDialog isOpen onClose={vi.fn()} onCreate={vi.fn()} onUpdate={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/Name/), 'Trend API');
+    await user.click(screen.getByRole('button', { name: 'API endpoint' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.queryByRole('button', { name: 'Preview' })).not.toBeInTheDocument();
   });
 });
