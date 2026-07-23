@@ -185,7 +185,7 @@ describe('usePersonalBrandingBrandIdentity extraction polling', () => {
     });
 
     getProfileExtraction.mockResolvedValue(cancellingJob);
-    cancelProfileExtraction.mockImplementation(async (jobId: string) => {
+    cancelProfileExtraction.mockImplementation(async () => {
       getProfileExtraction.mockResolvedValue(cancelledJob);
       return cancelledJob;
     });
