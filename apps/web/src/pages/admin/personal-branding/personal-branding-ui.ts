@@ -1,5 +1,46 @@
 import { cn } from '@/lib/utils';
 
+/** Card section intro title (h2 inside PageCard). */
+export const pbSectionTitleClassName = 'text-lg font-semibold text-gray-900 dark:text-white';
+
+/** Supporting copy under a section title. */
+export const pbSectionDescriptionClassName = 'mt-1 text-sm text-gray-600 dark:text-gray-400';
+
+/** Nested subsection title (h3) inside a card or list region. */
+export const pbNestedSectionTitleClassName =
+  'text-base font-semibold text-gray-900 dark:text-white';
+
+/** Variant / queue card title. */
+export const pbCardTitleClassName = 'text-base font-semibold text-gray-900 dark:text-white';
+
+/** Form field and control group labels. */
+export const pbFormLabelClassName = 'text-sm font-medium text-gray-700 dark:text-gray-300';
+
+/** Uppercase micro-labels for inset panels and filter bars. */
+export const pbEyebrowClassName =
+  'text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400';
+
+/** Timestamps, metadata, and compact secondary lines. */
+export const pbMetaClassName = 'text-xs text-gray-500 dark:text-gray-400';
+
+/** Secondary body copy. */
+export const pbBodySecondaryClassName = 'text-sm text-gray-600 dark:text-gray-400';
+
+/** Compact banner / status titles. */
+export const pbBannerTitleClassName = 'text-sm font-semibold text-gray-900 dark:text-white';
+
+/** Vertical rhythm: major blocks inside a PageCard. */
+export const pbSectionStackClassName = 'space-y-6';
+
+/** Vertical rhythm: field groups and form sections. */
+export const pbFieldGroupStackClassName = 'space-y-4';
+
+/** Vertical rhythm: card lists and variant stacks. */
+export const pbListStackClassName = 'space-y-3';
+
+/** Vertical rhythm: dense lists and nested panel content. */
+export const pbDenseListStackClassName = 'space-y-2';
+
 /** Base classes for small status / platform pills across Personal Branding. */
 export const statusPillBaseClassName =
   'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium';

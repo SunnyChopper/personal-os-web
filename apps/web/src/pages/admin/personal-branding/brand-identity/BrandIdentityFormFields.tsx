@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Button from '@/components/atoms/Button';
 import { FormInput } from '@/components/atoms/FormInput';
+import { cn } from '@/lib/utils';
 import { FormTextarea } from '../PersonalBrandingFormFields';
 
 export { FormTextarea };
@@ -83,6 +84,8 @@ interface ToneMetricsEditorProps {
   values: Record<string, number | unknown>;
   onChange: (values: Record<string, number>) => void;
   disabled?: boolean;
+  density?: 'comfortable' | 'compact';
+  hideTitle?: boolean;
 }
 
 function clampToneMetric(value: number): number {
@@ -95,15 +98,22 @@ function ToneMetricSlider({
   onChange,
   disabled,
   onRemove,
+  compact = false,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   disabled?: boolean;
   onRemove?: () => void;
+  compact?: boolean;
 }) {
   return (
-    <li className="space-y-2 rounded-lg border-2 border-gray-200 bg-white px-3 py-3 dark:border-gray-700 dark:bg-gray-950/40">
+    <li
+      className={cn(
+        'space-y-2 rounded-lg border-2 border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950/40',
+        compact ? 'px-2.5 py-2' : 'px-3 py-3'
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium capitalize text-gray-900 dark:text-white">
           {label}
@@ -142,7 +152,14 @@ function ToneMetricSlider({
   );
 }
 
-export function ToneMetricsEditor({ values, onChange, disabled = false }: ToneMetricsEditorProps) {
+export function ToneMetricsEditor({
+  values,
+  onChange,
+  disabled = false,
+  density = 'comfortable',
+  hideTitle = false,
+}: ToneMetricsEditorProps) {
+  const compact = density === 'compact';
   const [keyDraft, setKeyDraft] = useState('');
   const [valueDraft, setValueDraft] = useState(0.5);
 
@@ -170,11 +187,18 @@ export function ToneMetricsEditor({ values, onChange, disabled = false }: ToneMe
   };
 
   return (
-    <div className="space-y-3">
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        Tone metrics
-      </label>
-      <div className="space-y-3 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/30">
+    <div className={cn(compact ? 'space-y-2' : 'space-y-3')}>
+      {!hideTitle && (
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Tone metrics
+        </label>
+      )}
+      <div
+        className={cn(
+          'rounded-lg border-2 border-dashed border-gray-200 bg-gray-50/60 dark:border-gray-700 dark:bg-gray-900/30',
+          compact ? 'space-y-2 p-2' : 'space-y-3 p-3'
+        )}
+      >
         <div className="flex flex-wrap items-end gap-2">
           <FormInput
             value={keyDraft}
@@ -204,10 +228,19 @@ export function ToneMetricsEditor({ values, onChange, disabled = false }: ToneMe
           value={valueDraft}
           disabled={disabled}
           onChange={setValueDraft}
+          compact={compact}
         />
       </div>
       {entries.length > 0 ? (
-        <ul className="space-y-2">
+        <ul
+          className={cn(
+            compact && entries.length >= 2
+              ? 'grid gap-2 sm:grid-cols-2'
+              : compact
+                ? 'space-y-1.5'
+                : 'space-y-2'
+          )}
+        >
           {entries.map(([key, val]) => (
             <ToneMetricSlider
               key={key}
@@ -216,6 +249,7 @@ export function ToneMetricsEditor({ values, onChange, disabled = false }: ToneMe
               disabled={disabled}
               onChange={(nextValue) => updateMetric(key, nextValue)}
               onRemove={() => removeKey(key)}
+              compact={compact}
             />
           ))}
         </ul>

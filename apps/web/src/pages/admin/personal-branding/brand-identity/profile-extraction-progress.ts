@@ -39,6 +39,91 @@ export const TEXT_EXTRACTION_PIPELINE_STEPS: readonly ExtractionPipelineStep[] =
 /** @deprecated Use extractionPipelineSteps(resolveExtractionPipelineVariant(...)) */
 export const EXTRACTION_PIPELINE_STEPS = FILE_EXTRACTION_PIPELINE_STEPS;
 
+type StageBand = {
+  id: string;
+  weight: number;
+};
+
+const FILE_STAGE_BANDS: readonly StageBand[] = [
+  { id: 'uploading', weight: 8 },
+  { id: 'queued', weight: 4 },
+  { id: 'parsing_sources', weight: 12 },
+  { id: 'analyzing_sources', weight: 55 },
+  { id: 'reducing', weight: 12 },
+  { id: 'saving', weight: 9 },
+];
+
+export type ExtractionMetrics = {
+  sources: {
+    processed: number;
+    total: number;
+    succeeded: number;
+    failed: number;
+  } | null;
+  chunks: {
+    processed: number;
+    total: number;
+  } | null;
+  chunksPendingDiscovery: boolean;
+};
+
+function clampRatio(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+function stageBandsForVariant(variant: ExtractionPipelineVariant): StageBand[] {
+  const bands =
+    variant === 'file'
+      ? [...FILE_STAGE_BANDS]
+      : FILE_STAGE_BANDS.filter((band) => band.id !== 'uploading');
+  const totalWeight = bands.reduce((sum, band) => sum + band.weight, 0);
+  return bands.map((band) => ({
+    id: band.id,
+    weight: (band.weight / totalWeight) * 100,
+  }));
+}
+
+function normalizeProgressStage(stage: string | null | undefined): string {
+  if (!stage) return 'queued';
+  if (stage === 'reading_sources') return 'parsing_sources';
+  if (stage === 'analyzing') return 'saving';
+  return stage;
+}
+
+function bandIndex(stageId: string, bands: readonly StageBand[]): number {
+  const direct = bands.findIndex((band) => band.id === stageId);
+  if (direct >= 0) return direct;
+  return 0;
+}
+
+function intraBandRatio(
+  stageId: string,
+  job: ProfileExtractionJob | undefined,
+  clientProgress?: ProfileExtractionClientProgress | null
+): number {
+  if (stageId === 'uploading') {
+    if (!clientProgress || clientProgress.phase !== 'uploading') return 0;
+    return clientUploadRatio(clientProgress);
+  }
+  if (stageId === 'queued' || stageId === 'parsing_sources') return 0;
+  if (stageId === 'analyzing_sources') {
+    const totalChunks = job?.totalChunkCount ?? 0;
+    const processedChunks = job?.processedChunkCount ?? 0;
+    if (totalChunks > 0) {
+      return clampRatio(processedChunks / totalChunks);
+    }
+    const sourceCount = job?.sourceCount ?? 0;
+    if (sourceCount > 0) {
+      return clampRatio((job?.processedSourceCount ?? 0) / sourceCount);
+    }
+    return 0;
+  }
+  if (stageId === 'reducing') return 0.5;
+  if (stageId === 'saving') return 0.85;
+  return 0;
+}
+
 export function resolveExtractionPipelineVariant(
   sourceTypes: ProfileExtractionSourceType[] | null | undefined
 ): ExtractionPipelineVariant {
@@ -71,35 +156,14 @@ export function resolveExtractionSourceTypes(
   return [];
 }
 
-function stageIndex(
-  stage: string | null | undefined,
-  steps: readonly ExtractionPipelineStep[]
-): number {
-  if (!stage) return 0;
-  const direct = steps.findIndex((step) => step.id === stage);
-  if (direct >= 0) return direct;
-  if (stage === 'reading_sources') {
-    return steps.findIndex((step) => step.id === 'parsing_sources');
-  }
-  if (stage === 'analyzing') {
-    return steps.findIndex((step) => step.id === 'analyzing_sources');
-  }
-  return 0;
-}
-
 function clientUploadRatio(progress: ProfileExtractionClientProgress): number {
   if (progress.bytesTotal > 0) {
-    return Math.min(1, progress.bytesUploaded / progress.bytesTotal);
+    return clampRatio(progress.bytesUploaded / progress.bytesTotal);
   }
   if (progress.filesTotal > 0) {
-    return Math.min(1, progress.filesCompleted / progress.filesTotal);
+    return clampRatio(progress.filesCompleted / progress.filesTotal);
   }
   return 0;
-}
-
-function clientUploadPercent(progress: ProfileExtractionClientProgress, stepCount: number): number {
-  const uploadStepShare = 100 / stepCount;
-  return Math.min(15, Math.round(clientUploadRatio(progress) * uploadStepShare));
 }
 
 export function isClientExtractionUploadActive(
@@ -125,7 +189,8 @@ export function extractionEffectiveStage(
     }
   }
 
-  return job?.stage ?? (job?.status === 'queued' ? 'queued' : 'reading_sources');
+  const rawStage = job?.stage ?? (job?.status === 'queued' ? 'queued' : 'parsing_sources');
+  return normalizeProgressStage(rawStage);
 }
 
 export function formatUploadProgressDetail(
@@ -143,63 +208,119 @@ export function formatUploadProgressDetail(
   return percent > 0 ? `Uploading… ${percent}%` : null;
 }
 
+export function formatExtractionMetrics(job: ProfileExtractionJob | undefined): ExtractionMetrics {
+  if (job?.sourceCount == null) {
+    return { sources: null, chunks: null, chunksPendingDiscovery: false };
+  }
+
+  const sources = {
+    processed: job.processedSourceCount ?? 0,
+    total: job.sourceCount,
+    succeeded: job.succeededSourceCount ?? 0,
+    failed: job.failedSourceCount ?? 0,
+  };
+
+  const totalChunks = job.totalChunkCount ?? 0;
+  const processedChunks = job.processedChunkCount ?? 0;
+  const stage = normalizeProgressStage(job.stage);
+  const chunksPendingDiscovery =
+    stage === 'analyzing_sources' && totalChunks <= 0 && sources.processed < sources.total;
+
+  return {
+    sources,
+    chunks: totalChunks > 0 ? { processed: processedChunks, total: totalChunks } : null,
+    chunksPendingDiscovery,
+  };
+}
+
+export function extractionStepCaption(
+  stepId: string,
+  job: ProfileExtractionJob | undefined,
+  clientProgress?: ProfileExtractionClientProgress | null
+): string | null {
+  const currentStage = extractionEffectiveStage(job, clientProgress);
+  if (stepId !== currentStage) return null;
+
+  if (stepId === 'uploading') {
+    return formatUploadProgressDetail(clientProgress);
+  }
+
+  const metrics = formatExtractionMetrics(job);
+  if (!metrics.sources) return null;
+
+  if (stepId === 'analyzing_sources') {
+    if (metrics.chunks) {
+      return `${metrics.chunks.processed} of ${metrics.chunks.total} chunks analyzed`;
+    }
+    if (metrics.chunksPendingDiscovery) {
+      return 'Discovering chunks across sources…';
+    }
+    if (metrics.sources.total > 0) {
+      return `${metrics.sources.processed} of ${metrics.sources.total} sources complete`;
+    }
+  }
+
+  if (stepId === 'parsing_sources' && metrics.sources.total > 0) {
+    return `Preparing ${metrics.sources.total} sources`;
+  }
+
+  return null;
+}
+
 export function extractionProgressPercent(
   job: ProfileExtractionJob | undefined,
   clientProgress?: ProfileExtractionClientProgress | null
 ): number {
   const sourceTypes = resolveExtractionSourceTypes(job, clientProgress);
   const variant = resolveExtractionPipelineVariant(sourceTypes);
-  const steps = extractionPipelineSteps(variant);
-  const stepCount = steps.length;
-  const uploadStepShare = 100 / stepCount;
+  const bands = stageBandsForVariant(variant);
 
   if (!job && isClientExtractionUploadActive(clientProgress)) {
-    return Math.max(1, clientUploadPercent(clientProgress!, stepCount));
+    const uploadBand = bands.find((band) => band.id === 'uploading');
+    const weight = uploadBand?.weight ?? bands[0]?.weight ?? 8;
+    return Math.max(1, Math.round(clientUploadRatio(clientProgress!) * weight));
   }
 
   if (isClientExtractionUploadActive(clientProgress)) {
-    return Math.max(1, clientUploadPercent(clientProgress!, stepCount));
+    const uploadBand = bands.find((band) => band.id === 'uploading');
+    const weight = uploadBand?.weight ?? bands[0]?.weight ?? 8;
+    return Math.max(1, Math.round(clientUploadRatio(clientProgress!) * weight));
   }
 
   if (!job) return 5;
 
-  const stage = job.stage ?? (job.status === 'queued' ? 'queued' : 'parsing_sources');
+  const rawStage = job.stage ?? (job.status === 'queued' ? 'queued' : 'parsing_sources');
 
   if (
-    stage === 'succeeded' ||
+    rawStage === 'succeeded' ||
     job.status === 'succeeded' ||
     job.status === 'succeeded_with_warnings'
   ) {
     return 100;
   }
-  if (stage === 'failed' || job.status === 'failed') return 100;
+  if (rawStage === 'failed' || job.status === 'failed') return 100;
+  if (job.status === 'cancelled' || rawStage === 'cancelled') return 0;
+  if (job.status === 'cancelling' || rawStage === 'cancelling') {
+    return Math.min(95, Math.round(bands[0]?.weight ?? 4));
+  }
 
   if (
     clientProgress &&
     clientProgress.phase !== 'done' &&
     (clientProgress.phase === 'registering_sources' || clientProgress.phase === 'starting')
   ) {
-    return Math.round(uploadStepShare);
+    const queuedBand = bands.find((band) => band.id === 'queued');
+    return Math.round(queuedBand?.weight ?? 4);
   }
 
-  const idx = stageIndex(stage, steps);
-  const basePercent = (idx / stepCount) * 100;
+  const stageId = normalizeProgressStage(rawStage);
+  const idx = bandIndex(stageId, bands);
+  const completedWeight = bands.slice(0, idx).reduce((sum, band) => sum + band.weight, 0);
+  const currentBand = bands[idx];
+  const intra = intraBandRatio(stageId, job, clientProgress);
+  const percent = completedWeight + (currentBand?.weight ?? 0) * intra;
 
-  if (job.sourceCount && job.sourceCount > 0) {
-    const sourceRatio = (job.processedSourceCount ?? 0) / job.sourceCount;
-    return Math.min(95, Math.round(basePercent + sourceRatio * 25));
-  }
-
-  if (stage === 'reducing') return 82;
-  if (stage === 'saving') return 92;
-  if (stage === 'queued') {
-    return variant === 'file'
-      ? Math.round(uploadStepShare + 2)
-      : Math.max(5, Math.round(basePercent + 8));
-  }
-  if (stage === 'uploading') return Math.max(1, Math.round(uploadStepShare / 2));
-
-  return Math.min(95, Math.round(basePercent + 15));
+  return Math.min(95, Math.round(percent));
 }
 
 export function extractionStatusLabel(
@@ -255,6 +376,10 @@ export function extractionStatusLabel(
       return 'Saving extracted profile';
     case 'failed':
       return 'Extraction failed';
+    case 'cancelling':
+      return 'Cancelling extraction…';
+    case 'cancelled':
+      return 'Extraction cancelled';
     case 'succeeded':
       return 'Profile extraction complete';
     default:
@@ -267,6 +392,7 @@ export function extractionIsTerminal(job: ProfileExtractionJob | undefined): boo
   return (
     job.status === 'succeeded' ||
     job.status === 'succeeded_with_warnings' ||
-    job.status === 'failed'
+    job.status === 'failed' ||
+    job.status === 'cancelled'
   );
 }

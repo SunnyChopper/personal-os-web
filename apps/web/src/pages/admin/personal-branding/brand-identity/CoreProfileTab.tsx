@@ -13,12 +13,15 @@ import ProfileExtractionProgressModal from './ProfileExtractionProgressModal';
 import {
   extractionProgressPercent,
   extractionStatusLabel,
+  formatExtractionMetrics,
   isClientExtractionPhaseActive,
 } from './profile-extraction-progress';
 import ProfileLiveOutputTestPanel, { type ProfileFormSnapshot } from './ProfileLiveOutputTestPanel';
 import ProfileVersionHistory from './ProfileVersionHistory';
+import { extractionSourceFreshnessDisplay } from './extraction-source-freshness';
 import { LOCAL_DRAFT_PROFILE_ID } from './brand-identity.constants';
 import type {
+  BrandPlatform,
   BrandProfile,
   BrandProfileOutputTest,
   BrandProfileStatus,
@@ -28,7 +31,10 @@ import type {
   ProfileExtractionJob,
   ProfileExtractionSource,
 } from '@/types/api/personal-branding.dto';
+import { BRAND_PLATFORM_LABELS } from '@/types/api/personal-branding.dto';
 import { cn } from '@/lib/utils';
+import { formatRelativeDate } from '@/utils/date-formatters';
+import { statusPillClassName, selectableChipClassName } from '../personal-branding-ui';
 import { Select } from '@/components/atoms/Select';
 import {
   DialogFooter,
@@ -38,6 +44,8 @@ import {
 } from '../PersonalBrandingPageTemplate';
 
 type BrandIdentityHook = ReturnType<typeof usePersonalBrandingBrandIdentity>;
+
+const ALL_PLATFORMS = Object.keys(BRAND_PLATFORM_LABELS) as BrandPlatform[];
 
 interface CoreProfileTabProps {
   brandIdentity: BrandIdentityHook;
@@ -54,6 +62,7 @@ function createEmptyDraftProfile(): BrandProfile {
     toneMetrics: {},
     bannedPhrases: [],
     status: 'draft',
+    platforms: [],
     userId: '',
     createdAt: now,
     updatedAt: now,
@@ -97,6 +106,10 @@ function ExtractionSourcesSection({ sources }: { sources: ProfileExtractionSourc
       >
         {visibleItems.map((source) => {
           const displayTitle = source.title || source.fileName || 'Untitled source';
+          const relativeExtractedAt = source.lastExtractedAt
+            ? formatRelativeDate(source.lastExtractedAt)
+            : null;
+          const freshnessDisplay = extractionSourceFreshnessDisplay(source, relativeExtractedAt);
           return (
             <li
               key={source.id}
@@ -120,8 +133,18 @@ function ExtractionSourcesSection({ sources }: { sources: ProfileExtractionSourc
                       {source.url}
                     </p>
                   )}
+                  <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                    {freshnessDisplay.extractedLine}
+                    {source.lastExtractionStatus === 'failed' ? ' · last run failed' : ''}
+                  </p>
                 </div>
-                <div className="w-28 shrink-0 text-right">
+                <div className="flex w-28 shrink-0 flex-col items-end gap-2 text-right">
+                  <span
+                    className={statusPillClassName(freshnessDisplay.tone)}
+                    title={freshnessDisplay.tooltip}
+                  >
+                    {freshnessDisplay.label}
+                  </span>
                   {source.downloadUrl && (
                     <a
                       href={source.downloadUrl}
@@ -168,22 +191,38 @@ function ExtractionProgressBanner({
   label,
   clientProgress,
   onShowProgress,
+  onCancel,
+  cancelDisabled,
 }: {
   job: ProfileExtractionJob | undefined;
   label: string;
   clientProgress?: ProfileExtractionClientProgress | null;
   onShowProgress?: () => void;
+  onCancel?: () => void;
+  cancelDisabled?: boolean;
 }) {
   const percent = extractionProgressPercent(job, clientProgress);
+  const metrics = formatExtractionMetrics(job);
 
   return (
-    <div className="mb-4 space-y-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+    <div className="mb-4 space-y-3 rounded-xl border border-amber-200/80 bg-amber-50/70 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p>
+        <p className="leading-relaxed">
           Extraction: <strong>{label}</strong>
         </p>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold tabular-nums">{percent}%</span>
+          <span className="text-sm font-semibold tabular-nums tracking-tight">{percent}%</span>
+          {onCancel ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={onCancel}
+              disabled={cancelDisabled || job?.status === 'cancelling'}
+            >
+              Cancel
+            </Button>
+          ) : null}
           {onShowProgress ? (
             <Button type="button" size="sm" variant="secondary" onClick={onShowProgress}>
               Show progress
@@ -192,7 +231,7 @@ function ExtractionProgressBanner({
         </div>
       </div>
       <div
-        className="h-2 overflow-hidden rounded-full bg-amber-100 dark:bg-amber-900/40"
+        className="h-1.5 overflow-hidden rounded-full bg-amber-100/90 dark:bg-amber-900/40"
         role="progressbar"
         aria-valuenow={percent}
         aria-valuemin={0}
@@ -200,16 +239,45 @@ function ExtractionProgressBanner({
         aria-label="Extraction progress"
       >
         <div
-          className="h-full rounded-full bg-amber-500 transition-all duration-500"
+          className="h-full rounded-full bg-amber-500 transition-[width] duration-700 ease-out"
           style={{ width: `${percent}%` }}
         />
       </div>
-      {job?.sourceCount != null ? (
-        <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
-          Sources processed: {job.processedSourceCount ?? 0}/{job.sourceCount}
+      {metrics.sources ? (
+        <p className="text-xs tabular-nums text-amber-800/80 dark:text-amber-200/80">
+          Sources {metrics.sources.processed}/{metrics.sources.total}
+          {metrics.chunks
+            ? ` · Chunks ${metrics.chunks.processed}/${metrics.chunks.total}`
+            : metrics.chunksPendingDiscovery
+              ? ' · Discovering chunks…'
+              : ''}
+          {metrics.sources.succeeded > 0 ? ` · Succeeded ${metrics.sources.succeeded}` : ''}
         </p>
       ) : null}
     </div>
+  );
+}
+
+function ProfilePlatformBadges({ platforms }: { platforms: BrandPlatform[] }) {
+  if (platforms.length === 0) {
+    return (
+      <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+        All platforms
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex flex-wrap justify-end gap-1">
+      {platforms.map((platform) => (
+        <span
+          key={platform}
+          className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+        >
+          {BRAND_PLATFORM_LABELS[platform]}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -280,6 +348,7 @@ function ProfileEditor({
   );
   const [bannedPhrases, setBannedPhrases] = useState(profile.bannedPhrases);
   const [status, setStatus] = useState<BrandProfileStatus>(profile.status);
+  const [platforms, setPlatforms] = useState<BrandPlatform[]>(profile.platforms ?? []);
   const [liveTestOpen, setLiveTestOpen] = useState(false);
 
   useEffect(() => {
@@ -297,7 +366,16 @@ function ProfileEditor({
     );
     setBannedPhrases(profile.bannedPhrases);
     setStatus(profile.status);
+    setPlatforms(profile.platforms ?? []);
   }, [profile]);
+
+  const togglePlatform = (platform: BrandPlatform) => {
+    setPlatforms((current) =>
+      current.includes(platform)
+        ? current.filter((entry) => entry !== platform)
+        : [...current, platform]
+    );
+  };
 
   const busy = isSaving || isDeleting || profile.status === 'extracting';
 
@@ -309,6 +387,7 @@ function ProfileEditor({
     toneMetrics,
     bannedPhrases,
     status,
+    platforms,
   };
 
   return (
@@ -404,16 +483,37 @@ function ProfileEditor({
                 <option value="active">Active</option>
               </Select>
             </div>
+            <div>
+              <p className="mb-1 text-sm font-medium">Platform affinity</p>
+              <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                Leave empty to make this profile available for every platform. Select one or more
+                platforms when you want multiple specialized profiles for the same channel.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {ALL_PLATFORMS.map((platform) => {
+                  const selected = platforms.includes(platform);
+                  return (
+                    <button
+                      key={platform}
+                      type="button"
+                      onClick={() => togglePlatform(platform)}
+                      className={selectableChipClassName(selected, 'rounded-full px-3 py-1.5')}
+                    >
+                      {BRAND_PLATFORM_LABELS[platform]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </ProfileFormSection>
 
           <div className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-gray-200 pt-4 dark:border-gray-700">
             <Button
               type="button"
               size="sm"
-              variant="secondary"
+              variant="destructive"
               onClick={onDelete}
               disabled={busy}
-              className="border-red-300 text-red-700 hover:border-red-400 hover:bg-red-50 hover:text-red-800 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 dark:hover:text-red-200"
             >
               {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
@@ -460,11 +560,13 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
     clearExtractionJob,
     selectedProfileId,
     setSelectedProfileId,
+    pollExtractionJobId,
     createProfile,
     updateProfile,
     deleteProfile,
     startExtraction,
     rerunExtraction,
+    cancelExtraction,
     activateVersion,
     generateOutputTest,
   } = brandIdentity;
@@ -539,7 +641,24 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
     (Boolean(extractionStatus) &&
       extractionStatus !== 'succeeded' &&
       extractionStatus !== 'succeeded_with_warnings' &&
-      extractionStatus !== 'failed');
+      extractionStatus !== 'failed' &&
+      extractionStatus !== 'cancelled');
+
+  const handleCancelExtraction = () => {
+    const jobId = pollExtractionJobId ?? extractionJob.data?.jobId;
+    if (!jobId) return;
+    void cancelExtraction
+      .mutateAsync(jobId)
+      .then(() => {
+        showToast({ type: 'success', title: 'Extraction cancel requested' });
+      })
+      .catch((err) => {
+        showToast({
+          type: 'error',
+          title: err instanceof Error ? err.message : 'Cancel failed',
+        });
+      });
+  };
 
   return (
     <TwoColumnLayout>
@@ -576,14 +695,17 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
                 type="button"
                 onClick={() => setSelectedProfileId(p.id)}
                 className={cn(
-                  'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm',
+                  'flex w-full flex-col gap-1 rounded-md px-3 py-2 text-left text-sm',
                   selectedProfileId === p.id
                     ? 'bg-blue-50 text-blue-900 dark:bg-blue-950/50 dark:text-blue-100'
                     : 'hover:bg-gray-50 dark:hover:bg-gray-800/60'
                 )}
               >
-                <span className="truncate">{p.name}</span>
-                {statusBadge(p.status)}
+                <span className="flex w-full items-center justify-between gap-2">
+                  <span className="truncate">{p.name}</span>
+                  {statusBadge(p.status)}
+                </span>
+                <ProfilePlatformBadges platforms={p.platforms ?? []} />
               </button>
             </li>
           ))}
@@ -600,7 +722,23 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
             label={extractionLabel}
             clientProgress={clientExtractionProgress}
             onShowProgress={() => setExtractionProgressOpen(true)}
+            onCancel={handleCancelExtraction}
+            cancelDisabled={cancelExtraction.isPending}
           />
+        ) : null}
+        {extractionStatus === 'cancelled' && pollExtractionJobId ? (
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200">
+            <p>Extraction cancelled.</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => clearExtractionJob()}
+              className="shrink-0"
+            >
+              Dismiss
+            </Button>
+          </div>
         ) : null}
         {extractionStatus === 'failed' && extractionError && (
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40">
@@ -769,10 +907,13 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
             extractionInProgress ||
             extractionStatus === 'succeeded' ||
             extractionStatus === 'succeeded_with_warnings' ||
-            extractionStatus === 'failed')
+            extractionStatus === 'failed' ||
+            extractionStatus === 'cancelled')
         }
         job={extractionJob.data}
         clientUploadProgress={clientExtractionProgress}
+        onCancel={handleCancelExtraction}
+        cancelDisabled={cancelExtraction.isPending}
         onClose={() => {
           setExtractionProgressOpen(false);
           if (!extractionInProgress) {

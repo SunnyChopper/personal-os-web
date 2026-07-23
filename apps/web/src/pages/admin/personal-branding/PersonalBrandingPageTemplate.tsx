@@ -1,19 +1,12 @@
 import { type ReactNode } from 'react';
 import { Card } from '@/components/atoms/Card';
 import { cn } from '@/lib/utils';
+import { pbSectionDescriptionClassName, pbSectionTitleClassName } from './personal-branding-ui';
 
 interface ContainerProps {
   children: ReactNode;
   className?: string;
 }
-
-/** Shared surface classes for nested cards inside grids (e.g. idea cards, variant cards). */
-export const gridItemCardClassName =
-  'rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900';
-
-/** Shared surface classes for dashed empty-state panels. */
-export const emptyStateCardClassName =
-  'rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center dark:border-gray-600 dark:bg-gray-900/40';
 
 /**
  * Standard single-column card container aligned with admin `Card` primitive.
@@ -49,10 +42,8 @@ export function SectionIntro({ title, description, actions, className }: Section
   return (
     <div className={cn('flex flex-wrap items-start justify-between gap-3', className)}>
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
-        {description ? (
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{description}</p>
-        ) : null}
+        <h2 className={pbSectionTitleClassName}>{title}</h2>
+        {description ? <p className={pbSectionDescriptionClassName}>{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>

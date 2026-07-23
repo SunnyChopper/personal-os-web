@@ -106,6 +106,44 @@ describe('ProfileExtractionProgressModal', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('calls onCancel when Cancel extraction is clicked for a non-terminal job', async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+
+    render(
+      <ProfileExtractionProgressModal
+        isOpen
+        job={makeQueuedJob()}
+        onClose={vi.fn()}
+        onCancel={onCancel}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Cancel extraction' }));
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it('shows cancelled message and Close button when the job was cancelled', () => {
+    render(
+      <ProfileExtractionProgressModal
+        isOpen
+        job={{
+          ...makeQueuedJob(),
+          status: 'cancelled',
+          stage: 'cancelled',
+          message: 'Extraction cancelled',
+        }}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Extraction cancelled')).toBeInTheDocument();
+    expect(
+      screen.getByText('Extraction was cancelled. No new profile version was created.')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  });
+
   it('shows X profile pipeline steps instead of PDF upload steps', () => {
     render(
       <ProfileExtractionProgressModal

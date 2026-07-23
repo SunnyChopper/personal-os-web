@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  extractionEffectiveStage,
+  extractionIsTerminal,
   extractionPipelineSteps,
   extractionProgressPercent,
   extractionStatusLabel,
+  extractionStepCaption,
+  formatExtractionMetrics,
   formatUploadProgressDetail,
-  extractionEffectiveStage,
   resolveExtractionPipelineVariant,
   resolveExtractionSourceTypes,
 } from '../profile-extraction-progress';
@@ -94,10 +97,42 @@ describe('extractionProgressPercent', () => {
           sourceTypes: ['pdf'],
         })
       )
-    ).toBe(19);
+    ).toBe(8);
   });
 
-  it('interpolates source reading progress for file jobs', () => {
+  it('stays below 50% when analyzing starts with zero sources processed', () => {
+    expect(
+      extractionProgressPercent(
+        makeJob({
+          status: 'running',
+          stage: 'analyzing_sources',
+          sourceTypes: ['pdf'],
+          sourceCount: 70,
+          processedSourceCount: 0,
+          totalChunkCount: 0,
+          processedChunkCount: 0,
+        })
+      )
+    ).toBe(24);
+  });
+
+  it('advances analyzing progress via chunk ratio when totals are known', () => {
+    expect(
+      extractionProgressPercent(
+        makeJob({
+          status: 'running',
+          stage: 'analyzing_sources',
+          sourceTypes: ['pdf'],
+          sourceCount: 70,
+          processedSourceCount: 60,
+          totalChunkCount: 400,
+          processedChunkCount: 128,
+        })
+      )
+    ).toBe(42);
+  });
+
+  it('interpolates parsing progress near the parsing band start', () => {
     expect(
       extractionProgressPercent(
         makeJob({
@@ -108,7 +143,7 @@ describe('extractionProgressPercent', () => {
           processedSourceCount: 2,
         })
       )
-    ).toBe(46);
+    ).toBe(12);
   });
 
   it('returns completion for succeeded_with_warnings jobs', () => {
@@ -133,7 +168,7 @@ describe('extractionProgressPercent', () => {
     ).toBe(100);
   });
 
-  it('tracks client upload byte progress within the uploading step', () => {
+  it('tracks client upload byte progress within the uploading band', () => {
     expect(
       extractionProgressPercent(
         undefined,
@@ -144,11 +179,82 @@ describe('extractionProgressPercent', () => {
           filesTotal: 10,
         })
       )
-    ).toBe(8);
+    ).toBe(4);
+  });
+});
+
+describe('formatExtractionMetrics', () => {
+  it('omits chunks when totalChunkCount is zero', () => {
+    expect(
+      formatExtractionMetrics(
+        makeJob({
+          status: 'running',
+          stage: 'analyzing_sources',
+          sourceCount: 70,
+          processedSourceCount: 0,
+          totalChunkCount: 0,
+          processedChunkCount: 128,
+        })
+      )
+    ).toEqual({
+      sources: { processed: 0, total: 70, succeeded: 0, failed: 0 },
+      chunks: null,
+      chunksPendingDiscovery: true,
+    });
+  });
+
+  it('shows chunks when totalChunkCount is positive', () => {
+    expect(
+      formatExtractionMetrics(
+        makeJob({
+          status: 'running',
+          stage: 'analyzing_sources',
+          sourceCount: 70,
+          processedSourceCount: 60,
+          totalChunkCount: 400,
+          processedChunkCount: 128,
+        })
+      ).chunks
+    ).toEqual({ processed: 128, total: 400 });
+  });
+});
+
+describe('extractionStepCaption', () => {
+  it('shows chunk caption during analyzing when totals are known', () => {
+    expect(
+      extractionStepCaption(
+        'analyzing_sources',
+        makeJob({
+          status: 'running',
+          stage: 'analyzing_sources',
+          sourceCount: 70,
+          totalChunkCount: 400,
+          processedChunkCount: 128,
+        })
+      )
+    ).toBe('128 of 400 chunks analyzed');
+  });
+});
+
+describe('extractionIsTerminal', () => {
+  it('treats cancelled as terminal', () => {
+    expect(extractionIsTerminal(makeJob({ status: 'cancelled', stage: 'cancelled' }))).toBe(true);
+    expect(extractionIsTerminal(makeJob({ status: 'running', stage: 'analyzing' }))).toBe(false);
+    expect(extractionIsTerminal(makeJob({ status: 'cancelling', stage: 'cancelling' }))).toBe(
+      false
+    );
   });
 });
 
 describe('extractionStatusLabel', () => {
+  it('labels cancelled jobs neutrally', () => {
+    expect(extractionStatusLabel(makeJob({ status: 'cancelled', stage: 'cancelled' }))).toBe(
+      'Extraction cancelled'
+    );
+  });
+});
+
+describe('extractionStatusLabel upload', () => {
   it('shows file count and percent during client upload', () => {
     expect(
       extractionStatusLabel(
@@ -208,5 +314,11 @@ describe('extractionEffectiveStage', () => {
         makeClientUpload({ phase: 'registering_sources', filesTotal: 0, bytesTotal: 0 })
       )
     ).toBe('queued');
+  });
+
+  it('normalizes reading_sources to parsing_sources', () => {
+    expect(extractionEffectiveStage(makeJob({ status: 'running', stage: 'reading_sources' }))).toBe(
+      'parsing_sources'
+    );
   });
 });
