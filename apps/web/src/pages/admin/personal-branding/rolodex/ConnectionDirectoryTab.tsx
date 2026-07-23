@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { useToast } from '@/hooks/use-toast';
 import type { CreatorConnection } from '@/types/api/personal-branding.dto';
@@ -9,6 +9,7 @@ import FollowUpQuickEditor from './FollowUpQuickEditor';
 import ProfileLinkBadge from './ProfileLinkBadge';
 import RelationshipPriorityBadge from './RelationshipPriorityBadge';
 import RelationshipStageBadge from './RelationshipStageBadge';
+import { formatLastReconAgeLabel, lastReconSortKey } from './rolodex-platform';
 import { PageCard } from '../PersonalBrandingPageTemplate';
 
 type RolodexHook = ReturnType<typeof useRolodex>;
@@ -22,6 +23,17 @@ function formatDate(value?: string | null): string {
   }
 }
 
+function LastReconAgeCell({ postedAt }: { postedAt?: string | null }) {
+  const { label, title } = formatLastReconAgeLabel(postedAt);
+  return (
+    <span className="text-sm text-gray-600 dark:text-gray-300" title={title}>
+      {label}
+    </span>
+  );
+}
+
+type LastReconSortDirection = 'asc' | 'desc';
+
 interface ConnectionDirectoryTabProps {
   rolodex: RolodexHook;
 }
@@ -29,6 +41,15 @@ interface ConnectionDirectoryTabProps {
 export default function ConnectionDirectoryTab({ rolodex }: ConnectionDirectoryTabProps) {
   const { showToast, ToastContainer } = useToast();
   const connections = rolodex.connections.data?.data ?? [];
+  const [lastReconSort, setLastReconSort] = useState<LastReconSortDirection>('asc');
+  const sortedConnections = useMemo(() => {
+    const list = [...connections];
+    return list.sort((a, b) => {
+      const keyA = lastReconSortKey(a);
+      const keyB = lastReconSortKey(b);
+      return lastReconSort === 'asc' ? keyA - keyB : keyB - keyA;
+    });
+  }, [connections, lastReconSort]);
   const metrics = rolodex.trackingMetrics.data?.data ?? [];
   const metricById = useMemo(() => new Map(metrics.map((m) => [m.id, m.name])), [metrics]);
 
@@ -85,20 +106,37 @@ export default function ConnectionDirectoryTab({ rolodex }: ConnectionDirectoryT
                 <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">
                   Last interacted
                 </th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLastReconSort((current) => (current === 'asc' ? 'desc' : 'asc'))
+                    }
+                    className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white"
+                    aria-label={`Sort by last recon, ${lastReconSort === 'asc' ? 'oldest first' : 'newest first'}`}
+                  >
+                    Last recon
+                    {lastReconSort === 'asc' ? (
+                      <ArrowUp className="size-3.5" aria-hidden />
+                    ) : (
+                      <ArrowDown className="size-3.5" aria-hidden />
+                    )}
+                  </button>
+                </th>
                 <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-300">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
-              {connections.length === 0 ? (
+              {sortedConnections.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                     No connections yet.
                   </td>
                 </tr>
               ) : (
-                connections.map((connection) => (
+                sortedConnections.map((connection) => (
                   <tr key={connection.id}>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
                       {connection.name}
@@ -142,6 +180,9 @@ export default function ConnectionDirectoryTab({ rolodex }: ConnectionDirectoryT
                       />
                     </td>
                     <td className="px-4 py-3">{formatDate(connection.lastInteractedAt)}</td>
+                    <td className="px-4 py-3">
+                      <LastReconAgeCell postedAt={connection.lastReconPostedAt} />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <button

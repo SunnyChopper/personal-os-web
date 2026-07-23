@@ -3,6 +3,8 @@ import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
 import { FormInput } from '@/components/atoms/FormInput';
 import { FormTextarea } from '../PersonalBrandingFormFields';
+import OrderedStringListEditor from '@/components/molecules/personal-branding/OrderedStringListEditor';
+import PresetMultiSelectChips from '@/components/molecules/personal-branding/PresetMultiSelectChips';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
 import { linkAccentClassName, selectableChipClassName } from '../personal-branding-ui';
 import type {
@@ -26,6 +28,7 @@ import {
   getPlatformOption,
   parseConnectionProfile,
   resolveRelationshipPriority,
+  suggestedCadenceDaysForPriority,
   type RolodexPlatformId,
 } from './rolodex-platform';
 
@@ -42,18 +45,8 @@ interface ConnectionEditorDialogProps {
   onUpdate: (id: string, body: UpdateCreatorConnectionInput) => Promise<void>;
 }
 
-function parseTags(raw: string): string[] {
-  return raw
-    .split(',')
-    .map((tag) => tag.trim())
-    .filter(Boolean);
-}
-
-function parseAngles(raw: string): string[] {
-  return raw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
+function normalizeConversationAngles(values: string[]): string[] {
+  return values.map((value) => value.trim()).filter(Boolean);
 }
 
 function toDateInputValue(iso?: string | null): string {
@@ -95,10 +88,11 @@ export default function ConnectionEditorDialog({
   const [desiredOutcome, setDesiredOutcome] = useState('');
   const [valueExchange, setValueExchange] = useState('');
   const [followUpCadenceDays, setFollowUpCadenceDays] = useState('');
+  const [cadenceManuallySet, setCadenceManuallySet] = useState(false);
   const [nextFollowUpAt, setNextFollowUpAt] = useState('');
   const [nextAction, setNextAction] = useState('');
-  const [conversationAnglesRaw, setConversationAnglesRaw] = useState('');
-  const [tagsRaw, setTagsRaw] = useState('');
+  const [conversationAngles, setConversationAngles] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
   const [personalContext, setPersonalContext] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -110,23 +104,28 @@ export default function ConnectionEditorDialog({
 
   useEffect(() => {
     if (!isOpen) return;
+
+    let hydratedPriority: RelationshipPriority | '' = '';
+    let hydratedCadence = '';
+
     if (initial) {
       const parsed = parseConnectionProfile(initial);
       setName(initial.name);
       setPlatformId(parsed.platformId);
       setHandleOrUrl(parsed.handleOrUrl);
       setRelationshipType(initial.relationshipType ?? '');
-      setRelationshipPriority(resolveRelationshipPriority(initial) ?? '');
+      hydratedPriority = resolveRelationshipPriority(initial) ?? '';
+      setRelationshipPriority(hydratedPriority);
       setRelationshipStage(initial.relationshipStage ?? '');
       setDesiredOutcome(initial.desiredOutcome ?? '');
       setValueExchange(initial.valueExchange ?? '');
-      setFollowUpCadenceDays(
-        initial.followUpCadenceDays != null ? String(initial.followUpCadenceDays) : ''
-      );
+      hydratedCadence =
+        initial.followUpCadenceDays != null ? String(initial.followUpCadenceDays) : '';
+      setFollowUpCadenceDays(hydratedCadence);
       setNextFollowUpAt(toDateInputValue(initial.nextFollowUpAt));
       setNextAction(initial.nextAction ?? '');
-      setConversationAnglesRaw((initial.conversationAngles ?? []).join('\n'));
-      setTagsRaw((initial.tags ?? []).join(', '));
+      setConversationAngles(initial.conversationAngles ?? []);
+      setTags(initial.tags ?? []);
       setPersonalContext(initial.personalContext ?? '');
       setNotes(initial.notes ?? '');
     } else if (prefill) {
@@ -135,17 +134,18 @@ export default function ConnectionEditorDialog({
       setPlatformId(xHandle ? 'x' : null);
       setHandleOrUrl(xHandle.replace(/^@/, ''));
       setRelationshipType(prefill.relationshipType ?? '');
-      setRelationshipPriority(prefill.relationshipPriority ?? '');
+      hydratedPriority = prefill.relationshipPriority ?? '';
+      setRelationshipPriority(hydratedPriority);
       setRelationshipStage(prefill.relationshipStage ?? '');
       setDesiredOutcome(prefill.desiredOutcome ?? '');
       setValueExchange(prefill.valueExchange ?? '');
-      setFollowUpCadenceDays(
-        prefill.followUpCadenceDays != null ? String(prefill.followUpCadenceDays) : ''
-      );
+      hydratedCadence =
+        prefill.followUpCadenceDays != null ? String(prefill.followUpCadenceDays) : '';
+      setFollowUpCadenceDays(hydratedCadence);
       setNextFollowUpAt(toDateInputValue(prefill.nextFollowUpAt));
       setNextAction(prefill.nextAction ?? '');
-      setConversationAnglesRaw((prefill.conversationAngles ?? []).join('\n'));
-      setTagsRaw((prefill.tags ?? []).join(', '));
+      setConversationAngles(prefill.conversationAngles ?? []);
+      setTags(prefill.tags ?? []);
       setPersonalContext(prefill.personalContext ?? '');
       setNotes(prefill.notes ?? '');
     } else {
@@ -160,26 +160,40 @@ export default function ConnectionEditorDialog({
       setFollowUpCadenceDays('');
       setNextFollowUpAt('');
       setNextAction('');
-      setConversationAnglesRaw('');
-      setTagsRaw('');
+      setConversationAngles([]);
+      setTags([]);
       setPersonalContext('');
       setNotes('');
     }
+
+    setCadenceManuallySet(false);
+    if (hydratedPriority && !hydratedCadence) {
+      setFollowUpCadenceDays(String(suggestedCadenceDaysForPriority(hydratedPriority)));
+    }
   }, [isOpen, initial, prefill]);
 
-  const toggleQuickTag = (tag: string) => {
-    const tags = parseTags(tagsRaw);
-    if (tags.includes(tag)) {
-      setTagsRaw(tags.filter((value) => value !== tag).join(', '));
-      return;
+  const handlePrioritySelect = (priority: RelationshipPriority) => {
+    const isSelected = relationshipPriority === priority;
+    const nextPriority = isSelected ? '' : priority;
+    setRelationshipPriority(nextPriority);
+    if (!cadenceManuallySet && nextPriority) {
+      setFollowUpCadenceDays(String(suggestedCadenceDaysForPriority(nextPriority)));
     }
-    setTagsRaw(tags.length > 0 ? `${tagsRaw}, ${tag}` : tag);
+  };
+
+  const handleCadencePresetSelect = (days: number) => {
+    setCadenceManuallySet(true);
+    setFollowUpCadenceDays(String(days));
+  };
+
+  const handleCadenceInputChange = (value: string) => {
+    setCadenceManuallySet(true);
+    setFollowUpCadenceDays(value);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const tags = parseTags(tagsRaw);
-    const conversationAngles = parseAngles(conversationAnglesRaw);
+    const normalizedConversationAngles = normalizeConversationAngles(conversationAngles);
     const targetProfileUrl =
       platformId && handleOrUrl.trim() ? buildProfileUrl(platformId, handleOrUrl) : null;
     const handles = platformId && handleOrUrl.trim() ? buildHandles(platformId, handleOrUrl) : {};
@@ -205,7 +219,7 @@ export default function ConnectionEditorDialog({
       followUpCadenceDays: followUpCadence,
       nextFollowUpAt: nextFollowUpIso,
       nextAction: nextAction.trim() || null,
-      conversationAngles,
+      conversationAngles: normalizedConversationAngles,
       personalContext: personalContext.trim() || null,
       tags,
       notes: notes.trim() || null,
@@ -357,7 +371,7 @@ export default function ConnectionEditorDialog({
                     <button
                       key={option.value}
                       type="button"
-                      onClick={() => setRelationshipPriority(isSelected ? '' : option.value)}
+                      onClick={() => handlePrioritySelect(option.value)}
                       className={cn(selectableChipClassName(isSelected), 'px-3 py-2.5 text-left')}
                       aria-pressed={isSelected}
                     >
@@ -439,7 +453,7 @@ export default function ConnectionEditorDialog({
                   <button
                     key={preset.days}
                     type="button"
-                    onClick={() => setFollowUpCadenceDays(String(preset.days))}
+                    onClick={() => handleCadencePresetSelect(preset.days)}
                     className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   >
                     {preset.label}
@@ -451,7 +465,7 @@ export default function ConnectionEditorDialog({
                 min={1}
                 max={365}
                 value={followUpCadenceDays}
-                onChange={(e) => setFollowUpCadenceDays(e.target.value)}
+                onChange={(e) => handleCadenceInputChange(e.target.value)}
                 placeholder="e.g. 14"
               />
             </div>
@@ -482,47 +496,22 @@ export default function ConnectionEditorDialog({
 
           <div className="space-y-4">
             {sectionTitle('Context', 'Hooks and notes that make outreach natural')}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                Conversation angles
-              </label>
-              <FormTextarea
-                value={conversationAnglesRaw}
-                onChange={(e) => setConversationAnglesRaw(e.target.value)}
-                placeholder="One topic or hook per line…"
-                rows={3}
-              />
-            </div>
+            <OrderedStringListEditor
+              label="Conversation angles"
+              values={conversationAngles}
+              onChange={setConversationAngles}
+              placeholder="One topic or hook…"
+              disabled={isSubmitting}
+            />
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
-                Tags
-              </label>
-              <FormInput
-                value={tagsRaw}
-                onChange={(e) => setTagsRaw(e.target.value)}
-                placeholder="AI, SaaS, creator economy…"
-              />
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {ROLODEX_QUICK_TAGS.map((tag) => {
-                  const isActive = parseTags(tagsRaw).includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => toggleQuickTag(tag)}
-                      className={cn(
-                        selectableChipClassName(isActive),
-                        'rounded-full px-2.5 py-1 text-xs'
-                      )}
-                      aria-pressed={isActive}
-                    >
-                      {tag}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <PresetMultiSelectChips
+              label="Tags"
+              value={tags}
+              onChange={setTags}
+              presets={ROLODEX_QUICK_TAGS}
+              maxItems={30}
+              disabled={isSubmitting}
+            />
 
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">
