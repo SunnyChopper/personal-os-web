@@ -7,10 +7,13 @@ import { FormCheckbox } from '@/components/atoms/FormCheckbox';
 import { FormInput } from '@/components/atoms/FormInput';
 import { Select } from '@/components/atoms/Select';
 import { Textarea } from '@/components/atoms/Textarea';
+import { RadarItemPreviewCard } from '@/components/molecules/personal-branding/RadarItemPreviewCard';
+import { personalBrandingService } from '@/services/personal-branding.service';
 import {
   RADAR_AUTH_SCHEME_LABELS,
   RADAR_GITHUB_EVENT_TYPE_LABELS,
   RADAR_GITHUB_RELEASE_FILTER_LABELS,
+  RADAR_RESPONSE_FORMAT_LABELS,
   RADAR_SOURCE_TYPE_LABELS,
   RADAR_SYNC_CADENCE_LABELS,
 } from '@/types/api/personal-branding.dto';
@@ -19,7 +22,9 @@ import type {
   RadarAuthScheme,
   RadarGithubEventType,
   RadarGithubReleaseFilter,
+  RadarResponseFormat,
   RadarSource,
+  RadarSourcePreview,
   RadarSourceType,
   RadarSyncCadence,
   UpdateRadarSourceInput,
@@ -48,7 +53,7 @@ const SOURCE_TYPE_OPTIONS: {
   {
     value: 'API',
     icon: Globe,
-    description: 'Call a REST endpoint and ingest JSON responses.',
+    description: 'Call a REST endpoint and ingest structured responses.',
   },
   {
     value: 'GITHUB_REPO',
@@ -60,6 +65,78 @@ const SOURCE_TYPE_OPTIONS: {
 const GITHUB_EVENT_TYPES = Object.keys(RADAR_GITHUB_EVENT_TYPE_LABELS) as RadarGithubEventType[];
 
 const HTTP_METHODS = ['GET', 'POST'] as const;
+const RESPONSE_FORMATS = Object.keys(RADAR_RESPONSE_FORMAT_LABELS) as RadarResponseFormat[];
+
+type PreviewTab = 'cards' | 'xml';
+
+function FeedPreviewPanel({
+  preview,
+  error,
+  tab,
+  onTabChange,
+}: {
+  preview: RadarSourcePreview | null;
+  error: string | null;
+  tab: PreviewTab;
+  onTabChange: (tab: PreviewTab) => void;
+}) {
+  if (error) {
+    return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
+  }
+  if (!preview) return null;
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+      <div
+        className="flex gap-1 border-b border-gray-200 p-1 dark:border-gray-700"
+        role="tablist"
+        aria-label="Feed preview"
+      >
+        {(['cards', 'xml'] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            onClick={() => onTabChange(value)}
+            className={cn(
+              'rounded-md px-3 py-1.5 text-xs font-medium transition',
+              tab === value
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+            )}
+          >
+            {value === 'cards' ? 'Cards' : 'XML'}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" className="max-h-[min(240px,40vh)] overflow-y-auto p-3">
+        {tab === 'cards' ? (
+          <div className="space-y-2">
+            {preview.items.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No entries found in feed.</p>
+            ) : (
+              preview.items.map((item, index) => (
+                <RadarItemPreviewCard key={`${item.title}-${index}`} item={item} />
+              ))
+            )}
+          </div>
+        ) : (
+          <>
+            {preview.rawXmlTruncated ? (
+              <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                Feed XML truncated for preview.
+              </p>
+            ) : null}
+            <pre className="whitespace-pre-wrap break-all font-mono text-xs text-gray-800 dark:text-gray-200">
+              {preview.rawXml}
+            </pre>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export interface SourceEditorDialogProps {
   isOpen: boolean;
@@ -206,6 +283,7 @@ export default function SourceEditorDialog({
   const [sourceType, setSourceType] = useState<RadarSourceType>('RSS');
   const [endpoint, setEndpoint] = useState('');
   const [httpMethod, setHttpMethod] = useState<(typeof HTTP_METHODS)[number]>('GET');
+  const [responseFormat, setResponseFormat] = useState<RadarResponseFormat>('JSON');
   const [authScheme, setAuthScheme] = useState<RadarAuthScheme>('BEARER');
   const [authHeaderName, setAuthHeaderName] = useState('');
   const [authQueryParamName, setAuthQueryParamName] = useState('');
@@ -220,15 +298,26 @@ export default function SourceEditorDialog({
   const [githubReleaseFilter, setGithubReleaseFilter] = useState<RadarGithubReleaseFilter>('ALL');
   const [githubAiFilterEnabled, setGithubAiFilterEnabled] = useState(true);
   const [githubAiFilterInstructions, setGithubAiFilterInstructions] = useState('');
+  const [previewResult, setPreviewResult] = useState<RadarSourcePreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewTab, setPreviewTab] = useState<PreviewTab>('cards');
+  const [previewAttempted, setPreviewAttempted] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
     setStep('identify');
+    setPreviewResult(null);
+    setPreviewError(null);
+    setPreviewLoading(false);
+    setPreviewTab('cards');
+    setPreviewAttempted(false);
     if (initial) {
       setName(initial.name);
       setSourceType(initial.sourceType);
       setEndpoint(initial.endpoint);
       setHttpMethod(initial.httpMethod?.toUpperCase() === 'POST' ? 'POST' : 'GET');
+      setResponseFormat(initial.responseFormat ?? 'JSON');
       setAuthScheme(initial.authScheme ?? 'BEARER');
       setAuthHeaderName(initial.authHeaderName ?? '');
       setAuthQueryParamName(initial.authQueryParamName ?? '');
@@ -248,6 +337,7 @@ export default function SourceEditorDialog({
       setSourceType('RSS');
       setEndpoint('');
       setHttpMethod('GET');
+      setResponseFormat('JSON');
       setAuthScheme('BEARER');
       setAuthHeaderName('');
       setAuthQueryParamName('');
@@ -264,6 +354,34 @@ export default function SourceEditorDialog({
       setGithubAiFilterInstructions('');
     }
   }, [isOpen, initial]);
+
+  useEffect(() => {
+    setPreviewResult(null);
+    setPreviewError(null);
+    setPreviewAttempted(false);
+  }, [endpoint]);
+
+  const handlePreviewFeed = async () => {
+    const trimmed = endpoint.trim();
+    if (!trimmed) return;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewResult(null);
+    setPreviewAttempted(true);
+    try {
+      const result = await personalBrandingService.previewRadarSource({
+        endpoint: trimmed,
+        sourceId: initial?.hasSecret ? initial.id : undefined,
+        secretToken: secretToken.trim() || undefined,
+      });
+      setPreviewResult(result);
+      setPreviewTab('cards');
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : 'Preview failed');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const handleSourceTypeChange = (nextType: RadarSourceType) => {
     setSourceType(nextType);
@@ -319,6 +437,7 @@ export default function SourceEditorDialog({
       sourceType,
       endpoint: endpoint.trim(),
       httpMethod: sourceType === 'API' ? httpMethod : 'GET',
+      responseFormat: sourceType === 'API' ? responseFormat : undefined,
       authScheme: sourceType === 'API' ? authScheme : 'NONE',
       authHeaderName: authHeaderName.trim() || null,
       authQueryParamName: authQueryParamName.trim() || null,
@@ -527,28 +646,65 @@ export default function SourceEditorDialog({
                 </>
               ) : (
                 <>
-                  <FormField
-                    label={sourceType === 'RSS' ? 'Feed URL' : 'Endpoint URL'}
-                    htmlFor="radar-source-endpoint"
-                    required
-                    hint={
-                      sourceType === 'RSS'
-                        ? 'Public RSS or Atom feed URL.'
-                        : 'Full URL including path for the API endpoint.'
-                    }
-                  >
-                    <FormInput
-                      id="radar-source-endpoint"
-                      value={endpoint}
-                      onChange={(e) => setEndpoint(e.target.value)}
-                      placeholder={
-                        sourceType === 'RSS'
-                          ? 'https://example.com/feed.xml'
-                          : 'https://api.example.com/v1/trends'
-                      }
+                  {sourceType === 'RSS' ? (
+                    <>
+                      <FormField
+                        label="Feed URL"
+                        htmlFor="radar-source-endpoint"
+                        required
+                        hint="Public RSS or Atom feed URL."
+                      >
+                        <div className="flex items-start gap-2">
+                          <FormInput
+                            id="radar-source-endpoint"
+                            value={endpoint}
+                            onChange={(e) => setEndpoint(e.target.value)}
+                            placeholder="https://example.com/feed.xml"
+                            required
+                            className="min-w-0 flex-1 w-full"
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="shrink-0"
+                            disabled={!endpoint.trim() || previewLoading}
+                            onClick={() => void handlePreviewFeed()}
+                          >
+                            {previewLoading ? (
+                              <Loader2 className="size-4 animate-spin" aria-hidden />
+                            ) : (
+                              'Preview'
+                            )}
+                          </Button>
+                        </div>
+                      </FormField>
+                      {previewAttempted ? (
+                        <FeedPreviewPanel
+                          preview={previewResult}
+                          error={previewError}
+                          tab={previewTab}
+                          onTabChange={setPreviewTab}
+                        />
+                      ) : null}
+                    </>
+                  ) : (
+                    <FormField
+                      label="Endpoint URL"
+                      htmlFor="radar-source-endpoint"
                       required
-                    />
-                  </FormField>
+                      hint="Full URL including path for the API endpoint."
+                    >
+                      <FormInput
+                        id="radar-source-endpoint"
+                        value={endpoint}
+                        onChange={(e) => setEndpoint(e.target.value)}
+                        placeholder="https://api.example.com/v1/trends"
+                        required
+                        className="w-full"
+                      />
+                    </FormField>
+                  )}
 
                   {sourceType === 'API' ? (
                     <FormField
@@ -570,6 +726,32 @@ export default function SourceEditorDialog({
                             aria-pressed={httpMethod === method}
                           >
                             {method}
+                          </button>
+                        ))}
+                      </div>
+                    </FormField>
+                  ) : null}
+
+                  {sourceType === 'API' ? (
+                    <FormField
+                      label="Response format"
+                      hint="Choose JSON for typical REST APIs or XML when the endpoint returns XML payloads."
+                    >
+                      <div className="inline-flex rounded-lg border border-gray-300 p-0.5 dark:border-gray-600">
+                        {RESPONSE_FORMATS.map((format) => (
+                          <button
+                            key={format}
+                            type="button"
+                            onClick={() => setResponseFormat(format)}
+                            className={cn(
+                              'rounded-md px-4 py-1.5 text-sm font-medium transition',
+                              responseFormat === format
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                            )}
+                            aria-pressed={responseFormat === format}
+                          >
+                            {RADAR_RESPONSE_FORMAT_LABELS[format]}
                           </button>
                         ))}
                       </div>

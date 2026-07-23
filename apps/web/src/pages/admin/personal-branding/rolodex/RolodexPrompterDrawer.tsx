@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sparkles, X } from 'lucide-react';
 import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
+import OverlayPortal from '@/components/molecules/OverlayPortal';
 import ReplyGenerationPanel from '@/components/molecules/personal-branding/ReplyGenerationPanel';
 import ReplySuggestionsList from '@/components/molecules/personal-branding/ReplySuggestionsList';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
+import { cn } from '@/lib/utils';
 import { FormTextarea } from '../PersonalBrandingFormFields';
 import {
   BRAND_PLATFORM_LABELS,
@@ -27,11 +30,14 @@ const PLATFORMS: BrandPlatform[] = [
 interface RolodexPrompterDrawerProps {
   open: boolean;
   connection: CreatorConnection | null;
-  profileId?: string | null;
+  profiles: { id: string; name: string }[];
+  defaultProfileId?: string | null;
   activeRun?: ReplyRun | null;
   isGenerating?: boolean;
   isUpdatingSuggestion?: boolean;
   initialCreatorText?: string;
+  initialInteractionIntent?: string;
+  initialAuthorHandle?: string | null;
   onClose: () => void;
   onGenerate: (
     payload: {
@@ -49,11 +55,14 @@ interface RolodexPrompterDrawerProps {
 export default function RolodexPrompterDrawer({
   open,
   connection,
-  profileId,
+  profiles,
+  defaultProfileId,
   activeRun,
   isGenerating = false,
   isUpdatingSuggestion = false,
   initialCreatorText = '',
+  initialInteractionIntent = '',
+  initialAuthorHandle,
   onClose,
   onGenerate,
   onAcceptSuggestion,
@@ -67,8 +76,8 @@ export default function RolodexPrompterDrawer({
     if (!open) return;
     setCreatorText(initialCreatorText);
     setPlatform('x');
-    setInteractionIntent('');
-  }, [open, initialCreatorText]);
+    setInteractionIntent(initialInteractionIntent);
+  }, [open, initialCreatorText, initialInteractionIntent]);
 
   useEffect(() => {
     if (!open) return;
@@ -99,13 +108,16 @@ export default function RolodexPrompterDrawer({
   return (
     <AnimatePresence>
       {open ? (
-        <>
+        <OverlayPortal>
           <motion.button
             type="button"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 cursor-default bg-black/50 backdrop-blur-[2px]"
+            className={cn(
+              'fixed inset-0 cursor-default bg-black/50 backdrop-blur-[2px]',
+              overlayBackdropClassName
+            )}
             aria-label="Close response prompter"
             onClick={onClose}
           />
@@ -117,7 +129,10 @@ export default function RolodexPrompterDrawer({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
+            className={cn(
+              'fixed inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800',
+              overlaySurfaceClassName
+            )}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
               <div className="flex items-center gap-2">
@@ -128,7 +143,10 @@ export default function RolodexPrompterDrawer({
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Response prompter
                   </h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{connection.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {connection.name}
+                    {initialAuthorHandle ? ` · @${initialAuthorHandle}` : ''}
+                  </p>
                 </div>
               </div>
               <button
@@ -183,6 +201,8 @@ export default function RolodexPrompterDrawer({
               </div>
 
               <ReplyGenerationPanel
+                profiles={profiles}
+                defaultProfileId={defaultProfileId}
                 disabled={!creatorText.trim() || showRunProgress}
                 isGenerating={showRunProgress}
                 onGenerate={(draft, resolved) =>
@@ -197,12 +217,6 @@ export default function RolodexPrompterDrawer({
                   )
                 }
               />
-
-              {profileId ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Using Brand Identity profile rules server-side.
-                </p>
-              ) : null}
 
               {showRunProgress && !suggestions.length ? (
                 <div className="flex justify-center py-8">
@@ -222,7 +236,7 @@ export default function RolodexPrompterDrawer({
               />
             </div>
           </motion.aside>
-        </>
+        </OverlayPortal>
       ) : null}
     </AnimatePresence>
   );

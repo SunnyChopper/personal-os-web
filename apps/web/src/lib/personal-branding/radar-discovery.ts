@@ -126,3 +126,36 @@ export function filterDiscoveryCandidates(
   }
   return candidates;
 }
+
+export const MAX_DISCOVERY_CANDIDATE_SELECTION = 20;
+
+export function formatRadarDiscoveryBadgeLabel(value: string): string {
+  return value
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+export function canSaveDiscoveryCandidate(candidate: RadarDiscoveryCandidate): boolean {
+  const verifiedEndpoint = candidate.resolvedEndpoint ?? candidate.endpoint;
+  const isMarkedNotASource = candidate.userNotASource === true;
+  return (
+    !isMarkedNotASource &&
+    candidate.verdict === 'relevant' &&
+    !candidate.savedSourceId &&
+    candidate.duplicateStatus === 'new' &&
+    Boolean(verifiedEndpoint) &&
+    !candidate.error
+  );
+}
+
+export function canAddDiscoveryCandidateAsItem(candidate: RadarDiscoveryCandidate): boolean {
+  const isMarkedNotASource = candidate.userNotASource === true;
+  return (
+    !isMarkedNotASource &&
+    candidate.verdict === 'not_relevant' &&
+    !candidate.savedItemId &&
+    Boolean(candidate.url) &&
+    !candidate.error
+  );
+}

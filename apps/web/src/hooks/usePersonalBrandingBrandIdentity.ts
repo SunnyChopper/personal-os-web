@@ -18,6 +18,7 @@ const TERMINAL_EXTRACTION: ExtractionJobStatus[] = [
   'succeeded',
   'succeeded_with_warnings',
   'failed',
+  'cancelled',
 ];
 
 /**
@@ -210,6 +211,18 @@ export function usePersonalBrandingBrandIdentity(options?: {
     },
   });
 
+  const cancelExtraction = useMutation({
+    mutationFn: (jobId: string) => personalBrandingService.cancelProfileExtraction(jobId),
+    onSuccess: (job) => {
+      void invalidateProfiles();
+      if (job.profileId) {
+        void invalidateProfileDetail(job.profileId);
+        void invalidateProfileVersions(job.profileId);
+      }
+      qc.setQueryData(queryKeys.personalBranding.extractions.detail(job.jobId), job);
+    },
+  });
+
   const activateVersion = useMutation({
     mutationFn: ({ profileId, versionId }: { profileId: string; versionId: string }) =>
       personalBrandingService.activateProfileVersion(profileId, versionId),
@@ -262,6 +275,25 @@ export function usePersonalBrandingBrandIdentity(options?: {
   }, [pollExtractionJobId]);
 
   useEffect(() => {
+    const list = profiles.data?.data;
+    if (!list?.length || pollExtractionJobId) return;
+
+    const extractingProfile = list.find((p) => p.status === 'extracting' && p.extractionJobId);
+    if (!extractingProfile?.extractionJobId) return;
+
+    setPollExtractionJobId(extractingProfile.extractionJobId);
+
+    const selectedHasActiveJob =
+      selectedProfileId &&
+      list.some(
+        (p) => p.id === selectedProfileId && p.status === 'extracting' && p.extractionJobId
+      );
+    if (!selectedProfileId || !selectedHasActiveJob) {
+      setSelectedProfileId(extractingProfile.id);
+    }
+  }, [profiles.data, pollExtractionJobId, selectedProfileId]);
+
+  useEffect(() => {
     const detail = profileDetail.data;
     if (detail?.extractionJobId && !pollExtractionJobId && detail.status === 'extracting') {
       setPollExtractionJobId(detail.extractionJobId);
@@ -306,6 +338,7 @@ export function usePersonalBrandingBrandIdentity(options?: {
     deleteProfile,
     startExtraction,
     rerunExtraction,
+    cancelExtraction,
     activateVersion,
     generateOutputTest,
     createPlatformRule,

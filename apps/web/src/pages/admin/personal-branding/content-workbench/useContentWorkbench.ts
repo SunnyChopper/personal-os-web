@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import { useContentIdeationJob } from '@/hooks/useContentIdeationJob';
+import { useContentImageInjectJob } from '@/hooks/useContentImageInjectJob';
+import { useKeywordOptimizationJob } from '@/hooks/useKeywordOptimizationJob';
+import { useIdeationEngineAIModelPicker } from '@/hooks/personal-branding/useIdeationEngineAIModelPicker';
+import { contentIdeationJobInProgress } from '@/lib/personal-branding/content-ideation-progress';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import type {
@@ -9,13 +14,20 @@ import type {
   BrandProfile,
   ContentIdea,
   ContentIdeaGenerationContextStats,
+  ContentIdeationJob,
+  ContentImageInjectJob,
+  ContentKeywordOptimizationJob,
   ContentNode,
   ContentStatus,
   ContentType,
 } from '@/types/api/personal-branding.dto';
-import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
 import type { ApproveIdeaGenerateRequest } from './ApproveIdeaGenerateModal';
 import type { NewDraftAiRequest, NewDraftTemplateResult } from './NewDraftWizardModal';
+import type { PublishContentMetadata } from './ContentStatusChangeModal';
+import {
+  collectActiveBrandPillars,
+  isBrandProfileReadyForIdeation,
+} from './content-workbench-helpers';
 import { layoutTemplateForContentType } from './content-workbench-templates';
 import { UNTITLED_DRAFT_LABEL } from './content-workbench-constants';
 
@@ -38,15 +50,32 @@ export function useContentWorkbench() {
   const [editorBody, setEditorBody] = useState('');
   const [contentType, setContentType] = useState<ContentType>('DEEP_DIVE_BLOG');
   const [draftPlatform, setDraftPlatform] = useState<BrandPlatform | null>(null);
+  const [draftCanonicalUrl, setDraftCanonicalUrl] = useState('');
+  const [draftPillars, setDraftPillars] = useState<string[]>([]);
   const [assetPrompts, setAssetPrompts] = useState<AssetPromptsResult | null>(null);
   const [rejectingIdea, setRejectingIdea] = useState<ContentIdea | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [targetPlatform, setTargetPlatform] = useState<BrandPlatform>('linkedin');
   const [seedIdeas, setSeedIdeas] = useState('');
+  const [enableImageSearch, setEnableImageSearch] = useState(false);
+  const [ideaCount, setIdeaCount] = useState(6);
+  const {
+    catalog: ideationModelCatalog,
+    isCatalogLoading: isIdeationModelCatalogLoading,
+    picker: ideationModelPicker,
+    setPicker: setIdeationModelPicker,
+    resolveApiModel: resolveIdeationApiModel,
+  } = useIdeationEngineAIModelPicker();
   const [selectedVaultItemIds, setSelectedVaultItemIds] = useState<string[]>([]);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [vaultGenerateError, setVaultGenerateError] = useState<string | null>(null);
+  const [ideationJobId, setIdeationJobId] = useState<string | null>(null);
+  const [imageInjectJobId, setImageInjectJobId] = useState<string | null>(null);
+  const [imageInjectError, setImageInjectError] = useState<string | null>(null);
+  const [keywordOptimizeJobId, setKeywordOptimizeJobId] = useState<string | null>(null);
+  const [keywordOptimizeError, setKeywordOptimizeError] = useState<string | null>(null);
+  const [vaultJobId, setVaultJobId] = useState<string | null>(null);
   const [lastGenerationStats, setLastGenerationStats] =
     useState<ContentIdeaGenerationContextStats | null>(null);
   const [lastVaultGenerationStats, setLastVaultGenerationStats] =
@@ -79,6 +108,10 @@ export function useContentWorkbench() {
   });
 
   const brandProfiles: BrandProfile[] = profilesQ.data?.data ?? [];
+  const brandPillarOptions = useMemo(
+    () => collectActiveBrandPillars(brandProfiles),
+    [brandProfiles]
+  );
 
   const contentNodes = useMemo(() => {
     const items = contentQ.data?.data?.data ?? [];
@@ -114,6 +147,8 @@ export function useContentWorkbench() {
     setEditorBody(node.body ?? '');
     setContentType(node.contentType ?? 'DEEP_DIVE_BLOG');
     setDraftPlatform(node.platform ?? null);
+    setDraftCanonicalUrl(node.canonicalUrl ?? '');
+    setDraftPillars(node.pillars ?? []);
     setAssetPrompts((node.assetPrompts as AssetPromptsResult | null) ?? null);
     setIsDirty(false);
   }, []);
@@ -173,6 +208,8 @@ export function useContentWorkbench() {
         body: editorBody,
         contentType,
         platform: draftPlatform,
+        canonicalUrl: draftCanonicalUrl.trim() || null,
+        pillars: draftPillars,
       };
       if (activeDraftId) {
         return personalBrandingService.updateContentNode(activeDraftId, body);
@@ -194,15 +231,23 @@ export function useContentWorkbench() {
   });
 
   const publishMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (metadata: PublishContentMetadata) => {
+      const publishBody = {
+        status: 'PUBLISHED' as const,
+        platform: metadata.platform,
+        canonicalUrl: metadata.canonicalUrl,
+      };
       if (!activeDraftId) {
         const saved = await saveDraftMutation.mutateAsync(undefined);
-        return personalBrandingService.updateContentNode(saved.id, { status: 'PUBLISHED' });
+        return personalBrandingService.updateContentNode(saved.id, publishBody);
       }
-      return personalBrandingService.updateContentNode(activeDraftId, { status: 'PUBLISHED' });
+      return personalBrandingService.updateContentNode(activeDraftId, publishBody);
     },
-    onSuccess: () => {
+    onSuccess: (_node, metadata) => {
       setActiveContentStatus('PUBLISHED');
+      setDraftPlatform(metadata.platform);
+      setDraftCanonicalUrl(metadata.canonicalUrl);
+      setIsDirty(false);
       void invalidateWorkbench();
     },
   });
@@ -220,21 +265,173 @@ export function useContentWorkbench() {
     },
   });
 
+  const handleImageInjectJobTerminal = useCallback(
+    (job: ContentImageInjectJob) => {
+      if (job.status === 'succeeded' && job.result) {
+        setEditorBody(job.result.body);
+        setIsDirty(false);
+        setImageInjectError(null);
+        setImageInjectJobId(null);
+        void invalidateWorkbench();
+        return;
+      }
+      if (job.status === 'failed') {
+        setImageInjectError(job.error ?? job.message ?? 'Failed to inject images');
+        setImageInjectJobId(null);
+      }
+    },
+    [invalidateWorkbench]
+  );
+
+  const imageInjectJobQuery = useContentImageInjectJob(
+    imageInjectJobId,
+    handleImageInjectJobTerminal,
+    () => {
+      setImageInjectError('Image injection is taking longer than expected. Try again in a moment.');
+      setImageInjectJobId(null);
+    }
+  );
+
+  const injectImagesMutation = useMutation({
+    mutationFn: (input: {
+      title: string;
+      body: string;
+      contentId?: string;
+      contentType?: ContentType;
+    }) =>
+      personalBrandingService.injectContentImages({
+        title: input.title,
+        body: input.body,
+        contentId: input.contentId ?? null,
+        contentType: input.contentType ?? null,
+      }),
+    onMutate: () => setImageInjectError(null),
+    onSuccess: (start) => {
+      setImageInjectJobId(start.jobId);
+    },
+    onError: (err: Error) => setImageInjectError(err.message),
+  });
+
+  const handleKeywordOptimizeJobTerminal = useCallback(
+    (job: ContentKeywordOptimizationJob) => {
+      if (job.status === 'succeeded' && job.result?.applied) {
+        if (job.result.title) setEditorTitle(job.result.title);
+        if (job.result.body) setEditorBody(job.result.body);
+        setIsDirty(false);
+        setKeywordOptimizeError(job.result.warning ?? job.warning ?? null);
+        setKeywordOptimizeJobId(null);
+        void invalidateWorkbench();
+        return;
+      }
+      if (job.status === 'succeeded') {
+        setKeywordOptimizeError(
+          job.result?.warning ?? job.warning ?? 'Keywords were not applied to this draft.'
+        );
+        setKeywordOptimizeJobId(null);
+        return;
+      }
+      if (job.status === 'failed') {
+        setKeywordOptimizeError(job.error ?? job.message ?? 'Keyword optimization failed');
+        setKeywordOptimizeJobId(null);
+      }
+    },
+    [invalidateWorkbench]
+  );
+
+  const keywordOptimizeJobQuery = useKeywordOptimizationJob(
+    activeDraftId,
+    keywordOptimizeJobId,
+    handleKeywordOptimizeJobTerminal,
+    () => {
+      setKeywordOptimizeError('Keyword optimization is taking longer than expected.');
+      setKeywordOptimizeJobId(null);
+    }
+  );
+
+  const optimizeKeywordsMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeDraftId) throw new Error('Save the draft before optimizing keywords');
+      if (isDirty) {
+        await personalBrandingService.updateContentNode(activeDraftId, {
+          title: editorTitle,
+          body: editorBody,
+        });
+        setIsDirty(false);
+      }
+      return personalBrandingService.startKeywordOptimizationJob(activeDraftId);
+    },
+    onMutate: () => setKeywordOptimizeError(null),
+    onSuccess: (start) => setKeywordOptimizeJobId(start.jobId),
+    onError: (err: Error) => setKeywordOptimizeError(err.message),
+  });
+
   const approveIdeaMutation = useMutation({
     mutationFn: (request: ApproveIdeaGenerateRequest) =>
       personalBrandingService.approveContentIdea(request.ideaId, {
         brandProfileId: request.brandProfileId,
         templateId: request.templateId,
         platform: request.platform,
+        pillars: request.pillars,
       }),
     onMutate: () => setApproveError(null),
-    onSuccess: ({ draft }) => {
+    onSuccess: ({ idea, draft }) => {
       setApprovingIdea(null);
       loadDraft(draft);
       setActiveTab('sandbox');
       void invalidateWorkbench();
+      if (idea.enableImageSearch) {
+        injectImagesMutation.mutate({
+          title: draft.title,
+          body: draft.body ?? '',
+          contentId: draft.id,
+          contentType: draft.contentType ?? undefined,
+        });
+      }
     },
     onError: (err: Error) => setApproveError(err.message),
+  });
+
+  const handleIdeationJobTerminal = useCallback(
+    (job: ContentIdeationJob) => {
+      if (job.status === 'succeeded' && job.result) {
+        setLastGenerationStats(job.result.contextStats);
+        void invalidateWorkbench();
+        setIdeationJobId(null);
+        return;
+      }
+      if (job.status === 'failed') {
+        setGenerateError(job.error ?? job.message ?? 'Failed to generate content ideas');
+        setIdeationJobId(null);
+      }
+    },
+    [invalidateWorkbench]
+  );
+
+  const handleVaultJobTerminal = useCallback(
+    (job: ContentIdeationJob) => {
+      if (job.status === 'succeeded' && job.result) {
+        setLastVaultGenerationStats(job.result.contextStats);
+        void invalidateWorkbench();
+        setVaultJobId(null);
+        return;
+      }
+      if (job.status === 'failed') {
+        setVaultGenerateError(job.error ?? job.message ?? 'Failed to generate vault content ideas');
+        setVaultJobId(null);
+      }
+    },
+    [invalidateWorkbench]
+  );
+
+  const ideationJobQuery = useContentIdeationJob(ideationJobId, handleIdeationJobTerminal, () => {
+    setGenerateError('Generation is taking longer than expected. Try again in a moment.');
+    setIdeationJobId(null);
+    void invalidateWorkbench();
+  });
+
+  const vaultJobQuery = useContentIdeationJob(vaultJobId, handleVaultJobTerminal, () => {
+    setVaultGenerateError('Generation is taking longer than expected. Try again in a moment.');
+    setVaultJobId(null);
   });
 
   const generateIdeasMutation = useMutation({
@@ -246,12 +443,17 @@ export function useContentWorkbench() {
         brandProfileId: selectedProfileId,
         targetPlatform,
         seedIdeas: seedIdeas.trim() || null,
+        count: ideaCount,
+        enableImageSearch,
+        ...(resolveIdeationApiModel() ? { model: resolveIdeationApiModel() } : {}),
       });
     },
-    onMutate: () => setGenerateError(null),
-    onSuccess: (result) => {
-      setLastGenerationStats(result.contextStats);
-      void invalidateWorkbench();
+    onMutate: () => {
+      setGenerateError(null);
+      setIdeationJobId(null);
+    },
+    onSuccess: (start) => {
+      setIdeationJobId(start.jobId);
     },
     onError: (err: Error) => setGenerateError(err.message),
   });
@@ -270,10 +472,12 @@ export function useContentWorkbench() {
         targetPlatform,
       });
     },
-    onMutate: () => setVaultGenerateError(null),
-    onSuccess: (result) => {
-      setLastVaultGenerationStats(result.contextStats);
-      void invalidateWorkbench();
+    onMutate: () => {
+      setVaultGenerateError(null);
+      setVaultJobId(null);
+    },
+    onSuccess: (start) => {
+      setVaultJobId(start.jobId);
     },
     onError: (err: Error) => setVaultGenerateError(err.message),
   });
@@ -321,6 +525,7 @@ export function useContentWorkbench() {
       setActiveContentStatus(null);
       setContentType(request.contentType);
       setDraftPlatform(request.platform);
+      setDraftPillars(request.pillars ?? []);
       setEditorTitle(result.title);
       setEditorBody(result.body);
       setAssetPrompts(null);
@@ -356,6 +561,7 @@ export function useContentWorkbench() {
     setActiveDraftId(null);
     setContentType(result.contentType);
     setDraftPlatform(result.platform ?? null);
+    setDraftPillars(result.pillars ?? []);
     setEditorTitle(result.title);
     setEditorBody(layoutTemplateForContentType(result.contentType));
     setAssetPrompts(null);
@@ -387,6 +593,8 @@ export function useContentWorkbench() {
     setEditorTitle('');
     setEditorBody('');
     setDraftPlatform(null);
+    setDraftCanonicalUrl('');
+    setDraftPillars([]);
     setAssetPrompts(null);
     setIsDirty(false);
     const next = new URLSearchParams(searchParams);
@@ -429,6 +637,17 @@ export function useContentWorkbench() {
       setDraftPlatform(value);
       setIsDirty(true);
     },
+    draftCanonicalUrl,
+    setDraftCanonicalUrl: (value: string) => {
+      setDraftCanonicalUrl(value);
+      setIsDirty(true);
+    },
+    draftPillars,
+    setDraftPillars: (value: string[]) => {
+      setDraftPillars(value);
+      setIsDirty(true);
+    },
+    brandPillarOptions,
     assetPrompts,
     isDirty,
     loadDraft,
@@ -449,6 +668,20 @@ export function useContentWorkbench() {
     approveIdeaMutation,
     rejectIdeaMutation,
     assetPromptsMutation,
+    injectImagesMutation,
+    imageInjectJob: imageInjectJobQuery.data,
+    imageInjectError,
+    isInjectingImages:
+      injectImagesMutation.isPending ||
+      imageInjectJobQuery.data?.status === 'queued' ||
+      imageInjectJobQuery.data?.status === 'running',
+    keywordOptimizeJob: keywordOptimizeJobQuery.data,
+    keywordOptimizeError,
+    isOptimizingKeywords:
+      optimizeKeywordsMutation.isPending ||
+      keywordOptimizeJobQuery.data?.status === 'queued' ||
+      keywordOptimizeJobQuery.data?.status === 'running',
+    onOptimizeKeywords: () => optimizeKeywordsMutation.mutate(),
     rejectingIdea,
     setRejectingIdea,
     approvingIdea,
@@ -463,13 +696,27 @@ export function useContentWorkbench() {
     setTargetPlatform,
     seedIdeas,
     setSeedIdeas,
+    enableImageSearch,
+    setEnableImageSearch,
+    ideaCount,
+    setIdeaCount,
+    ideationModelCatalog,
+    isIdeationModelCatalogLoading,
+    ideationModelPicker,
+    setIdeationModelPicker,
     selectedVaultItemIds,
     setSelectedVaultItemIds,
     generateError,
     generateIdeasMutation,
+    ideationJob: ideationJobQuery.data,
+    isGeneratingIdeas:
+      generateIdeasMutation.isPending || contentIdeationJobInProgress(ideationJobQuery.data),
     lastGenerationStats,
     vaultGenerateError,
     generateVaultIdeasMutation,
+    vaultJob: vaultJobQuery.data,
+    isGeneratingVaultIdeas:
+      generateVaultIdeasMutation.isPending || contentIdeationJobInProgress(vaultJobQuery.data),
     lastVaultGenerationStats,
     vaultItemLabels,
     setVaultItemLabels,

@@ -23,10 +23,13 @@ import type {
 import Button from '@/components/atoms/Button';
 import { EntityLinkChip } from '@/components/atoms/EntityLinkChip';
 import { DependencyBadge } from '@/components/atoms/DependencyBadge';
+import OverlayPortal from '@/components/molecules/OverlayPortal';
 import { RelationshipPicker } from '@/components/organisms/RelationshipPicker';
 import { AITaskAssistPanel } from '@/components/molecules/AITaskAssistPanel';
 import { TaskContextVibePills } from '@/components/molecules/TaskContextVibePills';
 import { llmConfig } from '@/lib/llm';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
+import { cn } from '@/lib/utils';
 import {
   AREAS,
   PRIORITIES,
@@ -267,9 +270,9 @@ export function TaskEditPanel({
   if (!isOpen) return null;
 
   return (
-    <>
+    <OverlayPortal>
       <div
-        className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+        className={cn('fixed inset-0 bg-black/50 transition-opacity', overlayBackdropClassName)}
         onClick={onClose}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
@@ -280,7 +283,12 @@ export function TaskEditPanel({
         tabIndex={0}
         aria-label="Close task edit panel"
       />
-      <div className="fixed inset-0 flex items-center justify-center p-4 z-50 pointer-events-none overflow-y-auto">
+      <div
+        className={cn(
+          'fixed inset-0 flex items-center justify-center p-4 pointer-events-none overflow-y-auto',
+          overlaySurfaceClassName
+        )}
+      >
         <div className="w-full max-w-3xl bg-white dark:bg-gray-800 shadow-2xl rounded-lg pointer-events-auto relative flex flex-col max-h-[90vh] overflow-hidden">
           {/* Loading Overlay */}
           {(isLoading || isSaving) && (
@@ -784,6 +792,6 @@ export function TaskEditPanel({
       />
 
       <ToastContainer />
-    </>
+    </OverlayPortal>
   );
 }

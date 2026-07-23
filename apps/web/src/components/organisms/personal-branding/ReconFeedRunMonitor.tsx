@@ -2,6 +2,7 @@ import { Ban, CirclePause, Loader2, Play } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/atoms/Card';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
+import EngagementRationale from '@/components/molecules/personal-branding/EngagementRationale';
 import type { ReconRunSummary } from '@/types/api/personal-branding.dto';
 
 interface ReconFeedRunMonitorProps {
@@ -172,8 +173,14 @@ export default function ReconFeedRunMonitor({
                       <span>{(entry.score * 100).toFixed(0)}%</span>
                     ) : null}
                   </div>
-                  {entry.rationale ? (
-                    <p className="mt-1 text-gray-700 dark:text-gray-300">{entry.rationale}</p>
+                  {entry.rationale || entry.rationaleBullets?.length ? (
+                    <EngagementRationale
+                      lead={entry.rationale}
+                      bullets={entry.rationaleBullets}
+                      className="mt-1"
+                      leadClassName="text-gray-700 dark:text-gray-300"
+                      bulletClassName="text-gray-600 dark:text-gray-400"
+                    />
                   ) : entry.message ? (
                     <p className="mt-1 text-gray-700 dark:text-gray-300">{entry.message}</p>
                   ) : null}

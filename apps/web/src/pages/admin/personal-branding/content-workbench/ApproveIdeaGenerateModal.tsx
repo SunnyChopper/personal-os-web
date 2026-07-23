@@ -8,15 +8,20 @@ import { Textarea } from '@/components/atoms/Textarea';
 import { formFieldClassName } from '@/components/atoms/FormInput';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
+import BrandPillarMultiSelect from '@/components/molecules/personal-branding/BrandPillarMultiSelect';
 import type { BrandPlatform, BrandProfile, ContentIdea } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
-import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
+import {
+  collectActiveBrandPillars,
+  isBrandProfileReadyForIdeation,
+} from './content-workbench-helpers';
 
 export interface ApproveIdeaGenerateRequest {
   ideaId: string;
   brandProfileId: string;
   templateId?: string;
   platform?: BrandPlatform;
+  pillars?: string[];
 }
 
 interface ApproveIdeaGenerateModalProps {
@@ -51,8 +56,10 @@ export default function ApproveIdeaGenerateModal({
   const [brandProfileId, setBrandProfileId] = useState('');
   const [templateId, setTemplateId] = useState('');
   const [platform, setPlatform] = useState<BrandPlatform>('linkedin');
+  const [pillars, setPillars] = useState<string[]>([]);
 
   const readyProfiles = useMemo(() => profiles.filter(isBrandProfileReadyForIdeation), [profiles]);
+  const brandPillarOptions = useMemo(() => collectActiveBrandPillars(profiles), [profiles]);
 
   const templatesQ = useQuery({
     queryKey: queryKeys.personalBranding.contentTemplates.list(1, 100),
@@ -71,6 +78,7 @@ export default function ApproveIdeaGenerateModal({
   useEffect(() => {
     if (!idea) return;
     setTemplateId('');
+    setPillars([]);
     setPlatform(idea.targetPlatform ?? 'linkedin');
     const fallback =
       (defaultBrandProfileId &&
@@ -159,6 +167,20 @@ export default function ApproveIdeaGenerateModal({
                 </Select>
               </label>
 
+              {brandPillarOptions.length > 0 ? (
+                <div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
+                    Brand pillars <span className="font-normal text-gray-500">(optional)</span>
+                  </div>
+                  <BrandPillarMultiSelect
+                    options={brandPillarOptions}
+                    value={pillars}
+                    onChange={setPillars}
+                    className="mt-1"
+                  />
+                </div>
+              ) : null}
+
               <label className="block text-sm text-gray-700 dark:text-gray-300">
                 Content template <span className="font-normal text-gray-500">(optional)</span>
                 <Select
@@ -202,6 +224,7 @@ export default function ApproveIdeaGenerateModal({
                   brandProfileId,
                   templateId: templateId || undefined,
                   platform,
+                  pillars: pillars.length > 0 ? pillars : undefined,
                 });
               }}
               className="inline-flex items-center gap-2"

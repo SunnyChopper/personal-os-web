@@ -1,10 +1,8 @@
 import Skeleton from '@/components/atoms/Skeleton';
 import { Card } from '@/components/atoms/Card';
 import { cn } from '@/lib/utils';
-import {
-  gridItemCardClassName,
-  PageCard,
-} from '@/pages/admin/personal-branding/PersonalBrandingPageTemplate';
+import { VariantCardSkeletonLayout } from '@/components/molecules/personal-branding/VariantCardSkeletonLayout';
+import { PageCard } from '@/pages/admin/personal-branding/PersonalBrandingPageTemplate';
 
 interface LayoutSkeletonProps {
   className?: string;
@@ -84,22 +82,8 @@ export function TwoColumnSkeleton({ className }: LayoutSkeletonProps) {
   );
 }
 
-function GridCardSkeleton() {
-  return (
-    <div className={cn(gridItemCardClassName, 'space-y-3')}>
-      <div className="flex items-start justify-between gap-2">
-        <Skeleton className="h-5 w-3/4" />
-        <Skeleton variant="rectangular" className="h-5 w-16 rounded-full" />
-      </div>
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-5/6" />
-      <Skeleton className="h-4 w-2/3" />
-      <div className="flex flex-wrap gap-2 pt-1">
-        <Skeleton variant="rectangular" className="h-5 w-14 rounded-full" />
-        <Skeleton variant="rectangular" className="h-5 w-20 rounded-full" />
-      </div>
-    </div>
-  );
+function GridCardSkeleton({ index = 0 }: { index?: number }) {
+  return <VariantCardSkeletonLayout index={index} aria-label="Loading variant card" />;
 }
 
 /** Mirrors Content Pipeline → Platform Repurposer (`PageCard` + empty-state body + variants section). */
@@ -114,21 +98,28 @@ export function PlatformRepurposerSkeleton({ className }: LayoutSkeletonProps) {
         <Skeleton className="h-6 w-44" />
         <Skeleton className="mt-2 h-4 w-full max-w-xl" />
 
-        <div className="mt-6 flex flex-col items-center py-12 text-center">
-          <Skeleton variant="circular" className="mb-4 h-16 w-16" />
-          <Skeleton className="h-5 w-36" />
+        <div className="mt-6 flex flex-col items-center py-14 text-center">
+          <div className="relative mb-6 flex items-center justify-center">
+            <div
+              className="absolute inset-0 -m-6 rounded-3xl bg-gradient-to-b from-blue-50/80 via-gray-50/40 to-transparent dark:from-blue-950/30 dark:via-gray-900/20 dark:to-transparent"
+              aria-hidden
+            />
+            <Skeleton variant="rectangular" className="relative h-[120px] w-[160px] rounded-2xl" />
+          </div>
+          <Skeleton className="h-6 w-40" />
           <Skeleton className="mt-2 h-4 w-full max-w-md" />
           <Skeleton className="mt-1 h-4 w-4/5 max-w-md" />
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Skeleton variant="rectangular" className="h-10 w-52" />
-            <Skeleton variant="rectangular" className="h-10 w-44" />
+            <Skeleton variant="rectangular" className="h-10 w-52 rounded-lg" />
+            <Skeleton variant="rectangular" className="h-10 w-44 rounded-lg" />
           </div>
         </div>
       </PageCard>
 
-      <section className="space-y-4" aria-hidden>
+      <section className="space-y-3" aria-hidden>
         <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-4 w-28" />
+        <GridCardSkeleton />
+        <GridCardSkeleton />
       </section>
     </div>
   );

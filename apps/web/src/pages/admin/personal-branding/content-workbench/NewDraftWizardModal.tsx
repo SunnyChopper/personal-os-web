@@ -9,9 +9,11 @@ import { Textarea } from '@/components/atoms/Textarea';
 import { formFieldClassName } from '@/components/atoms/FormInput';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
+import BrandPillarMultiSelect from '@/components/molecules/personal-branding/BrandPillarMultiSelect';
 import type { BrandPlatform, ContentType } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
 import { cn } from '@/lib/utils';
+import { collectActiveBrandPillars } from './content-workbench-helpers';
 
 type WizardStep = 'contentType' | 'approach' | 'templateDetail' | 'aiDetail';
 
@@ -19,6 +21,7 @@ export interface NewDraftTemplateResult {
   contentType: ContentType;
   title: string;
   platform?: BrandPlatform | null;
+  pillars?: string[];
 }
 
 export interface NewDraftAiRequest {
@@ -27,6 +30,7 @@ export interface NewDraftAiRequest {
   brandProfileId: string;
   topic: string;
   templateId?: string;
+  pillars?: string[];
 }
 
 interface NewDraftWizardModalProps {
@@ -54,6 +58,7 @@ export default function NewDraftWizardModal({
   const [brandProfileId, setBrandProfileId] = useState('');
   const [topic, setTopic] = useState('');
   const [templateId, setTemplateId] = useState('');
+  const [pillars, setPillars] = useState<string[]>([]);
 
   const profilesQ = useQuery({
     queryKey: queryKeys.personalBranding.profiles.list(1, 50),
@@ -68,6 +73,7 @@ export default function NewDraftWizardModal({
   });
 
   const profiles = profilesQ.data ?? [];
+  const brandPillarOptions = useMemo(() => collectActiveBrandPillars(profiles), [profiles]);
 
   const templatesQ = useQuery({
     queryKey: queryKeys.personalBranding.contentTemplates.list(1, 100),
@@ -86,6 +92,7 @@ export default function NewDraftWizardModal({
     setBrandProfileId('');
     setTopic('');
     setTemplateId('');
+    setPillars([]);
   }, [isOpen]);
 
   useEffect(() => {
@@ -214,6 +221,19 @@ export default function NewDraftWizardModal({
               ))}
             </Select>
           </label>
+          {brandPillarOptions.length > 0 ? (
+            <div>
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                Brand pillars <span className="font-normal text-gray-500">(optional)</span>
+              </div>
+              <BrandPillarMultiSelect
+                options={brandPillarOptions}
+                value={pillars}
+                onChange={setPillars}
+                className="mt-1"
+              />
+            </div>
+          ) : null}
           <div className="flex justify-between pt-2">
             <Button type="button" size="sm" variant="secondary" onClick={handleBack}>
               Back
@@ -226,6 +246,7 @@ export default function NewDraftWizardModal({
                   contentType,
                   title: title.trim(),
                   platform: platform || null,
+                  pillars,
                 });
                 onClose();
               }}
@@ -289,6 +310,19 @@ export default function NewDraftWizardModal({
                     ))}
                   </Select>
                 </label>
+                {brandPillarOptions.length > 0 ? (
+                  <div>
+                    <div className="text-sm text-gray-700 dark:text-gray-300">
+                      Brand pillars <span className="font-normal text-gray-500">(optional)</span>
+                    </div>
+                    <BrandPillarMultiSelect
+                      options={brandPillarOptions}
+                      value={pillars}
+                      onChange={setPillars}
+                      className="mt-1"
+                    />
+                  </div>
+                ) : null}
                 <label className="block text-sm text-gray-700 dark:text-gray-300">
                   Content template <span className="font-normal text-gray-500">(optional)</span>
                   <Select
@@ -327,6 +361,7 @@ export default function NewDraftWizardModal({
                     brandProfileId,
                     topic: trimmedTopic,
                     templateId: templateId || undefined,
+                    pillars,
                   });
                   return;
                 }
@@ -334,6 +369,7 @@ export default function NewDraftWizardModal({
                   contentType,
                   title: '',
                   platform: platform || null,
+                  pillars,
                 });
                 onClose();
               }}

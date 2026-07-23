@@ -8,8 +8,14 @@ import { Select } from '@/components/atoms/Select';
 import { formFieldClassName } from '@/components/atoms/FormInput';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
-import type { BrandPlatform, BrandProfile, RadarItem } from '@/types/api/personal-branding.dto';
+import type {
+  BrandPlatform,
+  BrandProfile,
+  ContentIdeationJob,
+  RadarItem,
+} from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS } from '@/types/api/personal-branding.dto';
+import ContentIdeationProgressPanel from '@/components/molecules/personal-branding/ContentIdeationProgressPanel';
 import { isBrandProfileReadyForIdeation } from '@/pages/admin/personal-branding/content-workbench/content-workbench-helpers';
 
 export interface TrendStreamBrainstormRequest {
@@ -26,7 +32,7 @@ interface TrendStreamBrainstormModalProps {
   profilesLoading: boolean;
   defaultBrandProfileId: string | null;
   isSubmitting: boolean;
-  progressMessage?: string | null;
+  ideationJob?: ContentIdeationJob | null;
   errorMessage: string | null;
   onClose: () => void;
   onSubmit: (request: TrendStreamBrainstormRequest) => void;
@@ -41,7 +47,7 @@ export default function TrendStreamBrainstormModal({
   profilesLoading,
   defaultBrandProfileId,
   isSubmitting,
-  progressMessage,
+  ideationJob,
   errorMessage,
   onClose,
   onSubmit,
@@ -203,9 +209,7 @@ export default function TrendStreamBrainstormModal({
             </p>
           ) : null}
 
-          {isSubmitting && progressMessage ? (
-            <p className="text-sm text-gray-600 dark:text-gray-400">{progressMessage}</p>
-          ) : null}
+          <ContentIdeationProgressPanel job={ideationJob} />
 
           <div className="flex justify-end gap-2 pt-2">
             <Button

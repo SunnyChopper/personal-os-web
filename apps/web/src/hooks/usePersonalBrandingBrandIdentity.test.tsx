@@ -5,17 +5,20 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { usePersonalBrandingBrandIdentity } from './usePersonalBrandingBrandIdentity';
 import type { ProfileExtractionJob } from '@/types/api/personal-branding.dto';
 
-const { getProfileExtraction, listProfiles, listPlatformRules } = vi.hoisted(() => ({
-  getProfileExtraction: vi.fn(),
-  listProfiles: vi.fn(),
-  listPlatformRules: vi.fn(),
-}));
+const { getProfileExtraction, listProfiles, listPlatformRules, cancelProfileExtraction } =
+  vi.hoisted(() => ({
+    getProfileExtraction: vi.fn(),
+    listProfiles: vi.fn(),
+    listPlatformRules: vi.fn(),
+    cancelProfileExtraction: vi.fn(),
+  }));
 
 vi.mock('@/services/personal-branding.service', () => ({
   personalBrandingService: {
     listProfiles,
     listPlatformRules,
     getProfileExtraction,
+    cancelProfileExtraction,
     getProfile: vi.fn(),
     listProfileVersions: vi.fn(),
     createProfile: vi.fn(),
@@ -118,5 +121,91 @@ describe('usePersonalBrandingBrandIdentity extraction polling', () => {
     });
 
     expect(result.current.pollExtractionJobId).toBeNull();
+  });
+
+  it('resumes extraction polling when profiles list includes an extracting profile after reload', async () => {
+    listProfiles.mockResolvedValue({
+      success: true,
+      data: {
+        data: [
+          {
+            id: 'profile-other',
+            name: 'Other',
+            status: 'active',
+            pillars: [],
+            toneMetrics: {},
+            bannedPhrases: [],
+            createdAt: '2026-07-01T00:00:00Z',
+            updatedAt: '2026-07-01T00:00:00Z',
+          },
+          {
+            id: 'profile-extracting',
+            name: 'Extracted profile',
+            status: 'extracting',
+            extractionJobId: 'job-resume',
+            pillars: [],
+            toneMetrics: {},
+            bannedPhrases: [],
+            createdAt: '2026-07-02T00:00:00Z',
+            updatedAt: '2026-07-02T00:00:00Z',
+          },
+        ],
+        total: 2,
+      },
+    });
+
+    getProfileExtraction.mockResolvedValue(
+      makeJob({
+        jobId: 'job-resume',
+        profileId: 'profile-extracting',
+        status: 'running',
+        stage: 'analyzing',
+        pollAfterMs: 50,
+      })
+    );
+
+    const { result } = renderHook(() => usePersonalBrandingBrandIdentity(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.pollExtractionJobId).toBe('job-resume');
+    });
+
+    expect(result.current.selectedProfileId).toBe('profile-extracting');
+    expect(getProfileExtraction).toHaveBeenCalledWith('job-resume');
+  });
+
+  it('cancelExtraction updates cached job data', async () => {
+    const cancellingJob = makeJob({ status: 'cancelling', stage: 'cancelling' });
+    const cancelledJob = makeJob({
+      status: 'cancelled',
+      stage: 'cancelled',
+      message: 'Extraction cancelled',
+    });
+
+    getProfileExtraction.mockResolvedValue(cancellingJob);
+    cancelProfileExtraction.mockImplementation(async () => {
+      getProfileExtraction.mockResolvedValue(cancelledJob);
+      return cancelledJob;
+    });
+
+    const { result } = renderHook(
+      () => usePersonalBrandingBrandIdentity({ pollExtractionJobId: 'job-1' }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.extractionJob.data?.status).toBe('cancelling');
+    });
+
+    await act(async () => {
+      await result.current.cancelExtraction.mutateAsync('job-1');
+    });
+
+    expect(cancelProfileExtraction).toHaveBeenCalledWith('job-1');
+    await waitFor(() => {
+      expect(result.current.extractionJob.data?.status).toBe('cancelled');
+    });
   });
 });

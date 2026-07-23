@@ -2,8 +2,11 @@ import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, X } from 'lucide-react';
 
+import OverlayPortal from '@/components/molecules/OverlayPortal';
 import { PlannerBacklogPanel } from '@/components/organisms/planner/PlannerBacklogPanel';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
 import { plannerHeadingClassName, plannerMutedClassName } from '@/lib/planner/planner-surfaces';
+import { cn } from '@/lib/utils';
 import type { Task } from '@/types/growth-system';
 
 export interface PlannerBacklogSheetProps {
@@ -33,14 +36,14 @@ export function PlannerBacklogSheet({
   return (
     <AnimatePresence>
       {open ? (
-        <>
+        <OverlayPortal>
           <motion.button
             type="button"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-30 cursor-default bg-black/40"
+            className={cn('fixed inset-0 cursor-default bg-black/40', overlayBackdropClassName)}
             aria-label="Close backlog"
             onClick={onClose}
           />
@@ -54,7 +57,10 @@ export function PlannerBacklogSheet({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 z-40 flex max-h-[min(50vh,420px)] flex-col rounded-t-2xl border border-gray-200 border-b-0 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-900"
+            className={cn(
+              'fixed inset-x-0 bottom-0 flex max-h-[min(50vh,420px)] flex-col rounded-t-2xl border border-gray-200 border-b-0 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-900',
+              overlaySurfaceClassName
+            )}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-white/10">
               <div className="flex items-center gap-2">
@@ -76,7 +82,7 @@ export function PlannerBacklogSheet({
               <PlannerBacklogPanel tasks={tasks} scheduledTaskIds={scheduledTaskIds} />
             </div>
           </motion.section>
-        </>
+        </OverlayPortal>
       ) : null}
     </AnimatePresence>
   );

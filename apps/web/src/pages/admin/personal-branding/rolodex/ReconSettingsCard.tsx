@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Loader2, Play, Radar } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { Select } from '@/components/atoms/Select';
@@ -6,6 +7,7 @@ import type { Toast } from '@/hooks/use-toast';
 import { useReconFeed } from '@/hooks/useReconFeed';
 import { describeSyncSchedule } from '@/lib/personal-branding/sync-schedule-status';
 import { cn } from '@/lib/utils';
+import { ROUTES } from '@/routes';
 import {
   SYNC_CADENCE_LABELS,
   SYNC_WEEKDAY_LABELS,
@@ -18,6 +20,7 @@ const DEFAULT_SYNC_START_TIME = '08:00';
 const DEFAULT_SYNC_END_TIME = '20:00';
 const DEFAULT_SYNC_INTERVAL_HOURS = 6;
 const DEFAULT_SYNC_DAY_OF_WEEK = 0;
+const DEFAULT_MAX_POST_AGE_DAYS = 7;
 
 interface ReconSettingsCardProps {
   showToast: (toast: Omit<Toast, 'id'>) => void;
@@ -34,11 +37,20 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
   const [syncDayOfWeek, setSyncDayOfWeek] = useState(DEFAULT_SYNC_DAY_OF_WEEK);
   const [minScore, setMinScore] = useState(0.5);
   const [maxPosts, setMaxPosts] = useState(5);
+  const [maxPostAgeDays, setMaxPostAgeDays] = useState(DEFAULT_MAX_POST_AGE_DAYS);
 
   const scheduleStatus = useMemo(
     () => describeSyncSchedule(settings, Date.now(), 'recon'),
     [settings]
   );
+
+  const hasLastRunError = Boolean(
+    settings?.lastRunStatus === 'failed' || settings?.lastErrorSummary
+  );
+  const errorRunLink =
+    settings?.lastRunId && hasLastRunError
+      ? `${ROUTES.admin.personalBrandingRolodex}?tab=recon-feed&runId=${encodeURIComponent(settings.lastRunId)}`
+      : null;
 
   useEffect(() => {
     if (!settings) return;
@@ -53,6 +65,7 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
     setSyncDayOfWeek(settings.syncDayOfWeek ?? DEFAULT_SYNC_DAY_OF_WEEK);
     setMinScore(settings.minRelevanceScore);
     setMaxPosts(settings.maxPostsPerConnection);
+    setMaxPostAgeDays(settings.maxPostAgeDays ?? DEFAULT_MAX_POST_AGE_DAYS);
   }, [settings]);
 
   const handleSaveSettings = async () => {
@@ -66,6 +79,7 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
         syncDayOfWeek: syncCadence === 'WEEKLY' ? syncDayOfWeek : null,
         minRelevanceScore: minScore,
         maxPostsPerConnection: maxPosts,
+        maxPostAgeDays,
       };
       await recon.updateSettings.mutateAsync(body);
       showToast({ type: 'success', title: 'Recon Feed settings saved' });
@@ -116,8 +130,8 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
         <div>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Ingest cadence</h3>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Schedule automatic X post pulls. Manual runs update last run only and do not move the
-            next due time.
+            Schedule automatic X post pulls. Scheduled attempts advance the next due time; manual
+            runs update last attempted only.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -201,8 +215,28 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
         {settings ? (
           <div className="space-y-1">
             <p className="text-xs text-gray-500">
-              Last run {scheduleStatus.lastRunLabel} · Next due {scheduleStatus.nextDueLabel}
+              Last successful run {scheduleStatus.lastSuccessfulRunLabel}
             </p>
+            <p className="text-xs text-gray-500">
+              Last attempted run {scheduleStatus.lastAttemptedRunLabel} · Next due{' '}
+              {scheduleStatus.nextDueLabel}
+            </p>
+            {hasLastRunError ? (
+              <div className="space-y-1">
+                <p role="status" className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                  Last run failed
+                  {settings.lastErrorSummary ? `: ${settings.lastErrorSummary}` : ''}
+                </p>
+                {errorRunLink ? (
+                  <Link
+                    to={errorRunLink}
+                    className="text-xs font-medium text-blue-600 underline underline-offset-2 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                  >
+                    View error details
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
             {scheduleStatus.isOverdue ? (
               <p role="status" className="text-xs font-medium text-amber-700 dark:text-amber-300">
                 Overdue by {scheduleStatus.overdueDurationLabel}
@@ -215,7 +249,7 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
         ) : null}
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
             Min relevance score
@@ -242,6 +276,22 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
             onChange={(e) => setMaxPosts(Number(e.target.value))}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Max post age (days)
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={90}
+            value={maxPostAgeDays}
+            onChange={(e) => setMaxPostAgeDays(Number(e.target.value))}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Posts older than this are removed from the feed and never ingested.
+          </p>
         </div>
       </div>
 

@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Search, X } from 'lucide-react';
+import { AlertCircle, RefreshCw, Search, X } from 'lucide-react';
 import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
 import Button from '@/components/atoms/Button';
-import ReplyGenerationPanel from '@/components/molecules/personal-branding/ReplyGenerationPanel';
-import ReplySuggestionsList from '@/components/molecules/personal-branding/ReplySuggestionsList';
+import OverlayPortal from '@/components/molecules/OverlayPortal';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
+import { cn } from '@/lib/utils';
 import type {
   ContentOpportunity,
   ContentOpportunitySearchResult,
@@ -13,23 +14,25 @@ import type {
   ReplyRun,
   ReplySuggestion,
 } from '@/types/api/personal-branding.dto';
-import SuggestedContentCard from './SuggestedContentCard';
+import ContentOpportunityCandidateCard from './ContentOpportunityCandidateCard';
+import { contentSearchOutcomeNeedsRetry } from './content-opportunity-search-recovery';
 
 interface ContentOpportunityDrawerProps {
   open: boolean;
   connection: CreatorConnection | null;
-  profileId?: string | null;
+  profiles: { id: string; name: string }[];
+  defaultProfileId?: string | null;
   isLoading?: boolean;
+  searchError?: string | null;
   result: ContentOpportunitySearchResult | null;
-  activeRun?: ReplyRun | null;
-  isGenerating?: boolean;
   isUpdatingSuggestion?: boolean;
   onClose: () => void;
+  onRetry: () => void;
   onGenerateReply: (
     opportunity: ContentOpportunity,
     draft: ReplyGenerationDraft,
     resolved: { provider: string; model: string }
-  ) => void;
+  ) => Promise<ReplyRun>;
   onAcceptSuggestion: (opportunity: ContentOpportunity, suggestion: ReplySuggestion) => void;
   onRejectSuggestion: (
     opportunity: ContentOpportunity,
@@ -39,8 +42,9 @@ interface ContentOpportunityDrawerProps {
   onLogCheckIn: (opportunity: ContentOpportunity) => void;
   onComplete: (opportunity: ContentOpportunity) => void;
   onRequestDismiss: (opportunity: ContentOpportunity) => void;
-  isCompleting?: boolean;
-  isDismissing?: boolean;
+  completingOpportunityId?: string | null;
+  dismissingOpportunityId?: string | null;
+  restoredReplyRun?: ReplyRun | null;
 }
 
 function outcomeTitle(outcome: ContentOpportunitySearchResult['outcome']): string {
@@ -53,12 +57,18 @@ function outcomeTitle(outcome: ContentOpportunitySearchResult['outcome']): strin
       return 'Nothing new to engage';
     case 'noWorthy':
       return 'No strong match right now';
+    case 'tooOld':
+      return 'Recent posts are too old to engage with';
     case 'missingApiKey':
       return 'RapidAPI key required';
     case 'missingHandle':
       return 'X handle required';
     case 'unsupportedPlatform':
       return 'Platform not supported';
+    case 'fetchFailed':
+      return 'Could not fetch recent posts';
+    case 'rankingFailed':
+      return 'Could not rank posts';
     default:
       return 'Search result';
   }
@@ -67,21 +77,23 @@ function outcomeTitle(outcome: ContentOpportunitySearchResult['outcome']): strin
 export default function ContentOpportunityDrawer({
   open,
   connection,
-  profileId: _profileId,
+  profiles,
+  defaultProfileId,
   isLoading = false,
+  searchError = null,
   result,
-  activeRun,
-  isGenerating = false,
   isUpdatingSuggestion = false,
   onClose,
+  onRetry,
   onGenerateReply,
   onAcceptSuggestion,
   onRejectSuggestion,
   onLogCheckIn,
   onComplete,
   onRequestDismiss,
-  isCompleting = false,
-  isDismissing = false,
+  completingOpportunityId = null,
+  dismissingOpportunityId = null,
+  restoredReplyRun = null,
 }: ContentOpportunityDrawerProps) {
   useEffect(() => {
     if (!open) return;
@@ -105,19 +117,17 @@ export default function ContentOpportunityDrawer({
 
   if (!connection) return null;
 
-  const opportunity = result?.opportunity ?? null;
-  const suggestions = activeRun?.suggestions ?? [];
-  const showRunProgress =
-    isGenerating || activeRun?.status === 'QUEUED' || activeRun?.status === 'RUNNING';
+  const opportunities = result?.opportunities ?? [];
+  const showRetry = Boolean(searchError) || contentSearchOutcomeNeedsRetry(result?.outcome ?? null);
 
   return (
     <AnimatePresence>
       {open ? (
-        <>
+        <OverlayPortal>
           <motion.button
             type="button"
             aria-label="Close content search drawer"
-            className="fixed inset-0 z-40 bg-black/40"
+            className={cn('fixed inset-0 bg-black/40', overlayBackdropClassName)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -126,7 +136,10 @@ export default function ContentOpportunityDrawer({
           <motion.aside
             role="dialog"
             aria-labelledby="content-opportunity-title"
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+            className={cn(
+              'fixed inset-y-0 right-0 flex w-full max-w-lg flex-col border-l border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900',
+              overlaySurfaceClassName
+            )}
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
@@ -164,6 +177,22 @@ export default function ContentOpportunityDrawer({
                     Searching recent X posts and ranking engagement opportunities…
                   </p>
                 </div>
+              ) : searchError ? (
+                <div className="flex flex-col items-center gap-4 py-16 text-center">
+                  <div className="flex size-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                    <AlertCircle className="size-6 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      Search could not complete
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">{searchError}</p>
+                  </div>
+                  <Button type="button" size="sm" variant="secondary" onClick={onRetry}>
+                    <RefreshCw className="mr-1.5 size-4" />
+                    Retry
+                  </Button>
+                </div>
               ) : result ? (
                 <div className="space-y-4">
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
@@ -176,51 +205,47 @@ export default function ContentOpportunityDrawer({
                         {result.reason}
                       </p>
                     ) : null}
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      Considered {result.candidatesConsidered} posts · excluded{' '}
-                      {result.candidatesExcluded} already engaged
-                    </p>
+                    {result.outcome === 'found' ? (
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Considered {result.candidatesConsidered} posts · excluded{' '}
+                        {result.candidatesExcluded} already engaged
+                      </p>
+                    ) : null}
+                    {showRetry ? (
+                      <div className="mt-4">
+                        <Button type="button" size="sm" variant="secondary" onClick={onRetry}>
+                          <RefreshCw className="mr-1.5 size-4" />
+                          Retry
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
 
-                  {opportunity ? (
-                    <>
-                      <SuggestedContentCard
-                        opportunity={opportunity}
-                        onDraftReply={() => undefined}
-                        onLogCheckIn={onLogCheckIn}
-                        onComplete={onComplete}
-                        onRequestDismiss={onRequestDismiss}
-                        isCompleting={isCompleting}
-                        isDismissing={isDismissing}
-                        hideDraftReply
-                      />
-
-                      <ReplyGenerationPanel
-                        suggestedParams={opportunity.suggestedReplyParams}
-                        disabled={showRunProgress}
-                        isGenerating={showRunProgress}
-                        onGenerate={(draft, resolved) =>
-                          onGenerateReply(opportunity, draft, resolved)
-                        }
-                      />
-
-                      {showRunProgress && !suggestions.length ? (
-                        <div className="flex justify-center py-6">
-                          <AIThinkingIndicator message="Drafting replies…" size="lg" />
-                        </div>
-                      ) : null}
-
-                      {activeRun?.status === 'FAILED' && activeRun.error ? (
-                        <p className="text-sm text-red-600 dark:text-red-400">{activeRun.error}</p>
-                      ) : null}
-
-                      <ReplySuggestionsList
-                        suggestions={suggestions}
-                        isUpdating={isUpdatingSuggestion}
-                        onAccept={(s) => onAcceptSuggestion(opportunity, s)}
-                        onReject={(s, feedback) => onRejectSuggestion(opportunity, s, feedback)}
-                      />
-                    </>
+                  {opportunities.length > 0 ? (
+                    <div className="space-y-6">
+                      {opportunities.map((opportunity) => (
+                        <ContentOpportunityCandidateCard
+                          key={opportunity.id}
+                          opportunity={opportunity}
+                          profiles={profiles}
+                          defaultProfileId={defaultProfileId}
+                          initialRunId={
+                            restoredReplyRun?.opportunityId === opportunity.id
+                              ? restoredReplyRun.id
+                              : null
+                          }
+                          isUpdatingSuggestion={isUpdatingSuggestion}
+                          isCompleting={completingOpportunityId === opportunity.id}
+                          isDismissing={dismissingOpportunityId === opportunity.id}
+                          onGenerateReply={onGenerateReply}
+                          onAcceptSuggestion={onAcceptSuggestion}
+                          onRejectSuggestion={onRejectSuggestion}
+                          onLogCheckIn={onLogCheckIn}
+                          onComplete={onComplete}
+                          onRequestDismiss={onRequestDismiss}
+                        />
+                      ))}
+                    </div>
                   ) : null}
                 </div>
               ) : (
@@ -230,7 +255,7 @@ export default function ContentOpportunityDrawer({
               )}
             </div>
           </motion.aside>
-        </>
+        </OverlayPortal>
       ) : null}
     </AnimatePresence>
   );

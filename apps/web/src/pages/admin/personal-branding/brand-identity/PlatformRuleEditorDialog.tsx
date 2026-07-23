@@ -1,12 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { FlaskConical } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
+import CollapsibleSection from '@/components/molecules/CollapsibleSection';
+import PlatformRuleSetPreviewPanel from '@/components/molecules/personal-branding/PlatformRuleSetPreviewPanel';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
 import { FormInput } from '@/components/atoms/FormInput';
 import { FormTextarea } from './BrandIdentityFormFields';
 import ProfileMultiSelect from './ProfileMultiSelect';
 import RhetoricalModeSelector from '@/components/molecules/personal-branding/RhetoricalModeSelector';
 import RhetoricalDeviceSelector from '@/components/molecules/personal-branding/RhetoricalDeviceSelector';
+import { formatRhetoricalSelectionSummary } from '@/lib/personal-branding/platform-rule-display';
+import { personalBrandingService } from '@/services/personal-branding.service';
 import {
   BRAND_PLATFORM_LABELS,
   type BrandPlatform,
@@ -14,6 +19,7 @@ import {
   type CreatePlatformRuleInput,
   type PlatformRuleCatalog,
   type PlatformRuleRecord,
+  type PlatformRuleSetPreviewResult,
   type RhetoricalDeviceId,
   type RhetoricalModeSetting,
   type UpdatePlatformRuleInput,
@@ -59,6 +65,32 @@ export default function PlatformRuleEditorDialog({
   const [rhetoricalDevices, setRhetoricalDevices] = useState<RhetoricalDeviceId[]>([]);
   const [profileIds, setProfileIds] = useState<string[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [previewResult, setPreviewResult] = useState<PlatformRuleSetPreviewResult | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [lastTestedFingerprint, setLastTestedFingerprint] = useState<string | null>(null);
+
+  const draftFingerprint = useMemo(
+    () =>
+      JSON.stringify({
+        platform,
+        characterLimit,
+        readTimeLimitMinutes,
+        requirements,
+        rhetoricalModes,
+        rhetoricalDevices,
+        profileIds,
+      }),
+    [
+      platform,
+      characterLimit,
+      readTimeLimitMinutes,
+      requirements,
+      rhetoricalModes,
+      rhetoricalDevices,
+      profileIds,
+    ]
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -84,7 +116,40 @@ export default function PlatformRuleEditorDialog({
       setProfileIds([]);
     }
     setValidationError(null);
+    setPreviewResult(null);
+    setPreviewError(null);
+    setLastTestedFingerprint(null);
   }, [isOpen, initial]);
+
+  const previewStale =
+    previewResult !== null &&
+    lastTestedFingerprint !== null &&
+    lastTestedFingerprint !== draftFingerprint;
+
+  const handleTestRuleSet = async () => {
+    setPreviewLoading(true);
+    setPreviewError(null);
+    try {
+      const limit = characterLimit.trim() ? Number(characterLimit) : null;
+      const readMinutes = readTimeLimitMinutes.trim() ? Number(readTimeLimitMinutes) : null;
+      const result = await personalBrandingService.previewPlatformRuleSet({
+        platform,
+        characterLimit: limit,
+        readTimeLimitMinutes: readMinutes,
+        requirements: requirements.trim() || null,
+        rhetoricalModes,
+        rhetoricalDevices,
+        brandProfileId: profileIds[0] ?? null,
+      });
+      setPreviewResult(result);
+      setLastTestedFingerprint(draftFingerprint);
+    } catch (error) {
+      setPreviewResult(null);
+      setPreviewError(error instanceof Error ? error.message : 'Failed to preview rule set');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,12 +179,28 @@ export default function PlatformRuleEditorDialog({
     onClose();
   };
 
+  const modesSummary = useMemo(
+    () =>
+      formatRhetoricalSelectionSummary(
+        rhetoricalModes.map((entry) => entry.mode),
+        catalog?.modes
+      ),
+    [rhetoricalModes, catalog?.modes]
+  );
+
+  const devicesSummary = useMemo(
+    () => formatRhetoricalSelectionSummary(rhetoricalDevices, catalog?.devices),
+    [rhetoricalDevices, catalog?.devices]
+  );
+
+  const previewBusy = previewLoading || isSubmitting;
+
   return (
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
       title={initial ? 'Edit platform rule' : 'New platform rule'}
-      size="lg"
+      size="xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <fieldset disabled={isSubmitting} className="space-y-4">
@@ -187,21 +268,31 @@ export default function PlatformRuleEditorDialog({
           </div>
 
           {catalog && (
-            <>
-              <RhetoricalModeSelector
-                catalog={catalog.modes}
-                strengths={catalog.strengths}
-                value={rhetoricalModes}
-                onChange={setRhetoricalModes}
-                disabled={isSubmitting}
-              />
-              <RhetoricalDeviceSelector
-                catalog={catalog.devices}
-                value={rhetoricalDevices}
-                onChange={setRhetoricalDevices}
-                disabled={isSubmitting}
-              />
-            </>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <CollapsibleSection title="Rhetorical modes" summary={modesSummary} defaultOpen>
+                <RhetoricalModeSelector
+                  catalog={catalog.modes}
+                  strengths={catalog.strengths}
+                  value={rhetoricalModes}
+                  onChange={setRhetoricalModes}
+                  disabled={isSubmitting}
+                  hideLegend
+                />
+              </CollapsibleSection>
+              <CollapsibleSection
+                title="Allowed rhetorical devices"
+                summary={devicesSummary}
+                defaultOpen
+              >
+                <RhetoricalDeviceSelector
+                  catalog={catalog.devices}
+                  value={rhetoricalDevices}
+                  onChange={setRhetoricalDevices}
+                  disabled={isSubmitting}
+                  hideLegend
+                />
+              </CollapsibleSection>
+            </div>
           )}
 
           <ProfileMultiSelect
@@ -210,7 +301,25 @@ export default function PlatformRuleEditorDialog({
             onChange={setProfileIds}
           />
 
+          <PlatformRuleSetPreviewPanel
+            preview={previewResult}
+            isLoading={previewLoading}
+            error={previewError}
+            isStale={previewStale}
+          />
+
           <DialogFooter>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={handleTestRuleSet}
+              disabled={previewBusy}
+              className="mr-auto inline-flex items-center gap-2"
+            >
+              <FlaskConical className="size-4" aria-hidden />
+              Test this rule set
+            </Button>
             <Button type="button" size="sm" variant="secondary" onClick={onClose}>
               Cancel
             </Button>

@@ -1,8 +1,15 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import PlatformRuleEditorDialog from '../PlatformRuleEditorDialog';
 import type { PlatformRuleCatalog } from '@/types/api/personal-branding.dto';
+import { personalBrandingService } from '@/services/personal-branding.service';
+
+vi.mock('@/services/personal-branding.service', () => ({
+  personalBrandingService: {
+    previewPlatformRuleSet: vi.fn(),
+  },
+}));
 
 const catalog: PlatformRuleCatalog = {
   modes: [
@@ -28,6 +35,10 @@ const catalog: PlatformRuleCatalog = {
 };
 
 describe('PlatformRuleEditorDialog', () => {
+  beforeEach(() => {
+    vi.mocked(personalBrandingService.previewPlatformRuleSet).mockReset();
+  });
+
   it('requires non-blank requirements before submit', async () => {
     const onCreate = vi.fn();
     render(
@@ -60,7 +71,46 @@ describe('PlatformRuleEditorDialog', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: /narrative/i }));
     expect(screen.getByText('Tell a story.')).toBeInTheDocument();
+    expect(screen.getByText('When enabled: Use storytelling.')).toBeInTheDocument();
     expect(screen.getByLabelText(/narrative strength/i)).toBeInTheDocument();
+  });
+
+  it('collapses rhetorical modes and shows selection summary', () => {
+    render(
+      <PlatformRuleEditorDialog
+        isOpen
+        onClose={() => undefined}
+        profiles={[]}
+        catalog={catalog}
+        onCreate={vi.fn()}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /narrative/i }));
+    fireEvent.click(screen.getByRole('button', { name: /rhetorical modes/i }));
+
+    expect(screen.queryByRole('checkbox', { name: /narrative/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Narrative')).toBeInTheDocument();
+  });
+
+  it('re-expands rhetorical modes after collapse', () => {
+    render(
+      <PlatformRuleEditorDialog
+        isOpen
+        onClose={() => undefined}
+        profiles={[]}
+        catalog={catalog}
+        onCreate={vi.fn()}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    const modesToggle = screen.getByRole('button', { name: /rhetorical modes/i });
+    fireEvent.click(modesToggle);
+    fireEvent.click(modesToggle);
+
+    expect(screen.getByRole('checkbox', { name: /narrative/i })).toBeInTheDocument();
   });
 
   it('hydrates edit state and submits update with requirements', async () => {
@@ -79,6 +129,7 @@ describe('PlatformRuleEditorDialog', () => {
             updatedAt: '',
             status: 'active',
             pillars: [],
+            platforms: [],
             toneMetrics: {},
             bannedPhrases: [],
           },
@@ -139,5 +190,67 @@ describe('PlatformRuleEditorDialog', () => {
         profileIds: [],
       })
     );
+  });
+
+  it('shows Test this rule set button and renders preview on success', async () => {
+    const user = userEvent.setup();
+    vi.mocked(personalBrandingService.previewPlatformRuleSet).mockResolvedValue({
+      sampleText: 'Sample paragraph for preview.',
+      body: 'Rewritten preview body.',
+      appliedPolicy: {
+        rhetoricalModes: [{ mode: 'narrative', strength: 'moderate' }],
+        rhetoricalDevices: [],
+        requirements: 'Use short paragraphs.',
+        appliedRuleIds: [],
+      },
+    });
+
+    render(
+      <PlatformRuleEditorDialog
+        isOpen
+        onClose={() => undefined}
+        profiles={[]}
+        catalog={catalog}
+        onCreate={vi.fn()}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /narrative/i }));
+    await user.click(screen.getByRole('button', { name: /test this rule set/i }));
+
+    await waitFor(() => {
+      expect(personalBrandingService.previewPlatformRuleSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platform: 'linkedin',
+          rhetoricalModes: [{ mode: 'narrative', strength: 'moderate' }],
+        })
+      );
+    });
+
+    expect(await screen.findByText('Sample paragraph for preview.')).toBeInTheDocument();
+    expect(screen.getByText('Rewritten preview body.')).toBeInTheDocument();
+  });
+
+  it('shows preview error when test request fails', async () => {
+    const user = userEvent.setup();
+    vi.mocked(personalBrandingService.previewPlatformRuleSet).mockRejectedValue(
+      new Error('Preview failed')
+    );
+
+    render(
+      <PlatformRuleEditorDialog
+        isOpen
+        onClose={() => undefined}
+        profiles={[]}
+        catalog={catalog}
+        onCreate={vi.fn()}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /test this rule set/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Preview failed');
   });
 });

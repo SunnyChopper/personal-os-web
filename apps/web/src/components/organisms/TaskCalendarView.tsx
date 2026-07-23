@@ -4,6 +4,9 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, X } from 'lucide-r
 import type { Task } from '@/types/growth-system';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import Button from '@/components/atoms/Button';
+import OverlayPortal from '@/components/molecules/OverlayPortal';
+import { overlayBackdropClassName } from '@/lib/overlay-layer';
+import { cn } from '@/lib/utils';
 import { extractDateOnly, toLocalDateKey } from '@/utils/date-formatters';
 
 const VISIBLE_TASKS_PER_DAY = 2;
@@ -153,16 +156,18 @@ export function TaskCalendarView({
 
       <AnimatePresence>
         {expandedDate !== null && (
-          <motion.div
-            key="calendar-overflow-backdrop"
-            data-testid="calendar-overflow-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40"
-            aria-hidden
-            onClick={() => setExpandedDate(null)}
-          />
+          <OverlayPortal>
+            <motion.div
+              key="calendar-overflow-backdrop"
+              data-testid="calendar-overflow-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className={cn('fixed inset-0', overlayBackdropClassName)}
+              aria-hidden
+              onClick={() => setExpandedDate(null)}
+            />
+          </OverlayPortal>
         )}
       </AnimatePresence>
 

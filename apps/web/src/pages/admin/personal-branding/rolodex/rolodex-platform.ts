@@ -81,6 +81,26 @@ export const ROLODEX_PLATFORMS: RolodexPlatformOption[] = [
 
 export const ROLODEX_QUICK_TAGS = ['AI', 'Tech', 'SaaS', 'VC', 'Design', 'Creator'] as const;
 
+/** Interactions Board filter chip display order (Watch → Strategic). */
+export const ROLODEX_PRIORITY_BOARD_ORDER: RelationshipPriority[] = [
+  'watch',
+  'nurture',
+  'active',
+  'strategic',
+];
+
+export const ROLODEX_PRIORITY_CADENCE_DAYS: Record<RelationshipPriority, number> = {
+  strategic: 7,
+  active: 14,
+  nurture: 30,
+  watch: 90,
+};
+
+/** Suggested follow-up cadence (days) for a relationship priority. */
+export function suggestedCadenceDaysForPriority(priority: RelationshipPriority): number {
+  return ROLODEX_PRIORITY_CADENCE_DAYS[priority];
+}
+
 export const ROLODEX_PRIORITY_OPTIONS: {
   value: RelationshipPriority;
   label: string;
@@ -89,22 +109,22 @@ export const ROLODEX_PRIORITY_OPTIONS: {
   {
     value: 'strategic',
     label: 'Strategic',
-    description: 'Highest intent — protect and deepen actively',
+    description: 'Highest intent — weekly touchpoints',
   },
   {
     value: 'active',
     label: 'Active',
-    description: 'Regular follow-up — monthly touchpoints',
+    description: 'Regular follow-up — biweekly touchpoints',
   },
   {
     value: 'nurture',
     label: 'Nurture',
-    description: 'Long-game — quarterly check-ins',
+    description: 'Long-game — monthly check-ins',
   },
   {
     value: 'watch',
     label: 'Watch',
-    description: 'Monitor — engage when relevant',
+    description: 'Monitor — quarterly check-ins',
   },
 ];
 
@@ -367,6 +387,28 @@ export function followUpSortKey(connection: CreatorConnection): number {
   return Date.now() - new Date(connection.lastInteractedAt).getTime();
 }
 
+/** Days without recon posts (or since last post) before a connection is considered stale. */
+export const STALE_RECON_DAYS = 7;
+
+export type InteractionsBoardSortMode = 'followUp' | 'lastRecon';
+
+/** Ascending sort key: older recon first; missing recon sorts last. */
+export function lastReconSortKey(connection: CreatorConnection): number {
+  if (!connection.lastReconPostedAt) return Number.MAX_SAFE_INTEGER;
+  try {
+    const postedAt = new Date(connection.lastReconPostedAt).getTime();
+    if (Number.isNaN(postedAt)) return Number.MAX_SAFE_INTEGER;
+    return postedAt;
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+export function isStaleRecon(lastReconPostedAt?: string | null, now: Date = new Date()): boolean {
+  const days = daysSinceLastTouch(lastReconPostedAt, now);
+  return days === null || days >= STALE_RECON_DAYS;
+}
+
 export function isFollowUpOverdue(nextFollowUpAt?: string | null, now: Date = new Date()): boolean {
   if (!nextFollowUpAt) return false;
   try {
@@ -410,4 +452,166 @@ export function hasXHandle(connection: CreatorConnection): boolean {
   }
   const stored = connection.handles?.x?.trim() || connection.handles?.twitter?.trim();
   return Boolean(stored);
+}
+
+export interface InteractionsBoardFilters {
+  priorities: RelationshipPriority[];
+  dueThisWeek: boolean;
+  neverInteracted: boolean;
+  staleRecon: boolean;
+}
+
+export const EMPTY_INTERACTIONS_BOARD_FILTERS: InteractionsBoardFilters = {
+  priorities: [],
+  dueThisWeek: false,
+  neverInteracted: false,
+  staleRecon: false,
+};
+
+/** Monday (local calendar) of the week containing `d`. */
+export function startOfLocalWeek(d: Date = new Date()): string {
+  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const daysFromMonday = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - daysFromMonday);
+  return localCalendarDate(date);
+}
+
+/** Sunday (local calendar) of the week containing `d`. */
+export function endOfLocalWeek(d: Date = new Date()): string {
+  return addCalendarDays(startOfLocalWeek(d), 6);
+}
+
+/** Whole days since last touch; `null` when never interacted or invalid. */
+export function daysSinceLastTouch(
+  lastInteractedAt?: string | null,
+  now: Date = new Date()
+): number | null {
+  if (!lastInteractedAt) return null;
+  try {
+    const last = new Date(lastInteractedAt);
+    if (Number.isNaN(last.getTime())) return null;
+    const diffMs = now.getTime() - last.getTime();
+    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  } catch {
+    return null;
+  }
+}
+
+function lastReconAbsoluteTitle(lastReconPostedAt?: string | null): string {
+  if (!lastReconPostedAt) return 'No recon posts yet';
+  try {
+    return new Date(lastReconPostedAt).toLocaleDateString();
+  } catch {
+    return 'No recon posts yet';
+  }
+}
+
+export function formatLastReconAgeLabel(
+  lastReconPostedAt?: string | null,
+  now: Date = new Date()
+): { label: string; title: string } {
+  const days = daysSinceLastTouch(lastReconPostedAt, now);
+  if (days === null) {
+    return { label: '—', title: 'No recon posts yet' };
+  }
+  const absolute = lastReconAbsoluteTitle(lastReconPostedAt);
+  if (days === 0) {
+    return { label: 'Today', title: absolute };
+  }
+  return { label: `${days}d`, title: absolute };
+}
+
+/** Board card relative recon freshness (hour-aware). */
+export function formatLastReconRelativeLabel(
+  lastReconPostedAt?: string | null,
+  now: Date = new Date()
+): { label: string; title: string } {
+  if (!lastReconPostedAt) {
+    return { label: 'Recon —', title: 'No recon posts yet' };
+  }
+  try {
+    const postedAt = new Date(lastReconPostedAt);
+    if (Number.isNaN(postedAt.getTime())) {
+      return { label: 'Recon —', title: 'No recon posts yet' };
+    }
+    const diffSeconds = Math.floor((now.getTime() - postedAt.getTime()) / 1000);
+    const title = lastReconAbsoluteTitle(lastReconPostedAt);
+    if (diffSeconds < 60) {
+      return { label: 'Recon just now', title };
+    }
+    if (diffSeconds < 3600) {
+      const minutes = Math.floor(diffSeconds / 60);
+      return { label: `Recon ${minutes}m ago`, title };
+    }
+    if (diffSeconds < 86400) {
+      const hours = Math.floor(diffSeconds / 3600);
+      return { label: `Recon ${hours}h ago`, title };
+    }
+    const days = Math.floor(diffSeconds / 86400);
+    return { label: `Recon ${days}d ago`, title };
+  } catch {
+    return { label: 'Recon —', title: 'No recon posts yet' };
+  }
+}
+
+/**
+ * Follow-up due on or before the end of the current local calendar week (Mon–Sun),
+ * including overdue follow-ups.
+ */
+export function isDueThisWeek(nextFollowUpAt?: string | null, now: Date = new Date()): boolean {
+  if (!nextFollowUpAt) return false;
+  try {
+    const followUp = new Date(nextFollowUpAt);
+    if (Number.isNaN(followUp.getTime())) return false;
+    const followUpDate = localCalendarDate(followUp);
+    return followUpDate <= endOfLocalWeek(now);
+  } catch {
+    return false;
+  }
+}
+
+export function hasActiveInteractionsBoardFilters(filters: InteractionsBoardFilters): boolean {
+  return (
+    filters.priorities.length > 0 ||
+    filters.dueThisWeek ||
+    filters.neverInteracted ||
+    filters.staleRecon
+  );
+}
+
+export function matchesInteractionsBoardFilters(
+  connection: Pick<
+    CreatorConnection,
+    'relationshipPriority' | 'tier' | 'nextFollowUpAt' | 'lastInteractedAt' | 'lastReconPostedAt'
+  >,
+  filters: InteractionsBoardFilters,
+  now: Date = new Date()
+): boolean {
+  if (filters.dueThisWeek && !isDueThisWeek(connection.nextFollowUpAt, now)) {
+    return false;
+  }
+  if (filters.neverInteracted && connection.lastInteractedAt) {
+    return false;
+  }
+  if (filters.staleRecon && !isStaleRecon(connection.lastReconPostedAt, now)) {
+    return false;
+  }
+  if (filters.priorities.length > 0) {
+    const priority = resolveRelationshipPriority(connection);
+    if (!priority || !filters.priorities.includes(priority)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export type StalenessBadgeTone = 'muted' | 'warning';
+
+export function stalenessBadgeTone(
+  days: number | null,
+  followUpCadenceDays?: number | null
+): StalenessBadgeTone {
+  if (days === null) return 'muted';
+  const threshold = followUpCadenceDays && followUpCadenceDays > 0 ? followUpCadenceDays : 30;
+  return days >= threshold ? 'warning' : 'muted';
 }

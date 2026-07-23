@@ -13,20 +13,13 @@ describe('personalBrandingService.generateContentIdeas', () => {
     vi.mocked(apiClient.post).mockReset();
   });
 
-  it('posts to content-ideas generate endpoint and unwraps nested result', async () => {
+  it('starts async ideation job and returns job ack', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       success: true,
       data: {
-        data: {
-          result: {
-            ideas: [{ id: 'idea-1', title: 'Test' }],
-            contextStats: {
-              rejectedFeedbackCount: 1,
-              existingGeneratedCount: 2,
-              targetPlatform: 'linkedin',
-            },
-          },
-        },
+        jobId: 'job-manual-1',
+        status: 'queued',
+        pollAfterMs: 2000,
       },
     });
 
@@ -41,8 +34,9 @@ describe('personalBrandingService.generateContentIdeas', () => {
       targetPlatform: 'linkedin',
       seedIdeas: 'observability',
     });
-    expect(result.ideas).toHaveLength(1);
-    expect(result.contextStats.rejectedFeedbackCount).toBe(1);
+    expect(result.jobId).toBe('job-manual-1');
+    expect(result.status).toBe('queued');
+    expect(result.pollAfterMs).toBe(2000);
   });
 });
 
@@ -77,6 +71,68 @@ describe('personalBrandingService.generateTopicSuggestions', () => {
       count: 5,
     });
     expect(result.topics).toHaveLength(2);
+  });
+});
+
+describe('personalBrandingService.suggestPlatformFit', () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it('posts to platform-fit-suggestions endpoint and unwraps nested result', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      success: true,
+      data: {
+        data: {
+          result: {
+            contentAnalysis: {
+              characterCount: 120,
+              wordCount: 20,
+              contentType: 'SOCIAL_THREAD',
+              structureSignals: {
+                headingCount: 0,
+                paragraphCount: 2,
+                listItemCount: 0,
+                threadable: true,
+              },
+              matchedPillars: ['Leadership'],
+            },
+            recommendations: [
+              {
+                platform: 'x',
+                score: 0.88,
+                fitTier: 'high',
+                rationale: 'Short thread-friendly copy.',
+                factors: {
+                  lengthFit: { score: 0.9, detail: 'fits' },
+                  structureFit: { score: 0.85, detail: 'threadable' },
+                  pillarFit: { score: 0.5, matchedPillars: ['Leadership'], detail: 'ok' },
+                  rulesFit: {
+                    score: 0.6,
+                    appliedRuleIds: [],
+                    characterLimit: 280,
+                    wordLimit: null,
+                    detail: 'rules',
+                  },
+                },
+              },
+            ],
+            excludedSourcePlatform: 'linkedin',
+          },
+        },
+      },
+    });
+
+    const result = await personalBrandingService.suggestPlatformFit({
+      contentId: 'content-1',
+      brandProfileId: 'profile-1',
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith('/ai/personal-branding/platform-fit-suggestions', {
+      contentId: 'content-1',
+      brandProfileId: 'profile-1',
+    });
+    expect(result.recommendations[0]?.platform).toBe('x');
   });
 });
 

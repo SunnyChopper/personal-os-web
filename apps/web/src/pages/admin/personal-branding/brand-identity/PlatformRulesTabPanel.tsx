@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import Button from '@/components/atoms/Button';
+import PlatformRulePolicySummary from '@/components/molecules/personal-branding/PlatformRulePolicySummary';
 import { cn } from '@/lib/utils';
-import { linkAccentClassName } from '../personal-branding-ui';
+import { linkAccentClassName, statusPillClassName } from '../personal-branding-ui';
 import { useToast } from '@/hooks/use-toast';
 import type { usePersonalBrandingBrandIdentity } from '@/hooks/usePersonalBrandingBrandIdentity';
 import PlatformRuleEditorDialog from './PlatformRuleEditorDialog';
@@ -11,10 +12,10 @@ import {
   type PlatformRuleRecord,
 } from '@/types/api/personal-branding.dto';
 import {
-  PageCard,
   emptyStateCardClassName,
   gridItemCardClassName,
-} from '../PersonalBrandingPageTemplate';
+} from '@/lib/personal-branding/personal-branding-surfaces';
+import { PageCard } from '../PersonalBrandingPageTemplate';
 
 type BrandIdentityHook = ReturnType<typeof usePersonalBrandingBrandIdentity>;
 
@@ -24,15 +25,11 @@ interface PlatformRulesTabPanelProps {
 
 function ruleScopeLabel(rule: PlatformRuleRecord, profileNameById: Map<string, string>) {
   if (rule.isUniversal) {
-    return (
-      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
-        Universal fallback
-      </span>
-    );
+    return <span className={statusPillClassName('info')}>Universal fallback</span>;
   }
   const names = rule.profileIds.map((id) => profileNameById.get(id)).filter(Boolean) as string[];
   return (
-    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+    <span className={statusPillClassName('info')}>
       Profiles: {names.length ? names.join(', ') : rule.profileIds.join(', ')}
     </span>
   );
@@ -147,50 +144,16 @@ export default function PlatformRulesTabPanel({ brandIdentity }: PlatformRulesTa
                     </button>
                   </div>
                 </div>
-                <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                  {rule.characterLimit != null && (
-                    <div>
-                      <dt className="text-gray-500">Character limit</dt>
-                      <dd>{rule.characterLimit}</dd>
-                    </div>
-                  )}
-                  {rule.readTimeLimitMinutes != null && (
-                    <div>
-                      <dt className="text-gray-500">Read time limit</dt>
-                      <dd>{rule.readTimeLimitMinutes} min</dd>
-                    </div>
-                  )}
-                  {rule.rhetoricalModes.length > 0 && (
-                    <div className="sm:col-span-2">
-                      <dt className="text-gray-500">Modes</dt>
-                      <dd>
-                        {rule.rhetoricalModes.map((m) => `${m.mode} (${m.strength})`).join(', ')}
-                      </dd>
-                    </div>
-                  )}
-                  {rule.rhetoricalDevices.length > 0 && (
-                    <div className="sm:col-span-2">
-                      <dt className="text-gray-500">Allowed devices</dt>
-                      <dd>{rule.rhetoricalDevices.join(', ')}</dd>
-                    </div>
-                  )}
-                  {rule.requirements && (
-                    <div className="sm:col-span-2">
-                      <dt className="text-gray-500">Requirements</dt>
-                      <dd className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-                        {rule.requirements}
-                      </dd>
-                    </div>
-                  )}
-                  {rule.needsReview && (
-                    <div className="sm:col-span-2">
-                      <dt className="text-gray-500">Review</dt>
-                      <dd className="text-amber-700 dark:text-amber-300">
-                        Legacy rule — add requirements on edit.
-                      </dd>
-                    </div>
-                  )}
-                </dl>
+                <PlatformRulePolicySummary
+                  className="mt-4"
+                  characterLimit={rule.characterLimit}
+                  readTimeLimitMinutes={rule.readTimeLimitMinutes}
+                  rhetoricalModes={rule.rhetoricalModes}
+                  rhetoricalDevices={rule.rhetoricalDevices}
+                  requirements={rule.requirements}
+                  needsReview={rule.needsReview}
+                  catalog={platformRuleCatalog.data}
+                />
               </article>
             ))}
           </div>

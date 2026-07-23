@@ -1,5 +1,8 @@
 import { X, Sparkles } from 'lucide-react';
 import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
+import OverlayPortal from '@/components/molecules/OverlayPortal';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
+import { cn } from '@/lib/utils';
 
 interface AIAssistPanelProps {
   isOpen: boolean;
@@ -21,9 +24,9 @@ export function AIAssistPanel({
   if (!isOpen) return null;
 
   return (
-    <>
+    <OverlayPortal>
       <div
-        className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+        className={cn('fixed inset-0 bg-black/50 transition-opacity', overlayBackdropClassName)}
         onClick={onClose}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
@@ -35,9 +38,12 @@ export function AIAssistPanel({
         aria-label="Close AI assist panel"
       />
       <div
-        className={`fixed right-0 top-0 bottom-0 w-full max-w-md bg-white dark:bg-gray-800 shadow-2xl z-50 transform transition-transform ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        } ${className}`}
+        className={cn(
+          'fixed right-0 top-0 bottom-0 w-full max-w-md bg-white dark:bg-gray-800 shadow-2xl transform transition-transform',
+          overlaySurfaceClassName,
+          isOpen ? 'translate-x-0' : 'translate-x-full',
+          className
+        )}
       >
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20">
@@ -66,6 +72,6 @@ export function AIAssistPanel({
           </div>
         </div>
       </div>
-    </>
+    </OverlayPortal>
   );
 }

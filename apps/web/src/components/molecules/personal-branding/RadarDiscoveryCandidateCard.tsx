@@ -1,20 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Layers, MoreVertical, Save } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Layers, MoreVertical, Save } from 'lucide-react';
 import Button from '@/components/atoms/Button';
+import { FormCheckbox } from '@/components/atoms/FormCheckbox';
 import { StatusBadge } from '@/components/atoms/StatusBadge';
 import Dialog from '@/components/molecules/Dialog';
 import { DialogFooter } from '@/pages/admin/personal-branding/PersonalBrandingPageTemplate';
+import {
+  canAddDiscoveryCandidateAsItem,
+  canSaveDiscoveryCandidate,
+  formatRadarDiscoveryBadgeLabel,
+} from '@/lib/personal-branding/radar-discovery';
+import { cn } from '@/lib/utils';
 import type { RadarDiscoveryCandidate } from '@/types/api/personal-branding.dto';
+
+const MAX_VISIBLE_TOPICS = 3;
+const MAX_VISIBLE_FEEDS = 2;
 
 interface RadarDiscoveryCandidateCardProps {
   candidate: RadarDiscoveryCandidate;
+  selected?: boolean;
+  selectionDisabled?: boolean;
   isSaving?: boolean;
   isAddingAsItem?: boolean;
   isMarkingNotASource?: boolean;
+  isDismissing?: boolean;
   isParsingSources?: boolean;
+  onToggleSelected?: () => void;
   onSave: () => void;
   onAddAsItem: () => void;
   onMarkNotASource: () => void;
+  onDismiss: () => void;
   onParseSources: () => void;
 }
 
@@ -26,37 +41,39 @@ function formatConfidence(value?: number | null): string {
 
 export default function RadarDiscoveryCandidateCard({
   candidate,
+  selected = false,
+  selectionDisabled = false,
   isSaving = false,
   isAddingAsItem = false,
   isMarkingNotASource = false,
+  isDismissing = false,
   isParsingSources = false,
+  onToggleSelected,
   onSave,
   onAddAsItem,
   onMarkNotASource,
+  onDismiss,
   onParseSources,
 }: RadarDiscoveryCandidateCardProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmNotASourceOpen, setConfirmNotASourceOpen] = useState(false);
+  const [confirmDismissOpen, setConfirmDismissOpen] = useState(false);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
   const verifiedEndpoint = candidate.resolvedEndpoint ?? candidate.endpoint;
   const isMarkedNotASource = candidate.userNotASource === true;
   const isParseLive =
     isParsingSources || candidate.parseStatus === 'queued' || candidate.parseStatus === 'running';
   const canParseSources = !isMarkedNotASource && Boolean(candidate.url) && !isParseLive;
-  const canSave =
-    !isMarkedNotASource &&
-    candidate.verdict === 'relevant' &&
-    !candidate.savedSourceId &&
-    candidate.duplicateStatus === 'new' &&
-    Boolean(verifiedEndpoint) &&
-    !candidate.error;
-  const canAddAsItem =
-    !isMarkedNotASource &&
-    candidate.verdict === 'not_relevant' &&
-    !candidate.savedItemId &&
-    Boolean(candidate.url) &&
-    !candidate.error;
+  const canSave = canSaveDiscoveryCandidate(candidate);
+  const canAddAsItem = canAddDiscoveryCandidateAsItem(candidate);
+  const showSaveButton = candidate.verdict === 'relevant';
   const destination = candidate.url || verifiedEndpoint || '#';
+  const visibleTopics = candidate.matchedTopics.slice(0, MAX_VISIBLE_TOPICS);
+  const hiddenTopicCount = Math.max(0, candidate.matchedTopics.length - MAX_VISIBLE_TOPICS);
+  const extractedFeeds = candidate.extractedEndpoints ?? [];
+  const visibleFeeds = extractedFeeds.slice(0, MAX_VISIBLE_FEEDS);
+  const hiddenFeedCount = Math.max(0, extractedFeeds.length - MAX_VISIBLE_FEEDS);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -71,30 +88,61 @@ export default function RadarDiscoveryCandidateCard({
 
   const handleConfirmNotASource = () => {
     onMarkNotASource();
-    setConfirmOpen(false);
+    setConfirmNotASourceOpen(false);
+  };
+
+  const handleConfirmDismiss = () => {
+    onDismiss();
+    setConfirmDismissOpen(false);
   };
 
   return (
     <>
-      <article className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <article
+        className={cn(
+          'flex h-full flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800',
+          selected && 'ring-2 ring-sky-500/70 dark:ring-sky-400/60'
+        )}
+      >
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              {(candidate.sourceType ?? 'Candidate') +
-                (verifiedEndpoint ? ` · ${verifiedEndpoint}` : '')}
-            </p>
-            <h4 className="mt-1 text-base font-semibold text-gray-900 dark:text-white">
-              {candidate.title}
-            </h4>
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            {onToggleSelected ? (
+              <FormCheckbox
+                checked={selected}
+                onChange={onToggleSelected}
+                disabled={selectionDisabled}
+                aria-label={`Select ${candidate.title}`}
+                className="mt-0.5"
+              />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                {(candidate.sourceType ?? 'Candidate') +
+                  (verifiedEndpoint ? ` · ${verifiedEndpoint}` : '')}
+              </p>
+              <h4 className="mt-1 line-clamp-2 text-base font-semibold text-gray-900 dark:text-white">
+                {candidate.title}
+              </h4>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {isMarkedNotASource ? <StatusBadge status="Not a source" size="sm" /> : null}
-            <StatusBadge status={candidate.verdict ?? 'pending'} size="sm" />
+            {candidate.verdict ? (
+              <StatusBadge status={formatRadarDiscoveryBadgeLabel(candidate.verdict)} size="sm" />
+            ) : (
+              <StatusBadge status="pending" size="sm" />
+            )}
             {candidate.probeStatus ? (
-              <StatusBadge status={candidate.probeStatus} size="sm" />
+              <StatusBadge
+                status={formatRadarDiscoveryBadgeLabel(candidate.probeStatus)}
+                size="sm"
+              />
             ) : null}
             {candidate.duplicateStatus !== 'new' ? (
-              <StatusBadge status={candidate.duplicateStatus} size="sm" />
+              <StatusBadge
+                status={formatRadarDiscoveryBadgeLabel(candidate.duplicateStatus)}
+                size="sm"
+              />
             ) : null}
             {isParseLive ? <StatusBadge status="Parsing" size="sm" /> : null}
             <div className="relative" ref={menuRef}>
@@ -132,7 +180,18 @@ export default function RadarDiscoveryCandidateCard({
                     className="flex w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
                     onClick={() => {
                       setMenuOpen(false);
-                      setConfirmOpen(true);
+                      setConfirmDismissOpen(true);
+                    }}
+                  >
+                    Discard candidate
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setConfirmNotASourceOpen(true);
                     }}
                   >
                     Not a source
@@ -143,9 +202,14 @@ export default function RadarDiscoveryCandidateCard({
           </div>
         </div>
 
-        {candidate.snippet ? (
-          <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">{candidate.snippet}</p>
-        ) : null}
+        <p
+          className={cn(
+            'mt-3 line-clamp-3 text-sm text-gray-600 dark:text-gray-300',
+            !candidate.snippet && 'min-h-[4.5rem]'
+          )}
+        >
+          {candidate.snippet ?? ''}
+        </p>
 
         <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
           <div>
@@ -176,42 +240,66 @@ export default function RadarDiscoveryCandidateCard({
           </div>
         </dl>
 
-        {candidate.extractedEndpoints && candidate.extractedEndpoints.length > 0 ? (
+        {extractedFeeds.length > 0 ? (
           <div className="mt-3 text-sm text-gray-600 dark:text-gray-300">
             <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
               Extracted feeds
             </p>
             <ul className="mt-1 space-y-1">
-              {candidate.extractedEndpoints.map((row) => (
+              {visibleFeeds.map((row) => (
                 <li key={row.url} className="truncate">
                   {row.verified ? '✓ ' : ''}
                   {row.label ? `${row.label}: ` : ''}
                   {row.url}
                 </li>
               ))}
+              {hiddenFeedCount > 0 ? (
+                <li className="text-xs text-gray-500 dark:text-gray-400">
+                  +{hiddenFeedCount} more
+                </li>
+              ) : null}
             </ul>
           </div>
         ) : null}
 
         {candidate.rationale ? (
-          <div className="mt-3 rounded-md bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-900/60 dark:text-gray-300">
-            <span className="font-medium text-gray-900 dark:text-white">Why: </span>
-            {candidate.rationale}
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setReasoningOpen((open) => !open)}
+              className="flex items-center gap-1.5 rounded-md px-1 py-1 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-900/60"
+              aria-expanded={reasoningOpen}
+            >
+              {reasoningOpen ? (
+                <ChevronDown className="size-4 shrink-0" aria-hidden />
+              ) : (
+                <ChevronRight className="size-4 shrink-0" aria-hidden />
+              )}
+              {reasoningOpen ? 'Hide reasoning' : 'Show reasoning'}
+            </button>
+            {reasoningOpen ? (
+              <div className="mt-1 rounded-md bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-900/60 dark:text-gray-300">
+                {candidate.rationale}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
-        {candidate.matchedTopics.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Matched topics">
-            {candidate.matchedTopics.map((topic) => (
-              <span
-                key={topic}
-                className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-200"
-              >
-                {topic}
-              </span>
-            ))}
-          </div>
-        ) : null}
+        <div className="mt-3 flex min-h-6 flex-wrap gap-1.5" aria-label="Matched topics">
+          {visibleTopics.map((topic) => (
+            <span
+              key={topic}
+              className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-200"
+            >
+              {topic}
+            </span>
+          ))}
+          {hiddenTopicCount > 0 ? (
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+              +{hiddenTopicCount}
+            </span>
+          ) : null}
+        </div>
 
         {candidate.error ? (
           <p
@@ -222,7 +310,7 @@ export default function RadarDiscoveryCandidateCard({
           </p>
         ) : null}
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
           <a
             href={destination}
             target="_blank"
@@ -246,24 +334,26 @@ export default function RadarDiscoveryCandidateCard({
                 Add as Trend Stream card
               </Button>
             ) : null}
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={onSave}
-              disabled={!canSave || isSaving}
-              aria-label="Save source"
-            >
-              <Save className="h-4 w-4" aria-hidden />
-              Save source
-            </Button>
+            {showSaveButton ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={onSave}
+                disabled={!canSave || isSaving}
+                aria-label="Save source"
+              >
+                <Save className="h-4 w-4" aria-hidden />
+                Save source
+              </Button>
+            ) : null}
           </div>
         </div>
       </article>
 
       <Dialog
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
+        isOpen={confirmNotASourceOpen}
+        onClose={() => setConfirmNotASourceOpen(false)}
         title="Mark as not a source?"
         size="md"
       >
@@ -277,7 +367,7 @@ export default function RadarDiscoveryCandidateCard({
               type="button"
               size="sm"
               variant="secondary"
-              onClick={() => setConfirmOpen(false)}
+              onClick={() => setConfirmNotASourceOpen(false)}
             >
               Cancel
             </Button>
@@ -288,6 +378,33 @@ export default function RadarDiscoveryCandidateCard({
               onClick={handleConfirmNotASource}
             >
               {isMarkingNotASource ? 'Marking…' : 'Mark not a source'}
+            </Button>
+          </DialogFooter>
+        </div>
+      </Dialog>
+
+      <Dialog
+        isOpen={confirmDismissOpen}
+        onClose={() => setConfirmDismissOpen(false)}
+        title="Discard candidate?"
+        size="md"
+      >
+        <div className="space-y-4 p-1">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Remove this candidate from the review list. This will not teach future discovery runs to
+            skip similar results.
+          </p>
+          <DialogFooter>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setConfirmDismissOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" size="sm" disabled={isDismissing} onClick={handleConfirmDismiss}>
+              {isDismissing ? 'Discarding…' : 'Discard candidate'}
             </Button>
           </DialogFooter>
         </div>

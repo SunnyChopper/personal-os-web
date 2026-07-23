@@ -2,18 +2,23 @@ import { Loader2, Sparkles } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { Select } from '@/components/atoms/Select';
 import { Textarea } from '@/components/atoms/Textarea';
+import { BrainstormModelPicker } from '@/components/molecules/assistant/BrainstormModelPicker';
+import type { BrainstormModelPickerValue } from '@/lib/assistant/brainstorm-model-picker';
+import type { AssistantModelCatalogData } from '@/types/chatbot';
 import type {
   BrandPlatform,
   BrandProfile,
   ContentIdea,
   ContentIdeaGenerationContextStats,
+  ContentIdeationJob,
 } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
+import ContentIdeationProgressPanel from '@/components/molecules/personal-branding/ContentIdeationProgressPanel';
 import {
-  PageCard,
   emptyStateCardClassName,
   gridItemCardClassName,
-} from '../PersonalBrandingPageTemplate';
+} from '@/lib/personal-branding/personal-branding-surfaces';
+import { PageCard } from '../PersonalBrandingPageTemplate';
 import { cn } from '@/lib/utils';
 import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
 import { ContentIdeaWhyCreateSection } from './ContentIdeaWhyCreateSection';
@@ -32,7 +37,16 @@ interface IdeationEngineTabProps {
   onTargetPlatformChange: (platform: BrandPlatform) => void;
   seedIdeas: string;
   onSeedIdeasChange: (value: string) => void;
+  enableImageSearch: boolean;
+  onEnableImageSearchChange: (value: boolean) => void;
+  ideaCount: number;
+  onIdeaCountChange: (value: number) => void;
+  ideationModelCatalog: AssistantModelCatalogData | null;
+  isIdeationModelCatalogLoading: boolean;
+  ideationModelPicker: BrainstormModelPickerValue;
+  onIdeationModelPickerChange: (value: BrainstormModelPickerValue) => void;
   isGenerating: boolean;
+  ideationJob?: ContentIdeationJob | null;
   generateError: string | null;
   lastGenerationStats: ContentIdeaGenerationContextStats | null;
   onGenerate: () => void;
@@ -52,7 +66,16 @@ export default function IdeationEngineTab({
   onTargetPlatformChange,
   seedIdeas,
   onSeedIdeasChange,
+  enableImageSearch,
+  onEnableImageSearchChange,
+  ideaCount,
+  onIdeaCountChange,
+  ideationModelCatalog,
+  isIdeationModelCatalogLoading,
+  ideationModelPicker,
+  onIdeationModelPickerChange,
   isGenerating,
+  ideationJob,
   generateError,
   lastGenerationStats,
   onGenerate,
@@ -63,14 +86,32 @@ export default function IdeationEngineTab({
   const profileReady = selectedProfile ? isBrandProfileReadyForIdeation(selectedProfile) : false;
   const canGenerate = Boolean(selectedProfileId && profileReady && !isGenerating);
 
+  const ideaCountField = (
+    <label className="block space-y-1 text-sm">
+      <span className="font-medium text-gray-700 dark:text-gray-300">Number of ideas</span>
+      <input
+        type="number"
+        min={1}
+        max={12}
+        value={ideaCount}
+        onChange={(e) => {
+          const parsed = Number.parseInt(e.target.value, 10);
+          if (Number.isNaN(parsed)) return;
+          onIdeaCountChange(Math.min(12, Math.max(1, parsed)));
+        }}
+        className="w-full max-w-[10rem] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+      />
+    </label>
+  );
+
   return (
-    <div className="space-y-6">
-      <PageCard className="space-y-4">
+    <div className="space-y-4">
+      <PageCard className="space-y-3 p-4 sm:p-5">
         <div>
           <h2 className="text-lg font-medium text-gray-900 dark:text-white">Generate ideas</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Uses your Brand Identity pillars, audience, and platform rules. Rejected ideas inform
-            future runs.
+          <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
+            Uses your Brand Identity pillars, audience, and platform rules. Rejected, existing, and
+            drafted ideas inform future runs.
           </p>
         </div>
 
@@ -81,9 +122,11 @@ export default function IdeationEngineTab({
             Create a Brand Identity profile with core pillars and a target audience before
             generating ideas.
           </p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block space-y-1.5 text-sm">
+        ) : null}
+
+        {profiles.length > 0 ? (
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <label className="block space-y-1 text-sm">
               <span className="font-medium text-gray-700 dark:text-gray-300">Brand profile</span>
               <Select
                 value={selectedProfileId ?? ''}
@@ -99,7 +142,7 @@ export default function IdeationEngineTab({
               </Select>
             </label>
 
-            <label className="block space-y-1.5 text-sm">
+            <label className="block space-y-1 text-sm">
               <span className="font-medium text-gray-700 dark:text-gray-300">Target platform</span>
               <Select
                 value={targetPlatform}
@@ -113,21 +156,58 @@ export default function IdeationEngineTab({
                 ))}
               </Select>
             </label>
+
+            {ideaCountField}
           </div>
+        ) : (
+          ideaCountField
         )}
 
-        <label className="block space-y-1.5 text-sm">
+        <label className="block space-y-1 text-sm">
           <span className="font-medium text-gray-700 dark:text-gray-300">
             Seed ideas <span className="font-normal text-gray-500">(optional)</span>
           </span>
           <Textarea
             value={seedIdeas}
             onChange={(e) => onSeedIdeasChange(e.target.value)}
-            rows={3}
+            rows={2}
             placeholder="Topics, angles, or themes you want the brainstorm to explore…"
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
           />
         </label>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <label className="flex items-start gap-2 rounded-md border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-700">
+            <input
+              type="checkbox"
+              checked={enableImageSearch}
+              onChange={(e) => onEnableImageSearchChange(e.target.checked)}
+              disabled={isGenerating}
+              className="mt-0.5 shrink-0"
+            />
+            <span>
+              <span className="font-medium text-gray-900 dark:text-white">
+                Search &amp; inject images when drafting
+              </span>
+              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                Brainstorm image-friendly ideas and auto-inject Brave search results after you
+                approve a draft.
+              </span>
+            </span>
+          </label>
+
+          <div className="space-y-1.5">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">AI model</h3>
+            <BrainstormModelPicker
+              catalog={ideationModelCatalog}
+              isLoading={isIdeationModelCatalogLoading}
+              value={ideationModelPicker}
+              onChange={onIdeationModelPickerChange}
+              disabled={isGenerating}
+              autoModeDescription="Uses the contentIdeation server default (claude-sonnet-4-6). Switch to Manual to pick any model from the assistant catalog."
+            />
+          </div>
+        </div>
 
         {selectedProfile && !profileReady ? (
           <p className="text-sm text-amber-700 dark:text-amber-300">
@@ -138,6 +218,12 @@ export default function IdeationEngineTab({
         {generateError ? (
           <p className="text-sm text-red-600 dark:text-red-400">{generateError}</p>
         ) : null}
+
+        <ContentIdeationProgressPanel
+          job={ideationJob}
+          includeReferenceSearch={Boolean(seedIdeas.trim())}
+          includeKeywordResearch={targetPlatform === 'medium'}
+        />
 
         <Button
           type="button"
@@ -224,9 +310,8 @@ export default function IdeationEngineTab({
                   <Button
                     type="button"
                     size="sm"
-                    variant="secondary"
+                    variant="destructive"
                     onClick={() => onReject(idea)}
-                    className="border-red-300 text-red-700 hover:border-red-400 hover:bg-red-50 hover:text-red-800 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
                   >
                     Reject
                   </Button>

@@ -2,6 +2,8 @@ import { useEffect, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 
+import OverlayPortal from '@/components/molecules/OverlayPortal';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
 import { cn } from '@/lib/utils';
 
 export interface SlideDrawerProps {
@@ -10,7 +12,7 @@ export interface SlideDrawerProps {
   ariaLabel: string;
   title?: string;
   header?: ReactNode;
-  maxWidth?: 'md' | 'lg';
+  maxWidth?: 'md' | 'lg' | 'xl';
   panelClassName?: string;
   children: ReactNode;
 }
@@ -18,6 +20,7 @@ export interface SlideDrawerProps {
 const maxWidthClassName: Record<NonNullable<SlideDrawerProps['maxWidth']>, string> = {
   md: 'max-w-md',
   lg: 'max-w-lg',
+  xl: 'max-w-xl',
 };
 
 export default function SlideDrawer({
@@ -55,14 +58,17 @@ export default function SlideDrawer({
   return (
     <AnimatePresence>
       {open ? (
-        <>
+        <OverlayPortal>
           <motion.button
             type="button"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 cursor-default bg-black/50 backdrop-blur-[2px]"
+            className={cn(
+              'fixed inset-0 cursor-default bg-black/50 backdrop-blur-[2px]',
+              overlayBackdropClassName
+            )}
             aria-label={`Close ${ariaLabel}`}
             onClick={onClose}
           />
@@ -76,7 +82,8 @@ export default function SlideDrawer({
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
             className={cn(
-              'fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800',
+              'fixed inset-y-0 right-0 flex w-full flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800',
+              overlaySurfaceClassName,
               maxWidthClassName[maxWidth],
               panelClassName
             )}
@@ -97,7 +104,7 @@ export default function SlideDrawer({
 
             <div className="flex-1 overflow-y-auto p-4">{children}</div>
           </motion.aside>
-        </>
+        </OverlayPortal>
       ) : null}
     </AnimatePresence>
   );

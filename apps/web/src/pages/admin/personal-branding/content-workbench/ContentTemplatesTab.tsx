@@ -15,10 +15,10 @@ import type {
 } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
 import {
-  PageCard,
   emptyStateCardClassName,
   gridItemCardClassName,
-} from '../PersonalBrandingPageTemplate';
+} from '@/lib/personal-branding/personal-branding-surfaces';
+import { PageCard } from '../PersonalBrandingPageTemplate';
 import { cn } from '@/lib/utils';
 import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
 
@@ -52,6 +52,7 @@ interface ContentTemplatesTabProps {
   brainstormPlatform: BrandPlatform | '';
   onBrainstormPlatformChange: (value: BrandPlatform | '') => void;
   isBrainstorming: boolean;
+  brainstormProgressMessage?: string | null;
   brainstormError: string | null;
   lastBrainstormStats: ContentTemplateBrainstormContextStats | null;
   onBrainstorm: () => void;
@@ -61,6 +62,7 @@ interface ContentTemplatesTabProps {
   onSourceUrlChange: (url: string) => void;
   hasMediumApiKey: boolean;
   isExtracting: boolean;
+  extractProgressMessage?: string | null;
   extractError: string | null;
   lastExtractionStats: ContentTemplateExtractionContextStats | null;
   onExtract: () => void;
@@ -105,6 +107,7 @@ export default function ContentTemplatesTab({
   brainstormPlatform,
   onBrainstormPlatformChange,
   isBrainstorming,
+  brainstormProgressMessage,
   brainstormError,
   lastBrainstormStats,
   onBrainstorm,
@@ -114,6 +117,7 @@ export default function ContentTemplatesTab({
   onSourceUrlChange,
   hasMediumApiKey,
   isExtracting,
+  extractProgressMessage,
   extractError,
   lastExtractionStats,
   onExtract,
@@ -205,7 +209,8 @@ export default function ContentTemplatesTab({
         <div>
           <h2 className="text-lg font-medium text-gray-900 dark:text-white">AI brainstorm</h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Propose reusable structural templates from your Brand Identity. Rejected templates
+            Propose reusable structural templates from your Brand Identity. Outputs are generic
+            outlines with placeholders — pillars shape pattern style, not topic. Rejected templates
             inform future brainstorm and extraction runs.
           </p>
         </div>
@@ -285,13 +290,18 @@ export default function ContentTemplatesTab({
             value={brainstormBrief}
             onChange={(e) => onBrainstormBriefChange(e.target.value)}
             rows={3}
-            placeholder="e.g. Thread templates that turn pillar insights into numbered takeaways"
+            placeholder="e.g. Framework walkthrough, numbered teardown, before/after deep dive"
             className="w-full"
           />
         </label>
 
         {brainstormError ? (
           <p className="text-sm text-red-600 dark:text-red-400">{brainstormError}</p>
+        ) : null}
+        {isBrainstorming && brainstormProgressMessage ? (
+          <p className="text-sm text-indigo-700 dark:text-indigo-300">
+            {brainstormProgressMessage}
+          </p>
         ) : null}
         {lastBrainstormStats ? (
           <p className="text-xs text-gray-500">
@@ -382,6 +392,9 @@ export default function ContentTemplatesTab({
         {extractError ? (
           <p className="text-sm text-red-600 dark:text-red-400">{extractError}</p>
         ) : null}
+        {isExtracting && extractProgressMessage ? (
+          <p className="text-sm text-indigo-700 dark:text-indigo-300">{extractProgressMessage}</p>
+        ) : null}
         {lastExtractionStats ? (
           <p className="text-xs text-gray-500">
             Last run used {lastExtractionStats.rejectedFeedbackCount} rejection feedback entries.
@@ -404,7 +417,9 @@ export default function ContentTemplatesTab({
         <div>
           <h2 className="text-lg font-medium text-gray-900 dark:text-white">Review candidates</h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Generated proposals stay here until you approve them into the library or reject them.
+            Generated proposals stay here until you approve them into the library or reject them. If
+            a proposal is too topic-specific, reject it or retry with feedback asking for a more
+            generic structure.
           </p>
         </div>
 

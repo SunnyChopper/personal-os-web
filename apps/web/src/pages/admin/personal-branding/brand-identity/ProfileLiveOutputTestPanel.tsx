@@ -5,6 +5,10 @@ import { Lightbulb, Loader2, Sparkles, X } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { FormInput } from '@/components/atoms/FormInput';
 import { Select } from '@/components/atoms/Select';
+import OverlayPortal from '@/components/molecules/OverlayPortal';
+import UniversalRulesFallbackNotice from '@/components/molecules/personal-branding/UniversalRulesFallbackNotice';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
+import { resolvePlatformRuleSource } from '@/lib/personal-branding/profile-strength';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
@@ -29,6 +33,7 @@ export interface ProfileFormSnapshot {
   toneMetrics: Record<string, number>;
   bannedPhrases: string[];
   status: BrandProfileStatus;
+  platforms: BrandPlatform[];
 }
 
 interface ProfileLiveOutputTestPanelProps {
@@ -78,6 +83,9 @@ export default function ProfileLiveOutputTestPanel({
   });
 
   const resolvedPolicy = effectivePolicyQuery.data?.resolvedPolicy;
+  const ruleSource = effectivePolicyQuery.data
+    ? resolvePlatformRuleSource(effectivePolicyQuery.data.rules)
+    : 'none';
 
   const selectedTest = useMemo(
     () => history.find((test) => test.id === selectedTestId) ?? null,
@@ -187,13 +195,16 @@ export default function ProfileLiveOutputTestPanel({
   return (
     <AnimatePresence>
       {open ? (
-        <>
+        <OverlayPortal>
           <motion.button
             type="button"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 cursor-default bg-black/50 backdrop-blur-[2px]"
+            className={cn(
+              'fixed inset-0 cursor-default bg-black/50 backdrop-blur-[2px]',
+              overlayBackdropClassName
+            )}
             aria-label="Close live output test"
             onClick={() => {
               if (!isGenerating && !isBrainstorming) onClose();
@@ -207,7 +218,10 @@ export default function ProfileLiveOutputTestPanel({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+            className={cn(
+              'fixed inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900',
+              overlaySurfaceClassName
+            )}
           >
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
               <div>
@@ -322,32 +336,39 @@ export default function ProfileLiveOutputTestPanel({
                 </div>
 
                 {resolvedPolicy && (
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-gray-950/50">
-                    <p className="font-medium text-gray-800 dark:text-gray-200">
-                      Applied platform policy
-                    </p>
-                    <ul className="mt-2 space-y-1 text-gray-600 dark:text-gray-400">
-                      {resolvedPolicy.characterLimit != null && (
-                        <li>Character limit: {resolvedPolicy.characterLimit}</li>
-                      )}
-                      {resolvedPolicy.readTimeLimitMinutes != null && (
-                        <li>Read time cap: {resolvedPolicy.readTimeLimitMinutes} min</li>
-                      )}
-                      {resolvedPolicy.rhetoricalModes.length > 0 && (
-                        <li>
-                          Modes:{' '}
-                          {resolvedPolicy.rhetoricalModes
-                            .map((m) => `${m.mode} (${m.strength})`)
-                            .join(', ')}
-                        </li>
-                      )}
-                      {resolvedPolicy.rhetoricalDevices.length > 0 && (
-                        <li>Devices: {resolvedPolicy.rhetoricalDevices.join(', ')}</li>
-                      )}
-                      {resolvedPolicy.requirements && (
-                        <li className="whitespace-pre-wrap">{resolvedPolicy.requirements}</li>
-                      )}
-                    </ul>
+                  <div className="space-y-3">
+                    {ruleSource === 'universalOnly' ? (
+                      <UniversalRulesFallbackNotice
+                        platformLabel={BRAND_PLATFORM_LABELS[platform]}
+                      />
+                    ) : null}
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-gray-950/50">
+                      <p className="font-medium text-gray-800 dark:text-gray-200">
+                        Applied platform policy
+                      </p>
+                      <ul className="mt-2 space-y-1 text-gray-600 dark:text-gray-400">
+                        {resolvedPolicy.characterLimit != null && (
+                          <li>Character limit: {resolvedPolicy.characterLimit}</li>
+                        )}
+                        {resolvedPolicy.readTimeLimitMinutes != null && (
+                          <li>Read time cap: {resolvedPolicy.readTimeLimitMinutes} min</li>
+                        )}
+                        {resolvedPolicy.rhetoricalModes.length > 0 && (
+                          <li>
+                            Modes:{' '}
+                            {resolvedPolicy.rhetoricalModes
+                              .map((m) => `${m.mode} (${m.strength})`)
+                              .join(', ')}
+                          </li>
+                        )}
+                        {resolvedPolicy.rhetoricalDevices.length > 0 && (
+                          <li>Devices: {resolvedPolicy.rhetoricalDevices.join(', ')}</li>
+                        )}
+                        {resolvedPolicy.requirements && (
+                          <li className="whitespace-pre-wrap">{resolvedPolicy.requirements}</li>
+                        )}
+                      </ul>
+                    </div>
                   </div>
                 )}
 
@@ -434,7 +455,7 @@ export default function ProfileLiveOutputTestPanel({
               />
             </div>
           </motion.aside>
-        </>
+        </OverlayPortal>
       ) : null}
     </AnimatePresence>
   );

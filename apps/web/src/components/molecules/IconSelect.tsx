@@ -7,6 +7,7 @@ import { formFieldClassName } from '@/components/atoms/FormInput';
 export interface IconSelectOption {
   value: string;
   label: string;
+  description?: string;
   icon?: ReactNode;
 }
 
@@ -18,6 +19,21 @@ export interface IconSelectProps {
   className?: string;
   /** Accessible name for the trigger when no visible label is associated. */
   'aria-label'?: string;
+}
+
+function OptionText({ label, description }: { label: string; description?: string }) {
+  if (!description) {
+    return <span className="truncate">{label}</span>;
+  }
+
+  return (
+    <span className="min-w-0 flex-1 space-y-0.5">
+      <span className="block whitespace-normal break-words text-sm leading-snug">{label}</span>
+      <span className="block whitespace-normal break-words text-xs leading-snug text-gray-500 dark:text-gray-400">
+        {description}
+      </span>
+    </span>
+  );
 }
 
 /**
@@ -100,20 +116,26 @@ export default function IconSelect({
         aria-controls={`icon-select-list-${listId}`}
         className={cn(
           formFieldClassName,
-          'flex w-full items-center justify-between gap-2 text-left',
+          'flex w-full items-start justify-between gap-2 text-left',
+          selected?.description ? 'py-2' : 'items-center',
           disabled && 'cursor-not-allowed opacity-60'
         )}
         onClick={() => !disabled && setOpen((current) => !current)}
         onKeyDown={handleKeyDown}
       >
-        <span className="flex min-w-0 items-center gap-2">
+        <span className="flex min-w-0 flex-1 items-start gap-2">
           {selected?.icon}
-          <span className="truncate">{selected?.label ?? 'Select…'}</span>
+          {selected ? (
+            <OptionText label={selected.label} description={selected.description} />
+          ) : (
+            <span className="truncate">Select…</span>
+          )}
         </span>
         <ChevronDown
           className={cn(
             'size-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400',
-            open && 'rotate-180'
+            open && 'rotate-180',
+            selected?.description && 'mt-0.5'
           )}
           aria-hidden
         />
@@ -123,7 +145,7 @@ export default function IconSelect({
         <div
           id={`icon-select-list-${listId}`}
           role="listbox"
-          className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+          className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
         >
           {options.map((option, index) => (
             <button
@@ -132,17 +154,20 @@ export default function IconSelect({
               role="option"
               aria-selected={value === option.value}
               className={cn(
-                'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
+                'flex w-full items-start gap-2 px-3 py-2 text-left text-sm',
                 highlight === index
                   ? 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100'
-                  : 'text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
+                  : 'text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700',
+                highlight === index &&
+                  option.description &&
+                  '[&_span:last-child]:text-blue-700 dark:[&_span:last-child]:text-blue-200'
               )}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => selectIndex(index)}
               onMouseEnter={() => setHighlight(index)}
             >
               {option.icon}
-              <span className="truncate">{option.label}</span>
+              <OptionText label={option.label} description={option.description} />
             </button>
           ))}
         </div>

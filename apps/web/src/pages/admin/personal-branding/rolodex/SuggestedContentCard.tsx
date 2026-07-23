@@ -1,5 +1,9 @@
 import { CheckCircle, ExternalLink, MessageSquarePlus, Sparkles } from 'lucide-react';
 import Button from '@/components/atoms/Button';
+import EngagementRationale from '@/components/molecules/personal-branding/EngagementRationale';
+import RecommendedActionBadge from '@/components/molecules/personal-branding/RecommendedActionBadge';
+import { ctaLabelForReconPost } from '@/lib/personal-branding/recon-prompter-seed';
+import { nextActionCueForRecommendedAction } from '@/lib/personal-branding/recommended-action-display';
 import type { ContentOpportunity } from '@/types/api/personal-branding.dto';
 
 function formatAngle(angle?: string | null): string {
@@ -34,6 +38,8 @@ export default function SuggestedContentCard({
   hideDraftReply = false,
 }: SuggestedContentCardProps) {
   const isBusy = isCompleting || isDismissing;
+  const draftLabel = ctaLabelForReconPost({ recommendedAction: opportunity.recommendedAction });
+  const nextActionCue = nextActionCueForRecommendedAction(opportunity.recommendedAction);
 
   return (
     <article
@@ -47,18 +53,15 @@ export default function SuggestedContentCard({
         <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
           {formatAngle(opportunity.socialCapitalAngle)}
         </span>
-        {opportunity.recommendedAction ? (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            Suggested: {opportunity.recommendedAction}
-          </span>
-        ) : null}
+        <RecommendedActionBadge action={opportunity.recommendedAction} />
       </div>
+      {nextActionCue ? (
+        <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{nextActionCue}</p>
+      ) : null}
       <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-100">
         {opportunity.postText}
       </p>
-      {opportunity.rationale ? (
-        <p className="text-sm text-gray-600 dark:text-gray-300">{opportunity.rationale}</p>
-      ) : null}
+      <EngagementRationale lead={opportunity.rationale} bullets={opportunity.rationaleBullets} />
       <div className="flex flex-wrap gap-2 pt-1">
         {opportunity.postUrl ? (
           <Button
@@ -80,7 +83,7 @@ export default function SuggestedContentCard({
             onClick={() => onDraftReply(opportunity)}
           >
             <Sparkles className="size-4" />
-            Draft reply
+            {draftLabel}
           </Button>
         ) : null}
         <Button

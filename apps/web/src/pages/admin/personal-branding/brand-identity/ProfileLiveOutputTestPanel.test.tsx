@@ -37,6 +37,7 @@ const formSnapshot = {
   toneMetrics: { clarity: 0.9 },
   bannedPhrases: [],
   status: 'active' as const,
+  platforms: [],
 };
 
 const savedTest: BrandProfileOutputTest = {

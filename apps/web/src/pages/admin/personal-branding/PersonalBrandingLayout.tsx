@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Megaphone } from 'lucide-react';
 import { PageContainer } from '@/components/templates/PageContainer';
+import { cn } from '@/lib/utils';
 import { ROUTES } from '@/routes';
 
 const SUBMODULE_TITLES: Record<string, { title: string; subtitle: string }> = {
@@ -38,8 +39,15 @@ export default function PersonalBrandingLayout() {
   const isWorkbench = location.pathname.startsWith(ROUTES.admin.personalBrandingWorkbench);
 
   return (
-    <PageContainer width={isWorkbench ? 'full' : 'default'} className="pb-12">
-      <header className="pb-6 pt-2">
+    <PageContainer
+      width={isWorkbench ? 'full' : 'default'}
+      className={cn(
+        isWorkbench
+          ? 'flex h-[calc(100dvh-5rem)] flex-col overflow-hidden pb-0 lg:h-[calc(100dvh-2rem)] -mb-12'
+          : 'pb-12'
+      )}
+    >
+      <header className={cn('shrink-0 pb-6 pt-2', isWorkbench && 'pb-4')}>
         <div className="mb-2 flex items-center gap-3">
           <div className="rounded-xl bg-blue-100/80 p-2 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
             <Megaphone className="size-7" />
@@ -53,7 +61,13 @@ export default function PersonalBrandingLayout() {
         </div>
       </header>
 
-      <Outlet />
+      {isWorkbench ? (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <Outlet />
+        </div>
+      ) : (
+        <Outlet />
+      )}
     </PageContainer>
   );
 }

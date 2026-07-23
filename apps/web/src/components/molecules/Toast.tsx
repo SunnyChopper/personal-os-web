@@ -9,14 +9,20 @@ const icons = {
   info: Info,
 };
 
-const styles = {
+const accentStyles = {
   success:
-    'bg-green-50 border-green-200 text-green-800 dark:bg-green-950 dark:border-green-800 dark:text-green-200',
-  error:
-    'bg-red-50 border-red-200 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-200',
+    'border-l-green-500 bg-green-50/95 text-green-900 dark:bg-green-950/90 dark:text-green-100',
+  error: 'border-l-red-500 bg-red-50/95 text-red-900 dark:bg-red-950/90 dark:text-red-100',
   warning:
-    'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-950 dark:border-yellow-800 dark:text-yellow-200',
-  info: 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-200',
+    'border-l-amber-500 bg-amber-50/95 text-amber-900 dark:bg-amber-950/90 dark:text-amber-100',
+  info: 'border-l-blue-500 bg-blue-50/95 text-blue-900 dark:bg-blue-950/90 dark:text-blue-100',
+};
+
+const iconStyles = {
+  success: 'text-green-600 dark:text-green-400',
+  error: 'text-red-600 dark:text-red-400',
+  warning: 'text-amber-600 dark:text-amber-400',
+  info: 'text-blue-600 dark:text-blue-400',
 };
 
 export function ToastItem({ toast, onDismiss }: { toast: ToastType; onDismiss: () => void }) {
@@ -24,23 +30,28 @@ export function ToastItem({ toast, onDismiss }: { toast: ToastType; onDismiss: (
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -20, scale: 0.95 }}
+      initial={{ opacity: 0, y: -12, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -20, scale: 0.95 }}
-      className={`flex items-start gap-3 p-4 rounded-lg border shadow-lg ${
+      exit={{ opacity: 0, y: -12, scale: 0.96 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+      className={`flex items-start gap-3 border border-l-4 p-4 rounded-2xl shadow-lg backdrop-blur-sm ${
         toast.type === 'error' ? 'max-w-xl' : 'max-w-sm'
-      } ${styles[toast.type]}`}
+      } ${accentStyles[toast.type]}`}
     >
-      <Icon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+      <div
+        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${iconStyles[toast.type]}`}
+      >
+        <Icon className="h-4 w-4" />
+      </div>
 
-      <div className="flex-1 min-w-0">
-        <p className="font-medium">{toast.title}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold leading-snug">{toast.title}</p>
         {toast.message && (
           <p
             className={`mt-1 ${
               toast.type === 'error'
-                ? 'text-xs font-mono whitespace-pre-wrap break-words opacity-95'
-                : 'text-sm opacity-90'
+                ? 'text-xs font-mono whitespace-pre-wrap break-words opacity-90'
+                : 'text-xs leading-relaxed opacity-85'
             }`}
           >
             {toast.message}
@@ -50,10 +61,10 @@ export function ToastItem({ toast, onDismiss }: { toast: ToastType; onDismiss: (
 
       <button
         onClick={onDismiss}
-        className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded transition-colors"
+        className="rounded-lg p-1.5 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
         aria-label="Dismiss notification"
       >
-        <X className="w-4 h-4" />
+        <X className="h-4 w-4 opacity-70" />
       </button>
     </motion.div>
   );
@@ -67,7 +78,7 @@ export function ToastContainer({
   onDismiss: (id: string) => void;
 }) {
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+    <div className="pointer-events-none fixed top-4 right-4 z-[100] flex flex-col gap-2.5">
       <AnimatePresence>
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto">

@@ -6,6 +6,23 @@ export function isBrandProfileReadyForIdeation(profile: BrandProfile): boolean {
   return hasPillars && hasAudience;
 }
 
+/** Pipeline repurposer only allows finished (`active`) Brand Identity profiles. */
+export function isBrandProfileSelectableForPipeline(profile: BrandProfile): boolean {
+  return profile.status === 'active';
+}
+
+export function collectActiveBrandPillars(profiles: BrandProfile[]): string[] {
+  const labels = new Set<string>();
+  for (const profile of profiles) {
+    if (profile.status !== 'active') continue;
+    for (const pillar of profile.pillars ?? []) {
+      const label = pillar.trim();
+      if (label) labels.add(label);
+    }
+  }
+  return [...labels].sort((a, b) => a.localeCompare(b));
+}
+
 export function countWords(text: string): number {
   return text
     .trim()

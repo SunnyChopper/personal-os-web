@@ -215,6 +215,7 @@ export const vaultItemsService = {
     return {
       data: null,
       error: response.error?.message || 'Failed to fetch items',
+      apiError: response.error ?? { message: 'Failed to fetch items', code: 'UNKNOWN' },
       success: false,
     };
   },

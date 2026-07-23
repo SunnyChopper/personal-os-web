@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { Select } from '@/components/atoms/Select';
 import { ManualModelListbox } from '@/components/molecules/assistant/ManualModelListbox';
@@ -31,7 +31,19 @@ function resolveCatalogModelId(
   return models[0]?.id ?? '';
 }
 
+function resolveDefaultProfileId(
+  profiles: { id: string; name: string }[],
+  defaultProfileId?: string | null
+): string {
+  if (defaultProfileId && profiles.some((profile) => profile.id === defaultProfileId)) {
+    return defaultProfileId;
+  }
+  return profiles[0]?.id ?? '';
+}
+
 export interface ReplyGenerationPanelProps {
+  profiles: { id: string; name: string }[];
+  defaultProfileId?: string | null;
   suggestedParams?: SuggestedReplyParams | null;
   disabled?: boolean;
   isGenerating?: boolean;
@@ -39,6 +51,8 @@ export interface ReplyGenerationPanelProps {
 }
 
 export default function ReplyGenerationPanel({
+  profiles,
+  defaultProfileId,
   suggestedParams,
   disabled = false,
   isGenerating = false,
@@ -55,21 +69,28 @@ export default function ReplyGenerationPanel({
     () => resolveCatalogModelId(models, suggestedParams),
     [models, suggestedParams]
   );
+  const resolvedDefaultProfileId = useMemo(
+    () => resolveDefaultProfileId(profiles, defaultProfileId),
+    [profiles, defaultProfileId]
+  );
 
   const [draft, setDraft] = useState<ReplyGenerationDraft>(() =>
-    draftFromSuggestedParams(suggestedParams, defaultModelId)
+    draftFromSuggestedParams(suggestedParams, defaultModelId, resolvedDefaultProfileId)
   );
 
   useEffect(() => {
     if (!defaultModelId) return;
-    setDraft(draftFromSuggestedParams(suggestedParams, defaultModelId));
-  }, [suggestedParams, defaultModelId]);
+    setDraft(draftFromSuggestedParams(suggestedParams, defaultModelId, resolvedDefaultProfileId));
+  }, [suggestedParams, defaultModelId, resolvedDefaultProfileId]);
 
   const selectedModel = models.find((m) => m.id === draft.catalogModelId) ?? models[0];
   const showEffort = selectedModel?.capabilityTags?.includes('configurableEffort') ?? false;
+  const hasProfile = profiles.length > 0 && Boolean(draft.profileId);
+  const settingsRationale = suggestedParams?.settingsRationale?.trim() ?? '';
+  const [rationaleOpen, setRationaleOpen] = useState(false);
 
   const handleGenerate = () => {
-    if (!selectedModel) return;
+    if (!selectedModel || !hasProfile) return;
     onGenerate(draft, { provider: selectedModel.provider, model: selectedModel.apiModelId });
   };
 
@@ -84,6 +105,58 @@ export default function ReplyGenerationPanel({
           AI-suggested defaults based on this post — adjust before generating.
         </p>
       ) : null}
+
+      {settingsRationale ? (
+        <div>
+          <button
+            type="button"
+            onClick={() => setRationaleOpen((prev) => !prev)}
+            className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs font-medium text-blue-700 hover:bg-blue-100/60 dark:text-blue-300 dark:hover:bg-blue-950/40"
+            aria-expanded={rationaleOpen}
+          >
+            {rationaleOpen ? (
+              <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+            ) : (
+              <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+            )}
+            <span>Why these settings</span>
+            {!rationaleOpen && selectedModel?.label ? (
+              <span className="truncate text-[10px] font-normal text-gray-500 dark:text-gray-400">
+                {selectedModel.label}
+              </span>
+            ) : null}
+          </button>
+          {rationaleOpen ? (
+            <p className="mt-1 px-1 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
+              {settingsRationale}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div>
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+          Brand profile
+        </label>
+        {profiles.length > 0 ? (
+          <Select
+            value={draft.profileId}
+            onChange={(e) => setDraft((d) => ({ ...d, profileId: e.target.value }))}
+            disabled={disabled || isGenerating}
+            className="w-full"
+          >
+            {profiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <p className="text-xs text-gray-600 dark:text-gray-400">
+            Create a Brand Identity profile first.
+          </p>
+        )}
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -168,7 +241,7 @@ export default function ReplyGenerationPanel({
         type="button"
         size="sm"
         className="w-full"
-        disabled={disabled || isGenerating || !selectedModel}
+        disabled={disabled || isGenerating || !selectedModel || !hasProfile}
         onClick={handleGenerate}
       >
         {isGenerating ? 'Generating…' : 'Generate'}

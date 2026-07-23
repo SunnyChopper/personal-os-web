@@ -1,14 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { ExternalLink, Loader2, MoreVertical, RefreshCw, Settings, Sparkles } from 'lucide-react';
-import SyncSettingsDialog from '@/components/organisms/personal-branding/SyncSettingsDialog';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { ExternalLink, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import TrendStreamFilterBar, {
+  type TrendStreamFilterState,
+} from '@/components/organisms/personal-branding/TrendStreamFilterBar';
 import TrendStreamBrainstormModal, {
   type TrendStreamBrainstormRequest,
 } from '@/components/organisms/personal-branding/TrendStreamBrainstormModal';
+import MarkIrrelevantReasonModal from '@/components/molecules/personal-branding/MarkIrrelevantReasonModal';
+import RadarLearningSignalBanner from '@/components/molecules/personal-branding/RadarLearningSignalBanner';
+import RadarItemRelevanceModal from '@/components/molecules/personal-branding/RadarItemRelevanceModal';
+import RadarItemSourceAvatar from '@/components/molecules/personal-branding/RadarItemSourceAvatar';
 import { FormCheckbox } from '@/components/atoms/FormCheckbox';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
+import { formatRelativeChatTimestamp } from '@/lib/chat/format-relative-time';
 import { linkAccentClassName } from '../personal-branding-ui';
 import { useToast } from '@/hooks/use-toast';
 import { useContentIdeationJob } from '@/hooks/useContentIdeationJob';
@@ -19,16 +27,33 @@ import {
   useSignalRadarItems,
   useSignalRadarRunDetail,
   useSignalRadarRuns,
+  useSignalRadarViews,
   type useSignalRadar,
 } from '@/hooks/useSignalRadar';
-import { RADAR_ITEM_TYPE_LABELS, type RadarItem } from '@/types/api/personal-branding.dto';
+import {
+  RADAR_ITEM_TYPE_LABELS,
+  type RadarItem,
+  type RadarUserIrrelevanceReason,
+} from '@/types/api/personal-branding.dto';
 import { isBrandProfileReadyForIdeation } from '../content-workbench/content-workbench-helpers';
 import RunDetailDrawer from './RunDetailDrawer';
 import {
-  PageCard,
+  getTrendStreamDismissPhase,
+  isTrendStreamCardDismissing,
+  mergeTrendStreamDisplayItems,
+  TREND_STREAM_IRRELEVANT_EXIT_MS,
+  TREND_STREAM_IRRELEVANT_UNDO_MS,
+  type TrendStreamDismissMap,
+} from './trend-stream-dismiss-queue';
+import {
+  buildBulkIrrelevantToastMessages,
+  partitionBulkIrrelevantResults,
+} from './trend-stream-bulk-irrelevant';
+import {
   emptyStateCardClassName,
   gridItemCardClassName,
-} from '../PersonalBrandingPageTemplate';
+} from '@/lib/personal-branding/personal-branding-surfaces';
+import { PageCard } from '../PersonalBrandingPageTemplate';
 
 function formatDate(value?: string | null): string {
   if (!value) return '—';
@@ -47,6 +72,10 @@ function capitalizeLabel(value: string): string {
 function formatSourcesSuccessPercent(succeeded: number, total: number): string {
   if (total <= 0) return '—';
   return `${Math.round((succeeded / total) * 100)}%`;
+}
+
+function formatCreatedDiscoveredRatio(created?: number, discovered?: number): string {
+  return `${created ?? 0} / ${discovered ?? 0}`;
 }
 
 function RunStatusBadge({ status }: { status: string }) {
@@ -69,7 +98,7 @@ function FilteredBadge({ item }: { item: RadarItem }) {
   if (item.userRelevant === false) {
     return (
       <span className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">
-        User-marked
+        Irrelevant
       </span>
     );
   }
@@ -85,48 +114,62 @@ function FilteredBadge({ item }: { item: RadarItem }) {
 
 const MAX_RADAR_SELECTION = 10;
 
+function formatAbsoluteDate(value?: string | null): string {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+}
+
+function formatRelevanceLabel(score?: number | null): string {
+  if (typeof score !== 'number') return 'No score';
+  return `${Math.round(score * 100)}% relevant`;
+}
+
 function RadarItemCard({
   item,
   includeFiltered,
   selected,
   selectionDisabled,
+  dismissPhase,
   onToggleSelected,
+  onOpenRelevance,
   onMarkRelevant,
   onMarkIrrelevant,
-  isUpdating,
+  onUndoDismiss,
+  isUpdatingThis,
 }: {
   item: RadarItem;
   includeFiltered: boolean;
   selected: boolean;
   selectionDisabled: boolean;
+  dismissPhase: 'pending' | 'exiting' | null;
   onToggleSelected: () => void;
+  onOpenRelevance: () => void;
   onMarkRelevant: () => void;
   onMarkIrrelevant: () => void;
-  isUpdating: boolean;
+  onUndoDismiss: () => void;
+  isUpdatingThis: boolean;
 }) {
   const link = item.url ?? item.repositoryUrl;
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const isDismissing = dismissPhase !== null;
+  const showIrrelevantBadge = dismissPhase === 'pending' || item.userRelevant === false;
   const showFilteredContext =
     includeFiltered && (item.userRelevant === false || item.aiRelevant === false);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handlePointerDown = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
-  }, [menuOpen]);
+  const timestamp = item.publishedAt ?? item.createdAt;
+  const relativeTimestamp = timestamp ? formatRelativeChatTimestamp(timestamp) : null;
+  const absoluteTimestamp = formatAbsoluteDate(timestamp);
 
   return (
     <article
       className={cn(
         gridItemCardClassName,
-        'flex flex-col',
-        selected && 'ring-2 ring-sky-500/70 dark:ring-sky-400/60'
+        'flex flex-col transition-opacity',
+        selected && 'ring-2 ring-sky-500/70 dark:ring-sky-400/60',
+        dismissPhase === 'pending' && 'opacity-75',
+        dismissPhase === 'exiting' && 'pointer-events-none'
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -134,64 +177,44 @@ function RadarItemCard({
           <FormCheckbox
             checked={selected}
             onChange={onToggleSelected}
-            disabled={selectionDisabled}
+            disabled={selectionDisabled || isDismissing}
             aria-label={`Select ${item.title}`}
             className="mt-0.5"
           />
           <h3 className="font-semibold text-gray-900 dark:text-white">{item.title}</h3>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
             {RADAR_ITEM_TYPE_LABELS[item.itemType]}
           </span>
-          {showFilteredContext ? <FilteredBadge item={item} /> : null}
-          <div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((open) => !open)}
-              disabled={isUpdating}
-              className="flex min-h-8 min-w-8 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-black/5 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-white/10"
-              aria-label="Card options"
-              aria-expanded={menuOpen}
-            >
-              <MoreVertical className="size-4" aria-hidden />
-            </button>
-            {menuOpen ? (
-              <div
-                role="menu"
-                className="absolute right-0 z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {item.userRelevant === false ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onMarkRelevant();
-                    }}
-                  >
-                    Mark as Relevant
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onMarkIrrelevant();
-                    }}
-                  >
-                    Mark as Irrelevant
-                  </button>
-                )}
-              </div>
-            ) : null}
-          </div>
+          {showIrrelevantBadge ? (
+            <span className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">
+              Irrelevant
+            </span>
+          ) : null}
+          {showFilteredContext && item.aiRelevant === false ? <FilteredBadge item={item} /> : null}
         </div>
       </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <RadarItemSourceAvatar
+          url={item.url}
+          repositoryUrl={item.repositoryUrl}
+          sourceName={item.sourceName}
+        />
+        {item.sourceName ? (
+          <span className="font-medium text-gray-700 dark:text-gray-300">{item.sourceName}</span>
+        ) : null}
+        {relativeTimestamp ? (
+          <>
+            {item.sourceName ? <span aria-hidden>·</span> : null}
+            <time dateTime={timestamp ?? undefined} title={absoluteTimestamp}>
+              {relativeTimestamp}
+            </time>
+          </>
+        ) : null}
+      </div>
+
       {item.summary ? (
         <p className="mt-2 flex-1 text-sm text-gray-600 dark:text-gray-400 line-clamp-4">
           {item.summary}
@@ -200,18 +223,17 @@ function RadarItemCard({
       {showFilteredContext && item.aiRationale ? (
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{item.aiRationale}</p>
       ) : null}
-      <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
-        {item.sourceName ? <span>{item.sourceName}</span> : null}
-        {item.publishedAt ? <span>{formatDate(item.publishedAt)}</span> : null}
-        {typeof item.aiRelevanceScore === 'number' ? (
-          <span
-            className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200"
-            title={item.aiRationale ?? undefined}
-          >
-            AI Relevance: {(item.aiRelevanceScore * 100).toFixed(0)}%
-          </span>
-        ) : null}
-      </div>
+
+      <button
+        type="button"
+        onClick={onOpenRelevance}
+        aria-haspopup="dialog"
+        className="mt-3 inline-flex w-fit items-center rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-semibold text-violet-900 transition-colors hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-100 dark:hover:bg-violet-900/40"
+        title={item.aiRationale ?? 'View relevance breakdown'}
+      >
+        {formatRelevanceLabel(item.aiRelevanceScore)}
+      </button>
+
       {item.matchedPillars.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1">
           {item.matchedPillars.map((pillar) => (
@@ -221,20 +243,51 @@ function RadarItemCard({
           ))}
         </div>
       ) : null}
-      {link ? (
-        <a
-          href={link}
-          target="_blank"
-          rel="noreferrer"
-          className={cn(
-            'mt-4 inline-flex items-center gap-1 text-sm font-medium',
-            linkAccentClassName
-          )}
-        >
-          Open
-          <ExternalLink className="size-3.5" aria-hidden />
-        </a>
+
+      {item.topicTags && item.topicTags.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {item.topicTags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded bg-violet-100 px-2 py-0.5 text-xs text-violet-800 dark:bg-violet-900/40 dark:text-violet-200"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
       ) : null}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        {link ? (
+          <a
+            href={link}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              'inline-flex items-center gap-1 text-sm font-medium',
+              linkAccentClassName
+            )}
+          >
+            Open
+            <ExternalLink className="size-3.5" aria-hidden />
+          </a>
+        ) : null}
+        {dismissPhase === 'pending' ? (
+          <Button type="button" size="sm" disabled={isUpdatingThis} onClick={onUndoDismiss}>
+            Undo
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={isUpdatingThis || dismissPhase === 'exiting'}
+            onClick={item.userRelevant === false ? onMarkRelevant : onMarkIrrelevant}
+          >
+            {item.userRelevant === false ? 'Mark as Relevant' : 'Mark as Irrelevant'}
+          </Button>
+        )}
+      </div>
     </article>
   );
 }
@@ -243,20 +296,32 @@ type SignalRadarHook = ReturnType<typeof useSignalRadar>;
 
 interface TrendStreamTabProps {
   signalRadar: SignalRadarHook;
+  onOpenSettings?: () => void;
 }
 
-export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
+export default function TrendStreamTab({ signalRadar, onOpenSettings }: TrendStreamTabProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const prefersReducedMotion = useReducedMotion();
   const { showToast, ToastContainer } = useToast();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [itemPage] = useState(1);
-  const [includeFiltered, setIncludeFiltered] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [itemFilters, setItemFilters] = useState<TrendStreamFilterState>({
+    page: 1,
+    pageSize: 50,
+    includeFiltered: false,
+  });
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [brainstormOpen, setBrainstormOpen] = useState(false);
   const [brainstormError, setBrainstormError] = useState<string | null>(null);
   const [brainstormJobId, setBrainstormJobId] = useState<string | null>(null);
+  const [relevanceModalItemId, setRelevanceModalItemId] = useState<string | null>(null);
+  const [irrelevantModalItemIds, setIrrelevantModalItemIds] = useState<string[]>([]);
+  const [bulkIrrelevantPending, setBulkIrrelevantPending] = useState(false);
+  const [bulkUpdatingIds, setBulkUpdatingIds] = useState<Set<string>>(() => new Set());
+  const [dismissingById, setDismissingById] = useState<TrendStreamDismissMap>({});
+  const dismissTimersRef = useRef<Record<string, number>>({});
+  const exitTimersRef = useRef<Record<string, number>>({});
 
   const profilesQ = useQuery({
     queryKey: queryKeys.personalBranding.profiles.list(1, 50),
@@ -276,25 +341,122 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
   }, [brandProfiles]);
 
   const { runs, startSync } = useSignalRadarRuns({ page: 1, pageSize: 10 });
-  const { items, updateItemRelevance } = useSignalRadarItems({
+  const { items, updateItemRelevance, explainItemRelevance } = useSignalRadarItems({
+    ...itemFilters,
     page: itemPage,
-    pageSize: 50,
-    includeFiltered,
   });
+  const { views, createView, deleteView } = useSignalRadarViews();
+  const radarSources = signalRadar.sources.data?.data ?? [];
+  const savedViews = views.data?.data ?? [];
+
+  const feedbackStatsQ = useQuery({
+    queryKey: queryKeys.personalBranding.radarFeedbackStats(),
+    queryFn: () => personalBrandingService.getRadarFeedbackStats(),
+  });
+  const feedbackStats = feedbackStatsQ.data;
 
   const runRows = runs.data?.data ?? [];
 
   const activeDetail = useSignalRadarRunDetail(selectedRunId);
   const runDetail = activeDetail.detail.data;
   const streamItems = items.data?.data ?? [];
+  const includeFiltered = itemFilters.includeFiltered ?? false;
+  const displayItems = useMemo(
+    () => mergeTrendStreamDisplayItems(streamItems, dismissingById),
+    [streamItems, dismissingById]
+  );
+
+  const clearDismissTimer = useCallback((itemId: string) => {
+    const timerId = dismissTimersRef.current[itemId];
+    if (timerId != null) {
+      window.clearTimeout(timerId);
+      delete dismissTimersRef.current[itemId];
+    }
+    const exitTimerId = exitTimersRef.current[itemId];
+    if (exitTimerId != null) {
+      window.clearTimeout(exitTimerId);
+      delete exitTimersRef.current[itemId];
+    }
+  }, []);
+
+  const commitDismiss = useCallback(
+    (itemId: string) => {
+      clearDismissTimer(itemId);
+      setDismissingById((current) => {
+        if (!(itemId in current)) return current;
+        const next = { ...current };
+        delete next[itemId];
+        return next;
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.personalBranding.radarItems.all() });
+    },
+    [clearDismissTimer, queryClient]
+  );
+
+  const beginDismissExit = useCallback(
+    (itemId: string) => {
+      if (includeFiltered) {
+        commitDismiss(itemId);
+        return;
+      }
+      if (prefersReducedMotion) {
+        commitDismiss(itemId);
+        return;
+      }
+      setDismissingById((current) => {
+        const entry = current[itemId];
+        if (!entry || entry.phase !== 'pending') return current;
+        return { ...current, [itemId]: { ...entry, phase: 'exiting' } };
+      });
+      exitTimersRef.current[itemId] = window.setTimeout(() => {
+        commitDismiss(itemId);
+      }, TREND_STREAM_IRRELEVANT_EXIT_MS);
+    },
+    [commitDismiss, includeFiltered, prefersReducedMotion]
+  );
+
+  const scheduleDismissHold = useCallback(
+    (itemId: string) => {
+      clearDismissTimer(itemId);
+      dismissTimersRef.current[itemId] = window.setTimeout(() => {
+        beginDismissExit(itemId);
+      }, TREND_STREAM_IRRELEVANT_UNDO_MS);
+    },
+    [beginDismissExit, clearDismissTimer]
+  );
+
+  useEffect(() => {
+    const dismissTimers = dismissTimersRef.current;
+    const exitTimers = exitTimersRef.current;
+    return () => {
+      Object.values(dismissTimers).forEach((timerId) => window.clearTimeout(timerId));
+      Object.values(exitTimers).forEach((timerId) => window.clearTimeout(timerId));
+    };
+  }, []);
+  const availableTags = useMemo(() => {
+    const tags = new Set<string>();
+    for (const item of streamItems) {
+      for (const tag of item.topicTags ?? []) tags.add(tag);
+    }
+    return [...tags].sort();
+  }, [streamItems]);
   const selectedItems = useMemo(
     () => streamItems.filter((item) => selectedItemIds.includes(item.id)),
     [streamItems, selectedItemIds]
   );
   const selectionAtCap = selectedItemIds.length >= MAX_RADAR_SELECTION;
   const allVisibleSelected =
-    streamItems.length > 0 &&
-    streamItems.slice(0, MAX_RADAR_SELECTION).every((item) => selectedItemIds.includes(item.id));
+    displayItems.length > 0 &&
+    displayItems.slice(0, MAX_RADAR_SELECTION).every((item) => selectedItemIds.includes(item.id));
+  const relevanceModalItem = useMemo(
+    () => displayItems.find((item) => item.id === relevanceModalItemId) ?? null,
+    [displayItems, relevanceModalItemId]
+  );
+  const irrelevantModalItems = useMemo(
+    () => displayItems.filter((item) => irrelevantModalItemIds.includes(item.id)),
+    [displayItems, irrelevantModalItemIds]
+  );
+  const irrelevantModalItem = irrelevantModalItems.length === 1 ? irrelevantModalItems[0] : null;
 
   const brainstormMutation = useMutation({
     mutationFn: async (request: TrendStreamBrainstormRequest) => {
@@ -365,11 +527,14 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
 
   const toggleSelectAllVisible = () => {
     if (allVisibleSelected) {
-      const visibleIds = new Set(streamItems.slice(0, MAX_RADAR_SELECTION).map((item) => item.id));
+      const visibleIds = new Set(displayItems.slice(0, MAX_RADAR_SELECTION).map((item) => item.id));
       setSelectedItemIds((current) => current.filter((id) => !visibleIds.has(id)));
       return;
     }
-    const nextIds = streamItems.slice(0, MAX_RADAR_SELECTION).map((item) => item.id);
+    const nextIds = displayItems
+      .filter((item) => !isTrendStreamCardDismissing(item.id, dismissingById))
+      .slice(0, MAX_RADAR_SELECTION)
+      .map((item) => item.id);
     setSelectedItemIds(nextIds);
   };
 
@@ -414,6 +579,89 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
     }
   };
 
+  const handleConfirmIrrelevant = async (reason: RadarUserIrrelevanceReason) => {
+    if (irrelevantModalItemIds.length === 0) return;
+    const itemIds = [...irrelevantModalItemIds];
+    setBulkIrrelevantPending(true);
+    setBulkUpdatingIds(new Set(itemIds));
+    try {
+      const results = await Promise.allSettled(
+        itemIds.map((itemId) =>
+          updateItemRelevance.mutateAsync({
+            itemId,
+            relevant: false,
+            reason,
+          })
+        )
+      );
+      const { succeeded } = partitionBulkIrrelevantResults(itemIds, results);
+      const succeededIds = new Set(succeeded.map((entry) => entry.itemId));
+
+      if (succeeded.length > 0) {
+        setDismissingById((current) => {
+          const next = { ...current };
+          for (const { itemId, updatedItem } of succeeded) {
+            next[itemId] = { item: updatedItem, phase: 'pending' };
+          }
+          return next;
+        });
+        for (const { itemId } of succeeded) {
+          scheduleDismissHold(itemId);
+        }
+        setSelectedItemIds((current) => current.filter((id) => !succeededIds.has(id)));
+      }
+
+      setIrrelevantModalItemIds([]);
+      const toasts = buildBulkIrrelevantToastMessages(itemIds.length, succeeded.length);
+      if (toasts.success) {
+        showToast({ type: 'success', title: toasts.success.title });
+      }
+      if (toasts.error) {
+        showToast({ type: 'error', title: toasts.error.title });
+      }
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Failed to update relevance',
+      });
+    } finally {
+      setBulkIrrelevantPending(false);
+      setBulkUpdatingIds(new Set());
+    }
+  };
+
+  const handleUndoDismiss = async (itemId: string) => {
+    clearDismissTimer(itemId);
+    setDismissingById((current) => {
+      if (!(itemId in current)) return current;
+      const next = { ...current };
+      delete next[itemId];
+      return next;
+    });
+    try {
+      await updateItemRelevance.mutateAsync({ itemId, relevant: true });
+      showToast({ type: 'success', title: 'Restored' });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Failed to restore card',
+      });
+    }
+  };
+
+  const handleExplainRelevance = async () => {
+    if (!relevanceModalItemId) return;
+    try {
+      await explainItemRelevance.mutateAsync(relevanceModalItemId);
+      showToast({ type: 'success', title: 'Relevance explanation generated' });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Explain failed',
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -424,24 +672,17 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-            <FormCheckbox
-              checked={includeFiltered}
-              onChange={(e) => setIncludeFiltered(e.target.checked)}
-            />
-            Show filtered noise
-          </label>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => setSettingsOpen(true)}
-            className="inline-flex items-center gap-2"
-            aria-label="Sync settings"
-          >
-            <Settings className="size-4" aria-hidden />
-            Sync settings
-          </Button>
+          {onOpenSettings ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={onOpenSettings}
+              aria-label="Open Signal Radar settings"
+            >
+              Settings
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -479,7 +720,7 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Trigger</th>
                 <th className="px-3 py-2">Sources</th>
-                <th className="px-3 py-2">Items</th>
+                <th className="px-3 py-2">Created / Discovered</th>
                 <th className="px-3 py-2">Started</th>
               </tr>
             </thead>
@@ -512,7 +753,9 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
                     <td className="px-3 py-2">
                       {formatSourcesSuccessPercent(run.sourcesSucceeded, run.sourcesTotal)}
                     </td>
-                    <td className="px-3 py-2">{run.itemsCreated}</td>
+                    <td className="px-3 py-2">
+                      {formatCreatedDiscoveredRatio(run.itemsCreated, run.itemsDiscovered)}
+                    </td>
                     <td className="px-3 py-2 text-xs text-gray-500">
                       {formatDate(run.startedAt ?? run.createdAt)}
                     </td>
@@ -533,73 +776,151 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
         onRerun={handleRerun}
       />
 
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Stream cards</h3>
-          {streamItems.length > 0 ? (
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <FormCheckbox checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
-              Select visible (up to {MAX_RADAR_SELECTION})
-            </label>
-          ) : null}
-        </div>
-        {selectedItemIds.length > 0 ? (
-          <div className="sticky top-4 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 shadow-sm dark:border-sky-900/50 dark:bg-sky-950/40">
-            <p className="text-sm font-medium text-sky-900 dark:text-sky-100">
-              {selectedItemIds.length} card{selectedItemIds.length === 1 ? '' : 's'} selected
-              {selectionAtCap ? ` (max ${MAX_RADAR_SELECTION})` : ''}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={() => setSelectedItemIds([])}
-              >
-                Clear
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setBrainstormOpen(true)}
-                className="inline-flex items-center gap-2"
-              >
-                <Sparkles className="size-4" aria-hidden />
-                Brainstorm content ideas
-              </Button>
+      <div className="space-y-4">
+        <TrendStreamFilterBar
+          filters={itemFilters}
+          onChange={setItemFilters}
+          sources={radarSources}
+          savedViews={savedViews}
+          availableTags={availableTags}
+          isSavingView={createView.isPending}
+          onSaveView={async (name, filters) => {
+            await createView.mutateAsync({ name, filters });
+            showToast({ type: 'success', title: `Saved view “${name}”` });
+          }}
+          onDeleteView={async (viewId) => {
+            await deleteView.mutateAsync(viewId);
+            if (itemFilters.viewId === viewId) {
+              setItemFilters((current: TrendStreamFilterState) => ({
+                ...current,
+                viewId: undefined,
+              }));
+            }
+            showToast({ type: 'success', title: 'Deleted saved view' });
+          }}
+        />
+
+        <section className="space-y-4">
+          {feedbackStats ? <RadarLearningSignalBanner stats={feedbackStats} /> : null}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Stream cards</h3>
+            {displayItems.length > 0 ? (
+              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <FormCheckbox checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
+                Select visible (up to {MAX_RADAR_SELECTION})
+              </label>
+            ) : null}
+          </div>
+          {selectedItemIds.length > 0 ? (
+            <div className="sticky top-4 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 shadow-sm dark:border-sky-900/50 dark:bg-sky-950/40">
+              <p className="text-sm font-medium text-sky-900 dark:text-sky-100">
+                {selectedItemIds.length} card{selectedItemIds.length === 1 ? '' : 's'} selected
+                {selectionAtCap ? ` (max ${MAX_RADAR_SELECTION})` : ''}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setSelectedItemIds([])}
+                >
+                  Clear
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={bulkIrrelevantPending}
+                  onClick={() =>
+                    setIrrelevantModalItemIds(
+                      selectedItemIds.filter(
+                        (id) => !isTrendStreamCardDismissing(id, dismissingById)
+                      )
+                    )
+                  }
+                  className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/40"
+                >
+                  Mark as irrelevant
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setBrainstormOpen(true)}
+                  className="inline-flex items-center gap-2"
+                >
+                  <Sparkles className="size-4" aria-hidden />
+                  Brainstorm content ideas
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : null}
-        {items.isLoading ? (
-          <div className="flex min-h-[240px] items-center justify-center text-gray-500">
-            <Loader2 className="mr-2 size-5 animate-spin" />
-            Loading items…
-          </div>
-        ) : streamItems.length === 0 ? (
-          <PageCard className={cn(emptyStateCardClassName, 'p-10')}>
-            <h4 className="text-lg font-medium text-gray-900 dark:text-white">No items yet</h4>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Configure sources and run a sync to populate the Trend Stream.
-            </p>
-          </PageCard>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {streamItems.map((item) => (
-              <RadarItemCard
-                key={item.id}
-                item={item}
-                includeFiltered={includeFiltered}
-                selected={selectedItemIds.includes(item.id)}
-                selectionDisabled={!selectedItemIds.includes(item.id) && selectionAtCap}
-                onToggleSelected={() => toggleItemSelection(item.id)}
-                isUpdating={updateItemRelevance.isPending}
-                onMarkRelevant={() => void handleMarkRelevance(item.id, true)}
-                onMarkIrrelevant={() => void handleMarkRelevance(item.id, false)}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+          ) : null}
+          {items.isLoading ? (
+            <div className="flex min-h-[240px] items-center justify-center text-gray-500">
+              <Loader2 className="mr-2 size-5 animate-spin" />
+              Loading items…
+            </div>
+          ) : displayItems.length === 0 ? (
+            <PageCard className={cn(emptyStateCardClassName, 'p-10')}>
+              <h4 className="text-lg font-medium text-gray-900 dark:text-white">No items yet</h4>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Configure sources and run a sync to populate the Trend Stream.
+              </p>
+            </PageCard>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <AnimatePresence mode="popLayout">
+                {displayItems.map((item) => {
+                  const dismissPhase = getTrendStreamDismissPhase(item.id, dismissingById);
+                  const isUpdatingThis =
+                    bulkUpdatingIds.has(item.id) ||
+                    (updateItemRelevance.isPending &&
+                      updateItemRelevance.variables?.itemId === item.id);
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout={!prefersReducedMotion}
+                      initial={false}
+                      animate={
+                        dismissPhase === 'exiting'
+                          ? {
+                              opacity: 0,
+                              x: prefersReducedMotion ? 0 : 24,
+                              scale: prefersReducedMotion ? 1 : 0.98,
+                            }
+                          : { opacity: 1, x: 0, scale: 1 }
+                      }
+                      exit={
+                        prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 24, scale: 0.98 }
+                      }
+                      transition={{
+                        duration: TREND_STREAM_IRRELEVANT_EXIT_MS / 1000,
+                        ease: 'easeInOut',
+                      }}
+                    >
+                      <RadarItemCard
+                        item={item}
+                        includeFiltered={includeFiltered}
+                        selected={selectedItemIds.includes(item.id)}
+                        selectionDisabled={
+                          (!selectedItemIds.includes(item.id) && selectionAtCap) ||
+                          isTrendStreamCardDismissing(item.id, dismissingById)
+                        }
+                        dismissPhase={dismissPhase}
+                        onToggleSelected={() => toggleItemSelection(item.id)}
+                        onOpenRelevance={() => setRelevanceModalItemId(item.id)}
+                        isUpdatingThis={isUpdatingThis}
+                        onMarkRelevant={() => void handleMarkRelevance(item.id, true)}
+                        onMarkIrrelevant={() => setIrrelevantModalItemIds([item.id])}
+                        onUndoDismiss={() => void handleUndoDismiss(item.id)}
+                      />
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+          )}
+        </section>
+      </div>
 
       <TrendStreamBrainstormModal
         open={brainstormOpen}
@@ -608,7 +929,7 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
         profilesLoading={profilesQ.isPending}
         defaultBrandProfileId={defaultProfileId}
         isSubmitting={isBrainstorming}
-        progressMessage={ideationJob.data?.message ?? null}
+        ideationJob={ideationJob.data}
         errorMessage={brainstormError}
         onClose={() => {
           setBrainstormOpen(false);
@@ -618,10 +939,21 @@ export default function TrendStreamTab({ signalRadar }: TrendStreamTabProps) {
         onSubmit={(request) => brainstormMutation.mutate(request)}
       />
 
-      <SyncSettingsDialog
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        signalRadar={signalRadar}
+      <RadarItemRelevanceModal
+        isOpen={relevanceModalItemId !== null}
+        item={relevanceModalItem}
+        isExplaining={explainItemRelevance.isPending}
+        onClose={() => setRelevanceModalItemId(null)}
+        onExplain={() => void handleExplainRelevance()}
+      />
+
+      <MarkIrrelevantReasonModal
+        isOpen={irrelevantModalItemIds.length > 0}
+        itemTitle={irrelevantModalItem?.title}
+        itemCount={irrelevantModalItemIds.length}
+        isSubmitting={bulkIrrelevantPending || updateItemRelevance.isPending}
+        onClose={() => setIrrelevantModalItemIds([])}
+        onSubmit={(reason) => void handleConfirmIrrelevant(reason)}
       />
 
       <ToastContainer />
