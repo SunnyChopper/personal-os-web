@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
 import { X } from 'lucide-react';
+import OverlayPortal from '@/components/molecules/OverlayPortal';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
 import { cn } from '@/lib/utils';
 
 interface BottomSheetProps {
@@ -60,18 +62,20 @@ export default function BottomSheet({
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
+        <OverlayPortal>
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 z-[60] md:hidden"
+            className={cn('fixed inset-0 bg-black/50 md:hidden', overlayBackdropClassName)}
           />
 
           {/* Bottom Sheet - Mobile */}
-          <div className="fixed inset-0 z-[70] pointer-events-none md:hidden">
+          <div
+            className={cn('fixed inset-0 pointer-events-none md:hidden', overlaySurfaceClassName)}
+          >
             <motion.div
               ref={sheetRef}
               role="dialog"
@@ -134,10 +138,15 @@ export default function BottomSheet({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="hidden md:block fixed inset-0 bg-black/50 z-[60]"
+            className={cn('hidden md:block fixed inset-0 bg-black/50', overlayBackdropClassName)}
           />
           {/* Modal Container - Desktop */}
-          <div className="hidden md:flex fixed inset-0 items-center justify-center p-4 z-[70] pointer-events-none overflow-y-auto">
+          <div
+            className={cn(
+              'hidden md:flex fixed inset-0 items-center justify-center p-4 pointer-events-none overflow-y-auto',
+              overlaySurfaceClassName
+            )}
+          >
             <motion.div
               role="dialog"
               aria-modal="true"
@@ -147,7 +156,8 @@ export default function BottomSheet({
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', duration: 0.3 }}
               className={cn(
-                'bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl pointer-events-auto relative z-[70] flex flex-col max-h-[calc(100vh-4rem)]',
+                'bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl pointer-events-auto relative flex flex-col max-h-[calc(100vh-4rem)]',
+                overlaySurfaceClassName,
                 className
               )}
             >
@@ -175,7 +185,7 @@ export default function BottomSheet({
               </div>
             </motion.div>
           </div>
-        </>
+        </OverlayPortal>
       )}
     </AnimatePresence>
   );

@@ -2,9 +2,16 @@ import type { LucideIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Lightbulb, ArrowRight } from 'lucide-react';
 import Button from '@/components/atoms/Button';
+import {
+  EmptyStateScene,
+  type EmptyStateSceneId,
+} from '@/components/molecules/empty-state/EmptyStateScenes';
+
+export type { EmptyStateSceneId };
 
 interface EmptyStateProps {
   icon?: LucideIcon;
+  scene?: EmptyStateSceneId;
   title: string;
   description?: string;
   actionLabel?: string;
@@ -17,8 +24,43 @@ interface EmptyStateProps {
   className?: string;
 }
 
+function EmptyStateGraphic({
+  scene,
+  icon: Icon,
+}: {
+  scene?: EmptyStateSceneId;
+  icon?: LucideIcon;
+}) {
+  if (scene) {
+    return (
+      <div className="relative mb-6 flex items-center justify-center">
+        <div
+          className="absolute inset-0 -m-6 rounded-3xl bg-gradient-to-b from-blue-50/80 via-gray-50/40 to-transparent dark:from-blue-950/30 dark:via-gray-900/20 dark:to-transparent"
+          aria-hidden
+        />
+        <EmptyStateScene scene={scene} className="relative" />
+      </div>
+    );
+  }
+
+  if (!Icon) return null;
+
+  return (
+    <div className="relative mb-6 flex items-center justify-center">
+      <div
+        className="absolute inset-0 -m-4 rounded-3xl bg-gradient-to-b from-blue-50/60 via-gray-50/30 to-transparent dark:from-blue-950/20 dark:via-gray-900/10 dark:to-transparent"
+        aria-hidden
+      />
+      <div className="relative flex h-[72px] w-[72px] items-center justify-center rounded-2xl border border-gray-200/80 bg-white shadow-sm dark:border-gray-700/80 dark:bg-gray-800/80">
+        <Icon className="h-9 w-9 text-blue-600 dark:text-blue-400" />
+      </div>
+    </div>
+  );
+}
+
 export function EmptyState({
   icon: Icon,
+  scene,
   title,
   description,
   actionLabel,
@@ -147,22 +189,26 @@ export function EmptyState({
     );
   }
 
-  // Default variant
+  // Default variant — elevated layout
   return (
-    <div
-      className={`flex flex-col items-center justify-center py-12 px-4 text-center ${className}`}
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: 'easeOut' }}
+      className={`flex flex-col items-center justify-center py-14 px-4 text-center ${className}`}
     >
-      {Icon && (
-        <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
-          <Icon className="w-8 h-8 text-gray-400 dark:text-gray-600" />
-        </div>
-      )}
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
+      <EmptyStateGraphic scene={scene} icon={Icon} />
+
+      <h3 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
+        {title}
+      </h3>
       {description && (
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md">{description}</p>
+        <p className="mt-2 max-w-md text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+          {description}
+        </p>
       )}
       {(actionLabel || secondaryActionLabel) && (
-        <div className="flex gap-3">
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
           {actionLabel && onAction && (
             <Button onClick={onAction} variant="primary">
               {actionLabel}
@@ -175,6 +221,6 @@ export function EmptyState({
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
