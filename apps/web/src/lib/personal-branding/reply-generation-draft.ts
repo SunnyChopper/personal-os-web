@@ -2,9 +2,11 @@ import type { ReplyGenerationDraft, SuggestedReplyParams } from '@/types/api/per
 
 export function draftFromSuggestedParams(
   suggested: SuggestedReplyParams | null | undefined,
-  fallbackCatalogModelId: string
+  fallbackCatalogModelId: string,
+  defaultProfileId = ''
 ): ReplyGenerationDraft {
   return {
+    profileId: defaultProfileId,
     mode: suggested?.mode ?? 'SIMPLE',
     researchEnabled: suggested?.researchEnabled ?? false,
     catalogModelId: fallbackCatalogModelId,

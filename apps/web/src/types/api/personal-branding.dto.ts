@@ -11,19 +11,150 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   VIDEO_SCRIPT: 'Video Script',
 };
 export type BrandPlatform = 'linkedin' | 'x' | 'medium' | 'youtube' | 'instagram' | 'newsletter';
-export type RepurposeJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+export type RepurposeJobStatus =
+  | 'queued'
+  | 'running'
+  | 'cancelling'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
+
+/** Documented Content Pipeline job stages (free-string on wire; UI maps labels). */
+export type RepurposeJobStage =
+  | 'queued'
+  | 'loading_context'
+  | 'searching_references'
+  | 'waiting_keyword_research'
+  | 'loading_platform_rules'
+  | 'generating'
+  | 'persisting'
+  | 'complete'
+  | 'failed'
+  | string;
+
+export const REPURPOSE_JOB_STAGE_LABELS: Record<string, string> = {
+  queued: 'Queued',
+  loading_context: 'Loading context',
+  searching_references: 'Searching references',
+  waiting_keyword_research: 'Waiting for keyword research',
+  loading_platform_rules: 'Loading platform rules',
+  generating: 'Generating',
+  persisting: 'Saving variant',
+  complete: 'Complete',
+  failed: 'Failed',
+  cancelling: 'Cancelling',
+  cancelled: 'Cancelled',
+};
 export type ContentVariantStatus = 'generated' | 'rejected' | 'sent_to_sandbox';
-export type ContentVariantDistributionStatus = 'DRAFT' | 'SCHEDULED' | 'DEPLOYED';
+export type ContentVariantVersionOrigin = 'generation' | 'regenerate' | 'tweaks' | 'manual_save';
+export type ContentVariantDistributionStatus = 'DRAFT' | 'READY' | 'SCHEDULED' | 'DEPLOYED';
 
 export const CONTENT_VARIANT_DISTRIBUTION_STATUS_LABELS: Record<
   ContentVariantDistributionStatus,
   string
 > = {
   DRAFT: 'Draft',
+  READY: 'Ready',
   SCHEDULED: 'Scheduled',
-  DEPLOYED: 'Deployed',
+  DEPLOYED: 'Published',
 };
+
+export interface ContentVariantEngagement {
+  views?: number | null;
+  likes?: number | null;
+  comments?: number | null;
+  shares?: number | null;
+}
+
+export interface ContentVariantGenerationSnapshot {
+  toneMetrics: Record<string, number>;
+  rhetoricalModes: Array<{ mode: string; strength: string }>;
+  rhetoricalDevices: string[];
+  appliedRuleIds: string[];
+  tweakInstructions?: string | null;
+}
+
+export type PerformanceSuggestionType =
+  | 'outperformed_baseline'
+  | 'promote_tone_metrics'
+  | 'promote_platform_rhetoric';
+
+export interface PerformanceSuggestion {
+  id: string;
+  type: PerformanceSuggestionType;
+  summary: string;
+  winnerVariantId: string;
+  baselineVariantId?: string | null;
+  applied: boolean;
+  proposedToneMetrics?: Record<string, number> | null;
+  proposedRhetoricalModes?: Array<{ mode: string; strength: string }> | null;
+  proposedRhetoricalDevices?: string[] | null;
+  proposedRequirementsAppend?: string | null;
+  targetRuleId?: string | null;
+}
+
+export interface VariantPerformanceCohortEntry {
+  variantId: string;
+  score: number;
+  engagement?: ContentVariantEngagement | null;
+  isBaseline: boolean;
+  isWinner: boolean;
+}
+
+export interface VariantPerformanceInsights {
+  sourceContentId: string;
+  platform?: string | null;
+  baselineVariantId?: string | null;
+  winnerVariantId?: string | null;
+  cohort: VariantPerformanceCohortEntry[];
+  suggestions: PerformanceSuggestion[];
+}
+
+export interface ContentPerformanceInsights {
+  sourceContentId: string;
+  platforms: VariantPerformanceInsights[];
+}
+
+export interface ApplyPerformanceSuggestionResult {
+  suggestionId: string;
+  variantId: string;
+  profileId?: string | null;
+  ruleId?: string | null;
+  appliedAt: string;
+}
+
+export interface ContentVariantSandboxContent {
+  id: string;
+  status: ContentStatus;
+  title: string;
+}
+
+export interface ContentAdaptationSourceSummary {
+  id: string;
+  title: string;
+  platform?: BrandPlatform | null;
+  status: ContentStatus;
+}
+
+export interface CrossPostLink {
+  variantId: string;
+  platform: BrandPlatform;
+  title: string;
+  status: ContentVariantStatus;
+  distributionStatus: ContentVariantDistributionStatus;
+  platformUrl?: string | null;
+  postedAt?: string | null;
+  isActive: boolean;
+}
+
+export interface ContentAdaptations {
+  sourceContent: ContentAdaptationSourceSummary;
+  adaptations: CrossPostLink[];
+  total: number;
+}
+
 export type RadarSourceType = 'RSS' | 'API' | 'GITHUB_REPO';
+export type RadarResponseFormat = 'JSON' | 'XML';
 export type RadarAuthScheme = 'BEARER' | 'HEADER' | 'QUERY' | 'NONE';
 export type SyncCadence = 'EVERY_N_HOURS' | 'DAILY' | 'WEEKLY' | 'MANUAL_ONLY';
 export type RadarSyncCadence = SyncCadence;
@@ -34,6 +165,14 @@ export type RadarItemType =
   | 'RELEASE'
   | 'ISSUE'
   | 'PULL_REQUEST';
+
+export type RadarUserIrrelevanceReason =
+  | 'offBrand'
+  | 'duplicate'
+  | 'tooBasic'
+  | 'outdated'
+  | 'wrongAudience'
+  | 'other';
 export type RadarGithubEventType = 'COMMITS' | 'RELEASES' | 'ISSUES' | 'PULL_REQUESTS';
 export type RadarGithubReleaseFilter = 'ALL' | 'MAJOR_ONLY' | 'MINOR_AND_ABOVE';
 
@@ -62,6 +201,11 @@ export const RADAR_SOURCE_TYPE_LABELS: Record<RadarSourceType, string> = {
   RSS: 'RSS feed',
   API: 'API endpoint',
   GITHUB_REPO: 'GitHub repository',
+};
+
+export const RADAR_RESPONSE_FORMAT_LABELS: Record<RadarResponseFormat, string> = {
+  JSON: 'JSON',
+  XML: 'XML',
 };
 
 export const RADAR_ITEM_TYPE_LABELS: Record<RadarItemType, string> = {
@@ -97,9 +241,11 @@ export type ExtractionJobStatus =
   | 'uploading'
   | 'queued'
   | 'running'
+  | 'cancelling'
   | 'succeeded'
   | 'succeeded_with_warnings'
-  | 'failed';
+  | 'failed'
+  | 'cancelled';
 
 export type ExtractionJobStage =
   | 'queued'
@@ -110,10 +256,14 @@ export type ExtractionJobStage =
   | 'analyzing'
   | 'reducing'
   | 'saving'
+  | 'cancelling'
   | 'succeeded'
-  | 'failed';
+  | 'failed'
+  | 'cancelled';
 
 export type ExtractionSourceRunStatus = 'pending' | 'running' | 'succeeded' | 'failed';
+
+export type ExtractionSourceFreshness = 'never' | 'fresh' | 'aging' | 'stale';
 
 export const BRAND_PLATFORM_LABELS: Record<BrandPlatform, string> = {
   linkedin: 'LinkedIn',
@@ -151,6 +301,7 @@ export interface BrandProfile {
   toneMetrics: Record<string, number | unknown>;
   bannedPhrases: string[];
   status: BrandProfileStatus;
+  platforms?: BrandPlatform[];
   extractionJobId?: string | null;
   activeVersionId?: string | null;
   userId: string;
@@ -166,6 +317,7 @@ export interface CreateBrandProfileInput {
   toneMetrics?: Record<string, number>;
   bannedPhrases?: string[];
   status?: BrandProfileStatus;
+  platforms?: BrandPlatform[];
 }
 
 export interface UpdateBrandProfileInput {
@@ -176,6 +328,7 @@ export interface UpdateBrandProfileInput {
   toneMetrics?: Record<string, number> | null;
   bannedPhrases?: string[];
   status?: BrandProfileStatus;
+  platforms?: BrandPlatform[] | null;
 }
 
 export type ProfileExtractionSourceType = 'text' | 'url' | 'pdf' | 'x_profile';
@@ -287,6 +440,9 @@ export interface ProfileExtractionSource {
   downloadFileName?: string | null;
   downloadUrl?: string | null;
   downloadUrlExpiresAt?: string | null;
+  lastExtractedAt?: string | null;
+  lastExtractionStatus?: ExtractionSourceRunStatus | null;
+  freshness?: ExtractionSourceFreshness;
   createdAt: string;
 }
 
@@ -475,6 +631,47 @@ export interface EffectivePlatformRules {
   resolvedPolicy: ResolvedPlatformPolicy;
 }
 
+export interface PlatformRuleSetPreviewInput {
+  platform: BrandPlatform;
+  characterLimit?: number | null;
+  readTimeLimitMinutes?: number | null;
+  requirements?: string | null;
+  rhetoricalModes?: RhetoricalModeSetting[];
+  rhetoricalDevices?: RhetoricalDeviceId[];
+  brandProfileId?: string | null;
+  provider?: string | null;
+  model?: string | null;
+}
+
+export interface PlatformRuleSetPreviewResult {
+  sampleText: string;
+  body: string;
+  appliedPolicy: ResolvedPlatformPolicy;
+}
+
+export type KeywordResearchStatus = 'validated' | 'unavailable';
+
+export interface KeywordMetricSnapshot {
+  keyword: string;
+  searchVolume?: number | null;
+  competition?: number | null;
+  competitionLevel?: string | null;
+  cpc?: number | null;
+  hasData?: boolean;
+}
+
+export interface KeywordResearchEvidence {
+  status: KeywordResearchStatus;
+  primaryKeyword?: string | null;
+  secondaryKeywords?: string[];
+  metrics?: KeywordMetricSnapshot[];
+  locationCode: number;
+  languageCode: string;
+  researchedAt: string;
+  cacheHitCount?: number;
+  warning?: string | null;
+}
+
 export interface ContentNode {
   id: string;
   title: string;
@@ -485,8 +682,12 @@ export interface ContentNode {
   sourceIdeaId?: string | null;
   contentType?: ContentType | null;
   platform?: BrandPlatform | null;
+  canonicalUrl?: string | null;
   assetPrompts?: Record<string, unknown> | null;
   tags: string[];
+  pillars: string[];
+  keywordResearch?: KeywordResearchEvidence | null;
+  crossPostLinks?: CrossPostLink[];
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -501,7 +702,9 @@ export interface CreateContentNodeInput {
   sourceIdeaId?: string | null;
   contentType?: ContentType | null;
   platform?: BrandPlatform | null;
+  canonicalUrl?: string | null;
   tags?: string[];
+  pillars?: string[];
 }
 
 export interface UpdateContentNodeInput {
@@ -510,8 +713,10 @@ export interface UpdateContentNodeInput {
   status?: ContentStatus;
   contentType?: ContentType | null;
   platform?: BrandPlatform | null;
+  canonicalUrl?: string | null;
   assetPrompts?: Record<string, unknown> | null;
   tags?: string[] | null;
+  pillars?: string[] | null;
 }
 
 export interface ContentIdea {
@@ -525,11 +730,13 @@ export interface ContentIdea {
   sourceRefId?: string | null;
   targetPlatform?: BrandPlatform | null;
   tags: string[];
+  enableImageSearch?: boolean;
   status: ContentIdeaStatus;
   draftNodeId?: string | null;
   vaultItemIds?: string[] | null;
   radarItemIds?: string[] | null;
   radarItemSnapshots?: RadarItemSnapshot[] | null;
+  keywordResearch?: KeywordResearchEvidence | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -557,6 +764,7 @@ export interface GenerateContentIdeasInput {
   targetPlatform: BrandPlatform;
   seedIdeas?: string | null;
   count?: number;
+  enableImageSearch?: boolean;
   provider?: string | null;
   model?: string | null;
 }
@@ -590,6 +798,7 @@ export interface GenerateRadarIdeasInput {
 export interface ContentIdeaGenerationContextStats {
   rejectedFeedbackCount: number;
   existingGeneratedCount: number;
+  existingDraftedCount?: number;
   targetPlatform: BrandPlatform;
   referencedPublishedCount: number;
 }
@@ -601,6 +810,19 @@ export interface GenerateContentIdeasResult {
 
 export type ContentIdeationJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 
+export type ContentIdeationJobStage =
+  | 'queued'
+  | 'validating'
+  | 'loading_context'
+  | 'searching_references'
+  | 'waiting_keyword_research'
+  | 'generating'
+  | 'persisting'
+  | 'succeeded'
+  | 'failed';
+
+export type ContentIdeationJobSource = 'manual' | 'vault' | 'radar';
+
 export interface ContentIdeationJobStart {
   jobId: string;
   status: ContentIdeationJobStatus;
@@ -610,13 +832,108 @@ export interface ContentIdeationJobStart {
 export interface ContentIdeationJob {
   jobId: string;
   status: ContentIdeationJobStatus;
-  stage?: string | null;
+  source?: ContentIdeationJobSource | null;
+  stage?: ContentIdeationJobStage | string | null;
   message?: string | null;
   pollAfterMs?: number | null;
   error?: string | null;
   provider?: string | null;
   model?: string | null;
   result?: GenerateContentIdeasResult | null;
+  keywordResearchStage?: string | null;
+  keywordResearchWarning?: string | null;
+  keywordResearchEvidence?: KeywordResearchEvidence | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface ContentImageInsertion {
+  query: string;
+  imageUrl: string;
+  alt: string;
+  sourcePageUrl?: string | null;
+  placementHint?: string | null;
+}
+
+export interface ContentImageInjectResult {
+  contentId?: string | null;
+  body: string;
+  insertions: ContentImageInsertion[];
+}
+
+export type ContentImageInjectJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+export type ContentImageInjectJobStage =
+  | 'queued'
+  | 'planning'
+  | 'searching'
+  | 'ranking'
+  | 'applying'
+  | 'persisting'
+  | 'succeeded'
+  | 'failed';
+
+export interface ContentImageInjectJobStart {
+  jobId: string;
+  status: ContentImageInjectJobStatus;
+  pollAfterMs: number;
+}
+
+export interface ContentImageInjectJob {
+  jobId: string;
+  status: ContentImageInjectJobStatus;
+  stage?: ContentImageInjectJobStage | string | null;
+  message?: string | null;
+  pollAfterMs?: number | null;
+  error?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  result?: ContentImageInjectResult | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface InjectContentImagesInput {
+  title: string;
+  body: string;
+  contentId?: string | null;
+  contentType?: ContentType | null;
+  provider?: string | null;
+  model?: string | null;
+}
+
+export type ContentKeywordOptimizationJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+export interface ContentKeywordOptimizationResult {
+  applied: boolean;
+  title?: string | null;
+  body?: string | null;
+  keywordResearch?: KeywordResearchEvidence | null;
+  warning?: string | null;
+}
+
+export interface ContentKeywordOptimizationJobStart {
+  jobId: string;
+  status: ContentKeywordOptimizationJobStatus;
+  pollAfterMs: number;
+}
+
+export interface ContentKeywordOptimizationJob {
+  jobId: string;
+  contentId: string;
+  status: ContentKeywordOptimizationJobStatus;
+  stage?: string | null;
+  message?: string | null;
+  pollAfterMs?: number | null;
+  error?: string | null;
+  result?: ContentKeywordOptimizationResult | null;
+  warning?: string | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -637,6 +954,68 @@ export interface GenerateTopicSuggestionsResult {
   topics: string[];
 }
 
+export type PlatformFitTier = 'high' | 'medium' | 'low';
+
+export interface PlatformFitFactorScore {
+  score: number;
+  detail: string;
+}
+
+export interface PlatformFitPillarFactor extends PlatformFitFactorScore {
+  matchedPillars: string[];
+}
+
+export interface PlatformFitRulesFactor extends PlatformFitFactorScore {
+  appliedRuleIds: string[];
+  characterLimit?: number | null;
+  wordLimit?: number | null;
+}
+
+export interface PlatformFitFactors {
+  lengthFit: PlatformFitFactorScore;
+  structureFit: PlatformFitFactorScore;
+  pillarFit: PlatformFitPillarFactor;
+  rulesFit: PlatformFitRulesFactor;
+}
+
+export interface PlatformFitRecommendation {
+  platform: BrandPlatform;
+  score: number;
+  fitTier: PlatformFitTier;
+  rationale: string;
+  factors: PlatformFitFactors;
+}
+
+export interface PlatformFitStructureSignals {
+  headingCount: number;
+  paragraphCount: number;
+  listItemCount: number;
+  threadable: boolean;
+  longForm?: boolean;
+  averageParagraphWords?: number;
+}
+
+export interface PlatformFitContentAnalysis {
+  characterCount: number;
+  wordCount: number;
+  contentType?: ContentType | null;
+  structureSignals: PlatformFitStructureSignals;
+  matchedPillars: string[];
+}
+
+export interface PlatformFitSuggestionsResult {
+  contentAnalysis: PlatformFitContentAnalysis;
+  recommendations: PlatformFitRecommendation[];
+  excludedSourcePlatform?: BrandPlatform | null;
+}
+
+export interface SuggestPlatformFitInput {
+  contentId: string;
+  brandProfileId: string;
+  provider?: string | null;
+  model?: string | null;
+}
+
 export interface RejectedIdeaFeedback {
   id: string;
   ideaId: string;
@@ -653,6 +1032,7 @@ export interface ApproveContentIdeaInput {
   brandProfileId: string;
   templateId?: string;
   platform?: BrandPlatform;
+  pillars?: string[];
 }
 
 export interface ApproveContentIdeaResult {
@@ -795,6 +1175,37 @@ export interface RetryContentTemplateCandidateInput {
   model?: string | null;
 }
 
+export type ContentTemplateAiJobKind = 'brainstorm' | 'extract' | 'retry';
+export type ContentTemplateAiJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+export interface ContentTemplateAiJobStart {
+  jobId: string;
+  status: ContentTemplateAiJobStatus;
+  pollAfterMs: number;
+}
+
+export interface ContentTemplateAiJob {
+  jobId: string;
+  kind: ContentTemplateAiJobKind;
+  status: ContentTemplateAiJobStatus;
+  stage?: string | null;
+  message?: string | null;
+  pollAfterMs?: number | null;
+  error?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  result?:
+    | BrainstormContentTemplatesResult
+    | ExtractContentTemplatesResult
+    | ContentTemplateCandidate
+    | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
 export interface ContentTemplateSettings {
   hasMediumApiKey: boolean;
 }
@@ -839,9 +1250,13 @@ export interface CritiqueEntry {
   createdAt: string;
 }
 
-export interface StartRepurposeInput {
+export interface RepurposeTarget {
+  platform: BrandPlatform;
   brandProfileId: string;
-  targetPlatforms: BrandPlatform[];
+}
+
+export interface StartRepurposeInput {
+  targets: RepurposeTarget[];
   provider?: string | null;
   model?: string | null;
 }
@@ -869,12 +1284,17 @@ export interface RepurposeJob {
   platform: BrandPlatform;
   targetPlatforms: BrandPlatform[];
   status: RepurposeJobStatus;
-  stage?: string | null;
+  stage?: RepurposeJobStage | null;
   message?: string | null;
   error?: string | null;
   provider?: string | null;
   model?: string | null;
   variantIds: string[];
+  keywordResearchStage?: string | null;
+  keywordResearchWarning?: string | null;
+  keywordResearchEvidence?: KeywordResearchEvidence | null;
+  regenerateMode?: string | null;
+  parentVariantId?: string | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -892,6 +1312,9 @@ export interface ContentVariant {
   body: string;
   status: ContentVariantStatus;
   distributionStatus: ContentVariantDistributionStatus;
+  platformUrl?: string | null;
+  postedAt?: string | null;
+  engagement?: ContentVariantEngagement | null;
   generationAttempt: number;
   characterCount: number;
   characterLimit?: number | null;
@@ -902,6 +1325,18 @@ export interface ContentVariant {
   model?: string | null;
   cached: boolean;
   createdDraftContentId?: string | null;
+  sandboxContent?: ContentVariantSandboxContent | null;
+  keywordResearch?: KeywordResearchEvidence | null;
+  parentVariantId?: string | null;
+  isActive?: boolean;
+  versionOrigin?: ContentVariantVersionOrigin | null;
+  queuedAt?: string | null;
+  scheduledPublishAt?: string | null;
+  publishReminderSentAt?: string | null;
+  generationSnapshot?: ContentVariantGenerationSnapshot | null;
+  appliedPerformanceSuggestionIds?: string[];
+  performanceAppliedAt?: string | null;
+  sourceContent?: ContentAdaptationSourceSummary | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -912,12 +1347,61 @@ export interface ContentVariantList {
   total: number;
 }
 
+export interface SaveVariantVersionInput {
+  title: string;
+  body: string;
+}
+
 export interface RejectVariantInput {
   critique: string;
 }
 
+export interface RegenerateVariantWithTweaksInput {
+  toneMetrics?: Record<string, number>;
+  rhetoricalModes?: RhetoricalModeSetting[];
+  rhetoricalDevices?: RhetoricalDeviceId[];
+  tweakInstructions?: string;
+  provider?: string | null;
+  model?: string | null;
+}
+
+export type VariantImprovementKind =
+  | 'sharpen_hook'
+  | 'tighten_opening'
+  | 'increase_contrast'
+  | 'strengthen_cta'
+  | 'cut_fluff'
+  | 'clarify_payoff';
+
+export interface VariantImprovementSuggestion {
+  id: string;
+  kind: VariantImprovementKind;
+  label: string;
+  rationale: string;
+  tweakInstructions: string;
+}
+
+export interface SuggestVariantImprovementsInput {
+  provider?: string | null;
+  model?: string | null;
+}
+
+export interface SuggestVariantImprovementsResult {
+  variantId: string;
+  suggestions: VariantImprovementSuggestion[];
+}
+
 export interface UpdateVariantDistributionStatusInput {
-  distributionStatus: ContentVariantDistributionStatus;
+  distributionStatus?: ContentVariantDistributionStatus;
+  scheduledPublishAt?: string | null;
+  platformUrl?: string | null;
+  postedAt?: string | null;
+  engagement?: ContentVariantEngagement | null;
+}
+
+export interface PublishQueueList {
+  data: ContentVariant[];
+  total: number;
 }
 
 export interface SendToSandboxResult {
@@ -934,12 +1418,15 @@ export interface RadarGithubConfig {
   aiFilterInstructions?: string | null;
 }
 
+export type RadarSourceHealth = 'healthy' | 'degraded' | 'unhealthy' | 'paused';
+
 export interface RadarSource {
   id: string;
   name: string;
   sourceType: RadarSourceType;
   endpoint: string;
   httpMethod: string;
+  responseFormat?: RadarResponseFormat;
   requestParams: Record<string, unknown>;
   headers: Record<string, string>;
   authScheme: RadarAuthScheme;
@@ -951,10 +1438,82 @@ export interface RadarSource {
   cadence?: string | null;
   cadenceIntervalHours?: number | null;
   lastScrapedAt?: string | null;
+  lastScrapeStatus?: string | null;
+  lastScrapeError?: string | null;
+  lastItemsDiscovered?: number;
+  lastItemsCreated?: number;
+  lastItemsAlreadyAdded?: number;
+  lastItemsFiltered?: number;
+  health?: RadarSourceHealth;
+  healthReason?: string;
   githubConfig?: RadarGithubConfig | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type RadarSourceYield = 'low' | 'neutral' | 'high';
+
+export interface RadarSourceHealthWindowStats {
+  itemsIngested: number;
+  itemsRelevant: number;
+}
+
+export interface RadarSourceUserFeedbackStats {
+  last7Days: number;
+  last30Days: number;
+}
+
+export interface RadarSourceHealthWindows {
+  last7Days: RadarSourceHealthWindowStats;
+  last30Days: RadarSourceHealthWindowStats;
+}
+
+export interface RadarSourceAverageAiRelevance {
+  score?: number | null;
+  sampleSize: number;
+}
+
+export interface RadarSourceFailureRate {
+  rate: number;
+  failed: number;
+  attempted: number;
+}
+
+export interface RadarSourceBrainstormContribution {
+  windowSize: number;
+  sessionsConsidered: number;
+  sessionsContributed: number;
+  ideasFromSource: number;
+}
+
+export interface RadarSourceProposedCadenceBump {
+  cadence: RadarSyncCadence | string;
+  cadenceIntervalHours?: number | null;
+}
+
+export interface RadarSourceHealthDetails {
+  sourceId: string;
+  sourceName: string;
+  health: RadarSourceHealth;
+  healthReason?: string;
+  enabled: boolean;
+  cadence?: string | null;
+  cadenceIntervalHours?: number | null;
+  windows: RadarSourceHealthWindows;
+  userFeedback: RadarSourceUserFeedbackStats;
+  averageAiRelevance: RadarSourceAverageAiRelevance;
+  failureRate: RadarSourceFailureRate;
+  brainstormContribution: RadarSourceBrainstormContribution;
+  yield: RadarSourceYield;
+  suggestedCadence: RadarSourceCadenceSuggestion;
+  proposedCadenceBump: RadarSourceProposedCadenceBump;
+}
+
+export interface RadarFeedbackStats {
+  irrelevantSignalsLast7Days: number;
+  trainingExampleCount: number;
+  trainingExampleLimit: number;
 }
 
 export interface CreateRadarSourceInput {
@@ -962,6 +1521,7 @@ export interface CreateRadarSourceInput {
   sourceType: RadarSourceType;
   endpoint: string;
   httpMethod?: string;
+  responseFormat?: RadarResponseFormat;
   requestParams?: Record<string, unknown>;
   headers?: Record<string, string>;
   authScheme?: RadarAuthScheme;
@@ -980,6 +1540,7 @@ export interface UpdateRadarSourceInput {
   sourceType?: RadarSourceType;
   endpoint?: string;
   httpMethod?: string;
+  responseFormat?: RadarResponseFormat;
   requestParams?: Record<string, unknown>;
   headers?: Record<string, string>;
   authScheme?: RadarAuthScheme;
@@ -1003,6 +1564,19 @@ export interface RadarSettings {
   scheduledSyncEligible: boolean;
   lastRunAt?: string | null;
   nextDueAt?: string | null;
+  autoIdeationEnabled: boolean;
+  autoIdeationTopN: number;
+  autoIdeationStartTime: string;
+  autoIdeationBrandProfileId?: string | null;
+  autoIdeationTargetPlatform?: BrandPlatform | null;
+  autoIdeationCount: number;
+  autoIdeationTemplateIds: string[];
+  autoIdeationNotifyEmail: boolean;
+  autoIdeationMinAiRelevanceScore?: number | null;
+  autoIdeationExcludeSourceIds: string[];
+  autoIdeationLastRunAt?: string | null;
+  autoIdeationNextDueAt?: string | null;
+  autoIdeationLastJobId?: string | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -1016,6 +1590,16 @@ export interface UpdateRadarSettingsInput {
   syncDayOfWeek?: number | null;
   /** Write-only; explicit null removes stored key. */
   tavilyApiKey?: string | null;
+  autoIdeationEnabled?: boolean;
+  autoIdeationTopN?: number;
+  autoIdeationStartTime?: string | null;
+  autoIdeationBrandProfileId?: string | null;
+  autoIdeationTargetPlatform?: BrandPlatform | null;
+  autoIdeationCount?: number;
+  autoIdeationTemplateIds?: string[];
+  autoIdeationNotifyEmail?: boolean;
+  autoIdeationMinAiRelevanceScore?: number | null;
+  autoIdeationExcludeSourceIds?: string[];
 }
 
 export interface RadarSourceCadenceSuggestion {
@@ -1031,6 +1615,31 @@ export interface RadarSourceCadenceSuggestion {
 
 export interface RadarSuggestedCadences {
   suggestions: RadarSourceCadenceSuggestion[];
+}
+
+export interface RadarSourcePreviewItem {
+  title: string;
+  summary?: string | null;
+  url?: string | null;
+  publishedAt?: string | null;
+  itemType: RadarItemType;
+  repositoryUrl?: string | null;
+}
+
+export interface RadarSourcePreviewInput {
+  endpoint: string;
+  /** Write-only; for protected feeds during create/edit. */
+  secretToken?: string | null;
+  /** Existing source; uses stored secret when hasSecret is true. */
+  sourceId?: string | null;
+}
+
+export interface RadarSourcePreview {
+  rawXml: string;
+  rawXmlTruncated: boolean;
+  contentType?: string | null;
+  itemCount: number;
+  items: RadarSourcePreviewItem[];
 }
 
 export interface RadarItem {
@@ -1050,9 +1659,50 @@ export interface RadarItem {
   aiRationale?: string | null;
   userRelevant?: boolean | null;
   userRelevanceMarkedAt?: string | null;
+  userRelevanceReason?: RadarUserIrrelevanceReason | null;
+  topicTags?: string[];
+  matchedViewIds?: string[];
   metadata?: Record<string, unknown>;
   userId: string;
   createdAt: string;
+}
+
+export type RadarTagMatchMode = 'any' | 'all';
+
+export interface RadarSavedViewFilters {
+  q?: string | null;
+  sourceIds?: string[] | null;
+  minAiRelevanceScore?: number | null;
+  tags?: string[] | null;
+  tagMatch?: RadarTagMatchMode;
+  publishedWithinDays?: number | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  includeFiltered?: boolean;
+}
+
+export interface RadarSavedView {
+  id: string;
+  name: string;
+  filters: RadarSavedViewFilters;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RadarSavedViewListResponse {
+  data: RadarSavedView[];
+}
+
+export interface CreateRadarSavedViewInput {
+  name: string;
+  filters: RadarSavedViewFilters;
+}
+
+export interface UpdateRadarSavedViewInput {
+  name?: string;
+  filters?: RadarSavedViewFilters;
+  enabled?: boolean;
 }
 
 export interface RadarRunStartAccepted {
@@ -1066,7 +1716,9 @@ export interface RadarRunSourceResult {
   sourceName: string;
   status: 'succeeded' | 'failed';
   itemsDiscovered: number;
+  itemsAlreadyAdded: number;
   itemsCreated: number;
+  itemsFiltered: number;
   error?: string | null;
 }
 
@@ -1079,7 +1731,10 @@ export interface RadarRunSummary {
   sourcesSucceeded: number;
   sourcesFailed: number;
   itemsDiscovered: number;
+  itemsAlreadyAdded: number;
   itemsCreated: number;
+  itemsFiltered: number;
+  outcomesTruncated?: boolean;
   errorSummary?: string | null;
   startedAt?: string | null;
   finishedAt?: string | null;
@@ -1090,6 +1745,28 @@ export interface RadarRunSummary {
 export type RadarRunDetail = RadarRunSummary & {
   sourceResults: RadarRunSourceResult[];
 };
+
+export type RadarRunOutcomeDisposition = 'filtered' | 'alreadyAdded';
+
+export type RadarRunOutcomeDropReason = 'aiFiltered' | 'alreadyAdded';
+
+export interface RadarRunOutcome {
+  id: string;
+  runId: string;
+  disposition: RadarRunOutcomeDisposition;
+  dropReason: RadarRunOutcomeDropReason | string;
+  sourceId: string;
+  sourceName?: string | null;
+  title?: string | null;
+  url?: string | null;
+  itemType?: string | null;
+  fingerprint?: string | null;
+  relevanceScore?: number | null;
+  aiRelevanceScore?: number | null;
+  aiRationale?: string | null;
+  itemId?: string | null;
+  createdAt: string;
+}
 
 export type RadarDiscoveryRunStatus =
   | 'queued'
@@ -1212,6 +1889,8 @@ export interface RadarDiscoveryCandidate {
   savedItemId?: string | null;
   userNotASource?: boolean | null;
   userNotASourceMarkedAt?: string | null;
+  userDismissed?: boolean | null;
+  userDismissedAt?: string | null;
   parentCandidateId?: string | null;
   origin?: string | null;
   latestParseJobId?: string | null;
@@ -1329,6 +2008,7 @@ export interface CreatorConnection {
   personalContext?: string | null;
   tags: string[];
   lastInteractedAt?: string | null;
+  lastReconPostedAt?: string | null;
   notes?: string | null;
   userId: string;
   createdAt: string;
@@ -1487,9 +2167,12 @@ export type ContentOpportunitySearchOutcome =
   | 'inactive'
   | 'exhausted'
   | 'noWorthy'
+  | 'tooOld'
   | 'missingApiKey'
   | 'missingHandle'
-  | 'unsupportedPlatform';
+  | 'unsupportedPlatform'
+  | 'fetchFailed'
+  | 'rankingFailed';
 
 export interface ContentOpportunity {
   id: string;
@@ -1502,6 +2185,7 @@ export interface ContentOpportunity {
   postedAt?: string | null;
   socialCapitalAngle?: string | null;
   rationale?: string | null;
+  rationaleBullets?: string[] | null;
   recommendedAction?: string | null;
   relevanceScore?: number | null;
   confidence?: number | null;
@@ -1531,6 +2215,7 @@ export interface SuggestedReplyParams {
   suggestionCount: number;
   provider?: string | null;
   model?: string | null;
+  settingsRationale?: string | null;
 }
 
 export interface CreateReplyRunInput {
@@ -1592,6 +2277,8 @@ export interface ReplyRun {
   suggestions: ReplySuggestion[];
 }
 
+export type ReplyRunListResponse = ApiResponse<PaginatedPersonalBranding<ReplyRun>>;
+
 export interface UpdateReplySuggestionInput {
   status: Extract<ReplySuggestionStatus, 'ACCEPTED' | 'REJECTED'>;
   feedbackText?: string | null;
@@ -1599,6 +2286,7 @@ export interface UpdateReplySuggestionInput {
 }
 
 export interface ReplyGenerationDraft {
+  profileId: string;
   mode: ReplyGenerationMode;
   researchEnabled: boolean;
   catalogModelId: string;
@@ -1624,7 +2312,7 @@ export interface ContentOpportunitySearchResult {
   newestPostAt?: string | null;
   candidatesConsidered: number;
   candidatesExcluded: number;
-  opportunity?: ContentOpportunity | null;
+  opportunities: ContentOpportunity[];
   provider?: string | null;
   model?: string | null;
   confidence?: number | null;
@@ -1635,7 +2323,7 @@ export type ContentOpportunityListResponse = ApiResponse<
   PaginatedPersonalBranding<ContentOpportunity>
 >;
 
-export type ReconPostStatus = 'NEW' | 'REVIEWED' | 'ACTIONED' | 'DISMISSED';
+export type ReconPostStatus = 'NEW' | 'REVIEWED' | 'ACTIONED' | 'DISMISSED' | 'EXPIRED';
 export type ReconFollowSuggestionStatus = 'NEW' | 'ADDED' | 'DISMISSED';
 export type ReconEntityType = 'person' | 'company' | 'product' | 'community' | 'media' | 'other';
 
@@ -1668,6 +2356,7 @@ export const RECON_POST_STATUS_LABELS: Record<ReconPostStatus, string> = {
   REVIEWED: 'Reviewed',
   ACTIONED: 'Actioned',
   DISMISSED: 'Dismissed',
+  EXPIRED: 'Expired',
 };
 
 export const RECON_RECOMMENDED_ACTION_LABELS: Record<string, string> = {
@@ -1697,8 +2386,13 @@ export interface ReconFeedSettings {
   syncDayOfWeek?: number | null;
   minRelevanceScore: number;
   maxPostsPerConnection: number;
+  maxPostAgeDays: number;
   hasRapidApiKey: boolean;
   lastRunAt?: string | null;
+  lastSuccessfulRunAt?: string | null;
+  lastRunId?: string | null;
+  lastRunStatus?: string | null;
+  lastErrorSummary?: string | null;
   nextDueAt?: string | null;
   userId: string;
   createdAt: string;
@@ -1715,6 +2409,7 @@ export interface UpdateReconFeedSettingsInput {
   syncDayOfWeek?: number | null;
   minRelevanceScore?: number;
   maxPostsPerConnection?: number;
+  maxPostAgeDays?: number;
 }
 
 export interface ReconPost {
@@ -1731,6 +2426,7 @@ export interface ReconPost {
   replyCount: number;
   relevanceScore?: number | null;
   relevanceRationale?: string | null;
+  relevanceRationaleBullets?: string[] | null;
   recommendedAction?: string | null;
   confidence?: number | null;
   status: ReconPostStatus;
@@ -1768,6 +2464,7 @@ export interface ReconRunActivityEntry {
   platformPostId?: string | null;
   score?: number | null;
   rationale?: string | null;
+  rationaleBullets?: string[] | null;
   message?: string | null;
 }
 
@@ -1785,6 +2482,8 @@ export interface ReconRunSummary {
   errorSummary?: string | null;
   startedAt?: string | null;
   finishedAt?: string | null;
+  emailSentAt?: string | null;
+  emailDigestItemCount?: number | null;
   phase?: string | null;
   currentActivity?: string | null;
   heartbeatAt?: string | null;
@@ -1860,6 +2559,7 @@ export type RadarItemListResponse = ApiResponse<PaginatedPersonalBranding<RadarI
 export type RadarRunStartAcceptedResponse = ApiResponse<RadarRunStartAccepted>;
 export type RadarRunListResponse = ApiResponse<PaginatedPersonalBranding<RadarRunSummary>>;
 export type RadarRunDetailResponse = ApiResponse<RadarRunDetail>;
+export type RadarRunOutcomeListResponse = ApiResponse<PaginatedPersonalBranding<RadarRunOutcome>>;
 export type RadarDiscoveryRunResponse = ApiResponse<RadarDiscoveryRun>;
 export type RadarDiscoveryRunListResponse = ApiResponse<
   PaginatedPersonalBranding<RadarDiscoveryRun>

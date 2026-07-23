@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRadarDiscoveryInput,
+  canAddDiscoveryCandidateAsItem,
+  canSaveDiscoveryCandidate,
   effectiveRadarDiscoveryTopics,
+  formatRadarDiscoveryBadgeLabel,
   radarDiscoveryCandidateFilterParams,
   validateRadarDiscoveryInput,
 } from './radar-discovery';
-import type { BrandProfile } from '@/types/api/personal-branding.dto';
+import type { BrandProfile, RadarDiscoveryCandidate } from '@/types/api/personal-branding.dto';
 
 const profile: BrandProfile = {
   id: 'profile-1',
@@ -59,5 +62,34 @@ describe('radar discovery setup helpers', () => {
     expect(radarDiscoveryCandidateFilterParams('irrelevant')).toEqual({ verdict: 'not_relevant' });
     expect(radarDiscoveryCandidateFilterParams('duplicate')).toEqual({});
     expect(radarDiscoveryCandidateFilterParams('errors')).toEqual({ status: 'failed' });
+  });
+
+  it('formats discovery badge labels without underscores', () => {
+    expect(formatRadarDiscoveryBadgeLabel('not_relevant')).toBe('Not Relevant');
+    expect(formatRadarDiscoveryBadgeLabel('not_applicable')).toBe('Not Applicable');
+    expect(formatRadarDiscoveryBadgeLabel('verified_feed')).toBe('Verified Feed');
+  });
+
+  it('evaluates save and add eligibility from candidate state', () => {
+    const base: RadarDiscoveryCandidate = {
+      id: 'candidate-1',
+      runId: 'run-1',
+      status: 'completed',
+      title: 'Example',
+      url: 'https://example.com/article',
+      matchedTopics: [],
+      duplicateStatus: 'new',
+    };
+
+    expect(
+      canSaveDiscoveryCandidate({
+        ...base,
+        verdict: 'relevant',
+        resolvedEndpoint: 'https://example.com/feed.xml',
+      })
+    ).toBe(true);
+    expect(canSaveDiscoveryCandidate({ ...base, verdict: 'not_relevant' })).toBe(false);
+    expect(canAddDiscoveryCandidateAsItem({ ...base, verdict: 'not_relevant' })).toBe(true);
+    expect(canAddDiscoveryCandidateAsItem({ ...base, verdict: 'relevant' })).toBe(false);
   });
 });

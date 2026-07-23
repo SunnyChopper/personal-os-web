@@ -68,6 +68,41 @@ describe('personalBrandingService signal radar', () => {
     });
   });
 
+  it('updates radar settings with auto ideation fields', async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({
+      success: true,
+      data: {
+        syncCadence: 'DAILY',
+        hasTavilyKey: false,
+        autoIdeationEnabled: true,
+        autoIdeationTopN: 5,
+        autoIdeationStartTime: '21:00',
+        autoIdeationBrandProfileId: 'profile-1',
+        autoIdeationTargetPlatform: 'linkedin',
+        autoIdeationCount: 6,
+        autoIdeationTemplateIds: [],
+        autoIdeationNotifyEmail: true,
+        userId: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    });
+    await personalBrandingService.updateRadarSettings({
+      autoIdeationEnabled: true,
+      autoIdeationTopN: 5,
+      autoIdeationBrandProfileId: 'profile-1',
+      autoIdeationTargetPlatform: 'linkedin',
+      autoIdeationNotifyEmail: true,
+    });
+    expect(apiClient.put).toHaveBeenCalledWith('/personal-branding/radar-settings', {
+      autoIdeationEnabled: true,
+      autoIdeationTopN: 5,
+      autoIdeationBrandProfileId: 'profile-1',
+      autoIdeationTargetPlatform: 'linkedin',
+      autoIdeationNotifyEmail: true,
+    });
+  });
+
   it('starts a manual radar ingest run', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       success: true,
@@ -83,7 +118,7 @@ describe('personalBrandingService signal radar', () => {
       success: true,
       data: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
     });
-    await personalBrandingService.listRadarItems(1, 50);
+    await personalBrandingService.listRadarItems({ page: 1, pageSize: 50 });
     expect(apiClient.get).toHaveBeenCalledWith(
       '/personal-branding/radar-items?page=1&pageSize=50&includeFiltered=false'
     );
@@ -94,7 +129,7 @@ describe('personalBrandingService signal radar', () => {
       success: true,
       data: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
     });
-    await personalBrandingService.listRadarItems(1, 50, true);
+    await personalBrandingService.listRadarItems({ includeFiltered: true });
     expect(apiClient.get).toHaveBeenCalledWith(
       '/personal-branding/radar-items?page=1&pageSize=50&includeFiltered=true'
     );
@@ -145,16 +180,47 @@ describe('personalBrandingService signal radar', () => {
         title: 'Promo',
         relevanceScore: 0,
         userRelevant: false,
+        userRelevanceReason: 'offBrand',
         userId: 'u1',
         createdAt: '',
         matchedPillars: [],
       },
     });
-    const res = await personalBrandingService.updateRadarItemRelevance('item-1', false);
+    const res = await personalBrandingService.updateRadarItemRelevance('item-1', false, 'offBrand');
     expect(res.userRelevant).toBe(false);
+    expect(res.userRelevanceReason).toBe('offBrand');
     expect(apiClient.patch).toHaveBeenCalledWith(
       '/personal-branding/radar-items/item-1/relevance',
-      { relevant: false }
+      { relevant: false, reason: 'offBrand' }
+    );
+  });
+
+  it('promotes ai-filtered radar item with overrideAiFilter', async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'item-1',
+        itemType: 'ARTICLE',
+        title: 'Filtered',
+        relevanceScore: 0.4,
+        aiRelevant: true,
+        userRelevant: true,
+        userId: 'u1',
+        createdAt: '',
+        matchedPillars: [],
+      },
+    });
+    const res = await personalBrandingService.updateRadarItemRelevance(
+      'item-1',
+      true,
+      undefined,
+      true
+    );
+    expect(res.aiRelevant).toBe(true);
+    expect(res.userRelevant).toBe(true);
+    expect(apiClient.patch).toHaveBeenCalledWith(
+      '/personal-branding/radar-items/item-1/relevance',
+      { relevant: true, overrideAiFilter: true }
     );
   });
 

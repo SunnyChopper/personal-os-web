@@ -45,6 +45,7 @@ export type AIFeature =
   | 'noteAnalyze'
   | 'contentIdeation'
   | 'brandTopicBrainstorm'
+  | 'platformFitSuggest'
   | 'projectLabIdeation';
 
 export interface FeatureProviderConfig {
@@ -108,7 +109,7 @@ export const AI_FEATURE_GROUPS: { id: string; label: string; features: AIFeature
   {
     id: 'personal-branding',
     label: 'Personal branding',
-    features: ['contentIdeation', 'brandTopicBrainstorm'],
+    features: ['contentIdeation', 'brandTopicBrainstorm', 'platformFitSuggest'],
   },
   {
     id: 'notes',
@@ -173,6 +174,7 @@ export const AI_FEATURE_DISPLAY_NAMES: Record<AIFeature, string> = {
   noteAnalyze: 'Note Content Analysis',
   contentIdeation: 'Content Ideation Engine',
   brandTopicBrainstorm: 'Brand Topic Brainstorm',
+  platformFitSuggest: 'Platform Fit Suggestions',
   projectLabIdeation: 'Project Labs Ideation',
 };
 
@@ -222,5 +224,6 @@ export const DEFAULT_FEATURE_PROVIDERS: Record<AIFeature, FeatureProviderConfig>
   noteAnalyze: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
   contentIdeation: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
   brandTopicBrainstorm: { provider: 'anthropic', model: 'claude-haiku-4-5' },
+  platformFitSuggest: { provider: 'anthropic', model: 'claude-haiku-4-5' },
   projectLabIdeation: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
 };

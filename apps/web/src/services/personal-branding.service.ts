@@ -4,6 +4,7 @@ import { formatApiFailure } from '@/utils/api-error-formatter';
 import type {
   ApproveContentIdeaInput,
   ApproveContentIdeaResult,
+  ApplyPerformanceSuggestionResult,
   ApproveContentTemplateCandidateInput,
   ApproveContentTemplateCandidateResult,
   AssetPromptsResult,
@@ -21,14 +22,21 @@ import type {
   ContentIdea,
   ContentIdeationJob,
   ContentIdeationJobStart,
+  ContentImageInjectJob,
+  ContentImageInjectJobStart,
+  ContentKeywordOptimizationJob,
+  ContentKeywordOptimizationJobStart,
   ContentNode,
   ContentNodeListResponse,
   ContentStatus,
   ContentType,
   ContentDraftGenerationResult,
   ContentTemplate,
+  ContentTemplateAiJob,
+  ContentTemplateAiJobStart,
   ContentTemplateCandidate,
   ContentTemplateSettings,
+  ContentAdaptations,
   ContentVariant,
   ContentVariantList,
   CreateBrandProfileInput,
@@ -44,6 +52,7 @@ import type {
   ProfileExtractionClientProgress,
   ProfileExtractionSourceType,
   CreateRadarSourceInput,
+  CreateRadarSavedViewInput,
   CreateTrackingMetricInput,
   ConnectionInteractionBoardListResponse,
   ConnectionInteractionListResponse,
@@ -73,11 +82,21 @@ import type {
   RadarDiscoveryRunListResponse,
   RadarItem,
   RadarItemListResponse,
+  RadarSavedView,
+  RadarSavedViewListResponse,
+  RadarUserIrrelevanceReason,
   RadarRunDetail,
   RadarRunListResponse,
+  RadarRunOutcomeDisposition,
+  RadarRunOutcomeDropReason,
+  RadarRunOutcomeListResponse,
   RadarRunStartAccepted,
   RadarSettings,
   RadarSource,
+  RadarSourceHealthDetails,
+  RadarFeedbackStats,
+  RadarSourcePreview,
+  RadarSourcePreviewInput,
   RadarSourceListResponse,
   RadarSuggestedCadences,
   StartRadarDiscoveryRunInput,
@@ -95,26 +114,34 @@ import type {
   UpdateReconFeedSettingsInput,
   UpdateReconPostInput,
   GenerateContentIdeasInput,
-  GenerateContentIdeasResult,
+  InjectContentImagesInput,
   GenerateTopicSuggestionsInput,
   GenerateTopicSuggestionsResult,
+  PlatformRuleSetPreviewInput,
+  PlatformRuleSetPreviewResult,
+  SuggestPlatformFitInput,
+  PlatformFitSuggestionsResult,
   GenerateVaultIdeasInput,
   GenerateRadarIdeasInput,
   ExtractContentTemplatesInput,
-  ExtractContentTemplatesResult,
   BrainstormContentTemplatesInput,
-  BrainstormContentTemplatesResult,
   RejectContentIdeaInput,
   RejectContentTemplateCandidateInput,
   RetryContentTemplateCandidateInput,
   RejectVariantInput,
+  RegenerateVariantWithTweaksInput,
+  SuggestVariantImprovementsInput,
+  SuggestVariantImprovementsResult,
+  SaveVariantVersionInput,
   RejectedIdeaFeedback,
   RepurposeJob,
   RepurposeJobList,
   SendToSandboxResult,
   StartRepurposeAccepted,
   StartRepurposeInput,
+  PublishQueueList,
   UpdateVariantDistributionStatusInput,
+  VariantPerformanceInsights,
   RolodexMetricLinksResponse,
   RolodexResponseVectorInput,
   RolodexResponseVectorsResult,
@@ -131,6 +158,7 @@ import type {
   UpdatePlatformRuleInput,
   UpdateRadarSettingsInput,
   UpdateRadarSourceInput,
+  UpdateRadarSavedViewInput,
   UpdateTrackingMetricInput,
 } from '@/types/api/personal-branding.dto';
 
@@ -426,6 +454,14 @@ export const personalBrandingService = {
       await apiClient.get<ProfileExtractionJob>(`/personal-branding/profile-extractions/${jobId}`)
     ),
 
+  cancelProfileExtraction: async (jobId: string): Promise<ProfileExtractionJob> =>
+    unwrap(
+      await apiClient.post<ProfileExtractionJob>(
+        `/personal-branding/profile-extractions/${jobId}/cancel`,
+        {}
+      )
+    ),
+
   listProfileVersions: async (profileId: string): Promise<BrandProfileVersionListResponse> =>
     unwrap(
       await apiClient.get<BrandProfileVersionListResponse>(
@@ -569,12 +605,49 @@ export const personalBrandingService = {
       )
     ),
 
-  listContentVariants: async (contentId: string): Promise<ContentVariant[]> => {
+  cancelRepurposeJobs: async (contentId: string): Promise<RepurposeJob[]> =>
+    unwrap(
+      await apiClient.post<{ jobs: RepurposeJob[] }>(
+        `/personal-branding/content/${contentId}/repurpose-jobs/cancel`,
+        {}
+      )
+    ).jobs,
+
+  listContentVariants: async (contentId: string, activeOnly = true): Promise<ContentVariant[]> => {
+    const q = new URLSearchParams({ activeOnly: String(activeOnly) });
     const res = await apiClient.get<ContentVariantList>(
-      `/personal-branding/content/${contentId}/variants`
+      `/personal-branding/content/${contentId}/variants?${q}`
     );
     return unwrap(res).data;
   },
+
+  getContentAdaptations: async (contentId: string): Promise<ContentAdaptations> =>
+    unwrap(
+      await apiClient.get<ContentAdaptations>(`/personal-branding/content/${contentId}/adaptations`)
+    ),
+
+  listVariantVersions: async (variantId: string): Promise<ContentVariant[]> => {
+    const res = await apiClient.get<ContentVariantList>(
+      `/personal-branding/variants/${variantId}/versions`
+    );
+    return unwrap(res).data;
+  },
+
+  saveVariantVersion: async (
+    variantId: string,
+    body: SaveVariantVersionInput
+  ): Promise<ContentVariant> =>
+    unwrap(
+      await apiClient.post<ContentVariant>(
+        `/personal-branding/variants/${variantId}/save-version`,
+        body
+      )
+    ),
+
+  activateVariantVersion: async (variantId: string): Promise<ContentVariant> =>
+    unwrap(
+      await apiClient.post<ContentVariant>(`/personal-branding/variants/${variantId}/activate`, {})
+    ),
 
   rejectContentVariant: async (
     variantId: string,
@@ -582,6 +655,28 @@ export const personalBrandingService = {
   ): Promise<ContentVariant> =>
     unwrap(
       await apiClient.post<ContentVariant>(`/personal-branding/variants/${variantId}/reject`, body)
+    ),
+
+  regenerateVariantWithTweaks: async (
+    variantId: string,
+    body: RegenerateVariantWithTweaksInput
+  ): Promise<StartRepurposeAccepted> =>
+    unwrap(
+      await apiClient.post<StartRepurposeAccepted>(
+        `/personal-branding/variants/${variantId}/regenerate`,
+        body
+      )
+    ),
+
+  suggestVariantImprovements: async (
+    variantId: string,
+    body: SuggestVariantImprovementsInput = {}
+  ): Promise<SuggestVariantImprovementsResult> =>
+    unwrap(
+      await apiClient.post<SuggestVariantImprovementsResult>(
+        `/personal-branding/variants/${variantId}/improvement-suggestions`,
+        body
+      )
     ),
 
   updateVariantDistributionStatus: async (
@@ -594,6 +689,27 @@ export const personalBrandingService = {
         body
       )
     ),
+
+  getVariantPerformanceInsights: async (variantId: string): Promise<VariantPerformanceInsights> =>
+    unwrap(
+      await apiClient.get<VariantPerformanceInsights>(
+        `/personal-branding/variants/${variantId}/performance-insights`
+      )
+    ),
+
+  applyVariantPerformanceSuggestion: async (
+    variantId: string,
+    suggestionId: string
+  ): Promise<ApplyPerformanceSuggestionResult> =>
+    unwrap(
+      await apiClient.post<ApplyPerformanceSuggestionResult>(
+        `/personal-branding/variants/${variantId}/performance-suggestions/${suggestionId}/apply`,
+        {}
+      )
+    ),
+
+  listPublishQueue: async (): Promise<PublishQueueList> =>
+    unwrap(await apiClient.get<PublishQueueList>('/personal-branding/publish-queue')),
 
   sendVariantToSandbox: async (variantId: string): Promise<SendToSandboxResult> =>
     unwrap(
@@ -649,15 +765,15 @@ export const personalBrandingService = {
 
   generateContentIdeas: async (
     body: GenerateContentIdeasInput
-  ): Promise<GenerateContentIdeasResult> => {
-    const res = await apiClient.post<{ data: { result: GenerateContentIdeasResult } }>(
+  ): Promise<ContentIdeationJobStart> => {
+    const res = await apiClient.post<ContentIdeationJobStart>(
       '/ai/personal-branding/content-ideas/generate',
       body
     );
-    if (!res.success || !res.data?.data?.result) {
-      throw new Error(res.error?.message ?? 'Failed to generate content ideas');
+    if (!res.success || !res.data?.jobId) {
+      throw new Error(formatApiFailure(res.error, 'Failed to start content ideation'));
     }
-    return res.data.data.result;
+    return res.data;
   },
 
   generateTopicSuggestions: async (
@@ -673,17 +789,43 @@ export const personalBrandingService = {
     return res.data.data.result;
   },
 
-  generateVaultExtractedIdeas: async (
-    body: GenerateVaultIdeasInput
-  ): Promise<GenerateContentIdeasResult> => {
-    const res = await apiClient.post<{ data: { result: GenerateContentIdeasResult } }>(
-      '/ai/personal-branding/content-ideas/generate-from-vault',
+  previewPlatformRuleSet: async (
+    body: PlatformRuleSetPreviewInput
+  ): Promise<PlatformRuleSetPreviewResult> => {
+    const res = await apiClient.post<{ data: { result: PlatformRuleSetPreviewResult } }>(
+      '/ai/personal-branding/platform-rule-set-preview',
       body
     );
     if (!res.success || !res.data?.data?.result) {
-      throw new Error(res.error?.message ?? 'Failed to generate vault content ideas');
+      throw new Error(res.error?.message ?? 'Failed to preview rule set');
     }
     return res.data.data.result;
+  },
+
+  suggestPlatformFit: async (
+    body: SuggestPlatformFitInput
+  ): Promise<PlatformFitSuggestionsResult> => {
+    const res = await apiClient.post<{ data: { result: PlatformFitSuggestionsResult } }>(
+      '/ai/personal-branding/platform-fit-suggestions',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to suggest platforms');
+    }
+    return res.data.data.result;
+  },
+
+  generateVaultExtractedIdeas: async (
+    body: GenerateVaultIdeasInput
+  ): Promise<ContentIdeationJobStart> => {
+    const res = await apiClient.post<ContentIdeationJobStart>(
+      '/ai/personal-branding/content-ideas/generate-from-vault',
+      body
+    );
+    if (!res.success || !res.data?.jobId) {
+      throw new Error(formatApiFailure(res.error, 'Failed to start vault content ideation'));
+    }
+    return res.data;
   },
 
   generateRadarExtractedIdeas: async (
@@ -702,6 +844,48 @@ export const personalBrandingService = {
   getContentIdeationJob: async (jobId: string): Promise<ContentIdeationJob> =>
     unwrap(
       await apiClient.get<ContentIdeationJob>(`/personal-branding/content-ideas/jobs/${jobId}`)
+    ),
+
+  injectContentImages: async (
+    body: InjectContentImagesInput
+  ): Promise<ContentImageInjectJobStart> => {
+    const res = await apiClient.post<ContentImageInjectJobStart>(
+      '/ai/personal-branding/content/inject-images',
+      body
+    );
+    if (!res.success || !res.data?.jobId) {
+      throw new Error(formatApiFailure(res.error, 'Failed to start image injection'));
+    }
+    return res.data;
+  },
+
+  getContentImageInjectJob: async (jobId: string): Promise<ContentImageInjectJob> =>
+    unwrap(
+      await apiClient.get<ContentImageInjectJob>(
+        `/personal-branding/content/image-inject-jobs/${jobId}`
+      )
+    ),
+
+  startKeywordOptimizationJob: async (
+    contentId: string
+  ): Promise<ContentKeywordOptimizationJobStart> => {
+    const res = await apiClient.post<ContentKeywordOptimizationJobStart>(
+      `/personal-branding/content/${contentId}/keyword-optimization-jobs`
+    );
+    if (!res.success || !res.data?.jobId) {
+      throw new Error(formatApiFailure(res.error, 'Failed to start keyword optimization'));
+    }
+    return res.data;
+  },
+
+  getKeywordOptimizationJob: async (
+    contentId: string,
+    jobId: string
+  ): Promise<ContentKeywordOptimizationJob> =>
+    unwrap(
+      await apiClient.get<ContentKeywordOptimizationJob>(
+        `/personal-branding/content/${contentId}/keyword-optimization-jobs/${jobId}`
+      )
     ),
 
   generateAssetPrompts: async (body: {
@@ -806,43 +990,50 @@ export const personalBrandingService = {
 
   extractContentTemplates: async (
     body: ExtractContentTemplatesInput
-  ): Promise<ExtractContentTemplatesResult> => {
-    const res = await apiClient.post<{ data: { result: ExtractContentTemplatesResult } }>(
+  ): Promise<ContentTemplateAiJobStart> => {
+    const res = await apiClient.post<ContentTemplateAiJobStart>(
       '/ai/personal-branding/content-templates/extract',
       body
     );
-    if (!res.success || !res.data?.data?.result) {
-      throw new Error(formatApiFailure(res.error, 'Failed to extract content templates'));
+    if (!res.success || !res.data?.jobId) {
+      throw new Error(formatApiFailure(res.error, 'Failed to start template extraction'));
     }
-    return res.data.data.result;
+    return res.data;
   },
 
   brainstormContentTemplates: async (
     body: BrainstormContentTemplatesInput
-  ): Promise<BrainstormContentTemplatesResult> => {
-    const res = await apiClient.post<{ data: { result: BrainstormContentTemplatesResult } }>(
+  ): Promise<ContentTemplateAiJobStart> => {
+    const res = await apiClient.post<ContentTemplateAiJobStart>(
       '/ai/personal-branding/content-templates/brainstorm',
       body
     );
-    if (!res.success || !res.data?.data?.result) {
-      throw new Error(formatApiFailure(res.error, 'Failed to brainstorm content templates'));
+    if (!res.success || !res.data?.jobId) {
+      throw new Error(formatApiFailure(res.error, 'Failed to start template brainstorm'));
     }
-    return res.data.data.result;
+    return res.data;
   },
 
   retryContentTemplateCandidate: async (
     candidateId: string,
     body: RetryContentTemplateCandidateInput
-  ): Promise<ContentTemplateCandidate> => {
-    const res = await apiClient.post<{ data: { result: ContentTemplateCandidate } }>(
+  ): Promise<ContentTemplateAiJobStart> => {
+    const res = await apiClient.post<ContentTemplateAiJobStart>(
       `/ai/personal-branding/content-template-candidates/${candidateId}/retry`,
       body
     );
-    if (!res.success || !res.data?.data?.result) {
-      throw new Error(formatApiFailure(res.error, 'Failed to retry content template'));
+    if (!res.success || !res.data?.jobId) {
+      throw new Error(formatApiFailure(res.error, 'Failed to start template retry'));
     }
-    return res.data.data.result;
+    return res.data;
   },
+
+  getContentTemplateAiJob: async (jobId: string): Promise<ContentTemplateAiJob> =>
+    unwrap(
+      await apiClient.get<ContentTemplateAiJob>(
+        `/personal-branding/content-templates/jobs/${jobId}`
+      )
+    ),
 
   getContentTemplateSettings: async (): Promise<ContentTemplateSettings> =>
     unwrap(
@@ -857,8 +1048,23 @@ export const personalBrandingService = {
   getRadarSource: async (sourceId: string): Promise<RadarSource> =>
     unwrap(await apiClient.get<RadarSource>(`/personal-branding/radar-sources/${sourceId}`)),
 
+  getRadarSourceHealthDetails: async (sourceId: string): Promise<RadarSourceHealthDetails> =>
+    unwrap(
+      await apiClient.get<RadarSourceHealthDetails>(
+        `/personal-branding/radar-sources/${sourceId}/health-details`
+      )
+    ),
+
+  getRadarFeedbackStats: async (): Promise<RadarFeedbackStats> =>
+    unwrap(await apiClient.get<RadarFeedbackStats>('/personal-branding/radar-feedback-stats')),
+
   createRadarSource: async (body: CreateRadarSourceInput): Promise<RadarSource> =>
     unwrap(await apiClient.post<RadarSource>('/personal-branding/radar-sources', body)),
+
+  previewRadarSource: async (body: RadarSourcePreviewInput): Promise<RadarSourcePreview> =>
+    unwrap(
+      await apiClient.post<RadarSourcePreview>('/personal-branding/radar-sources/preview', body)
+    ),
 
   updateRadarSource: async (sourceId: string, body: UpdateRadarSourceInput): Promise<RadarSource> =>
     unwrap(
@@ -883,23 +1089,84 @@ export const personalBrandingService = {
     unwrap(await apiClient.put<RadarSettings>('/personal-branding/radar-settings', body)),
 
   listRadarItems: async (
-    page = 1,
-    pageSize = 50,
-    includeFiltered = false
+    filters: {
+      page?: number;
+      pageSize?: number;
+      includeFiltered?: boolean;
+      q?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      sourceIds?: string[];
+      minAiRelevanceScore?: number;
+      tags?: string[];
+      viewId?: string;
+    } = {}
   ): Promise<RadarItemListResponse> => {
-    const q = new URLSearchParams({
+    const {
+      page = 1,
+      pageSize = 50,
+      includeFiltered = false,
+      q,
+      dateFrom,
+      dateTo,
+      sourceIds,
+      minAiRelevanceScore,
+      tags,
+      viewId,
+    } = filters;
+    const params = new URLSearchParams({
       page: String(page),
       pageSize: String(pageSize),
       includeFiltered: String(includeFiltered),
     });
-    return apiClient.get(`/personal-branding/radar-items?${q}`);
+    if (q?.trim()) params.set('q', q.trim());
+    if (dateFrom) params.set('dateFrom', dateFrom);
+    if (dateTo) params.set('dateTo', dateTo);
+    if (sourceIds?.length) params.set('sourceIds', sourceIds.join(','));
+    if (minAiRelevanceScore != null) {
+      params.set('minAiRelevanceScore', String(minAiRelevanceScore));
+    }
+    if (tags?.length) params.set('tags', tags.join(','));
+    if (viewId) params.set('viewId', viewId);
+    return apiClient.get(`/personal-branding/radar-items?${params}`);
   },
 
-  updateRadarItemRelevance: async (itemId: string, relevant: boolean): Promise<RadarItem> =>
+  listRadarViews: async (): Promise<RadarSavedViewListResponse> =>
+    unwrap(await apiClient.get<RadarSavedViewListResponse>('/personal-branding/radar-views')),
+
+  createRadarView: async (body: CreateRadarSavedViewInput): Promise<RadarSavedView> =>
+    unwrap(await apiClient.post<RadarSavedView>('/personal-branding/radar-views', body)),
+
+  updateRadarView: async (
+    viewId: string,
+    body: UpdateRadarSavedViewInput
+  ): Promise<RadarSavedView> =>
+    unwrap(await apiClient.patch<RadarSavedView>(`/personal-branding/radar-views/${viewId}`, body)),
+
+  deleteRadarView: async (viewId: string): Promise<void> => {
+    await apiClient.delete(`/personal-branding/radar-views/${viewId}`);
+  },
+
+  updateRadarItemRelevance: async (
+    itemId: string,
+    relevant: boolean,
+    reason?: RadarUserIrrelevanceReason,
+    overrideAiFilter?: boolean
+  ): Promise<RadarItem> =>
     unwrap(
       await apiClient.patch<RadarItem>(`/personal-branding/radar-items/${itemId}/relevance`, {
         relevant,
+        ...(reason ? { reason } : {}),
+        ...(overrideAiFilter ? { overrideAiFilter: true } : {}),
       })
+    ),
+
+  explainRadarItemRelevance: async (itemId: string): Promise<RadarItem> =>
+    unwrap(
+      await apiClient.post<RadarItem>(
+        `/personal-branding/radar-items/${itemId}/explain-relevance`,
+        {}
+      )
     ),
 
   startRadarRun: async (): Promise<RadarRunStartAccepted> =>
@@ -912,6 +1179,22 @@ export const personalBrandingService = {
 
   getRadarRun: async (runId: string): Promise<RadarRunDetail> =>
     unwrap(await apiClient.get<RadarRunDetail>(`/personal-branding/radar-runs/${runId}`)),
+
+  listRadarRunOutcomes: async (
+    runId: string,
+    params: {
+      disposition?: RadarRunOutcomeDisposition;
+      dropReason?: RadarRunOutcomeDropReason;
+      page?: number;
+      pageSize?: number;
+    } = {}
+  ): Promise<RadarRunOutcomeListResponse> => {
+    const { disposition, dropReason, page = 1, pageSize = 50 } = params;
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (disposition) q.set('disposition', disposition);
+    if (dropReason) q.set('dropReason', dropReason);
+    return apiClient.get(`/personal-branding/radar-runs/${runId}/outcomes?${q}`);
+  },
 
   startRadarDiscoveryRun: async (body: StartRadarDiscoveryRunInput): Promise<RadarDiscoveryRun> =>
     unwrap(
@@ -967,6 +1250,10 @@ export const personalBrandingService = {
       )
     ),
 
+  deleteRadarDiscoveryRun: async (runId: string): Promise<void> => {
+    await apiClient.delete(`/personal-branding/radar-discovery/runs/${runId}`);
+  },
+
   saveRadarDiscoveryCandidate: async (runId: string, candidateId: string): Promise<RadarSource> =>
     unwrap(
       await apiClient.post<RadarSource>(
@@ -993,6 +1280,17 @@ export const personalBrandingService = {
     unwrap(
       await apiClient.post<RadarDiscoveryCandidate>(
         `/personal-branding/radar-discovery/runs/${runId}/candidates/${candidateId}/not-a-source`,
+        {}
+      )
+    ),
+
+  dismissRadarDiscoveryCandidate: async (
+    runId: string,
+    candidateId: string
+  ): Promise<RadarDiscoveryCandidate> =>
+    unwrap(
+      await apiClient.post<RadarDiscoveryCandidate>(
+        `/personal-branding/radar-discovery/runs/${runId}/candidates/${candidateId}/dismiss`,
         {}
       )
     ),
@@ -1158,6 +1456,26 @@ export const personalBrandingService = {
   getReplyRun: async (runId: string): Promise<ReplyRun> =>
     unwrap(await apiClient.get<ReplyRun>(`/personal-branding/rolodex/reply-runs/${runId}`)),
 
+  listReplyRuns: async (
+    params: {
+      status?: string;
+      connectionId?: string;
+      page?: number;
+      pageSize?: number;
+    } = {}
+  ): Promise<PaginatedPersonalBranding<ReplyRun>> => {
+    const q = new URLSearchParams();
+    q.set('page', String(params.page ?? 1));
+    q.set('pageSize', String(params.pageSize ?? 20));
+    if (params.status) q.set('status', params.status);
+    if (params.connectionId) q.set('connectionId', params.connectionId);
+    return unwrap(
+      await apiClient.get<PaginatedPersonalBranding<ReplyRun>>(
+        `/personal-branding/rolodex/reply-runs?${q}`
+      )
+    );
+  },
+
   updateReplySuggestion: async (
     suggestionId: string,
     body: UpdateReplySuggestionInput
@@ -1237,12 +1555,22 @@ export const personalBrandingService = {
   listReconPosts: async (
     page = 1,
     pageSize = 50,
-    filters?: { connectionId?: string; status?: string; minScore?: number }
+    filters?: {
+      connectionId?: string;
+      status?: string;
+      minScore?: number;
+      postedAfter?: string;
+      sortBy?: 'relevanceScore' | 'postedAt';
+      sortOrder?: 'asc' | 'desc';
+    }
   ): Promise<ReconPostListResponse> => {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (filters?.connectionId) q.set('connectionId', filters.connectionId);
     if (filters?.status) q.set('status', filters.status);
     if (filters?.minScore !== undefined) q.set('minScore', String(filters.minScore));
+    if (filters?.postedAfter) q.set('postedAfter', filters.postedAfter);
+    if (filters?.sortBy) q.set('sortBy', filters.sortBy);
+    if (filters?.sortOrder) q.set('sortOrder', filters.sortOrder);
     return apiClient.get(`/personal-branding/rolodex/recon-feed/posts?${q}`);
   },
 

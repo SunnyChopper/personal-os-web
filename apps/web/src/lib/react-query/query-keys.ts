@@ -486,6 +486,10 @@ export const queryKeys = {
         [...queryKeys.personalBranding.content.all(), 'detail', contentId] as const,
       variants: (contentId: string) =>
         [...queryKeys.personalBranding.content.all(), 'variants', contentId] as const,
+      variantVersions: (variantId: string) =>
+        [...queryKeys.personalBranding.content.all(), 'variant-versions', variantId] as const,
+      variantPerformanceInsights: (variantId: string) =>
+        [...queryKeys.personalBranding.content.all(), 'performance-insights', variantId] as const,
       repurposeJobs: (contentId: string, status?: string) =>
         [
           ...queryKeys.personalBranding.content.all(),
@@ -495,6 +499,7 @@ export const queryKeys = {
         ] as const,
       repurposeJob: (contentId: string, jobId: string) =>
         [...queryKeys.personalBranding.content.all(), 'repurpose-job', contentId, jobId] as const,
+      publishQueue: () => [...queryKeys.personalBranding.content.all(), 'publish-queue'] as const,
     },
     ideas: {
       all: () => [...queryKeys.personalBranding.all, 'content-ideas'] as const,
@@ -512,10 +517,30 @@ export const queryKeys = {
       detail: (jobId: string) =>
         [...queryKeys.personalBranding.ideationJobs.all(), 'detail', jobId] as const,
     },
+    imageInjectJobs: {
+      all: () => [...queryKeys.personalBranding.all, 'content-image-inject-jobs'] as const,
+      detail: (jobId: string) =>
+        [...queryKeys.personalBranding.imageInjectJobs.all(), 'detail', jobId] as const,
+    },
+    keywordOptimizationJobs: {
+      all: () => [...queryKeys.personalBranding.all, 'keyword-optimization-jobs'] as const,
+      detail: (contentId: string, jobId: string) =>
+        [
+          ...queryKeys.personalBranding.keywordOptimizationJobs.all(),
+          'detail',
+          contentId,
+          jobId,
+        ] as const,
+    },
     rejectedFeedback: {
       all: () => [...queryKeys.personalBranding.all, 'rejected-ideas-feedback'] as const,
       list: (page = 1, pageSize = 50) =>
         [...queryKeys.personalBranding.rejectedFeedback.all(), 'list', page, pageSize] as const,
+    },
+    templateAiJobs: {
+      all: () => [...queryKeys.personalBranding.all, 'content-template-ai-jobs'] as const,
+      detail: (jobId: string) =>
+        [...queryKeys.personalBranding.templateAiJobs.all(), 'detail', jobId] as const,
     },
     contentTemplates: {
       all: () => [...queryKeys.personalBranding.all, 'content-templates'] as const,
@@ -553,20 +578,21 @@ export const queryKeys = {
         [...queryKeys.personalBranding.radarSources.all(), 'list', page, pageSize] as const,
       detail: (sourceId: string) =>
         [...queryKeys.personalBranding.radarSources.all(), 'detail', sourceId] as const,
+      healthDetails: (sourceId: string) =>
+        [...queryKeys.personalBranding.radarSources.all(), 'health-details', sourceId] as const,
     },
     radarSettings: () => [...queryKeys.personalBranding.all, 'radar-settings'] as const,
+    radarFeedbackStats: () => [...queryKeys.personalBranding.all, 'radar-feedback-stats'] as const,
     radarSuggestedCadences: () =>
       [...queryKeys.personalBranding.all, 'radar-suggested-cadences'] as const,
     radarItems: {
       all: () => [...queryKeys.personalBranding.all, 'radar-items'] as const,
-      list: (page = 1, pageSize = 50, includeFiltered = false) =>
-        [
-          ...queryKeys.personalBranding.radarItems.all(),
-          'list',
-          page,
-          pageSize,
-          includeFiltered,
-        ] as const,
+      list: (filters: Record<string, unknown> = {}) =>
+        [...queryKeys.personalBranding.radarItems.all(), 'list', filters] as const,
+    },
+    radarViews: {
+      all: () => [...queryKeys.personalBranding.all, 'radar-views'] as const,
+      list: () => [...queryKeys.personalBranding.radarViews.all(), 'list'] as const,
     },
     radarRuns: {
       all: () => [...queryKeys.personalBranding.all, 'radar-runs'] as const,
@@ -574,6 +600,22 @@ export const queryKeys = {
         [...queryKeys.personalBranding.radarRuns.all(), 'list', page, pageSize] as const,
       detail: (runId: string) =>
         [...queryKeys.personalBranding.radarRuns.all(), 'detail', runId] as const,
+      outcomes: (
+        runId: string,
+        disposition?: 'filtered' | 'alreadyAdded',
+        dropReason?: 'aiFiltered' | 'alreadyAdded' | null,
+        page = 1,
+        pageSize = 50
+      ) =>
+        [
+          ...queryKeys.personalBranding.radarRuns.all(),
+          'outcomes',
+          runId,
+          disposition ?? 'all',
+          dropReason ?? 'all',
+          page,
+          pageSize,
+        ] as const,
     },
     radarDiscovery: {
       all: () => [...queryKeys.personalBranding.all, 'radar-discovery'] as const,
@@ -648,14 +690,22 @@ export const queryKeys = {
     },
     replyRuns: {
       all: () => [...queryKeys.personalBranding.all, 'reply-runs'] as const,
+      list: (filters?: { status?: string; connectionId?: string }) =>
+        [...queryKeys.personalBranding.replyRuns.all(), 'list', filters ?? {}] as const,
       detail: (runId: string) =>
         [...queryKeys.personalBranding.replyRuns.all(), 'detail', runId] as const,
     },
     reconFeed: {
       all: () => [...queryKeys.personalBranding.all, 'recon-feed'] as const,
       settings: () => [...queryKeys.personalBranding.reconFeed.all(), 'settings'] as const,
-      posts: (filters?: { connectionId?: string; status?: string; minScore?: number }) =>
-        [...queryKeys.personalBranding.reconFeed.all(), 'posts', filters ?? {}] as const,
+      posts: (filters?: {
+        connectionId?: string;
+        status?: string;
+        minScore?: number;
+        postedAfter?: string;
+        sortBy?: 'relevanceScore' | 'postedAt';
+        sortOrder?: 'asc' | 'desc';
+      }) => [...queryKeys.personalBranding.reconFeed.all(), 'posts', filters ?? {}] as const,
       followSuggestions: (status?: string) =>
         [
           ...queryKeys.personalBranding.reconFeed.all(),

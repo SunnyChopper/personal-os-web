@@ -9,6 +9,7 @@ export type SyncScheduleInput = {
   syncIntervalHours?: number | null;
   nextDueAt?: string | null;
   lastRunAt?: string | null;
+  lastSuccessfulRunAt?: string | null;
 };
 
 export type SyncScheduleStatus = {
@@ -17,6 +18,8 @@ export type SyncScheduleStatus = {
   overdueDurationLabel: string | null;
   nextDueLabel: string;
   lastRunLabel: string;
+  lastSuccessfulRunLabel: string;
+  lastAttemptedRunLabel: string;
   scheduleHint: string;
 };
 
@@ -75,9 +78,17 @@ export function describeSyncSchedule(
   const feature = featureLabel(context);
 
   let scheduleHint = `Sync cadence drives scheduled ingestion. Manual runs update last run only and do not move the next due time.`;
+  if (context === 'recon' && !isManualOnly) {
+    scheduleHint =
+      'Scheduled runs advance the next due time after each attempt (including failures). Manual runs update last attempted only.';
+  }
   if (settings?.syncCadence === 'EVERY_N_HOURS' && settings.syncEndTime && settings.syncStartTime) {
     const interval = settings.syncIntervalHours ?? 6;
-    scheduleHint = `Runs every ${interval} hour${interval === 1 ? '' : 's'} between ${settings.syncStartTime} and ${settings.syncEndTime} local time, then resumes at start time the next day. Manual runs update last run only.`;
+    scheduleHint = `Runs every ${interval} hour${interval === 1 ? '' : 's'} between ${settings.syncStartTime} and ${settings.syncEndTime} local time, then resumes at start time the next day. ${
+      context === 'recon'
+        ? 'Scheduled attempts advance next due; manual runs update last attempted only.'
+        : 'Manual runs update last run only.'
+    }`;
   } else if (isOverdue) {
     scheduleHint = `Scheduled sync is overdue. The next cron tick will catch up automatically, or use ${manualAction} on ${feature}.`;
   } else if (isManualOnly) {
@@ -90,6 +101,8 @@ export function describeSyncSchedule(
     overdueDurationLabel,
     nextDueLabel: formatDate(nextDueAt, timeZone),
     lastRunLabel: formatDate(settings?.lastRunAt, timeZone),
+    lastSuccessfulRunLabel: formatDate(settings?.lastSuccessfulRunAt, timeZone),
+    lastAttemptedRunLabel: formatDate(settings?.lastRunAt, timeZone),
     scheduleHint,
   };
 }
