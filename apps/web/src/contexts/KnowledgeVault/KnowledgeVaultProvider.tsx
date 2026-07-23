@@ -39,6 +39,23 @@ function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function vaultServiceErrorMessage(
+  error: import('@/types/api-contracts').ApiError | string | null | undefined,
+  fallback: string
+): string {
+  if (!error) return fallback;
+  if (typeof error === 'string') return error;
+  return error.message || error.code || fallback;
+}
+
+function vaultServiceErrorText(
+  error: import('@/types/api-contracts').ApiError | string | null | undefined
+): string {
+  if (!error) return '';
+  if (typeof error === 'string') return error;
+  return error.message || error.code || '';
+}
+
 export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps) => {
   const { pathname } = useLocation();
   const queryClient = useQueryClient();
@@ -53,11 +70,11 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
       if (response.success && response.data) {
         return response.data;
       }
-      const msg = response.error || '';
+      const msg = vaultServiceErrorText(response.error);
       if (msg.includes('404') || msg.includes('Not Found')) {
         return [];
       }
-      throw new Error(typeof msg === 'string' ? msg : 'Failed to load vault items');
+      throw new Error(msg || 'Failed to load vault items');
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -70,11 +87,11 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
       if (response.success && response.data) {
         return response.data;
       }
-      const msg = response.error || '';
+      const msg = vaultServiceErrorText(response.error);
       if (msg.includes('404') || msg.includes('Not Found')) {
         return [];
       }
-      throw new Error(typeof msg === 'string' ? msg : 'Failed to load courses');
+      throw new Error(msg || 'Failed to load courses');
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -87,11 +104,11 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
       if (response.success && response.data) {
         return response.data;
       }
-      const msg = response.error || '';
-      if (typeof msg === 'string' && (msg.includes('404') || msg.includes('Not Found'))) {
+      const msg = vaultServiceErrorText(response.error);
+      if (msg.includes('404') || msg.includes('Not Found')) {
         return [];
       }
-      throw new Error(typeof msg === 'string' ? msg : 'Failed to load flashcard decks');
+      throw new Error(msg || 'Failed to load flashcard decks');
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -188,7 +205,7 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
           await invalidateKv();
           return response.data;
         } else {
-          throw new Error(response.error || 'Failed to create note');
+          throw new Error(vaultServiceErrorMessage(response.error, 'Failed to create note'));
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create note';
@@ -209,7 +226,7 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
           await invalidateKv();
           return response.data;
         } else {
-          throw new Error(response.error || 'Failed to update note');
+          throw new Error(vaultServiceErrorMessage(response.error, 'Failed to update note'));
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to update note';
@@ -230,7 +247,7 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
           await invalidateKv();
           return response.data;
         } else {
-          throw new Error(response.error || 'Failed to create document');
+          throw new Error(vaultServiceErrorMessage(response.error, 'Failed to create document'));
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create document';
@@ -251,7 +268,7 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
           await invalidateKv();
           return response.data;
         } else {
-          throw new Error(response.error || 'Failed to update document');
+          throw new Error(vaultServiceErrorMessage(response.error, 'Failed to update document'));
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to update document';
@@ -272,7 +289,7 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
           await invalidateKv();
           return response.data;
         } else {
-          throw new Error(response.error || 'Failed to create flashcard');
+          throw new Error(vaultServiceErrorMessage(response.error, 'Failed to create flashcard'));
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create flashcard';
@@ -293,17 +310,9 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
           await invalidateKv();
           return response.data;
         } else {
-          const err = response.error;
-          const msg =
-            typeof err === 'string'
-              ? err
-              : err != null &&
-                  typeof err === 'object' &&
-                  'message' in err &&
-                  typeof (err as { message?: unknown }).message === 'string'
-                ? (err as { message: string }).message
-                : undefined;
-          throw new Error(msg || 'Failed to create flashcard deck');
+          throw new Error(
+            vaultServiceErrorMessage(response.error, 'Failed to create flashcard deck')
+          );
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create flashcard deck';
@@ -324,7 +333,7 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
           await invalidateKv();
           return response.data;
         } else {
-          throw new Error(response.error || 'Failed to update flashcard');
+          throw new Error(vaultServiceErrorMessage(response.error, 'Failed to update flashcard'));
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to update flashcard';
@@ -345,7 +354,7 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
           await refreshCourses();
           return backendCourseToCourse(response.data);
         } else {
-          throw new Error(response.error || 'Failed to create course');
+          throw new Error(vaultServiceErrorMessage(response.error, 'Failed to create course'));
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create course';
@@ -366,7 +375,7 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
           await refreshCourses();
           return backendCourseToCourse(response.data);
         } else {
-          throw new Error(response.error || 'Failed to update course');
+          throw new Error(vaultServiceErrorMessage(response.error, 'Failed to update course'));
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to update course';
@@ -384,7 +393,7 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
         const response = await vaultItemsService.delete(id);
 
         if (!response.success) {
-          throw new Error(response.error || 'Failed to delete item');
+          throw new Error(vaultServiceErrorMessage(response.error, 'Failed to delete item'));
         }
 
         await invalidateKv();
@@ -404,7 +413,7 @@ export const KnowledgeVaultProvider = ({ children }: KnowledgeVaultProviderProps
         const response = await coursesService.delete(id);
 
         if (!response.success) {
-          throw new Error(response.error || 'Failed to delete course');
+          throw new Error(vaultServiceErrorMessage(response.error, 'Failed to delete course'));
         }
 
         await refreshCourses();

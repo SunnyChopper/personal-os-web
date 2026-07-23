@@ -14,6 +14,8 @@ import type {
 } from '@/types/weekly-dashboard';
 import { DEFAULT_WEEKLY_DASHBOARD_CONFIG, STAT_TILE_LABELS } from '@/types/weekly-dashboard';
 import { cn } from '@/lib/utils';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
+import OverlayPortal from '@/components/molecules/OverlayPortal';
 import { Select } from '@/components/atoms/Select';
 
 interface WeeklyDashboardSettingsDrawerProps {
@@ -112,12 +114,21 @@ export function WeeklyDashboardSettingsDrawer({
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/40"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="flex h-full w-full max-w-lg flex-col bg-white shadow-xl dark:bg-gray-900">
+    <OverlayPortal>
+      <div
+        className={cn('fixed inset-0 bg-black/40', overlayBackdropClassName)}
+        role="presentation"
+        aria-hidden
+        onClick={onClose}
+      />
+      <div
+        className={cn(
+          'fixed inset-y-0 right-0 flex h-full w-full max-w-lg flex-col bg-white shadow-xl dark:bg-gray-900',
+          overlaySurfaceClassName
+        )}
+        role="dialog"
+        aria-modal="true"
+      >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Customize dashboard
@@ -372,6 +383,6 @@ export function WeeklyDashboardSettingsDrawer({
           </Button>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }

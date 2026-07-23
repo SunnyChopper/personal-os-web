@@ -36,6 +36,9 @@ import type { Goal, Metric, LogbookEntry } from '@/types/growth-system';
 import { ROUTES } from '@/routes';
 import { parseDateInput } from '@/utils/date-formatters';
 import { useMode } from '@/contexts/Mode';
+import OverlayPortal from '@/components/molecules/OverlayPortal';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
+import { cn } from '@/lib/utils';
 
 interface CommandItem {
   id: string;
@@ -506,129 +509,136 @@ function CommandPaletteContent({ onClose }: CommandPaletteContentProps) {
   const showEmptyState = !showLoadingState && !showErrorState && filteredCommands.length === 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] px-4">
+    <OverlayPortal>
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={handleClose}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            handleClose();
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-label="Close command palette"
-      />
+        className={cn(
+          'fixed inset-0 flex items-start justify-center pt-[20vh] px-4',
+          overlaySurfaceClassName
+        )}
+      >
+        <div
+          className={cn('fixed inset-0 bg-black/50 backdrop-blur-sm', overlayBackdropClassName)}
+          onClick={handleClose}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              handleClose();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="Close command palette"
+        />
 
-      <div className="relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <Search className="w-5 h-5 text-gray-400" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search for tasks, goals, projects, or navigate..."
-            className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 outline-none"
-          />
-          <button
-            onClick={handleClose}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-          >
-            <X className="w-4 h-4 text-gray-400" />
-          </button>
-        </div>
+        <div className="relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <Search className="w-5 h-5 text-gray-400" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search for tasks, goals, projects, or navigate..."
+              className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 outline-none"
+            />
+            <button
+              onClick={handleClose}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+            >
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
 
-        <div className="max-h-[60vh] overflow-y-auto">
-          {showLoadingState ? (
-            <div className="py-4 px-4 space-y-3 animate-pulse">
-              {[0, 1, 2].map((row) => (
-                <div key={row} className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700" />
-                  <div className="flex-1">
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
-                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mt-2" />
+          <div className="max-h-[60vh] overflow-y-auto">
+            {showLoadingState ? (
+              <div className="py-4 px-4 space-y-3 animate-pulse">
+                {[0, 1, 2].map((row) => (
+                  <div key={row} className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mt-2" />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : showErrorState ? (
-            <div className="py-12 text-center text-gray-500 dark:text-gray-400">
-              <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>Unable to load results. Check your connection.</p>
-            </div>
-          ) : filteredCommands.length > 0 ? (
-            <div className="py-2">
-              {filteredCommands.map((cmd, idx) => (
-                <button
-                  key={cmd.id}
-                  onClick={() => {
-                    cmd.action();
-                    handleClose();
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${
-                    idx === selectedIndex
-                      ? 'bg-blue-50 dark:bg-blue-900/20'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                  }`}
-                >
-                  <div
-                    className={`flex-shrink-0 ${
+                ))}
+              </div>
+            ) : showErrorState ? (
+              <div className="py-12 text-center text-gray-500 dark:text-gray-400">
+                <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>Unable to load results. Check your connection.</p>
+              </div>
+            ) : filteredCommands.length > 0 ? (
+              <div className="py-2">
+                {filteredCommands.map((cmd, idx) => (
+                  <button
+                    key={cmd.id}
+                    onClick={() => {
+                      cmd.action();
+                      handleClose();
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition ${
                       idx === selectedIndex
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-gray-400 dark:text-gray-500'
+                        ? 'bg-blue-50 dark:bg-blue-900/20'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
                     }`}
                   >
-                    {cmd.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 dark:text-white truncate">
-                      {cmd.title}
+                    <div
+                      className={`flex-shrink-0 ${
+                        idx === selectedIndex
+                          ? 'text-blue-600 dark:text-blue-400'
+                          : 'text-gray-400 dark:text-gray-500'
+                      }`}
+                    >
+                      {cmd.icon}
                     </div>
-                    {cmd.subtitle && (
-                      <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                        {cmd.subtitle}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 dark:text-white truncate">
+                        {cmd.title}
                       </div>
+                      {cmd.subtitle && (
+                        <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                          {cmd.subtitle}
+                        </div>
+                      )}
+                    </div>
+                    {idx === selectedIndex && (
+                      <div className="flex-shrink-0 text-xs text-gray-400">↵</div>
                     )}
-                  </div>
-                  {idx === selectedIndex && (
-                    <div className="flex-shrink-0 text-xs text-gray-400">↵</div>
-                  )}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="py-12 text-center text-gray-500 dark:text-gray-400">
-              <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>{showEmptyState ? 'No results found' : 'Start typing to search'}</p>
-            </div>
-          )}
-        </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="py-12 text-center text-gray-500 dark:text-gray-400">
+                <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>{showEmptyState ? 'No results found' : 'Start typing to search'}</p>
+              </div>
+            )}
+          </div>
 
-        <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-          <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
-                ↑↓
-              </kbd>
-              Navigate
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
-                ↵
-              </kbd>
-              Select
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
-                Esc
-              </kbd>
-              Close
-            </span>
+          <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+            <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
+                  ↑↓
+                </kbd>
+                Navigate
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
+                  ↵
+                </kbd>
+                Select
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
+                  Esc
+                </kbd>
+                Close
+              </span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }

@@ -1,4 +1,5 @@
 import type { Area } from './growth-system';
+import type { ApiError } from './api-contracts';
 
 export type VaultItemType =
   | 'note'
@@ -598,6 +599,8 @@ export interface CreateConnectionInput {
 export interface ApiResponse<T> {
   data: T | null;
   error: string | null;
+  /** Structured API error when available (e.g. requestId, exceptionType). */
+  apiError?: ApiError | null;
   success: boolean;
 }
 

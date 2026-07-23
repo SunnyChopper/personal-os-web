@@ -21,6 +21,9 @@ import { formatDateString } from '@/utils/date-formatters';
 import type { Task, Habit, Goal } from '@/types/growth-system';
 import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/routes';
+import OverlayPortal from '@/components/molecules/OverlayPortal';
+import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
+import { cn } from '@/lib/utils';
 
 interface MorningLaunchpadProps {
   isOpen: boolean;
@@ -235,15 +238,15 @@ function MorningLaunchpadContent({ isOpen, onClose, topTasks }: MorningLaunchpad
   }, [isOpen, onClose]);
 
   return (
-    <>
+    <OverlayPortal>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/60 backdrop-blur-md z-40"
+        className={cn('fixed inset-0 bg-black/60 backdrop-blur-md', overlayBackdropClassName)}
       />
-      <div className="fixed inset-0 z-50 overflow-hidden flex flex-col">
+      <div className={cn('fixed inset-0 overflow-hidden flex flex-col', overlaySurfaceClassName)}>
         <div className="flex-1 flex flex-col overflow-hidden">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -597,6 +600,6 @@ function MorningLaunchpadContent({ isOpen, onClose, topTasks }: MorningLaunchpad
           <X size={24} />
         </button>
       </div>
-    </>
+    </OverlayPortal>
   );
 }
