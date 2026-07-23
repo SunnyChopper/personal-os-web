@@ -5,6 +5,8 @@ import RadarDiscoveryPanel from '@/components/organisms/personal-branding/RadarD
 import { cn } from '@/lib/utils';
 import { linkAccentClassName } from '../personal-branding-ui';
 import SourceEditorDialog from '@/components/organisms/personal-branding/SourceEditorDialog';
+import SourceHealthDetailsDialog from '@/components/organisms/personal-branding/SourceHealthDetailsDialog';
+import RadarSourceHealthIndicator from '@/components/molecules/personal-branding/RadarSourceHealthIndicator';
 import { useToast } from '@/hooks/use-toast';
 import { type useSignalRadar } from '@/hooks/useSignalRadar';
 import { RADAR_SOURCE_TYPE_LABELS } from '@/types/api/personal-branding.dto';
@@ -32,6 +34,7 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<RadarSource | null>(null);
+  const [healthSource, setHealthSource] = useState<RadarSource | null>(null);
 
   const openCreate = () => {
     setEditing(null);
@@ -70,6 +73,9 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
                   Name
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">
+                  Health
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">
                   Type
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">
@@ -89,7 +95,7 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
             <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
               {sources.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                     No sources yet. Add a feed or run discovery below.
                   </td>
                 </tr>
@@ -101,6 +107,13 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
                       {!source.enabled ? (
                         <span className="ml-2 text-xs text-gray-500">(disabled)</span>
                       ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <RadarSourceHealthIndicator
+                        health={source.health}
+                        healthReason={source.healthReason}
+                        onClick={() => setHealthSource(source)}
+                      />
                     </td>
                     <td className="px-4 py-3">{RADAR_SOURCE_TYPE_LABELS[source.sourceType]}</td>
                     <td className={cn('max-w-[220px] truncate px-4 py-3', linkAccentClassName)}>
@@ -180,6 +193,13 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
             throw err;
           }
         }}
+      />
+
+      <SourceHealthDetailsDialog
+        isOpen={Boolean(healthSource)}
+        onClose={() => setHealthSource(null)}
+        source={healthSource}
+        signalRadar={signalRadar}
       />
 
       <ToastContainer />

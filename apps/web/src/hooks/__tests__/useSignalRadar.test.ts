@@ -87,14 +87,13 @@ describe('useSignalRadar query keys', () => {
     ]);
   });
 
-  it('radar items list key includes includeFiltered', () => {
-    expect(queryKeys.personalBranding.radarItems.list(1, 50, true)).toEqual([
+  it('radar items list key includes filter object', () => {
+    const filters = { page: 1, pageSize: 50, includeFiltered: true };
+    expect(queryKeys.personalBranding.radarItems.list(filters)).toEqual([
       'personal-branding',
       'radar-items',
       'list',
-      1,
-      50,
-      true,
+      filters,
     ]);
   });
 

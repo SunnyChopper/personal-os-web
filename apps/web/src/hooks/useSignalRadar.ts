@@ -7,6 +7,11 @@ import type {
   RadarDiscoveryCandidateFilters,
   RadarDiscoveryRun,
   RadarDiscoveryRunStatus,
+  RadarItem,
+  RadarRunOutcomeDisposition,
+  RadarRunOutcomeDropReason,
+  RadarSavedViewFilters,
+  RadarUserIrrelevanceReason,
   StartRadarDiscoveryRunInput,
   UpdateRadarSettingsInput,
   UpdateRadarSourceInput,
@@ -21,6 +26,13 @@ export type RadarItemsListFilters = {
   page?: number;
   pageSize?: number;
   includeFiltered?: boolean;
+  q?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sourceIds?: string[];
+  minAiRelevanceScore?: number;
+  tags?: string[];
+  viewId?: string;
 };
 
 export type RadarDiscoveryCandidatesListFilters = RadarDiscoveryCandidateFilters & {
@@ -34,6 +46,12 @@ export const LIVE_RADAR_DISCOVERY_STATUSES = new Set<RadarDiscoveryRunStatus>([
   'running',
   'pausing',
   'cancelling',
+]);
+
+export const TERMINAL_RADAR_DISCOVERY_STATUSES = new Set<RadarDiscoveryRunStatus>([
+  'cancelled',
+  'completed',
+  'failed',
 ]);
 
 export function radarDiscoveryPollInterval(
@@ -104,9 +122,12 @@ export function useSignalRadar() {
   const updateSource = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateRadarSourceInput }) =>
       personalBrandingService.updateRadarSource(id, body),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void invalidateSources();
       void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarSuggestedCadences() });
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarSources.healthDetails(variables.id),
+      });
     },
   });
 
@@ -138,6 +159,15 @@ export function useSignalRadar() {
       void qc.invalidateQueries({
         queryKey: queryKeys.personalBranding.radarDiscovery.candidates(run.runId),
       });
+    },
+  });
+
+  const deleteDiscovery = useMutation({
+    mutationFn: (runId: string) => personalBrandingService.deleteRadarDiscoveryRun(runId),
+    onSuccess: (_result, runId) => {
+      qc.removeQueries({ queryKey: queryKeys.personalBranding.radarDiscovery.detail(runId) });
+      qc.removeQueries({ queryKey: queryKeys.personalBranding.radarDiscovery.candidates(runId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarDiscovery.lists() });
     },
   });
 
@@ -182,6 +212,19 @@ export function useSignalRadar() {
     },
   });
 
+  const dismissDiscoveryCandidate = useMutation({
+    mutationFn: ({ runId, candidateId }: { runId: string; candidateId: string }) =>
+      personalBrandingService.dismissRadarDiscoveryCandidate(runId, candidateId),
+    onSuccess: (_candidate, { runId }) => {
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarDiscovery.candidates(runId),
+      });
+      void qc.invalidateQueries({
+        queryKey: queryKeys.personalBranding.radarDiscovery.detail(runId),
+      });
+    },
+  });
+
   const parseDiscoveryCandidateSources = useMutation({
     mutationFn: ({ runId, candidateId }: { runId: string; candidateId: string }) =>
       personalBrandingService.startRadarDiscoveryCandidateParseSources(runId, candidateId),
@@ -202,9 +245,11 @@ export function useSignalRadar() {
     deleteSource,
     startDiscovery,
     controlDiscovery,
+    deleteDiscovery,
     saveDiscoveryCandidate,
     addDiscoveryCandidateAsItem,
     markDiscoveryCandidateNotASource,
+    dismissDiscoveryCandidate,
     parseDiscoveryCandidateSources,
     suggestedCadences: useQuery({
       queryKey: queryKeys.personalBranding.radarSuggestedCadences(),
@@ -216,28 +261,104 @@ export function useSignalRadar() {
 
 export function useSignalRadarItems(filters: RadarItemsListFilters = {}) {
   const qc = useQueryClient();
-  const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? 50;
-  const includeFiltered = filters.includeFiltered ?? false;
+  const listKey = queryKeys.personalBranding.radarItems.list(filters);
 
   const items = useQuery({
-    queryKey: queryKeys.personalBranding.radarItems.list(page, pageSize, includeFiltered),
+    queryKey: listKey,
     queryFn: async () => {
-      const res = await personalBrandingService.listRadarItems(page, pageSize, includeFiltered);
+      const res = await personalBrandingService.listRadarItems(filters);
       if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Failed to load items');
       return res.data;
     },
   });
 
   const updateItemRelevance = useMutation({
-    mutationFn: ({ itemId, relevant }: { itemId: string; relevant: boolean }) =>
-      personalBrandingService.updateRadarItemRelevance(itemId, relevant),
+    mutationFn: ({
+      itemId,
+      relevant,
+      reason,
+    }: {
+      itemId: string;
+      relevant: boolean;
+      reason?: RadarUserIrrelevanceReason;
+    }) => personalBrandingService.updateRadarItemRelevance(itemId, relevant, reason),
+    onSuccess: (updatedItem, { relevant }) => {
+      qc.setQueriesData(
+        { queryKey: queryKeys.personalBranding.radarItems.all() },
+        (current: { data: RadarItem[] } | undefined) => {
+          if (!current?.data) return current;
+          return {
+            ...current,
+            data: current.data.map((item) => (item.id === updatedItem.id ? updatedItem : item)),
+          };
+        }
+      );
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarFeedbackStats() });
+      if (relevant) {
+        void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarItems.all() });
+      }
+    },
+  });
+
+  const explainItemRelevance = useMutation({
+    mutationFn: (itemId: string) => personalBrandingService.explainRadarItemRelevance(itemId),
+    onSuccess: (updatedItem) => {
+      qc.setQueriesData(
+        { queryKey: queryKeys.personalBranding.radarItems.all() },
+        (current: { data: RadarItem[] } | undefined) => {
+          if (!current?.data) return current;
+          return {
+            ...current,
+            data: current.data.map((item) => (item.id === updatedItem.id ? updatedItem : item)),
+          };
+        }
+      );
+    },
+  });
+
+  return { items, updateItemRelevance, explainItemRelevance };
+}
+
+export function useSignalRadarViews() {
+  const qc = useQueryClient();
+
+  const views = useQuery({
+    queryKey: queryKeys.personalBranding.radarViews.list(),
+    queryFn: () => personalBrandingService.listRadarViews(),
+  });
+
+  const createView = useMutation({
+    mutationFn: (input: { name: string; filters: RadarSavedViewFilters }) =>
+      personalBrandingService.createRadarView(input),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarViews.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarItems.all() });
     },
   });
 
-  return { items, updateItemRelevance };
+  const updateView = useMutation({
+    mutationFn: ({
+      viewId,
+      input,
+    }: {
+      viewId: string;
+      input: { name?: string; filters?: RadarSavedViewFilters; enabled?: boolean };
+    }) => personalBrandingService.updateRadarView(viewId, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarViews.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarItems.all() });
+    },
+  });
+
+  const deleteView = useMutation({
+    mutationFn: (viewId: string) => personalBrandingService.deleteRadarView(viewId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarViews.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarItems.all() });
+    },
+  });
+
+  return { views, createView, updateView, deleteView };
 }
 
 export function useSignalRadarRuns(filters: RadarRunsListFilters = {}) {
@@ -285,6 +406,54 @@ export function useSignalRadarRunDetail(runId: string | null) {
   });
 
   return { detail };
+}
+
+export function useSignalRadarRunOutcomes(
+  runId: string | null,
+  options: {
+    disposition?: RadarRunOutcomeDisposition | null;
+    dropReason?: RadarRunOutcomeDropReason | null;
+    enabled?: boolean;
+  } = {}
+) {
+  const { disposition = null, dropReason = null, enabled = true } = options;
+  const outcomes = useQuery({
+    queryKey: queryKeys.personalBranding.radarRuns.outcomes(
+      runId ?? '',
+      disposition ?? undefined,
+      dropReason,
+      1,
+      100
+    ),
+    queryFn: async () => {
+      const res = await personalBrandingService.listRadarRunOutcomes(runId!, {
+        disposition: disposition ?? undefined,
+        dropReason: dropReason ?? undefined,
+        page: 1,
+        pageSize: 100,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? 'Failed to load run outcomes');
+      }
+      return res.data;
+    },
+    enabled: Boolean(runId) && enabled,
+  });
+
+  return { outcomes };
+}
+
+export function usePromoteRadarItem() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (itemId: string) =>
+      personalBrandingService.updateRadarItemRelevance(itemId, true, undefined, true),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarItems.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalBranding.radarRuns.all() });
+    },
+  });
 }
 
 export function useSignalRadarDiscoveryRun(runId: string | null) {
