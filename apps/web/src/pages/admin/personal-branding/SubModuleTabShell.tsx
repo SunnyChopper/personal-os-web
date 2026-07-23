@@ -27,6 +27,10 @@ interface SubModuleTabShellProps {
   skeletonLayout?: SubModuleSkeletonLayout;
   activeTabId?: string;
   onTabChange?: (tabId: string) => void;
+  /** `fill` = viewport-bounded tab panel (Content Workbench). Default `flow`. */
+  layout?: 'flow' | 'fill';
+  /** When `layout="fill"`, controls tab panel overflow. Default `auto`. */
+  panelOverflow?: 'hidden' | 'auto';
   renderPanel: (activeTabId: string) => ReactNode;
 }
 
@@ -52,6 +56,8 @@ export default function SubModuleTabShell({
   skeletonLayout = 'single-column',
   activeTabId,
   onTabChange,
+  layout = 'flow',
+  panelOverflow = 'auto',
   renderPanel,
 }: SubModuleTabShellProps) {
   const [internalTab, setInternalTab] = useState(defaultTabId);
@@ -63,10 +69,15 @@ export default function SubModuleTabShell({
     else setInternalTab(tabId);
   };
 
+  const isFillLayout = layout === 'fill';
+
   return (
-    <div className="space-y-6">
+    <div className={cn(isFillLayout ? 'flex h-full min-h-0 flex-col gap-6' : 'space-y-6')}>
       <div
-        className="flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-gray-700"
+        className={cn(
+          'flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-gray-700',
+          isFillLayout && 'shrink-0'
+        )}
         role="tablist"
         aria-label={ariaLabel}
       >
@@ -90,7 +101,14 @@ export default function SubModuleTabShell({
         ))}
       </div>
 
-      <div role="tabpanel" aria-busy={isLoading}>
+      <div
+        role="tabpanel"
+        aria-busy={isLoading}
+        className={cn(
+          isFillLayout && 'min-h-0 flex-1',
+          isFillLayout && (panelOverflow === 'hidden' ? 'overflow-hidden' : 'overflow-y-auto')
+        )}
+      >
         {isLoading ? renderSkeletonLayout(skeletonLayout) : renderPanel(activeTab)}
       </div>
     </div>
