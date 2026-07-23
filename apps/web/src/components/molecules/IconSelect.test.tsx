@@ -32,4 +32,37 @@ describe('IconSelect', () => {
     await user.click(screen.getByRole('option', { name: /X \(Twitter\)/ }));
     expect(onChange).toHaveBeenCalledWith('x');
   });
+
+  it('renders description as a secondary line and selects by value', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <IconSelect
+        value="a"
+        onChange={onChange}
+        aria-label="Source content"
+        options={[
+          {
+            value: 'a',
+            label: 'How Transformer Architecture Works',
+            description: 'Medium · 2026-07-15 · how-transformer-architecture',
+          },
+          {
+            value: 'b',
+            label: 'Another Post',
+            description: 'LinkedIn · 2026-07-10 · another-post',
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByText('How Transformer Architecture Works')).toBeInTheDocument();
+    expect(
+      screen.getByText('Medium · 2026-07-15 · how-transformer-architecture')
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Source content' }));
+    await user.click(screen.getByRole('option', { name: /Another Post/ }));
+    expect(onChange).toHaveBeenCalledWith('b');
+  });
 });

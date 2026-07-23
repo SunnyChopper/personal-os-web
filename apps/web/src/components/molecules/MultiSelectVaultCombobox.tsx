@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { vaultItemsService } from '@/services/knowledge-vault/vault-items.service';
 import type { VaultItem, VaultItemType } from '@/types/knowledge-vault';
+import { formatApiError } from '@/utils/api-error-formatter';
 import { cn } from '@/lib/utils';
 
 export interface MultiSelectVaultComboboxProps {
@@ -20,6 +21,18 @@ export interface MultiSelectVaultComboboxProps {
 }
 
 const DEFAULT_ALLOWED_TYPES: VaultItemType[] = ['note', 'document'];
+const DEBOUNCE_MS = 300;
+const MAX_HITS = 20;
+const MIN_SEARCH_LENGTH = 2;
+
+function formatVaultSearchError(
+  apiError: import('@/types/api-contracts').ApiError | null | undefined,
+  fallbackMessage: string | null | undefined
+): string {
+  if (apiError) return formatApiError(apiError);
+  if (fallbackMessage?.trim()) return fallbackMessage;
+  return 'Failed to search Knowledge Vault. Please try again.';
+}
 
 export function MultiSelectVaultCombobox({
   selectedIds,
@@ -35,8 +48,10 @@ export function MultiSelectVaultCombobox({
   const [hits, setHits] = useState<VaultItem[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   /** Titles learned from search picks so pills stay readable after the hit list clears */
   const [pickedTitles, setPickedTitles] = useState<Record<string, string>>({});
+  const requestGenerationRef = useRef(0);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -54,31 +69,58 @@ export function MultiSelectVaultCombobox({
 
   const allowedSet = useMemo(() => new Set(allowedTypes), [allowedTypes]);
 
-  const runSearch = useCallback(
+  const trimmedQuery = q.trim();
+  const showDropdown =
+    open && (trimmedQuery.length === 0 || trimmedQuery.length >= MIN_SEARCH_LENGTH);
+
+  const runFetch = useCallback(
     async (query: string) => {
       const t = query.trim();
-      if (t.length < 2) {
+      if (t.length === 1) {
         setHits([]);
+        setSearchError(null);
+        setLoading(false);
         return;
       }
+
+      const generation = ++requestGenerationRef.current;
       setLoading(true);
+      setSearchError(null);
+
       try {
-        const res = await vaultItemsService.search(t);
+        const res =
+          t.length >= MIN_SEARCH_LENGTH
+            ? await vaultItemsService.search(t)
+            : await vaultItemsService.getAll({ pageSize: MAX_HITS });
+
+        if (generation !== requestGenerationRef.current) return;
+
         if (res.success && res.data) {
           const filtered = res.data.filter((i) => allowedSet.has(i.type));
-          setHits(filtered.slice(0, 20));
-        } else setHits([]);
+          setHits(filtered.slice(0, MAX_HITS));
+          setSearchError(null);
+        } else {
+          setHits([]);
+          setSearchError(formatVaultSearchError(res.apiError, res.error));
+        }
+      } catch {
+        if (generation !== requestGenerationRef.current) return;
+        setHits([]);
+        setSearchError('Failed to search Knowledge Vault. Please try again.');
       } finally {
-        setLoading(false);
+        if (generation === requestGenerationRef.current) {
+          setLoading(false);
+        }
       }
     },
     [allowedSet]
   );
 
   useEffect(() => {
-    const h = window.setTimeout(() => void runSearch(q), 300);
+    if (!open) return;
+    const h = window.setTimeout(() => void runFetch(q), DEBOUNCE_MS);
     return () => window.clearTimeout(h);
-  }, [q, runSearch]);
+  }, [q, open, runFetch]);
 
   useEffect(() => {
     setPickedTitles((prev) => {
@@ -147,20 +189,42 @@ export function MultiSelectVaultCombobox({
           onChange={(e) => {
             setQ(e.target.value);
             setOpen(true);
+            setSearchError(null);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setOpen(true);
+          }}
+          onBlur={() => {
+            window.setTimeout(() => setOpen(false), 150);
+          }}
           placeholder="Search vault by title or content…"
           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+          aria-invalid={searchError ? true : undefined}
+          aria-describedby={searchError ? 'vault-combobox-search-error' : undefined}
         />
-        {open && q.trim().length >= 2 && (
+        {searchError ? (
+          <p
+            id="vault-combobox-search-error"
+            className="mt-1 text-sm text-red-600 dark:text-red-400 whitespace-pre-line"
+          >
+            {searchError}
+          </p>
+        ) : null}
+        {showDropdown && (
           <ul className="absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg text-sm">
             {loading && <li className="px-3 py-2 text-gray-500">Searching…</li>}
+            {!loading && trimmedQuery.length === 0 && hits.length > 0 && (
+              <li className="px-3 py-1.5 text-xs text-gray-500 border-b border-gray-100 dark:border-gray-800">
+                Recent vault items
+              </li>
+            )}
             {!loading &&
               hits.map((h) => (
                 <li key={h.id}>
                   <button
                     type="button"
                     disabled={selectedSet.has(h.id)}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => add(h)}
                     className={cn(
                       'w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800',
@@ -172,8 +236,10 @@ export function MultiSelectVaultCombobox({
                   </button>
                 </li>
               ))}
-            {!loading && hits.length === 0 && (
-              <li className="px-3 py-2 text-gray-500">No matches</li>
+            {!loading && !searchError && hits.length === 0 && (
+              <li className="px-3 py-2 text-gray-500">
+                {trimmedQuery.length >= MIN_SEARCH_LENGTH ? 'No matches' : 'No recent items'}
+              </li>
             )}
           </ul>
         )}

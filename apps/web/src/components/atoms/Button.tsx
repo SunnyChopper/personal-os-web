@@ -13,6 +13,8 @@ const buttonVariants = cva(
         secondary:
           'bg-white text-primary border-2 border-primary hover:bg-primary hover:text-white',
         success: 'bg-green-600 text-white hover:bg-green-700',
+        destructive:
+          'border-2 border-red-300 bg-white text-red-700 hover:border-red-400 hover:bg-red-50 hover:text-red-800 dark:border-red-800 dark:bg-transparent dark:text-red-300 dark:hover:bg-red-950/30 dark:hover:text-red-200',
         ghost: 'hover:bg-gray-100',
       },
       size: {
@@ -48,6 +50,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
               soundEffects.playSuccess();
               break;
             case 'secondary':
+            case 'destructive':
             case 'ghost':
             default:
               soundEffects.playClick();

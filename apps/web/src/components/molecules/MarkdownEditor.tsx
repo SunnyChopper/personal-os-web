@@ -158,7 +158,8 @@ export default function MarkdownEditor({
   autosaveErrorMessage = null,
   enableRichEmbedsToggle = false,
 }: MarkdownEditorProps) {
-  // Default to 'edit' mode on mobile, 'split' on desktop
+  const isFillHeight = minHeight === '100%';
+  const paneMinHeightStyle = isFillHeight ? undefined : { minHeight };
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (typeof window === 'undefined') return 'split';
     return window.innerWidth >= 768 ? 'split' : 'edit';
@@ -393,8 +394,8 @@ export default function MarkdownEditor({
         className
       )}
     >
-      {/* Toolbar - Sticky to stay visible when scrolling */}
-      <div className="sticky top-0 z-10 flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 overflow-hidden min-h-[48px] h-auto">
+      {/* Toolbar */}
+      <div className="z-10 flex shrink-0 items-center gap-2 sm:gap-4 px-3 sm:px-4 py-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 overflow-hidden min-h-[48px] h-auto">
         {/* Formatting buttons - left side */}
         <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
           <button
@@ -562,7 +563,7 @@ export default function MarkdownEditor({
       </div>
 
       {/* Editor/Preview Area */}
-      <div className="flex flex-1 overflow-hidden min-h-0" style={{ minHeight }}>
+      <div className="flex flex-1 overflow-hidden min-h-0" style={paneMinHeightStyle}>
         {/* Editor */}
         {(viewMode === 'edit' || viewMode === 'split') && (
           <div
@@ -584,7 +585,7 @@ export default function MarkdownEditor({
                 fullWidth ? 'px-8 pt-6 pb-32' : 'px-4 pt-3 pb-24',
                 followScrollActive && 'relative z-[1]'
               )}
-              style={{ minHeight }}
+              style={isFillHeight ? undefined : { minHeight }}
             />
           </div>
         )}
