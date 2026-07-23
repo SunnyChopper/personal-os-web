@@ -3,10 +3,10 @@ import Button from '@/components/atoms/Button';
 import type { BrandPlatform, ContentIdea } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
 import {
-  PageCard,
   emptyStateCardClassName,
   gridItemCardClassName,
-} from '../PersonalBrandingPageTemplate';
+} from '@/lib/personal-branding/personal-branding-surfaces';
+import { PageCard } from '../PersonalBrandingPageTemplate';
 import { cn } from '@/lib/utils';
 import { linkAccentClassName } from '../personal-branding-ui';
 import { ContentIdeaWhyCreateSection } from './ContentIdeaWhyCreateSection';
@@ -134,9 +134,8 @@ export default function TrendIdeasTab({
                   <Button
                     type="button"
                     size="sm"
-                    variant="secondary"
+                    variant="destructive"
                     onClick={() => onReject(idea)}
-                    className="border-red-300 text-red-700 hover:border-red-400 hover:bg-red-50 hover:text-red-800 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
                   >
                     Reject
                   </Button>

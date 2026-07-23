@@ -42,6 +42,8 @@ export default function ContentWorkbenchPage() {
         ariaLabel="Content Workbench sections"
         isLoading={isLoading}
         skeletonLayout="two-column"
+        layout="fill"
+        panelOverflow={wb.activeTab === 'sandbox' ? 'hidden' : 'auto'}
         renderPanel={(activeTab) => {
           if (activeTab === 'ideation') {
             return (
@@ -61,7 +63,16 @@ export default function ContentWorkbenchPage() {
                 onTargetPlatformChange={wb.setTargetPlatform}
                 seedIdeas={wb.seedIdeas}
                 onSeedIdeasChange={wb.setSeedIdeas}
-                isGenerating={wb.generateIdeasMutation.isPending}
+                enableImageSearch={wb.enableImageSearch}
+                onEnableImageSearchChange={wb.setEnableImageSearch}
+                ideaCount={wb.ideaCount}
+                onIdeaCountChange={wb.setIdeaCount}
+                ideationModelCatalog={wb.ideationModelCatalog}
+                isIdeationModelCatalogLoading={wb.isIdeationModelCatalogLoading}
+                ideationModelPicker={wb.ideationModelPicker}
+                onIdeationModelPickerChange={wb.setIdeationModelPicker}
+                isGenerating={wb.isGeneratingIdeas}
+                ideationJob={wb.ideationJob}
                 generateError={wb.generateError}
                 lastGenerationStats={wb.lastGenerationStats}
                 onGenerate={() => wb.generateIdeasMutation.mutate()}
@@ -91,7 +102,8 @@ export default function ContentWorkbenchPage() {
                 onVaultSelectionChange={wb.setSelectedVaultItemIds}
                 vaultItemLabels={wb.vaultItemLabels}
                 onVaultItemLabelsChange={wb.setVaultItemLabels}
-                isGenerating={wb.generateVaultIdeasMutation.isPending}
+                isGenerating={wb.isGeneratingVaultIdeas}
+                vaultJob={wb.vaultJob}
                 generateError={wb.vaultGenerateError}
                 lastGenerationStats={wb.lastVaultGenerationStats}
                 onGenerate={() => wb.generateVaultIdeasMutation.mutate()}
@@ -134,7 +146,8 @@ export default function ContentWorkbenchPage() {
                 onBrainstormContentTypeChange={ct.setBrainstormContentType}
                 brainstormPlatform={ct.brainstormPlatform}
                 onBrainstormPlatformChange={ct.setBrainstormPlatform}
-                isBrainstorming={ct.brainstormMutation.isPending}
+                isBrainstorming={ct.isBrainstorming}
+                brainstormProgressMessage={ct.brainstormProgressMessage}
                 brainstormError={ct.brainstormError}
                 lastBrainstormStats={ct.lastBrainstormStats}
                 onBrainstorm={() => {
@@ -146,7 +159,8 @@ export default function ContentWorkbenchPage() {
                 sourceUrl={ct.sourceUrl}
                 onSourceUrlChange={ct.setSourceUrl}
                 hasMediumApiKey={ct.settingsQ.data?.hasMediumApiKey ?? false}
-                isExtracting={ct.extractMutation.isPending}
+                isExtracting={ct.isExtracting}
+                extractProgressMessage={ct.extractProgressMessage}
                 extractError={ct.extractError}
                 lastExtractionStats={ct.lastExtractionStats}
                 onExtract={() => ct.extractMutation.mutate()}
@@ -155,11 +169,7 @@ export default function ContentWorkbenchPage() {
                     ? (ct.approveCandidateMutation.variables?.candidateId ?? null)
                     : null
                 }
-                retryingId={
-                  ct.retryCandidateMutation.isPending
-                    ? (ct.retryCandidateMutation.variables?.candidateId ?? null)
-                    : null
-                }
+                retryingId={ct.isRetrying ? (ct.retryingCandidate?.id ?? null) : null}
                 onCreateTemplate={() => {
                   ct.setEditingTemplate(null);
                   ct.setTemplateFormOpen(true);
@@ -194,6 +204,11 @@ export default function ContentWorkbenchPage() {
               contentType={wb.contentType}
               draftPlatform={wb.draftPlatform}
               onDraftPlatformChange={wb.setDraftPlatform}
+              draftCanonicalUrl={wb.draftCanonicalUrl}
+              onDraftCanonicalUrlChange={wb.setDraftCanonicalUrl}
+              draftPillars={wb.draftPillars}
+              onDraftPillarsChange={wb.setDraftPillars}
+              brandPillarOptions={wb.brandPillarOptions}
               assetPrompts={wb.assetPrompts}
               isDirty={wb.isDirty}
               isSaving={wb.saveDraftMutation.isPending}
@@ -201,6 +216,9 @@ export default function ContentWorkbenchPage() {
               isUnpublishing={wb.unpublishMutation.isPending}
               isDeleting={wb.deleteDraftMutation.isPending}
               isGeneratingAssets={wb.assetPromptsMutation.isPending}
+              isInjectingImages={wb.isInjectingImages}
+              imageInjectError={wb.imageInjectError}
+              imageInjectMessage={wb.imageInjectJob?.message ?? null}
               drawerOpen={drawerOpen}
               onToggleDrawer={() => setDrawerOpen((v) => !v)}
               onLoadDraft={wb.loadDraft}
@@ -210,13 +228,24 @@ export default function ContentWorkbenchPage() {
                 if (!wb.activeDraftId) return;
                 await wb.deleteDraftMutation.mutateAsync(wb.activeDraftId);
               }}
-              onPublish={async () => {
-                await wb.publishMutation.mutateAsync();
+              onPublish={async (metadata) => {
+                await wb.publishMutation.mutateAsync(metadata);
               }}
               onUnpublish={async () => {
                 await wb.unpublishMutation.mutateAsync();
               }}
               onGenerateAssetPrompts={() => wb.assetPromptsMutation.mutate()}
+              onInjectImages={() =>
+                wb.injectImagesMutation.mutate({
+                  title: wb.editorTitle.trim() || 'Untitled draft',
+                  body: wb.editorBody,
+                  contentId: wb.activeDraftId ?? undefined,
+                  contentType: wb.contentType,
+                })
+              }
+              isOptimizingKeywords={wb.isOptimizingKeywords}
+              keywordOptimizeError={wb.keywordOptimizeError}
+              onOptimizeKeywords={wb.onOptimizeKeywords}
             />
           );
         }}
@@ -298,7 +327,9 @@ export default function ContentWorkbenchPage() {
       <RetryTemplateModal
         isOpen={Boolean(ct.retryingCandidate)}
         candidateTitle={ct.retryingCandidate?.title}
-        isSubmitting={ct.retryCandidateMutation.isPending}
+        isSubmitting={ct.isRetrying}
+        progressMessage={ct.retryProgressMessage}
+        errorMessage={ct.retryError}
         onClose={() => ct.setRetryingCandidate(null)}
         onSubmit={(feedbackText) => {
           if (!ct.retryingCandidate) return;

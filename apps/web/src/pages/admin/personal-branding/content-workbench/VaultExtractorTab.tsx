@@ -7,13 +7,15 @@ import type {
   BrandProfile,
   ContentIdea,
   ContentIdeaGenerationContextStats,
+  ContentIdeationJob,
 } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
+import ContentIdeationProgressPanel from '@/components/molecules/personal-branding/ContentIdeationProgressPanel';
 import {
-  PageCard,
   emptyStateCardClassName,
   gridItemCardClassName,
-} from '../PersonalBrandingPageTemplate';
+} from '@/lib/personal-branding/personal-branding-surfaces';
+import { PageCard } from '../PersonalBrandingPageTemplate';
 import { cn } from '@/lib/utils';
 import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
 import { ContentIdeaWhyCreateSection } from './ContentIdeaWhyCreateSection';
@@ -35,6 +37,7 @@ interface VaultExtractorTabProps {
   vaultItemLabels: Record<string, string>;
   onVaultItemLabelsChange: (labels: Record<string, string>) => void;
   isGenerating: boolean;
+  vaultJob?: ContentIdeationJob | null;
   generateError: string | null;
   lastGenerationStats: ContentIdeaGenerationContextStats | null;
   onGenerate: () => void;
@@ -57,6 +60,7 @@ export default function VaultExtractorTab({
   vaultItemLabels,
   onVaultItemLabelsChange,
   isGenerating,
+  vaultJob,
   generateError,
   lastGenerationStats,
   onGenerate,
@@ -148,6 +152,8 @@ export default function VaultExtractorTab({
         {generateError ? (
           <p className="text-sm text-red-600 dark:text-red-400">{generateError}</p>
         ) : null}
+
+        <ContentIdeationProgressPanel job={vaultJob} />
 
         <Button
           type="button"
@@ -247,9 +253,8 @@ export default function VaultExtractorTab({
                   <Button
                     type="button"
                     size="sm"
-                    variant="secondary"
+                    variant="destructive"
                     onClick={() => onReject(idea)}
-                    className="border-red-300 text-red-700 hover:border-red-400 hover:bg-red-50 hover:text-red-800 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
                   >
                     Reject
                   </Button>

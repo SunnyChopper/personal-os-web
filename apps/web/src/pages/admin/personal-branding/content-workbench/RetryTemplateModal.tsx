@@ -8,6 +8,8 @@ interface RetryTemplateModalProps {
   isOpen: boolean;
   candidateTitle?: string;
   isSubmitting?: boolean;
+  progressMessage?: string | null;
+  errorMessage?: string | null;
   onClose: () => void;
   onSubmit: (feedbackText: string) => void;
 }
@@ -16,6 +18,8 @@ export default function RetryTemplateModal({
   isOpen,
   candidateTitle,
   isSubmitting = false,
+  progressMessage,
+  errorMessage,
   onClose,
   onSubmit,
 }: RetryTemplateModalProps) {
@@ -51,6 +55,12 @@ export default function RetryTemplateModal({
           placeholder='e.g. "Make the hook shorter" or "Add a stronger CTA section"'
           className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
         />
+        {errorMessage ? (
+          <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+        ) : null}
+        {isSubmitting && progressMessage ? (
+          <p className="text-sm text-indigo-700 dark:text-indigo-300">{progressMessage}</p>
+        ) : null}
         <DialogFooter>
           <Button type="button" size="sm" variant="secondary" onClick={handleClose}>
             Cancel

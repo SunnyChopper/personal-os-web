@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ImageIcon, Plus, Search, Sparkles, Trash2 } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import PanelToggleHandle from '@/components/atoms/PanelToggleHandle';
 import Dialog from '@/components/molecules/Dialog';
@@ -18,7 +18,11 @@ import type {
 import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
 import { DialogFooter, PageCard, SidebarCard } from '../PersonalBrandingPageTemplate';
 import ContentStatusBadge from './ContentStatusBadge';
-import ContentStatusChangeModal, { type ContentStatusChangeMode } from './ContentStatusChangeModal';
+import ContentStatusChangeModal, {
+  type ContentStatusChangeMode,
+  type PublishContentMetadata,
+} from './ContentStatusChangeModal';
+import BrandPillarMultiSelect from '@/components/molecules/personal-branding/BrandPillarMultiSelect';
 import { contentTextStats } from './content-workbench-helpers';
 
 interface SandboxWorkspaceTabProps {
@@ -32,6 +36,11 @@ interface SandboxWorkspaceTabProps {
   contentType: ContentType;
   draftPlatform: BrandPlatform | null;
   onDraftPlatformChange: (value: BrandPlatform | null) => void;
+  draftCanonicalUrl: string;
+  onDraftCanonicalUrlChange: (value: string) => void;
+  draftPillars: string[];
+  onDraftPillarsChange: (value: string[]) => void;
+  brandPillarOptions: string[];
   assetPrompts: AssetPromptsResult | null;
   isDirty: boolean;
   isSaving: boolean;
@@ -39,15 +48,22 @@ interface SandboxWorkspaceTabProps {
   isUnpublishing: boolean;
   isDeleting: boolean;
   isGeneratingAssets: boolean;
+  isInjectingImages?: boolean;
+  imageInjectError?: string | null;
+  imageInjectMessage?: string | null;
+  isOptimizingKeywords?: boolean;
+  keywordOptimizeError?: string | null;
   drawerOpen: boolean;
   onToggleDrawer: () => void;
   onLoadDraft: (node: ContentNode) => void;
   onNewDraft: () => void;
   onSaveDraft: () => void;
   onDeleteDraft: () => void | Promise<void>;
-  onPublish: () => void | Promise<void>;
+  onPublish: (metadata: PublishContentMetadata) => void | Promise<void>;
   onUnpublish: () => void | Promise<void>;
   onGenerateAssetPrompts: () => void;
+  onInjectImages?: () => void;
+  onOptimizeKeywords?: () => void;
 }
 
 export default function SandboxWorkspaceTab({
@@ -61,6 +77,11 @@ export default function SandboxWorkspaceTab({
   contentType,
   draftPlatform,
   onDraftPlatformChange,
+  draftCanonicalUrl,
+  onDraftCanonicalUrlChange,
+  draftPillars,
+  onDraftPillarsChange,
+  brandPillarOptions,
   assetPrompts,
   isDirty,
   isSaving,
@@ -68,6 +89,11 @@ export default function SandboxWorkspaceTab({
   isUnpublishing,
   isDeleting,
   isGeneratingAssets,
+  isInjectingImages = false,
+  imageInjectError,
+  imageInjectMessage,
+  isOptimizingKeywords = false,
+  keywordOptimizeError,
   drawerOpen,
   onToggleDrawer,
   onLoadDraft,
@@ -77,6 +103,8 @@ export default function SandboxWorkspaceTab({
   onPublish,
   onUnpublish,
   onGenerateAssetPrompts,
+  onInjectImages,
+  onOptimizeKeywords,
 }: SandboxWorkspaceTabProps) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [statusChangeModal, setStatusChangeModal] = useState<ContentStatusChangeMode | null>(null);
@@ -90,8 +118,14 @@ export default function SandboxWorkspaceTab({
     if (!statusChangePending) setStatusChangeModal(null);
   };
 
-  const handleStatusChangeConfirm = () => {
-    const action = statusChangeModal === 'unpublish' ? onUnpublish : onPublish;
+  const handleStatusChangeConfirm = (metadata?: PublishContentMetadata) => {
+    const action =
+      statusChangeModal === 'unpublish'
+        ? onUnpublish
+        : () => {
+            if (!metadata) return Promise.resolve();
+            return onPublish(metadata);
+          };
     void Promise.resolve(action()).then(() => {
       setStatusChangeModal(null);
     });
@@ -108,6 +142,12 @@ export default function SandboxWorkspaceTab({
   const publishDisabled = isPublished
     ? statusChangePending || !activeDraftId
     : statusChangePending || !editorTitle.trim();
+
+  const showOptimizeKeywords =
+    Boolean(activeDraftId) &&
+    contentType === 'DEEP_DIVE_BLOG' &&
+    draftPlatform === 'medium' &&
+    Boolean(onOptimizeKeywords);
 
   const menubarMenus = [
     {
@@ -139,8 +179,36 @@ export default function SandboxWorkspaceTab({
           label: isGeneratingAssets ? 'Generating…' : 'Generate Asset Prompts',
           icon: Sparkles,
           onClick: onGenerateAssetPrompts,
-          disabled: isGeneratingAssets || !editorBody.trim(),
+          disabled:
+            isGeneratingAssets || isInjectingImages || !editorBody.trim() || isOptimizingKeywords,
         },
+        {
+          key: 'inject-images',
+          label: isInjectingImages ? 'Injecting images…' : 'Inject Images',
+          icon: ImageIcon,
+          onClick: () => onInjectImages?.(),
+          disabled:
+            isInjectingImages ||
+            isGeneratingAssets ||
+            isOptimizingKeywords ||
+            !editorBody.trim() ||
+            !onInjectImages,
+        },
+        ...(showOptimizeKeywords
+          ? [
+              {
+                key: 'optimize-keywords',
+                label: isOptimizingKeywords ? 'Optimizing…' : 'Optimize Keywords',
+                icon: Search,
+                onClick: () => onOptimizeKeywords?.(),
+                disabled:
+                  isOptimizingKeywords ||
+                  isGeneratingAssets ||
+                  !editorBody.trim() ||
+                  !activeDraftId,
+              },
+            ]
+          : []),
       ],
     },
   ];
@@ -148,12 +216,17 @@ export default function SandboxWorkspaceTab({
   return (
     <div
       className={cn(
-        'grid min-h-[640px] gap-6',
+        'grid h-full min-h-0 gap-6',
         drawerOpen ? 'lg:grid-cols-[280px_1fr]' : 'lg:grid-cols-1'
       )}
     >
       {drawerOpen ? (
-        <SidebarCard className="flex h-full flex-col overflow-hidden">
+        <SidebarCard
+          className={cn(
+            'flex flex-col overflow-hidden lg:h-full lg:min-h-0',
+            'max-h-[35vh] lg:max-h-none'
+          )}
+        >
           <div className="mb-3 flex items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Your content</h3>
             <button
@@ -186,10 +259,22 @@ export default function SandboxWorkspaceTab({
                   >
                     <div className="font-medium truncate">{node.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                      <ContentStatusBadge status={node.status} />
+                      <ContentStatusBadge status={node.status} platform={node.platform} />
                       <span aria-hidden="true">·</span>
                       <span>{new Date(node.updatedAt).toLocaleDateString()}</span>
                     </div>
+                    {node.pillars.length > 0 ? (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {node.pillars.map((pillar) => (
+                          <span
+                            key={pillar}
+                            className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                          >
+                            {pillar}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </button>
                 </li>
               ))
@@ -198,19 +283,19 @@ export default function SandboxWorkspaceTab({
         </SidebarCard>
       ) : null}
 
-      <PageCard className="relative flex min-w-0 flex-col gap-3 p-4 sm:p-6">
+      <PageCard className="relative flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden p-4 sm:p-6">
         <PanelToggleHandle
           collapsed={!drawerOpen}
           onToggle={onToggleDrawer}
           className="absolute -left-3 top-6 z-10"
         />
 
-        <Menubar menus={menubarMenus} ariaLabel="Content workbench actions" />
+        <Menubar menus={menubarMenus} ariaLabel="Content workbench actions" className="shrink-0" />
 
         <div
           role="toolbar"
           aria-label="Draft actions"
-          className="flex flex-nowrap items-center gap-2 overflow-x-auto border-b border-gray-200 pb-3 dark:border-gray-700"
+          className="flex shrink-0 flex-nowrap items-center gap-2 overflow-x-auto border-b border-gray-200 pb-3 dark:border-gray-700"
         >
           <input
             value={editorTitle}
@@ -235,6 +320,14 @@ export default function SandboxWorkspaceTab({
                 </option>
               ))}
             </Select>
+            <input
+              type="url"
+              value={draftCanonicalUrl}
+              onChange={(e) => onDraftCanonicalUrlChange(e.target.value)}
+              placeholder="Canonical URL"
+              aria-label="Canonical URL"
+              className="w-44 shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+            />
             <Button
               type="button"
               size="sm"
@@ -247,18 +340,56 @@ export default function SandboxWorkspaceTab({
           </div>
         </div>
 
-        <div className="min-h-[480px] flex-1">
+        {brandPillarOptions.length > 0 ? (
+          <div className="shrink-0 border-b border-gray-200 pb-3 dark:border-gray-700">
+            <div className="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
+              Brand pillars
+            </div>
+            <BrandPillarMultiSelect
+              options={brandPillarOptions}
+              value={draftPillars}
+              onChange={onDraftPillarsChange}
+              disabled={isSaving || isPublishing || isUnpublishing}
+            />
+          </div>
+        ) : null}
+
+        {keywordOptimizeError ? (
+          <p className="shrink-0 text-sm text-amber-700 dark:text-amber-300" role="status">
+            {keywordOptimizeError}
+          </p>
+        ) : null}
+
+        {imageInjectError ? (
+          <p className="shrink-0 text-sm text-red-600 dark:text-red-400" role="alert">
+            {imageInjectError}
+          </p>
+        ) : null}
+
+        {isInjectingImages && imageInjectMessage ? (
+          <p className="shrink-0 text-sm text-gray-600 dark:text-gray-400" role="status">
+            {imageInjectMessage}
+          </p>
+        ) : null}
+
+        <div
+          className={cn(
+            'min-h-0 flex-1 overflow-hidden',
+            (isOptimizingKeywords || isInjectingImages) && 'pointer-events-none opacity-70'
+          )}
+        >
           <MarkdownEditor
             value={editorBody}
             onChange={onBodyChange}
-            minHeight="480px"
+            minHeight="100%"
+            className="h-full"
             fullWidth
             enableRichEmbedsToggle
           />
         </div>
 
         {assetPrompts ? (
-          <PageCard className="bg-gray-50 p-4 dark:bg-gray-900/50">
+          <PageCard className="max-h-[28vh] shrink-0 overflow-y-auto bg-gray-50 p-4 dark:bg-gray-900/50">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Asset prompts</h3>
             {assetPrompts.blogPrompts && assetPrompts.blogPrompts.length > 0 ? (
               <ul className="mt-3 space-y-3">
@@ -309,6 +440,8 @@ export default function SandboxWorkspaceTab({
         contentTitle={draftLabel}
         wordCount={publishStats.wordCount}
         readingTimeMinutes={publishStats.readingTimeMinutes}
+        initialPlatform={draftPlatform}
+        initialCanonicalUrl={draftCanonicalUrl}
         isPending={statusChangePending}
         onClose={closeStatusChangeModal}
         onConfirm={handleStatusChangeConfirm}
