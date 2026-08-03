@@ -35,6 +35,7 @@ import {
   saveCustomSample,
 } from '@/lib/personal-branding/platform-rule-set-sample';
 import { personalBrandingService } from '@/services/personal-branding.service';
+import { reportClientError } from '@/lib/client-telemetry';
 import {
   BRAND_PLATFORM_LABELS,
   type BrandPlatform,
@@ -344,21 +345,40 @@ export default function PlatformRuleEditorDialog({
         });
         setInfluences(influenceResult.appliedInfluences);
       } catch (influenceErr) {
-        setInfluences([]);
-        setInfluenceError(
+        const message =
           influenceErr instanceof Error
             ? influenceErr.message
-            : 'Rule influence analysis unavailable'
-        );
+            : 'Rule influence analysis unavailable';
+        void reportClientError({
+          message: `Platform rule influence failed: ${message}`,
+          source: 'web',
+          metadata: {
+            kind: 'personal-branding-handler',
+            feature: 'brandProfileExtraction',
+            action: 'ruleInfluence',
+          },
+        });
+        setInfluences([]);
+        setInfluenceError(message);
       } finally {
         setInfluenceLoading(false);
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to preview rule set';
+      void reportClientError({
+        message: `Platform rule preview failed: ${message}`,
+        source: 'web',
+        metadata: {
+          kind: 'personal-branding-handler',
+          feature: 'brandProfileExtraction',
+          action: 'rulePreview',
+        },
+      });
       setPreviewResult(null);
       setInfluences([]);
       setInfluenceError(null);
       setInfluenceLoading(false);
-      setPreviewError(error instanceof Error ? error.message : 'Failed to preview rule set');
+      setPreviewError(message);
     } finally {
       setPreviewLoading(false);
     }
@@ -384,12 +404,18 @@ export default function PlatformRuleEditorDialog({
       requirements: trimmedRequirements,
       profileIds,
     };
-    if (initial) {
-      await onUpdate(initial.id, body);
-    } else {
-      await onCreate(body);
+    try {
+      if (initial) {
+        await onUpdate(initial.id, body);
+      } else {
+        await onCreate(body);
+      }
+      onClose();
+    } catch {
+      // Parent toasts the failure; keep dialog open for retry.
+      // Without this catch, rethrown mutateAsync errors become unhandledrejection
+      // (alerts 9ada7a942ca1 / 4b0b17740a3c) after MutationCache already reported.
     }
-    onClose();
   };
 
   const modesSummary = useMemo(

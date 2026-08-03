@@ -202,6 +202,43 @@ describe('PlatformRuleEditorDialog', () => {
     );
   });
 
+  it('keeps dialog open and does not reject when onUpdate fails (9ada7a942ca1)', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onUpdate = vi.fn().mockRejectedValue(new Error('An unexpected error occurred'));
+    render(
+      <PlatformRuleEditorDialog
+        isOpen
+        onClose={onClose}
+        profiles={[]}
+        catalog={catalog}
+        initial={{
+          id: 'rule-1',
+          platform: 'linkedin',
+          name: 'LI default',
+          characterLimit: 3000,
+          readTimeLimitMinutes: 3,
+          rhetoricalModes: [],
+          rhetoricalDevices: [],
+          requirements: 'Existing requirements',
+          needsReview: false,
+          profileIds: [],
+          isUniversal: true,
+          userId: 'u',
+          createdAt: '',
+          updatedAt: '',
+        }}
+        onCreate={vi.fn()}
+        onUpdate={onUpdate}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument();
+  });
+
   it('submits universal rule when no profiles selected', async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue(undefined);
