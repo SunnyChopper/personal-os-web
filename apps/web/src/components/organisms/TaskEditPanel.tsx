@@ -339,7 +339,8 @@ export function TaskEditPanel({
     }
   };
 
-  const availableSubCategories = SUBCATEGORIES_BY_AREA[formData.area || task.area];
+  // TaskResponse.area is a free string; unknown/missing keys must not crash .map
+  const availableSubCategories = SUBCATEGORIES_BY_AREA[formData.area || task.area] || [];
 
   const taskEntities: EntitySummary[] = availableTasks
     .filter((t) => t.id !== task.id)

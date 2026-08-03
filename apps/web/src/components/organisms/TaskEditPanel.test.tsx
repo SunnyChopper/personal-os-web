@@ -190,4 +190,26 @@ describe('TaskEditPanel polish', () => {
     expect(screen.getByTestId('dialog-footer')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
+
+  it('renders with an unknown area without crashing subcategory map (da291a9e90d5)', () => {
+    expect(() =>
+      renderPanel({
+        // API TaskResponse.area is a free string; legacy/AI values may not be Area keys
+        task: { ...makeTask(), area: 'Career' as Task['area'], subCategory: null },
+      })
+    ).not.toThrow();
+
+    expect(screen.getByLabelText('Sub-Category')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'None' })).toBeInTheDocument();
+  });
+
+  it('renders when area is missing at runtime without crashing subcategory map', () => {
+    expect(() =>
+      renderPanel({
+        task: { ...makeTask(), area: undefined as unknown as Task['area'] },
+      })
+    ).not.toThrow();
+
+    expect(screen.getByLabelText('Sub-Category')).toBeInTheDocument();
+  });
 });
