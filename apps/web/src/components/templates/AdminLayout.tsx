@@ -1,4 +1,5 @@
-import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { lazyWithRetry } from '@/lib/stale-chunk-reload';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/query-keys';
@@ -73,6 +74,7 @@ import { InterventionCenterDrawer } from '@/components/organisms/assistant/Inter
 import { InterventionBellButton } from '@/components/molecules/assistant/InterventionBellButton';
 import { AssistantNavUnreadBadge } from '@/components/molecules/assistant/AssistantNavUnreadBadge';
 import { AssistantNewMessageToast } from '@/components/molecules/assistant/AssistantNewMessageToast';
+import { ToastHost } from '@/components/molecules/ToastHost';
 import { useAssistantInterventionUnreadCount } from '@/hooks/chatbot/useAssistantInterventions';
 import { useAssistantUnreadSummary } from '@/hooks/chatbot/useAssistantUnreadSummary';
 import { ROUTES } from '@/routes';
@@ -85,11 +87,11 @@ import {
   shouldLoadWeeklyReviewNavBadge,
 } from '@/lib/route-data-policy';
 
-const CommandPalette = lazy(() =>
+const CommandPalette = lazyWithRetry(() =>
   import('@/components/organisms/CommandPalette').then((m) => ({ default: m.CommandPalette }))
 );
 
-const DebugInspector = lazy(() =>
+const DebugInspector = lazyWithRetry(() =>
   import('@/components/organisms/DebugInspector').then((m) => ({ default: m.DebugInspector }))
 );
 
@@ -657,6 +659,7 @@ function AdminLayoutContent() {
         <DebugInspector />
       </Suspense>
       <AssistantNewMessageToast isAssistantRoute={isAssistantRoute} />
+      <ToastHost />
 
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 pt-safe">
         <div className="px-4 py-3 flex items-center justify-between">

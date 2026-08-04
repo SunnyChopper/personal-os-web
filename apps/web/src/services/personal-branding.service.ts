@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import { PLATFORM_RULE_CATALOG } from '@/lib/personal-branding/platform-rule-catalog';
 import { uploadToS3WithProgress } from '@/lib/upload-to-s3-with-progress';
 import { formatApiFailure } from '@/utils/api-error-formatter';
 import type {
@@ -20,6 +21,7 @@ import type {
   StartProfileExtractionRerunInput,
   PaginatedPersonalBranding,
   ContentIdea,
+  ContentIdeaStatus,
   ContentIdeationJob,
   ContentIdeationJobStart,
   ContentStreamFeedback,
@@ -33,7 +35,6 @@ import type {
   ContentKeywordOptimizationJob,
   ContentKeywordOptimizationJobStart,
   ContentNode,
-  ContentNodeListResponse,
   ContentStatus,
   ContentType,
   ContentDraftGenerationResult,
@@ -173,11 +174,25 @@ import type {
   UpdateTrackingMetricInput,
 } from '@/types/api/personal-branding.dto';
 
-function unwrap<T>(res: { success: boolean; data?: T; error?: { message?: string } }): T {
+function unwrap<T>(res: {
+  success: boolean;
+  data?: T;
+  error?: { message?: string; code?: string };
+}): T {
   if (!res.success || res.data === undefined) {
-    throw new Error(res.error?.message ?? 'Request failed');
+    const err = new Error(res.error?.message ?? 'Request failed') as Error & { code?: string };
+    if (res.error?.code) err.code = res.error.code;
+    throw err;
   }
   return res.data;
+}
+
+function assertSuccess(res: { success: boolean; error?: { message?: string; code?: string } }): void {
+  if (!res.success) {
+    const err = new Error(res.error?.message ?? 'Request failed') as Error & { code?: string };
+    if (res.error?.code) err.code = res.error.code;
+    throw err;
+  }
 }
 
 function chunkArray<T>(items: T[], size: number): T[][] {
@@ -228,26 +243,38 @@ function buildExtractionSourceTypesHint(
   return EXTRACTION_SOURCE_TYPE_ORDER.filter((type) => types.has(type));
 }
 
+export { assertSuccess };
+
 export const personalBrandingService = {
   getBrandConfig: async (): Promise<BrandConfigResponse> =>
     apiClient.get('/personal-branding/brand-config'),
 
-  listProfiles: async (page = 1, pageSize = 50): Promise<BrandProfileListResponse> => {
+  listProfiles: async (
+    page = 1,
+    pageSize = 50,
+    signal?: AbortSignal
+  ): Promise<BrandProfileListResponse> => {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    return apiClient.get(`/personal-branding/profiles?${q}`);
+    return apiClient.get(`/personal-branding/profiles?${q}`, undefined, { signal });
   },
 
   createProfile: async (body: CreateBrandProfileInput): Promise<BrandProfile> =>
     unwrap(await apiClient.post<BrandProfile>('/personal-branding/profiles', body)),
 
-  getProfile: async (profileId: string): Promise<BrandProfileDetail> =>
-    unwrap(await apiClient.get<BrandProfileDetail>(`/personal-branding/profiles/${profileId}`)),
+  getProfile: async (profileId: string, signal?: AbortSignal): Promise<BrandProfileDetail> =>
+    unwrap(
+      await apiClient.get<BrandProfileDetail>(
+        `/personal-branding/profiles/${profileId}`,
+        undefined,
+        { signal }
+      )
+    ),
 
   updateProfile: async (profileId: string, body: UpdateBrandProfileInput): Promise<BrandProfile> =>
     unwrap(await apiClient.patch<BrandProfile>(`/personal-branding/profiles/${profileId}`, body)),
 
   deleteProfile: async (profileId: string): Promise<void> => {
-    await apiClient.delete(`/personal-branding/profiles/${profileId}`);
+    assertSuccess(await apiClient.delete(`/personal-branding/profiles/${profileId}`));
   },
 
   startProfileExtraction: async (
@@ -380,9 +407,11 @@ export const personalBrandingService = {
 
       globalFileIndex += batch.length;
 
-      await apiClient.post(`/personal-branding/profile-extractions/${jobId}/uploads/complete`, {
-        sourceIds: slots.map((slot) => slot.sourceId),
-      });
+      assertSuccess(
+        await apiClient.post(`/personal-branding/profile-extractions/${jobId}/uploads/complete`, {
+          sourceIds: slots.map((slot) => slot.sourceId),
+        })
+      );
     }
 
     if (pasted.length || xUsername) {
@@ -393,26 +422,30 @@ export const personalBrandingService = {
     }
 
     for (const batch of chunkArray(pasted, UPLOAD_SLOT_BATCH)) {
-      await apiClient.post(`/personal-branding/profile-extractions/${jobId}/sources`, {
-        sources: batch.map((s) => ({
-          title: s.title?.trim() || null,
-          url: s.url?.trim() || null,
-          text: (s.text ?? '').trim(),
-        })),
-      });
+      assertSuccess(
+        await apiClient.post(`/personal-branding/profile-extractions/${jobId}/sources`, {
+          sources: batch.map((s) => ({
+            title: s.title?.trim() || null,
+            url: s.url?.trim() || null,
+            text: (s.text ?? '').trim(),
+          })),
+        })
+      );
     }
 
     if (xUsername) {
-      await apiClient.post(`/personal-branding/profile-extractions/${jobId}/sources`, {
-        sources: [
-          {
-            sourceType: 'x_profile',
-            xUsername,
-            title: `@${xUsername}`,
-            url: `https://x.com/${xUsername}`,
-          },
-        ],
-      });
+      assertSuccess(
+        await apiClient.post(`/personal-branding/profile-extractions/${jobId}/sources`, {
+          sources: [
+            {
+              sourceType: 'x_profile',
+              xUsername,
+              title: `@${xUsername}`,
+              url: `https://x.com/${xUsername}`,
+            },
+          ],
+        })
+      );
     }
 
     emitProgress('starting', {
@@ -473,10 +506,15 @@ export const personalBrandingService = {
       )
     ),
 
-  listProfileVersions: async (profileId: string): Promise<BrandProfileVersionListResponse> =>
+  listProfileVersions: async (
+    profileId: string,
+    signal?: AbortSignal
+  ): Promise<BrandProfileVersionListResponse> =>
     unwrap(
       await apiClient.get<BrandProfileVersionListResponse>(
-        `/personal-branding/profiles/${profileId}/versions`
+        `/personal-branding/profiles/${profileId}/versions`,
+        undefined,
+        { signal }
       )
     ),
 
@@ -513,16 +551,25 @@ export const personalBrandingService = {
       )
     ),
 
-  listProfileOutputTests: async (profileId: string): Promise<BrandProfileOutputTestListResponse> =>
+  listProfileOutputTests: async (
+    profileId: string,
+    signal?: AbortSignal
+  ): Promise<BrandProfileOutputTestListResponse> =>
     unwrap(
       await apiClient.get<BrandProfileOutputTestListResponse>(
-        `/personal-branding/profiles/${profileId}/output-tests`
+        `/personal-branding/profiles/${profileId}/output-tests`,
+        undefined,
+        { signal }
       )
     ),
 
-  listPlatformRules: async (page = 1, pageSize = 50): Promise<PlatformRulesListResponse> => {
+  listPlatformRules: async (
+    page = 1,
+    pageSize = 50,
+    signal?: AbortSignal
+  ): Promise<PlatformRulesListResponse> => {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    return apiClient.get(`/personal-branding/platform-rules?${q}`);
+    return apiClient.get(`/personal-branding/platform-rules?${q}`, undefined, { signal });
   },
 
   createPlatformRule: async (body: CreatePlatformRuleInput): Promise<PlatformRuleRecord> =>
@@ -545,11 +592,16 @@ export const personalBrandingService = {
     ),
 
   deletePlatformRule: async (ruleId: string): Promise<void> => {
-    await apiClient.delete(`/personal-branding/platform-rules/rules/${ruleId}`);
+    assertSuccess(
+      await apiClient.delete(`/personal-branding/platform-rules/rules/${ruleId}`)
+    );
   },
 
-  getPlatformRuleCatalog: async (): Promise<PlatformRuleCatalog> =>
-    unwrap(await apiClient.get<PlatformRuleCatalog>('/personal-branding/platform-rules/catalog')),
+  /**
+   * Static catalog — no HTTP. Mirrors backend `get_platform_rule_catalog` so Brand
+   * Identity UI stays available during API cold-start storms (alert aafeaa15dfe7).
+   */
+  getPlatformRuleCatalog: async (): Promise<PlatformRuleCatalog> => PLATFORM_RULE_CATALOG,
 
   getEffectivePlatformRules: async (
     platform: string,
@@ -568,10 +620,12 @@ export const personalBrandingService = {
     page = 1,
     pageSize = 50,
     status?: ContentStatus
-  ): Promise<ContentNodeListResponse> => {
+  ): Promise<PaginatedPersonalBranding<ContentNode>> => {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (status) q.set('status', status);
-    return apiClient.get(`/personal-branding/content?${q}`);
+    return unwrap(
+      await apiClient.get<PaginatedPersonalBranding<ContentNode>>(`/personal-branding/content?${q}`)
+    );
   },
 
   getContentNode: async (contentId: string): Promise<ContentNode> =>
@@ -587,7 +641,7 @@ export const personalBrandingService = {
     unwrap(await apiClient.patch<ContentNode>(`/personal-branding/content/${contentId}`, body)),
 
   deleteContentNode: async (contentId: string): Promise<void> => {
-    await apiClient.delete(`/personal-branding/content/${contentId}`);
+    assertSuccess(await apiClient.delete(`/personal-branding/content/${contentId}`));
   },
 
   startRepurpose: async (
@@ -741,6 +795,21 @@ export const personalBrandingService = {
         `/personal-branding/content-ideas?${q}`
       )
     );
+  },
+
+  listAllContentIdeas: async (
+    status: ContentIdeaStatus,
+    pageSize = 50
+  ): Promise<ContentIdea[]> => {
+    const ideas: ContentIdea[] = [];
+    let page = 1;
+    while (true) {
+      const batch = await personalBrandingService.listContentIdeas(page, pageSize, status);
+      ideas.push(...(batch.data ?? []));
+      if (!batch.hasMore) break;
+      page += 1;
+    }
+    return ideas;
   },
 
   createContentIdea: async (body: CreateContentIdeaInput): Promise<ContentIdea> =>
@@ -926,6 +995,15 @@ export const personalBrandingService = {
       )
     ),
 
+  clearContentStreamPosts: async (
+    platform: BrandPlatform = 'x'
+  ): Promise<{ deletedCount: number; userId: string }> =>
+    unwrap(
+      await apiClient.delete<{ deletedCount: number; userId: string }>(
+        `/personal-branding/content-stream/posts?platform=${platform}`
+      )
+    ),
+
   startContentStreamGenerate: async (body?: {
     platform?: BrandPlatform;
     count?: number;
@@ -1049,7 +1127,9 @@ export const personalBrandingService = {
     ),
 
   deleteContentTemplate: async (templateId: string): Promise<void> => {
-    await apiClient.delete(`/personal-branding/content-templates/${templateId}`);
+    assertSuccess(
+      await apiClient.delete(`/personal-branding/content-templates/${templateId}`)
+    );
   },
 
   listContentTemplateCandidates: async (
@@ -1172,7 +1252,7 @@ export const personalBrandingService = {
     ),
 
   deleteRadarSource: async (sourceId: string): Promise<void> => {
-    await apiClient.delete(`/personal-branding/radar-sources/${sourceId}`);
+    assertSuccess(await apiClient.delete(`/personal-branding/radar-sources/${sourceId}`));
   },
 
   getRadarSuggestedCadences: async (): Promise<RadarSuggestedCadences> =>
@@ -1244,7 +1324,7 @@ export const personalBrandingService = {
     unwrap(await apiClient.patch<RadarSavedView>(`/personal-branding/radar-views/${viewId}`, body)),
 
   deleteRadarView: async (viewId: string): Promise<void> => {
-    await apiClient.delete(`/personal-branding/radar-views/${viewId}`);
+    assertSuccess(await apiClient.delete(`/personal-branding/radar-views/${viewId}`));
   },
 
   updateRadarItemRelevance: async (
@@ -1351,7 +1431,7 @@ export const personalBrandingService = {
     ),
 
   deleteRadarDiscoveryRun: async (runId: string): Promise<void> => {
-    await apiClient.delete(`/personal-branding/radar-discovery/runs/${runId}`);
+    assertSuccess(await apiClient.delete(`/personal-branding/radar-discovery/runs/${runId}`));
   },
 
   saveRadarDiscoveryCandidate: async (runId: string, candidateId: string): Promise<RadarSource> =>
@@ -1441,7 +1521,7 @@ export const personalBrandingService = {
     ),
 
   deleteCreatorConnection: async (connectionId: string): Promise<void> => {
-    await apiClient.delete(`/personal-branding/connections/${connectionId}`);
+    assertSuccess(await apiClient.delete(`/personal-branding/connections/${connectionId}`));
   },
 
   listInteractionsBoard: async (
