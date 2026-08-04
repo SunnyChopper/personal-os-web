@@ -2,6 +2,7 @@
  * Post-deploy SPA recovery: hashed Vite chunks disappear after a new release while an
  * open tab still holds the previous entry shell. Detect those import failures and
  * hard-reload once (cooldown) so the browser picks up the fresh index.html.
+ * Alert fingerprint: cff8d4784a67.
  */
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 
@@ -53,7 +54,7 @@ function writeLastReloadAt(at: number): void {
   try {
     sessionStorage.setItem(STALE_CHUNK_RELOAD_STORAGE_KEY, String(at));
   } catch {
-    // Private mode / blocked storage — memory fallback still applies.
+    // Private mode / blocked storage â€” memory fallback still applies.
   }
 }
 

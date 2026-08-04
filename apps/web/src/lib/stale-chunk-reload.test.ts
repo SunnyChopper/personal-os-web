@@ -12,11 +12,18 @@ describe('stale-chunk-reload', () => {
     vi.restoreAllMocks();
   });
 
-  it('detects Vite/Chrome dynamic import failures (cff8d4784a67)', () => {
+  it('detects Vite/Chrome dynamic import failures (cff8d4784a67, 3965856e5637)', () => {
     expect(
       isStaleChunkLoadError(
         new TypeError(
           'Failed to fetch dynamically imported module: https://sunnysingh.tech/admin/assets/ContentStreamPage-B9wRIBgh.js'
+        )
+      )
+    ).toBe(true);
+    expect(
+      isStaleChunkLoadError(
+        new TypeError(
+          'Failed to fetch dynamically imported module: https://sunnysingh.tech/admin/assets/ProjectsPage-a3niJyFt.js'
         )
       )
     ).toBe(true);
