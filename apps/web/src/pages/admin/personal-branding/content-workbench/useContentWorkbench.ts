@@ -486,23 +486,11 @@ export function useContentWorkbench() {
     [invalidateWorkbench]
   );
 
-  const ideationJobQuery = useContentIdeationJob(
-    ideationJobId,
-    handleIdeationJobTerminal,
-    (job) => {
-      const keywordWait =
-        job?.stage === 'waiting_keyword_research' ||
-        job?.keywordResearchStage === 'accumulating' ||
-        job?.keywordResearchStage === 'waiting';
-      setGenerateError(
-        keywordWait
-          ? 'Keyword research is still running on the server. Refresh in a minute or try again.'
-          : 'Generation is taking longer than expected. Try again in a moment.'
-      );
-      setIdeationJobId(null);
-      void invalidateWorkbench();
-    }
-  );
+  const ideationJobQuery = useContentIdeationJob(ideationJobId, handleIdeationJobTerminal, () => {
+    setGenerateError('Generation is taking longer than expected. Try again in a moment.');
+    setIdeationJobId(null);
+    void invalidateWorkbench();
+  });
 
   const vaultJobQuery = useContentIdeationJob(vaultJobId, handleVaultJobTerminal, () => {
     setVaultGenerateError('Generation is taking longer than expected. Try again in a moment.');
