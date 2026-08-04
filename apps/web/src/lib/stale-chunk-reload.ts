@@ -2,7 +2,7 @@
  * Post-deploy SPA recovery: hashed Vite chunks disappear after a new release while an
  * open tab still holds the previous entry shell. Detect those import failures and
  * hard-reload once (cooldown) so the browser picks up the fresh index.html.
- * Alert fingerprint: cff8d4784a67.
+ * Alert fingerprints: cff8d4784a67 (ContentStreamPage), 3965856e5637 (ProjectsPage).
  */
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 
