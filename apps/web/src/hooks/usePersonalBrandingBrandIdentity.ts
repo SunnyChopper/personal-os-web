@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTerminalJobFailureAlert } from '@/hooks/useTerminalJobFailureAlert';
+import { PLATFORM_RULE_CATALOG } from '@/lib/personal-branding/platform-rule-catalog';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import { LOCAL_DRAFT_PROFILE_ID } from '@/pages/admin/personal-branding/brand-identity/brand-identity.constants';
@@ -24,12 +26,16 @@ const TERMINAL_EXTRACTION: ExtractionJobStatus[] = [
 
 /**
  * React Query bundle for Brand Identity (profiles, extraction jobs, platform rules).
+ * Platform rules list is opt-in (`enablePlatformRules`) so Core Profile mounts do not
+ * fan out rules GETs during API cold-start storms.
  */
 export function usePersonalBrandingBrandIdentity(options?: {
   selectedProfileId?: string | null;
   pollExtractionJobId?: string | null;
+  enablePlatformRules?: boolean;
 }) {
   const qc = useQueryClient();
+  const enablePlatformRules = options?.enablePlatformRules ?? false;
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
     options?.selectedProfileId ?? null
   );
@@ -76,31 +82,38 @@ export function usePersonalBrandingBrandIdentity(options?: {
 
   const profiles = useQuery({
     queryKey: queryKeys.personalBranding.profiles.list(),
-    queryFn: async () => {
-      const res = await personalBrandingService.listProfiles();
-      if (!res.success || !res.data)
-        throw new Error(res.error?.message ?? 'Failed to load profiles');
+    queryFn: async ({ signal }) => {
+      const res = await personalBrandingService.listProfiles(1, 50, signal);
+      if (!res.success || !res.data) {
+        const err = new Error(res.error?.message ?? 'Failed to load profiles') as Error & {
+          code?: string;
+        };
+        if (res.error?.code) err.code = res.error.code;
+        throw err;
+      }
       return res.data;
     },
   });
 
   const profileDetail = useQuery({
     queryKey: queryKeys.personalBranding.profiles.detail(selectedProfileId ?? ''),
-    queryFn: () => personalBrandingService.getProfile(selectedProfileId!),
+    queryFn: ({ signal }) => personalBrandingService.getProfile(selectedProfileId!, signal),
     enabled: Boolean(selectedProfileId) && selectedProfileId !== LOCAL_DRAFT_PROFILE_ID,
     refetchOnWindowFocus: false,
   });
 
   const profileVersions = useQuery({
     queryKey: queryKeys.personalBranding.profiles.versions(selectedProfileId ?? ''),
-    queryFn: () => personalBrandingService.listProfileVersions(selectedProfileId!),
+    queryFn: ({ signal }) =>
+      personalBrandingService.listProfileVersions(selectedProfileId!, signal),
     enabled: Boolean(selectedProfileId) && selectedProfileId !== LOCAL_DRAFT_PROFILE_ID,
     refetchOnWindowFocus: false,
   });
 
   const profileOutputTests = useQuery({
     queryKey: queryKeys.personalBranding.profiles.outputTests(selectedProfileId ?? ''),
-    queryFn: () => personalBrandingService.listProfileOutputTests(selectedProfileId!),
+    queryFn: ({ signal }) =>
+      personalBrandingService.listProfileOutputTests(selectedProfileId!, signal),
     enabled: Boolean(selectedProfileId) && selectedProfileId !== LOCAL_DRAFT_PROFILE_ID,
     refetchOnWindowFocus: false,
   });
@@ -163,17 +176,26 @@ export function usePersonalBrandingBrandIdentity(options?: {
 
   const platformRules = useQuery({
     queryKey: queryKeys.personalBranding.platformRules.list(),
-    queryFn: async () => {
-      const res = await personalBrandingService.listPlatformRules();
-      if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Failed to load rules');
+    queryFn: async ({ signal }) => {
+      const res = await personalBrandingService.listPlatformRules(1, 50, signal);
+      if (!res.success || !res.data) {
+        const err = new Error(res.error?.message ?? 'Failed to load rules') as Error & {
+          code?: string;
+        };
+        if (res.error?.code) err.code = res.error.code;
+        throw err;
+      }
       return res.data;
     },
+    enabled: enablePlatformRules,
+    refetchOnWindowFocus: false,
   });
 
   const platformRuleCatalog = useQuery({
     queryKey: queryKeys.personalBranding.platformRules.catalog(),
     queryFn: () => personalBrandingService.getPlatformRuleCatalog(),
-    staleTime: 1000 * 60 * 60,
+    staleTime: Infinity,
+    initialData: PLATFORM_RULE_CATALOG,
   });
 
   const createProfile = useMutation({
@@ -305,6 +327,16 @@ export function usePersonalBrandingBrandIdentity(options?: {
     }
   }, [profiles.data, selectedProfileId]);
 
+  // Abort in-flight Brand Identity GETs on leave so Axios 30s timeouts do not
+  // surface as React Query alerts on the next route (prod c6bd8a4286da cluster).
+  useEffect(() => {
+    return () => {
+      void qc.cancelQueries({ queryKey: queryKeys.personalBranding.profiles.all() });
+      void qc.cancelQueries({ queryKey: queryKeys.personalBranding.platformRules.all() });
+      void qc.cancelQueries({ queryKey: queryKeys.personalBranding.extractions.all() });
+    };
+  }, [qc]);
+
   useEffect(() => {
     if (pollExtractionJobId) {
       pollStartedAtRef.current = Date.now();
@@ -336,6 +368,15 @@ export function usePersonalBrandingBrandIdentity(options?: {
       setPollExtractionJobId(detail.extractionJobId);
     }
   }, [profileDetail.data, pollExtractionJobId]);
+
+  useTerminalJobFailureAlert({
+    feature: 'brandProfileExtraction',
+    jobId: pollExtractionJobId,
+    status: extractionJob.data?.status,
+    error: extractionJob.data?.error,
+    message: extractionJob.data?.message,
+    partial: extractionJob.data?.status === 'succeeded_with_warnings',
+  });
 
   useEffect(() => {
     const status = extractionJob.data?.status;
