@@ -574,6 +574,16 @@ export const queryKeys = {
           jobId,
         ] as const,
     },
+    contentIdeaApproveJobs: {
+      all: () => [...queryKeys.personalBranding.all, 'content-idea-approve-jobs'] as const,
+      detail: (ideaId: string, jobId: string) =>
+        [
+          ...queryKeys.personalBranding.contentIdeaApproveJobs.all(),
+          'detail',
+          ideaId,
+          jobId,
+        ] as const,
+    },
     rejectedFeedback: {
       all: () => [...queryKeys.personalBranding.all, 'rejected-ideas-feedback'] as const,
       list: (page = 1, pageSize = 50) =>

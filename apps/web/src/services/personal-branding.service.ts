@@ -4,7 +4,8 @@ import { uploadToS3WithProgress } from '@/lib/upload-to-s3-with-progress';
 import { formatApiFailure } from '@/utils/api-error-formatter';
 import type {
   ApproveContentIdeaInput,
-  ApproveContentIdeaResult,
+  ContentIdeaApproveJob,
+  ContentIdeaApproveJobStart,
   ApplyPerformanceSuggestionResult,
   ApproveContentTemplateCandidateInput,
   ApproveContentTemplateCandidateResult,
@@ -818,11 +819,24 @@ export const personalBrandingService = {
   approveContentIdea: async (
     ideaId: string,
     body: ApproveContentIdeaInput
-  ): Promise<ApproveContentIdeaResult> =>
+  ): Promise<ContentIdeaApproveJobStart> => {
+    const res = await apiClient.post<ContentIdeaApproveJobStart>(
+      `/personal-branding/content-ideas/${ideaId}/approve`,
+      body
+    );
+    if (!res.success || !res.data?.jobId) {
+      throw new Error(res.error?.message ?? 'Failed to start draft generation');
+    }
+    return res.data;
+  },
+
+  getContentIdeaApproveJob: async (
+    ideaId: string,
+    jobId: string
+  ): Promise<ContentIdeaApproveJob> =>
     unwrap(
-      await apiClient.post<ApproveContentIdeaResult>(
-        `/personal-branding/content-ideas/${ideaId}/approve`,
-        body
+      await apiClient.get<ContentIdeaApproveJob>(
+        `/personal-branding/content-ideas/${ideaId}/approve-jobs/${jobId}`
       )
     ),
 

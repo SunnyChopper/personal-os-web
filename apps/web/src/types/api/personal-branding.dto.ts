@@ -401,6 +401,7 @@ export interface ProfileExtractionJob {
   sourceTypes?: ProfileExtractionSourceType[] | null;
   sourceCount?: number | null;
   processedSourceCount?: number | null;
+  parsedSourceCount?: number | null;
   succeededSourceCount?: number | null;
   failedSourceCount?: number | null;
   totalChunkCount?: number | null;
@@ -991,6 +992,15 @@ export interface ContentStreamSettings {
   updatedAt: string;
 }
 
+export type ContentStreamSourceKind = 'recon' | 'radar' | 'vault';
+
+export interface ContentStreamPrimarySource {
+  kind: ContentStreamSourceKind;
+  id: string;
+  label?: string | null;
+  url?: string | null;
+}
+
 export interface ContentStreamPost {
   id: string;
   platform: BrandPlatform;
@@ -1000,6 +1010,7 @@ export interface ContentStreamPost {
   socialCurrencyAngle: SocialCurrencyAngle;
   angleRationale: string;
   memeSuggestion?: ContentStreamMemeSuggestion | null;
+  primarySource?: ContentStreamPrimarySource | null;
   status: ContentStreamPostStatus;
   feedbackAt?: string | null;
   pillars: string[];
@@ -1222,9 +1233,35 @@ export interface ApproveContentIdeaInput {
   pillars?: string[];
 }
 
+export type ContentIdeaApproveJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+export interface ContentIdeaApproveJobStart {
+  jobId: string;
+  status: ContentIdeaApproveJobStatus;
+  pollAfterMs: number;
+}
+
 export interface ApproveContentIdeaResult {
   idea: ContentIdea;
   draft: ContentNode;
+}
+
+export interface ContentIdeaApproveJob {
+  jobId: string;
+  ideaId: string;
+  status: ContentIdeaApproveJobStatus;
+  stage?: string | null;
+  message?: string | null;
+  pollAfterMs?: number | null;
+  error?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  result?: ApproveContentIdeaResult | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
 }
 
 export type ContentTemplateSourceType = 'MANUAL' | 'EXTRACTED' | 'BRAINSTORMED';
@@ -2593,6 +2630,7 @@ export interface ReconFeedSettings {
   minRelevanceScore: number;
   maxPostsPerConnection: number;
   maxPostAgeDays: number;
+  trendStreamResearchEnabled: boolean;
   hasRapidApiKey: boolean;
   lastRunAt?: string | null;
   lastSuccessfulRunAt?: string | null;
@@ -2616,6 +2654,7 @@ export interface UpdateReconFeedSettingsInput {
   minRelevanceScore?: number;
   maxPostsPerConnection?: number;
   maxPostAgeDays?: number;
+  trendStreamResearchEnabled?: boolean;
 }
 
 export interface ReconPost {
@@ -2675,6 +2714,15 @@ export interface ReconRunActivityEntry {
   message?: string | null;
 }
 
+export interface ReconIngestFilterSummary {
+  fetched: number;
+  skippedCursor: number;
+  skippedAge: number;
+  skippedMissingPostedAt: number;
+  skippedKnown: number;
+  skippedFingerprint: number;
+}
+
 export interface ReconRunSummary {
   id: string;
   status: string;
@@ -2696,6 +2744,7 @@ export interface ReconRunSummary {
   heartbeatAt?: string | null;
   pausedAt?: string | null;
   activityLog?: ReconRunActivityEntry[];
+  ingestFilterSummary?: ReconIngestFilterSummary | null;
   pollAfterMs?: number;
   cursorConnectionIndex?: number;
   createdAt: string;

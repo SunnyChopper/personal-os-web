@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import { useContentIdeaApproveJob } from '@/hooks/useContentIdeaApproveJob';
 import { useContentIdeationJob } from '@/hooks/useContentIdeationJob';
 import { useContentImageInjectJob } from '@/hooks/useContentImageInjectJob';
 import { useKeywordOptimizationJob } from '@/hooks/useKeywordOptimizationJob';
 import { useIdeationEngineAIModelPicker } from '@/hooks/personal-branding/useIdeationEngineAIModelPicker';
 import { contentIdeationJobInProgress } from '@/lib/personal-branding/content-ideation-progress';
+import { reportPersonalBrandingJobFailure } from '@/lib/personal-branding/report-job-failure';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import type {
@@ -13,6 +15,7 @@ import type {
   BrandPlatform,
   BrandProfile,
   ContentIdea,
+  ContentIdeaApproveJob,
   ContentIdeaGenerationContextStats,
   ContentIdeationJob,
   ContentImageInjectJob,
@@ -85,6 +88,8 @@ export function useContentWorkbench() {
   const [titlePromptOpen, setTitlePromptOpen] = useState(false);
   const [approvingIdea, setApprovingIdea] = useState<ContentIdea | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [approveJobId, setApproveJobId] = useState<string | null>(null);
+  const [approveJobIdeaId, setApproveJobIdeaId] = useState<string | null>(null);
 
   const contentQ = useQuery({
     queryKey: queryKeys.personalBranding.content.list(1, 100),
@@ -365,7 +370,63 @@ export function useContentWorkbench() {
     onError: (err: Error) => setKeywordOptimizeError(err.message),
   });
 
+  const handleApproveJobTerminal = useCallback(
+    (job: ContentIdeaApproveJob) => {
+      if (job.status === 'succeeded' && job.result) {
+        const { idea, draft } = job.result;
+        setApprovingIdea(null);
+        setApproveJobId(null);
+        setApproveJobIdeaId(null);
+        setApproveError(null);
+        loadDraft(draft);
+        setActiveTab('sandbox');
+        void invalidateWorkbench();
+        if (idea.enableImageSearch) {
+          injectImagesMutation.mutate({
+            title: draft.title,
+            body: draft.body ?? '',
+            contentId: draft.id,
+            contentType: draft.contentType ?? undefined,
+          });
+        }
+        return;
+      }
+      if (job.status === 'failed') {
+        reportPersonalBrandingJobFailure({
+          feature: 'contentIdeaApprove',
+          jobId: job.jobId,
+          error: job.error,
+          message: job.message,
+        });
+        setApproveError(job.error ?? job.message ?? 'Failed to generate draft');
+        setApproveJobId(null);
+        setApproveJobIdeaId(null);
+      }
+    },
+    [invalidateWorkbench, injectImagesMutation.mutate, loadDraft, setActiveTab]
+  );
+
+  useContentIdeaApproveJob(
+    approveJobIdeaId,
+    approveJobId,
+    handleApproveJobTerminal,
+    () => {
+      if (approveJobId) {
+        reportPersonalBrandingJobFailure({
+          feature: 'contentIdeaApprove',
+          jobId: approveJobId,
+          error: 'Client poll stopped after 300000ms without terminal status',
+          stage: 'client_timeout',
+        });
+      }
+      setApproveError('Draft generation is taking longer than expected.');
+      setApproveJobId(null);
+      setApproveJobIdeaId(null);
+    }
+  );
+
   const approveIdeaMutation = useMutation({
+    mutationKey: ['personalBranding', 'contentIdea', 'approve'],
     mutationFn: (request: ApproveIdeaGenerateRequest) =>
       personalBrandingService.approveContentIdea(request.ideaId, {
         brandProfileId: request.brandProfileId,
@@ -374,22 +435,20 @@ export function useContentWorkbench() {
         pillars: request.pillars,
       }),
     onMutate: () => setApproveError(null),
-    onSuccess: ({ idea, draft }) => {
-      setApprovingIdea(null);
-      loadDraft(draft);
-      setActiveTab('sandbox');
-      void invalidateWorkbench();
-      if (idea.enableImageSearch) {
-        injectImagesMutation.mutate({
-          title: draft.title,
-          body: draft.body ?? '',
-          contentId: draft.id,
-          contentType: draft.contentType ?? undefined,
-        });
-      }
+    onSuccess: (start, request) => {
+      setApproveJobIdeaId(request.ideaId);
+      setApproveJobId(start.jobId);
     },
     onError: (err: Error) => setApproveError(err.message),
   });
+
+  const isApprovingIdea =
+    approveIdeaMutation.isPending ||
+    Boolean(approveJobId);
+
+  const approvingIdeaId =
+    approveJobIdeaId ??
+    (approveIdeaMutation.isPending ? (approveIdeaMutation.variables?.ideaId ?? null) : null);
 
   const handleIdeationJobTerminal = useCallback(
     (job: ContentIdeationJob) => {
@@ -666,6 +725,8 @@ export function useContentWorkbench() {
     publishMutation,
     unpublishMutation,
     approveIdeaMutation,
+    isApprovingIdea,
+    approvingIdeaId,
     rejectIdeaMutation,
     assetPromptsMutation,
     injectImagesMutation,

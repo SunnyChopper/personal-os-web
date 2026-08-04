@@ -31,6 +31,7 @@ export default function ContentWorkbenchPage() {
   const isLoading =
     wb.contentQ.isPending ||
     wb.ideasQ.isPending ||
+    (wb.activeTab === 'trend-ideas' && wb.trendIdeasQ.isPending) ||
     (wb.activeTab === 'content-templates' && (ct.templatesQ.isPending || ct.candidatesQ.isPending));
 
   return (
@@ -52,11 +53,7 @@ export default function ContentWorkbenchPage() {
               <IdeationEngineTab
                 ideas={wb.ideationIdeas}
                 isLoading={wb.ideasQ.isPending}
-                approvingId={
-                  wb.approveIdeaMutation.isPending
-                    ? (wb.approveIdeaMutation.variables?.ideaId ?? null)
-                    : null
-                }
+                approvingId={wb.approvingIdeaId}
                 profiles={wb.brandProfiles}
                 profilesLoading={wb.profilesQ.isPending}
                 selectedProfileId={wb.selectedProfileId}
@@ -89,11 +86,7 @@ export default function ContentWorkbenchPage() {
               <VaultExtractorTab
                 ideas={wb.vaultIdeas}
                 isLoading={wb.ideasQ.isPending}
-                approvingId={
-                  wb.approveIdeaMutation.isPending
-                    ? (wb.approveIdeaMutation.variables?.ideaId ?? null)
-                    : null
-                }
+                approvingId={wb.approvingIdeaId}
                 profiles={wb.brandProfiles}
                 profilesLoading={wb.profilesQ.isPending}
                 selectedProfileId={wb.selectedProfileId}
@@ -119,14 +112,11 @@ export default function ContentWorkbenchPage() {
             return (
               <TrendIdeasTab
                 ideas={wb.trendIdeas}
-                isLoading={wb.ideasQ.isPending}
-                approvingId={
-                  wb.approveIdeaMutation.isPending
-                    ? (wb.approveIdeaMutation.variables?.ideaId ?? null)
-                    : null
-                }
+                isLoading={wb.trendIdeasQ.isPending}
+                approvingId={wb.approvingIdeaId}
                 onApprove={(idea) => wb.setApprovingIdea(idea)}
                 onReject={(idea) => wb.setRejectingIdea(idea)}
+                onOpenDraft={(idea) => void wb.openDraftFromIdea(idea)}
               />
             );
           }
@@ -258,10 +248,10 @@ export default function ContentWorkbenchPage() {
         defaultBrandProfileId={wb.selectedProfileId}
         profiles={wb.brandProfiles}
         profilesLoading={wb.profilesQ.isPending}
-        isSubmitting={wb.approveIdeaMutation.isPending}
+        isSubmitting={wb.isApprovingIdea}
         errorMessage={wb.approveError}
         onClose={() => {
-          if (wb.approveIdeaMutation.isPending) return;
+          if (wb.isApprovingIdea) return;
           wb.setApprovingIdea(null);
           wb.setApproveError(null);
         }}
