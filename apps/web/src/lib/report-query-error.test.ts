@@ -71,12 +71,107 @@ describe('report-query-error', () => {
     expect(reportClientError).not.toHaveBeenCalled();
   });
 
+  it('skips shell badge ETIMEDOUT telemetry', () => {
+    const err = Object.assign(
+      new Error('Request timed out. The server may be slow or unavailable.'),
+      { code: 'ETIMEDOUT' }
+    );
+    expect(
+      shouldSkipQueryCacheErrorReport(
+        ['chatbot', 'interventions', 'unread-count'],
+        'ETIMEDOUT',
+        err.message
+      )
+    ).toBe(true);
+    expect(
+      shouldSkipQueryCacheErrorReport(['chatbot', 'unread-summary'], 'ETIMEDOUT', err.message)
+    ).toBe(true);
+    reportQueryCacheError(err, ['chatbot', 'interventions', 'unread-count']);
+    reportQueryCacheError(err, ['chatbot', 'unread-summary']);
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
+  it('skips platform-rules catalog timeout telemetry (aafeaa15dfe7)', () => {
+    const err = new Error('Request timed out. The server may be slow or unavailable.');
+    expect(
+      shouldSkipQueryCacheErrorReport(
+        ['personal-branding', 'platform-rules', 'catalog'],
+        undefined,
+        err.message
+      )
+    ).toBe(true);
+    reportQueryCacheError(err, ['personal-branding', 'platform-rules', 'catalog']);
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
+  it('skips unobserved timeout telemetry after navigate-away (a98591bd8564)', () => {
+    const err = Object.assign(
+      new Error('Request timed out. The server may be slow or unavailable.'),
+      { code: 'ETIMEDOUT' }
+    );
+    expect(
+      shouldSkipQueryCacheErrorReport(
+        ['personal-branding', 'profiles', 'list', 1, 50],
+        'ETIMEDOUT',
+        err.message,
+        { observerCount: 0 }
+      )
+    ).toBe(true);
+    reportQueryCacheError(err, ['personal-branding', 'profiles', 'list', 1, 50], {
+      observerCount: 0,
+    });
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
+  it('still reports observed personal-branding profile list ETIMEDOUT', () => {
+    const err = Object.assign(
+      new Error('Request timed out. The server may be slow or unavailable.'),
+      { code: 'ETIMEDOUT' }
+    );
+    reportQueryCacheError(err, ['personal-branding', 'profiles', 'list', 1, 50], {
+      observerCount: 1,
+    });
+    expect(reportClientError).toHaveBeenCalledOnce();
+  });
+
+  it('skips unobserved profile detail timeout telemetry (a897a4d7994c)', () => {
+    const err = Object.assign(
+      new Error('Request timed out. The server may be slow or unavailable.'),
+      { code: 'ETIMEDOUT' }
+    );
+    expect(
+      shouldSkipQueryCacheErrorReport(
+        ['personal-branding', 'profiles', 'detail', '01kxmjqpqsk6z4dcvec80fn8ch'],
+        'ETIMEDOUT',
+        err.message,
+        { observerCount: 0 }
+      )
+    ).toBe(true);
+    reportQueryCacheError(
+      err,
+      ['personal-branding', 'profiles', 'detail', '01kxmjqpqsk6z4dcvec80fn8ch'],
+      { observerCount: 0 }
+    );
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
+  it('still reports observed personal-branding profile detail ETIMEDOUT', () => {
+    const err = Object.assign(
+      new Error('Request timed out. The server may be slow or unavailable.'),
+      { code: 'ETIMEDOUT' }
+    );
+    reportQueryCacheError(err, ['personal-branding', 'profiles', 'detail', 'profile-1'], {
+      observerCount: 1,
+    });
+    expect(reportClientError).toHaveBeenCalledOnce();
+  });
+
   it('still reports unrelated query ETIMEDOUT', () => {
     const err = Object.assign(
       new Error('Request timed out. The server may be slow or unavailable.'),
       { code: 'ETIMEDOUT' }
     );
-    reportQueryCacheError(err, ['chatbot', 'unread-summary']);
+    reportQueryCacheError(err, ['tasks', 'list']);
     expect(reportClientError).toHaveBeenCalledOnce();
   });
 });

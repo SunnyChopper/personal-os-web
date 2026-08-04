@@ -229,6 +229,11 @@ class ApiClient {
         details?: Record<string, unknown>;
       }>;
 
+      // AbortSignal / cancelQueries — not a product failure (QueryCache skips ERR_CANCELED).
+      if (axiosError.code === 'ERR_CANCELED' || axiosError.name === 'CanceledError') {
+        return { message: 'Request cancelled', code: 'ERR_CANCELED' };
+      }
+
       if (axiosError.response) {
         const responseData = axiosError.response.data;
         const detailMessage =
@@ -324,9 +329,15 @@ class ApiClient {
     return { valid: true, data: data as T };
   }
 
-  async get<T>(endpoint: string, schema?: z.ZodSchema<T>): Promise<ApiResponse<T>> {
+  async get<T>(
+    endpoint: string,
+    schema?: z.ZodSchema<T>,
+    config?: { signal?: AbortSignal }
+  ): Promise<ApiResponse<T>> {
     try {
-      const response = await this.client.get<ApiResponse<T>>(endpoint);
+      const response = await this.client.get<ApiResponse<T>>(endpoint, {
+        signal: config?.signal,
+      });
       const backendResponse = response.data;
 
       // Check if backend wrapped the response

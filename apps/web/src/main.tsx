@@ -94,7 +94,9 @@ const queryClient = new QueryClient({
         queryKey: query.queryKey,
         error,
       });
-      reportQueryCacheError(error, query.queryKey);
+      reportQueryCacheError(error, query.queryKey, {
+        observerCount: query.getObserversCount(),
+      });
     },
   }),
   mutationCache: new MutationCache({
