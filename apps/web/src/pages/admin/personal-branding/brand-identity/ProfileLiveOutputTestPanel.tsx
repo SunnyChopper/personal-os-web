@@ -18,6 +18,7 @@ import PlatformFormatSelect from '@/components/molecules/personal-branding/Platf
 import PlatformRulePolicySummary from '@/components/molecules/personal-branding/PlatformRulePolicySummary';
 import UniversalRulesFallbackNotice from '@/components/molecules/personal-branding/UniversalRulesFallbackNotice';
 import { useToast } from '@/hooks/use-toast';
+import { reportClientError } from '@/lib/client-telemetry';
 import { useEffectivePlatformRules } from '@/hooks/useEffectivePlatformRules';
 import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay-layer';
 import {
@@ -29,6 +30,7 @@ import {
   MIN_COMPARE_PLATFORMS,
   normalizeOutputTestTopic,
 } from '@/lib/personal-branding/output-test-compare';
+import { PLATFORM_RULE_CATALOG } from '@/lib/personal-branding/platform-rule-catalog';
 import {
   buildOutputTestGenerateInput,
   defaultPlatformFormat,
@@ -110,7 +112,7 @@ export default function ProfileLiveOutputTestPanel({
   disabled = false,
 }: ProfileLiveOutputTestPanelProps) {
   const navigate = useNavigate();
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const collapseActionsRef = useRef<MarkdownCollapseActionsHandle>(null);
   const [topic, setTopic] = useState('How I approach building in public');
   const [platform, setPlatform] = useState<BrandPlatform>('linkedin');
@@ -171,6 +173,8 @@ export default function ProfileLiveOutputTestPanel({
     queryKey: queryKeys.personalBranding.platformRules.catalog(),
     queryFn: () => personalBrandingService.getPlatformRuleCatalog(),
     enabled: open && !isLocalDraft,
+    staleTime: Infinity,
+    initialData: PLATFORM_RULE_CATALOG,
   });
 
   const resolvedPolicy = effectivePolicyQuery.data?.resolvedPolicy;
@@ -302,9 +306,19 @@ export default function ProfileLiveOutputTestPanel({
               return next;
             });
           } catch (err) {
+            const message = err instanceof Error ? err.message : 'Preview generation failed';
+            void reportClientError({
+              message: `Live output test compare failed (${comparePlatform}): ${message}`,
+              source: 'web',
+              metadata: {
+                kind: 'personal-branding-handler',
+                feature: 'brandProfileExtraction',
+                action: 'compare',
+              },
+            });
             setCompareErrors((current) => ({
               ...current,
-              [comparePlatform]: err instanceof Error ? err.message : 'Preview generation failed',
+              [comparePlatform]: message,
             }));
             setCompareResults((current) => {
               const next = { ...current };
@@ -322,7 +336,17 @@ export default function ProfileLiveOutputTestPanel({
       setSelectedTestId(null);
       setLatestResult(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Comparison generation failed');
+      const message = err instanceof Error ? err.message : 'Comparison generation failed';
+      void reportClientError({
+        message: `Live output test compare failed: ${message}`,
+        source: 'web',
+        metadata: {
+          kind: 'personal-branding-handler',
+          feature: 'brandProfileExtraction',
+          action: 'compare',
+        },
+      });
+      setError(message);
     } finally {
       setIsCompareGenerating(false);
       setCompareGeneratingPlatforms([]);
@@ -376,6 +400,15 @@ export default function ProfileLiveOutputTestPanel({
           }
         } catch (err) {
           lastError = err instanceof Error ? err.message : 'Preview generation failed';
+          void reportClientError({
+            message: `Live output test generate failed: ${lastError}`,
+            source: 'web',
+            metadata: {
+              kind: 'personal-branding-handler',
+              feature: 'brandProfileExtraction',
+              action: 'generate',
+            },
+          });
         }
       }
 
@@ -407,8 +440,18 @@ export default function ProfileLiveOutputTestPanel({
         setError(lastError ?? 'Preview generation failed');
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Preview generation failed';
+      void reportClientError({
+        message: `Live output test generate failed: ${message}`,
+        source: 'web',
+        metadata: {
+          kind: 'personal-branding-handler',
+          feature: 'brandProfileExtraction',
+          action: 'generate',
+        },
+      });
       setLatestResult(null);
-      setError(err instanceof Error ? err.message : 'Preview generation failed');
+      setError(message);
     } finally {
       setIsGenerating(false);
       setGenerateProgress(null);
@@ -438,9 +481,19 @@ export default function ProfileLiveOutputTestPanel({
         setSelectedTopics(new Set());
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Topic brainstorm failed';
+      void reportClientError({
+        message: `Live output test brainstorm failed: ${message}`,
+        source: 'web',
+        metadata: {
+          kind: 'personal-branding-handler',
+          feature: 'brandProfileExtraction',
+          action: 'brainstorm',
+        },
+      });
       setSuggestedTopics([]);
       setSelectedTopics(new Set());
-      setBrainstormError(err instanceof Error ? err.message : 'Topic brainstorm failed');
+      setBrainstormError(message);
     } finally {
       setIsBrainstorming(false);
     }
@@ -960,7 +1013,6 @@ export default function ProfileLiveOutputTestPanel({
           </motion.aside>
         </OverlayPortal>
       ) : null}
-      <ToastContainer />
     </AnimatePresence>
   );
 }

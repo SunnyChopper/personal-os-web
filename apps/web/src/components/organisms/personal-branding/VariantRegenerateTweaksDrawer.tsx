@@ -6,6 +6,7 @@ import CollapsibleSection from '@/components/molecules/CollapsibleSection';
 import RhetoricalDeviceSelector from '@/components/molecules/personal-branding/RhetoricalDeviceSelector';
 import RhetoricalModeSelector from '@/components/molecules/personal-branding/RhetoricalModeSelector';
 import { queryKeys } from '@/lib/react-query/query-keys';
+import { PLATFORM_RULE_CATALOG } from '@/lib/personal-branding/platform-rule-catalog';
 import { formatRhetoricalSelectionSummary } from '@/lib/personal-branding/platform-rule-display';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import {
@@ -56,6 +57,8 @@ export default function VariantRegenerateTweaksDrawer({
     queryKey: queryKeys.personalBranding.platformRules.catalog(),
     queryFn: () => personalBrandingService.getPlatformRuleCatalog(),
     enabled: open,
+    staleTime: Infinity,
+    initialData: PLATFORM_RULE_CATALOG,
   });
 
   const effectiveQ = useQuery({
