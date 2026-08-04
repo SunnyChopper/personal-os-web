@@ -23,8 +23,8 @@ export function useBrandProfilesList(page = 1, pageSize = 50) {
 
   const profiles = useQuery({
     queryKey: queryKeys.personalBranding.profiles.list(page, pageSize),
-    queryFn: async () => {
-      const res = await personalBrandingService.listProfiles(page, pageSize);
+    queryFn: async ({ signal }) => {
+      const res = await personalBrandingService.listProfiles(page, pageSize, signal);
       if (!res.success || !res.data) {
         throwWithCode(res, 'Failed to load brand profiles');
       }

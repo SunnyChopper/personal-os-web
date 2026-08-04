@@ -50,7 +50,8 @@ describe('useBrandProfilesList', () => {
     await waitFor(() => expect(result.current.profiles.isSuccess).toBe(true));
 
     expect(listProfiles).toHaveBeenCalledTimes(1);
-    expect(listProfiles).toHaveBeenCalledWith(1, 50);
+    expect(listProfiles.mock.calls[0]?.[0]).toBe(1);
+    expect(listProfiles.mock.calls[0]?.[1]).toBe(50);
     expect(result.current.selectedProfileId).toBe('p1');
     expect(result.current.profileOptions).toEqual([
       { id: 'p1', name: 'Primary' },
