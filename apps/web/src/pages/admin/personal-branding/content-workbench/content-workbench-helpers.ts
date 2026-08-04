@@ -1,4 +1,23 @@
-import type { BrandProfile } from '@/types/api/personal-branding.dto';
+import type {
+  BrandProfile,
+  ContentIdeaApproveJob,
+  ContentNode,
+} from '@/types/api/personal-branding.dto';
+
+export const GENERATE_DRAFT_CTA_LABEL = 'Generate Draft';
+export const GENERATE_DRAFT_CTA_HINT = 'Generate draft and open in Sandbox';
+
+/**
+ * Approve→draft is async (202 + poll). Never treat a job-start `{ jobId }` as
+ * `{ idea, draft }` — missing `draft` crashed loadDraft in prod (bbc5bae966c5).
+ */
+export function getApproveJobDraft(
+  job: Pick<ContentIdeaApproveJob, 'status' | 'result'>
+): ContentNode | null {
+  if (job.status !== 'succeeded') return null;
+  const draft = job.result?.draft;
+  return draft?.id ? draft : null;
+}
 
 export function isBrandProfileReadyForIdeation(profile: BrandProfile): boolean {
   const hasPillars = (profile.pillars ?? []).some((p) => p.trim().length > 0);

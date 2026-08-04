@@ -5,6 +5,9 @@ import {
   contentTextStats,
   countWords,
   estimateReadingTimeMinutes,
+  GENERATE_DRAFT_CTA_HINT,
+  GENERATE_DRAFT_CTA_LABEL,
+  getApproveJobDraft,
 } from './content-workbench-helpers';
 
 function makeProfile(overrides: Partial<BrandProfile> = {}): BrandProfile {
@@ -86,5 +89,52 @@ describe('contentTextStats', () => {
   it('returns word count and reading time together', () => {
     const body = 'The quick brown fox jumps over the lazy dog';
     expect(contentTextStats(body)).toEqual({ wordCount: 9, readingTimeMinutes: 1 });
+  });
+});
+
+describe('generate draft CTA copy', () => {
+  it('exposes short label and Sandbox hint for tooltips', () => {
+    expect(GENERATE_DRAFT_CTA_LABEL).toBe('Generate Draft');
+    expect(GENERATE_DRAFT_CTA_HINT).toBe('Generate draft and open in Sandbox');
+  });
+});
+
+describe('getApproveJobDraft (bbc5bae966c5)', () => {
+  it('returns null for 202-style job-start shaped payloads mistaken for success', () => {
+    // Prod crash: onSuccess destructured `{ idea, draft }` from `{ jobId, status, pollAfterMs }`.
+    expect(
+      getApproveJobDraft({
+        status: 'succeeded',
+        result: undefined,
+      })
+    ).toBeNull();
+    expect(
+      getApproveJobDraft({
+        status: 'succeeded',
+        result: { idea: { id: 'idea-1' } as never, draft: undefined as never },
+      })
+    ).toBeNull();
+  });
+
+  it('returns the draft when the polled job includes a draft id', () => {
+    const draft = { id: 'draft-1', title: 'Ship it', status: 'DRAFT' } as never;
+    expect(
+      getApproveJobDraft({
+        status: 'succeeded',
+        result: { idea: { id: 'idea-1' } as never, draft },
+      })
+    ).toEqual(draft);
+  });
+
+  it('ignores non-succeeded statuses even if result is present', () => {
+    expect(
+      getApproveJobDraft({
+        status: 'running',
+        result: {
+          idea: { id: 'idea-1' } as never,
+          draft: { id: 'draft-1' } as never,
+        },
+      })
+    ).toBeNull();
   });
 });

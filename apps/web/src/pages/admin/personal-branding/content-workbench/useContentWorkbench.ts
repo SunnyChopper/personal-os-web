@@ -29,6 +29,7 @@ import type { NewDraftAiRequest, NewDraftTemplateResult } from './NewDraftWizard
 import type { PublishContentMetadata } from './ContentStatusChangeModal';
 import {
   collectActiveBrandPillars,
+  getApproveJobDraft,
   isBrandProfileReadyForIdeation,
 } from './content-workbench-helpers';
 import { layoutTemplateForContentType } from './content-workbench-templates';
@@ -145,7 +146,10 @@ export function useContentWorkbench() {
     [ideas]
   );
 
-  const loadDraft = useCallback((node: ContentNode) => {
+  const loadDraft = useCallback((node: ContentNode | null | undefined) => {
+    // Guard: sync approve onSuccess used to call loadDraft(result.draft) after the
+    // API moved to 202 job-start (no draft) → TypeError reading 'id' (bbc5bae966c5).
+    if (!node?.id) return;
     setActiveDraftId(node.id);
     setActiveContentStatus(node.status);
     setEditorTitle(node.title);
@@ -372,8 +376,15 @@ export function useContentWorkbench() {
 
   const handleApproveJobTerminal = useCallback(
     (job: ContentIdeaApproveJob) => {
-      if (job.status === 'succeeded' && job.result) {
-        const { idea, draft } = job.result;
+      if (job.status === 'succeeded') {
+        const draft = getApproveJobDraft(job);
+        if (!draft) {
+          setApproveError('Draft generation finished without a draft payload. Retry the idea.');
+          setApproveJobId(null);
+          setApproveJobIdeaId(null);
+          return;
+        }
+        const idea = job.result?.idea;
         setApprovingIdea(null);
         setApproveJobId(null);
         setApproveJobIdeaId(null);
@@ -381,7 +392,7 @@ export function useContentWorkbench() {
         loadDraft(draft);
         setActiveTab('sandbox');
         void invalidateWorkbench();
-        if (idea.enableImageSearch) {
+        if (idea?.enableImageSearch) {
           injectImagesMutation.mutate({
             title: draft.title,
             body: draft.body ?? '',
@@ -406,24 +417,19 @@ export function useContentWorkbench() {
     [invalidateWorkbench, injectImagesMutation.mutate, loadDraft, setActiveTab]
   );
 
-  useContentIdeaApproveJob(
-    approveJobIdeaId,
-    approveJobId,
-    handleApproveJobTerminal,
-    () => {
-      if (approveJobId) {
-        reportPersonalBrandingJobFailure({
-          feature: 'contentIdeaApprove',
-          jobId: approveJobId,
-          error: 'Client poll stopped after 300000ms without terminal status',
-          stage: 'client_timeout',
-        });
-      }
-      setApproveError('Draft generation is taking longer than expected.');
-      setApproveJobId(null);
-      setApproveJobIdeaId(null);
+  useContentIdeaApproveJob(approveJobIdeaId, approveJobId, handleApproveJobTerminal, () => {
+    if (approveJobId) {
+      reportPersonalBrandingJobFailure({
+        feature: 'contentIdeaApprove',
+        jobId: approveJobId,
+        error: 'Client poll stopped after 300000ms without terminal status',
+        stage: 'client_timeout',
+      });
     }
-  );
+    setApproveError('Draft generation is taking longer than expected.');
+    setApproveJobId(null);
+    setApproveJobIdeaId(null);
+  });
 
   const approveIdeaMutation = useMutation({
     mutationKey: ['personalBranding', 'contentIdea', 'approve'],
@@ -442,9 +448,7 @@ export function useContentWorkbench() {
     onError: (err: Error) => setApproveError(err.message),
   });
 
-  const isApprovingIdea =
-    approveIdeaMutation.isPending ||
-    Boolean(approveJobId);
+  const isApprovingIdea = approveIdeaMutation.isPending || Boolean(approveJobId);
 
   const approvingIdeaId =
     approveJobIdeaId ??
@@ -482,11 +486,23 @@ export function useContentWorkbench() {
     [invalidateWorkbench]
   );
 
-  const ideationJobQuery = useContentIdeationJob(ideationJobId, handleIdeationJobTerminal, () => {
-    setGenerateError('Generation is taking longer than expected. Try again in a moment.');
-    setIdeationJobId(null);
-    void invalidateWorkbench();
-  });
+  const ideationJobQuery = useContentIdeationJob(
+    ideationJobId,
+    handleIdeationJobTerminal,
+    (job) => {
+      const keywordWait =
+        job?.stage === 'waiting_keyword_research' ||
+        job?.keywordResearchStage === 'accumulating' ||
+        job?.keywordResearchStage === 'waiting';
+      setGenerateError(
+        keywordWait
+          ? 'Keyword research is still running on the server. Refresh in a minute or try again.'
+          : 'Generation is taking longer than expected. Try again in a moment.'
+      );
+      setIdeationJobId(null);
+      void invalidateWorkbench();
+    }
+  );
 
   const vaultJobQuery = useContentIdeationJob(vaultJobId, handleVaultJobTerminal, () => {
     setVaultGenerateError('Generation is taking longer than expected. Try again in a moment.');
