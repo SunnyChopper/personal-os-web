@@ -54,7 +54,7 @@ function writeLastReloadAt(at: number): void {
   try {
     sessionStorage.setItem(STALE_CHUNK_RELOAD_STORAGE_KEY, String(at));
   } catch {
-    // Private mode / blocked storage â€” memory fallback still applies.
+    // Private mode / blocked storage — memory fallback still applies.
   }
 }
 
