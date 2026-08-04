@@ -4,13 +4,15 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBrandProfilesList } from './useBrandProfilesList';
 
-const { listProfiles } = vi.hoisted(() => ({
+const { listProfiles, listProfileVersions } = vi.hoisted(() => ({
   listProfiles: vi.fn(),
+  listProfileVersions: vi.fn(),
 }));
 
 vi.mock('@/services/personal-branding.service', () => ({
   personalBrandingService: {
     listProfiles,
+    listProfileVersions,
   },
 }));
 
@@ -23,9 +25,10 @@ function wrap(client: QueryClient) {
 describe('useBrandProfilesList', () => {
   beforeEach(() => {
     listProfiles.mockReset();
+    listProfileVersions.mockReset();
   });
 
-  it('loads profiles and auto-selects the first id without Brand Identity fan-out', async () => {
+  it('loads profiles and auto-selects the first id without Brand Identity fan-out (567c68a56446)', async () => {
     listProfiles.mockResolvedValue({
       success: true,
       data: {
@@ -52,6 +55,8 @@ describe('useBrandProfilesList', () => {
     expect(listProfiles).toHaveBeenCalledTimes(1);
     expect(listProfiles.mock.calls[0]?.[0]).toBe(1);
     expect(listProfiles.mock.calls[0]?.[1]).toBe(50);
+    expect(listProfiles.mock.calls[0]?.[2]).toBeInstanceOf(AbortSignal);
+    expect(listProfileVersions).not.toHaveBeenCalled();
     expect(result.current.selectedProfileId).toBe('p1');
     expect(result.current.profileOptions).toEqual([
       { id: 'p1', name: 'Primary' },
