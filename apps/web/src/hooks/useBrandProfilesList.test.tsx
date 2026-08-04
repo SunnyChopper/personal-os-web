@@ -8,12 +8,9 @@ const { listProfiles } = vi.hoisted(() => ({
   listProfiles: vi.fn(),
 }));
 
-const listProfileVersions = vi.fn();
-
 vi.mock('@/services/personal-branding.service', () => ({
   personalBrandingService: {
     listProfiles,
-    listProfileVersions,
   },
 }));
 
