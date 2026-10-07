@@ -155,7 +155,7 @@ export function DailyRecoveryCheckIn({
   const shouldFocusOnFormEnterRef = useRef(false);
   const startFormAfterDateChangeRef = useRef(false);
 
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const shouldReduceMotion = useReducedMotion();
   const { data: recoveryRes, isLoading } = useFitnessRecoveryRange(selectedDate, selectedDate);
   const { data: yesterdayRecoveryRes, isLoading: yesterdayLoading } = useFitnessRecoveryRange(
@@ -797,7 +797,6 @@ export function DailyRecoveryCheckIn({
           {inner}
         </section>
       )}
-      <ToastContainer />
     </>
   );
 }

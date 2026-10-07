@@ -18,7 +18,7 @@ export function NutritionRecentMealsSection({
   entries,
   isLoading = false,
 }: NutritionRecentMealsSectionProps) {
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const deleteMut = useDeleteNutritionMutation();
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(() => new Set());
   const deferredHandlesRef = useRef<Map<string, DeferredDeleteHandle>>(new Map());
@@ -88,7 +88,6 @@ export function NutritionRecentMealsSection({
           />
         ))}
       </ul>
-      <ToastContainer />
     </section>
   );
 }
