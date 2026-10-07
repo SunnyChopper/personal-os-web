@@ -1,95 +1,52 @@
 import type { ReconPost } from '@/types/api/personal-branding.dto';
+import { isSparseCreatorText } from '@/lib/personal-branding/creator-text-quality';
+import {
+  buildPrompterInteractionIntent,
+  type PrompterIntentAction,
+} from '@/lib/personal-branding/manual-prompter-paste';
+
+export const REPLY_INTERACTION_INTENT_MAX = 500;
+export const RECON_INTERACTION_INTENT_MAX = REPLY_INTERACTION_INTENT_MAX;
 
 export interface ReconPrompterSeed {
   connectionId: string;
   creatorText: string;
   interactionIntent: string;
+  preferredIntentAction?: 'reply' | 'quote';
+  limitedTextContext?: boolean;
   authorHandle?: string | null;
   evidenceUrl?: string | null;
   platformPostId?: string | null;
   reconPostId?: string;
+  learningCost?: ReconPost['learningCost'];
 }
 
 export type ReconPrompterPrefill = Omit<ReconPrompterSeed, 'connectionId'>;
 
-type ReconIntentPost = Pick<
-  ReconPost,
-  | 'recommendedAction'
-  | 'authorUsername'
-  | 'suggestedAngle'
-  | 'relevanceRationale'
-  | 'relevanceRationaleBullets'
-  | 'text'
->;
+type ReconIntentPost = Pick<ReconPost, 'recommendedAction' | 'authorUsername' | 'suggestedAngle'>;
 
-const INTENT_MAX_LENGTH = 600;
-
-function normalizeWhitespace(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
-}
-
-function truncateIntent(value: string, maxLength = INTENT_MAX_LENGTH): string {
-  const trimmed = normalizeWhitespace(value);
-  if (trimmed.length <= maxLength) return trimmed;
-  return `${trimmed.slice(0, maxLength - 1).trimEnd()}…`;
-}
-
-function excerptFromPostText(text: string, maxLength = 120): string {
-  const normalized = normalizeWhitespace(text);
-  if (!normalized) return '';
-  const firstLine = normalized.split(/(?<=[.!?])\s+/)[0] ?? normalized;
-  if (firstLine.length <= maxLength) return firstLine;
-  return `${firstLine.slice(0, maxLength - 1).trimEnd()}…`;
-}
-
-function actionVerb(action: string): 'reply' | 'quote' | 'engage' {
-  const normalized = action.toLowerCase();
+function recommendedActionToIntentAction(action: string | null | undefined): PrompterIntentAction {
+  const normalized = (action ?? '').toLowerCase();
   if (normalized === 'quote') return 'quote';
   if (normalized === 'reply') return 'reply';
   return 'engage';
 }
 
-function actionFraming(action: string, handle: string): string {
-  const verb = actionVerb(action);
-  if (verb === 'quote') {
-    return `Quote ${handle}'s post with a sharp, original take that invites discussion.`;
-  }
-  if (verb === 'reply') {
-    return `Reply to ${handle} with a specific, value-adding response that earns a follow-up.`;
-  }
-  return `Engage with ${handle}'s post in a way that builds relationship warmth and visibility.`;
+export function preferredIntentActionForReconPost(
+  post: Pick<ReconPost, 'recommendedAction'>
+): 'reply' | 'quote' {
+  return recommendedActionToIntentAction(post.recommendedAction) === 'quote' ? 'quote' : 'reply';
 }
 
 export function buildReconInteractionIntent(post: ReconIntentPost): string {
-  const suggestedAngle = normalizeWhitespace(post.suggestedAngle ?? '');
-  if (suggestedAngle) {
-    return truncateIntent(suggestedAngle);
+  const angle = post.suggestedAngle?.trim();
+  if (angle) {
+    return angle.slice(0, REPLY_INTERACTION_INTENT_MAX);
   }
-
-  const action = (post.recommendedAction ?? '').toLowerCase();
-  const handle = post.authorUsername ? `@${post.authorUsername}` : 'the creator';
-  const rationale = normalizeWhitespace(post.relevanceRationale ?? '');
-  const bullets = (post.relevanceRationaleBullets ?? [])
-    .map((item) => normalizeWhitespace(item))
-    .filter(Boolean)
-    .slice(0, 2);
-  const excerpt = excerptFromPostText(post.text);
-
-  const parts: string[] = [actionFraming(action, handle)];
-
-  if (rationale) {
-    parts.push(`Opportunity: ${rationale}`);
-  }
-
-  if (bullets.length > 0) {
-    parts.push(`Angle: ${bullets.join(' · ')}`);
-  }
-
-  if (excerpt) {
-    parts.push(`React to: "${excerpt}"`);
-  }
-
-  return truncateIntent(parts.join(' '));
+  return buildPrompterInteractionIntent({
+    action: recommendedActionToIntentAction(post.recommendedAction),
+    authorUsername: post.authorUsername,
+  });
 }
 
 export function ctaLabelForReconPost(post: Pick<ReconPost, 'recommendedAction'>): string {
@@ -103,9 +60,12 @@ export function buildReconPrompterSeed(post: ReconPost): ReconPrompterSeed {
     connectionId: post.connectionId,
     creatorText: post.text,
     interactionIntent: buildReconInteractionIntent(post),
+    preferredIntentAction: preferredIntentActionForReconPost(post),
+    limitedTextContext: isSparseCreatorText(post.text),
     authorHandle: post.authorUsername,
     evidenceUrl: post.url,
     platformPostId: post.platformPostId,
     reconPostId: post.id,
+    learningCost: post.learningCost,
   };
 }

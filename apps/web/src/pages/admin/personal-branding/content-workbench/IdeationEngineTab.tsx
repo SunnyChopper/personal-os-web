@@ -1,9 +1,14 @@
-import { Loader2, Sparkles } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useEffect, useId, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { BrandProfileReadinessCallout } from '@/components/molecules/personal-branding/BrandProfileReadinessCallout';
+import { brandIdentityHref } from '@/lib/personal-branding/brand-identity-deep-links';
+import { useTerminalJobFailureAlert } from '@/hooks/useTerminalJobFailureAlert';
+import { ChevronDown, ChevronRight, Lightbulb, Sparkles } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { Select } from '@/components/atoms/Select';
-import { Textarea } from '@/components/atoms/Textarea';
+import ExpandOnFocusTextarea from '@/components/molecules/ExpandOnFocusTextarea';
 import { BrainstormModelPicker } from '@/components/molecules/assistant/BrainstormModelPicker';
+import { EmptyState } from '@/components/molecules/EmptyState';
 import type { BrainstormModelPickerValue } from '@/lib/assistant/brainstorm-model-picker';
 import type { AssistantModelCatalogData } from '@/types/chatbot';
 import type {
@@ -13,17 +18,37 @@ import type {
   ContentIdeaGenerationContextStats,
   ContentIdeationJob,
 } from '@/types/api/personal-branding.dto';
-import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
+import { BRAND_PLATFORM_LABELS } from '@/types/api/personal-branding.dto';
 import ContentIdeationProgressPanel from '@/components/molecules/personal-branding/ContentIdeationProgressPanel';
+import { ContentIdeaGridSkeleton } from '@/components/molecules/personal-branding/ContentIdeaCardSkeleton';
 import {
-  emptyStateCardClassName,
-  gridItemCardClassName,
-} from '@/lib/personal-branding/personal-branding-surfaces';
-import { PageCard } from '../PersonalBrandingPageTemplate';
+  contentIdeationCtaProgressOnly,
+  contentIdeationProgressPanelJob,
+} from '@/lib/personal-branding/content-ideation-progress';
+import ContentIdeaCard from '@/components/organisms/personal-branding/ContentIdeaCard';
+import { PageCard, SectionIntro } from '../PersonalBrandingPageTemplate';
+import {
+  pbSectionTitleClassName,
+  pbFeedbackTextClassName,
+  selectableChipClassName,
+  statusPillClassName,
+} from '../personal-branding-ui';
 import { cn } from '@/lib/utils';
-import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
-import { ContentIdeaWhyCreateSection } from './ContentIdeaWhyCreateSection';
-import { ROUTES } from '@/routes';
+import {
+  defaultIdeaCountForPlatform,
+  ideationIdeaCountPresetsForPlatform,
+  IDEATION_ADVANCED_LEARNING_HINT,
+  IDEATION_AI_MODEL_AUTO_HINT,
+  IDEATION_ENGINE_GENERATE_BUTTON_ID,
+  IDEATION_IMAGE_SEARCH_HINT,
+  IDEATION_KEYWORD_RESEARCH_HINT,
+  IDEATION_SECTION_LEAD,
+  hasIdeationAdvancedOptionsActive,
+  isBrandProfileReadyForIdeation,
+  formatRejectedFeedbackStatsLine,
+  formatReferencedPublishedHintLine,
+  formatReferencedPublishedStatsLine,
+} from './content-workbench-helpers';
 
 const ALL_PLATFORMS = Object.keys(BRAND_PLATFORM_LABELS) as BrandPlatform[];
 
@@ -35,10 +60,6 @@ function contentIdeaSourceLabel(idea: ContentIdea): string {
     return 'Goal completed';
   }
   return idea.sourceType.replace(/_/g, ' ');
-}
-
-function weeklyReviewQuickWinTaskHref(taskId: string): string {
-  return `${ROUTES.admin.tasks}?taskId=${encodeURIComponent(taskId)}`;
 }
 
 interface IdeationEngineTabProps {
@@ -53,8 +74,12 @@ interface IdeationEngineTabProps {
   onTargetPlatformChange: (platform: BrandPlatform) => void;
   seedIdeas: string;
   onSeedIdeasChange: (value: string) => void;
+  boostFromRecentPublishes: boolean;
+  onBoostFromRecentPublishesChange: (value: boolean) => void;
   enableImageSearch: boolean;
   onEnableImageSearchChange: (value: boolean) => void;
+  enableKeywordResearch: boolean;
+  onEnableKeywordResearchChange: (value: boolean) => void;
   ideaCount: number;
   onIdeaCountChange: (value: number) => void;
   ideationModelCatalog: AssistantModelCatalogData | null;
@@ -63,8 +88,11 @@ interface IdeationEngineTabProps {
   onIdeationModelPickerChange: (value: BrainstormModelPickerValue) => void;
   isGenerating: boolean;
   ideationJob?: ContentIdeationJob | null;
+  ideationClientCancelState?: 'idle' | 'cancelled';
+  onCancelIdeationJob?: () => void;
   generateError: string | null;
   lastGenerationStats: ContentIdeaGenerationContextStats | null;
+  ideationLiveMessage?: string | null;
   onGenerate: () => void;
   onApprove: (idea: ContentIdea) => void;
   onReject: (idea: ContentIdea) => void;
@@ -82,8 +110,12 @@ export default function IdeationEngineTab({
   onTargetPlatformChange,
   seedIdeas,
   onSeedIdeasChange,
+  boostFromRecentPublishes,
+  onBoostFromRecentPublishesChange,
   enableImageSearch,
   onEnableImageSearchChange,
+  enableKeywordResearch,
+  onEnableKeywordResearchChange,
   ideaCount,
   onIdeaCountChange,
   ideationModelCatalog,
@@ -92,56 +124,109 @@ export default function IdeationEngineTab({
   onIdeationModelPickerChange,
   isGenerating,
   ideationJob,
+  ideationClientCancelState = 'idle',
+  onCancelIdeationJob,
   generateError,
   lastGenerationStats,
+  ideationLiveMessage,
   onGenerate,
   onApprove,
   onReject,
 }: IdeationEngineTabProps) {
+  const navigate = useNavigate();
   const selectedProfile = profiles.find((p) => p.id === selectedProfileId) ?? null;
   const profileReady = selectedProfile ? isBrandProfileReadyForIdeation(selectedProfile) : false;
   const canGenerate = Boolean(selectedProfileId && profileReady && !isGenerating);
 
-  const ideaCountField = (
-    <label className="block space-y-1 text-sm">
-      <span className="font-medium text-gray-700 dark:text-gray-300">Number of ideas</span>
-      <input
-        type="number"
-        min={1}
-        max={12}
-        value={ideaCount}
-        onChange={(e) => {
-          const parsed = Number.parseInt(e.target.value, 10);
-          if (Number.isNaN(parsed)) return;
-          onIdeaCountChange(Math.min(12, Math.max(1, parsed)));
-        }}
-        className="w-full max-w-[10rem] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-      />
-    </label>
+  const focusGenerateButton = () => {
+    const button = document.getElementById(IDEATION_ENGINE_GENERATE_BUTTON_ID);
+    if (!button) return;
+    if (typeof button.scrollIntoView === 'function') {
+      button.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    button.focus();
+  };
+
+  const goToBrandIdentity = () => {
+    navigate(brandIdentityHref({ tab: 'core-profile' }));
+  };
+
+  const emptyAction =
+    profiles.length === 0
+      ? { actionLabel: 'Open Brand Identity', onAction: goToBrandIdentity }
+      : canGenerate
+        ? { actionLabel: 'Generate first ideas', onAction: onGenerate }
+        : { actionLabel: 'Generate first ideas', onAction: focusGenerateButton };
+
+  useTerminalJobFailureAlert({
+    feature: 'contentIdeation',
+    jobId: ideationJob?.jobId,
+    status: ideationJob?.status,
+    error: ideationJob?.error,
+    message: ideationJob?.message,
+    stage: ideationJob?.stage,
+    errorCode: ideationJob?.errorCode,
+    retryable: ideationJob?.retryable,
+  });
+
+  const advancedActive = hasIdeationAdvancedOptionsActive({
+    seedIdeas,
+    boostFromRecentPublishes,
+    enableImageSearch,
+    enableKeywordResearch,
+    ideationModelPicker,
+  });
+  const includeReferenceSearch = Boolean(seedIdeas.trim()) || boostFromRecentPublishes;
+  const includeKeywordResearch = targetPlatform === 'medium' || enableKeywordResearch;
+  const advancedPanelId = useId();
+  const [advancedOpen, setAdvancedOpen] = useState(() => advancedActive);
+
+  useEffect(() => {
+    if (advancedActive) {
+      setAdvancedOpen(true);
+    }
+  }, [advancedActive]);
+
+  const ideaCountChips = (
+    <fieldset className="shrink-0 space-y-1 text-sm">
+      <legend className="font-medium text-gray-700 dark:text-gray-300">Ideas</legend>
+      <div className="flex gap-1.5">
+        {ideationIdeaCountPresetsForPlatform(targetPlatform).map((preset) => {
+          const selected = ideaCount === preset;
+          return (
+            <button
+              key={preset}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onIdeaCountChange(preset)}
+              className={selectableChipClassName(selected, 'rounded-md px-2.5 py-1.5 text-xs')}
+            >
+              {preset}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
   );
+
+  const handleTargetPlatformChange = (next: BrandPlatform) => {
+    onTargetPlatformChange(next);
+    onIdeaCountChange(defaultIdeaCountForPlatform(next));
+  };
 
   return (
     <div className="space-y-4">
       <PageCard className="space-y-3 p-4 sm:p-5">
-        <div>
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Generate ideas</h2>
-          <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-            Uses your Brand Identity pillars, audience, and platform rules. Rejected, existing, and
-            drafted ideas inform future runs.
-          </p>
-        </div>
+        <SectionIntro title="Generate ideas" description={IDEATION_SECTION_LEAD} />
 
         {profilesLoading ? (
           <p className="text-sm text-gray-500">Loading brand profiles…</p>
         ) : profiles.length === 0 ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-            Create a Brand Identity profile with core pillars and a target audience before
-            generating ideas.
-          </p>
+          <BrandProfileReadinessCallout variant="missing-profile" />
         ) : null}
 
         {profiles.length > 0 ? (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2">
             <label className="block space-y-1 text-sm">
               <span className="font-medium text-gray-700 dark:text-gray-300">Brand profile</span>
               <Select
@@ -158,189 +243,262 @@ export default function IdeationEngineTab({
               </Select>
             </label>
 
-            <label className="block space-y-1 text-sm">
-              <span className="font-medium text-gray-700 dark:text-gray-300">Target platform</span>
-              <Select
-                value={targetPlatform}
-                onChange={(e) => onTargetPlatformChange(e.target.value as BrandPlatform)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-              >
-                {ALL_PLATFORMS.map((platform) => (
-                  <option key={platform} value={platform}>
-                    {BRAND_PLATFORM_LABELS[platform]}
-                  </option>
-                ))}
-              </Select>
-            </label>
+            <div className="flex items-end gap-3">
+              <label className="block min-w-0 flex-1 space-y-1 text-sm">
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Target platform
+                </span>
+                <Select
+                  value={targetPlatform}
+                  onChange={(e) => handleTargetPlatformChange(e.target.value as BrandPlatform)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+                >
+                  {ALL_PLATFORMS.map((platform) => (
+                    <option key={platform} value={platform}>
+                      {BRAND_PLATFORM_LABELS[platform]}
+                    </option>
+                  ))}
+                </Select>
+              </label>
 
-            {ideaCountField}
+              {ideaCountChips}
+            </div>
           </div>
         ) : (
-          ideaCountField
+          ideaCountChips
         )}
 
-        <label className="block space-y-1 text-sm">
-          <span className="font-medium text-gray-700 dark:text-gray-300">
-            Seed ideas <span className="font-normal text-gray-500">(optional)</span>
-          </span>
-          <Textarea
-            value={seedIdeas}
-            onChange={(e) => onSeedIdeasChange(e.target.value)}
-            rows={2}
-            placeholder="Topics, angles, or themes you want the brainstorm to explore…"
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-          />
-        </label>
+        <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
+          <button
+            type="button"
+            className={cn(
+              'flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left text-sm font-medium text-gray-700',
+              'hover:text-gray-900 dark:text-gray-300 dark:hover:text-white',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50'
+            )}
+            aria-expanded={advancedOpen}
+            aria-controls={advancedPanelId}
+            onClick={() => setAdvancedOpen((open) => !open)}
+          >
+            {advancedOpen ? (
+              <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+            )}
+            Advanced options
+            {!advancedOpen && advancedActive ? (
+              <span className={statusPillClassName('info', 'ml-1')}>Active</span>
+            ) : null}
+          </button>
 
-        <div className="grid gap-3 lg:grid-cols-2">
-          <label className="flex items-start gap-2 rounded-md border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-700">
-            <input
-              type="checkbox"
-              checked={enableImageSearch}
-              onChange={(e) => onEnableImageSearchChange(e.target.checked)}
-              disabled={isGenerating}
-              className="mt-0.5 shrink-0"
-            />
-            <span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                Search &amp; inject images when drafting
-              </span>
-              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                Brainstorm image-friendly ideas and auto-inject Brave search results after you
-                approve a draft.
-              </span>
-            </span>
-          </label>
+          {advancedOpen ? (
+            <div id={advancedPanelId} className="mt-3 space-y-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {IDEATION_ADVANCED_LEARNING_HINT}
+              </p>
+              <label className="block space-y-1 text-sm">
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Seed ideas <span className="font-normal text-gray-500">(optional)</span>
+                </span>
+                <ExpandOnFocusTextarea
+                  value={seedIdeas}
+                  onChange={(e) => onSeedIdeasChange(e.target.value)}
+                  placeholder="Topics, angles, or themes you want the brainstorm to explore…"
+                  className="w-full"
+                />
+              </label>
 
-          <div className="space-y-1.5">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">AI model</h3>
-            <BrainstormModelPicker
-              catalog={ideationModelCatalog}
-              isLoading={isIdeationModelCatalogLoading}
-              value={ideationModelPicker}
-              onChange={onIdeationModelPickerChange}
-              disabled={isGenerating}
-              autoModeDescription="Uses the contentIdeation server default (claude-sonnet-4-6). Switch to Manual to pick any model from the assistant catalog."
-            />
-          </div>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={boostFromRecentPublishes}
+                  onChange={(e) => onBoostFromRecentPublishesChange(e.target.checked)}
+                  disabled={isGenerating}
+                  className="mt-0.5 shrink-0"
+                />
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Boost from recent publishes
+                </span>
+              </label>
+
+              {targetPlatform !== 'medium' ? (
+                <label
+                  className="flex items-start gap-2 text-sm"
+                  title={IDEATION_KEYWORD_RESEARCH_HINT}
+                >
+                  <input
+                    type="checkbox"
+                    checked={enableKeywordResearch}
+                    onChange={(e) => onEnableKeywordResearchChange(e.target.checked)}
+                    disabled={isGenerating}
+                    className="mt-0.5 shrink-0"
+                    title={IDEATION_KEYWORD_RESEARCH_HINT}
+                  />
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    Run keyword research (DataForSEO)
+                  </span>
+                </label>
+              ) : null}
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                <label
+                  className="flex items-start gap-2 text-sm"
+                  title={IDEATION_IMAGE_SEARCH_HINT}
+                >
+                  <input
+                    type="checkbox"
+                    checked={enableImageSearch}
+                    onChange={(e) => onEnableImageSearchChange(e.target.checked)}
+                    disabled={isGenerating}
+                    className="mt-0.5 shrink-0"
+                    title={IDEATION_IMAGE_SEARCH_HINT}
+                  />
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    Search &amp; inject images when drafting
+                  </span>
+                </label>
+
+                <div className="space-y-1.5">
+                  <h3
+                    className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                    title={IDEATION_AI_MODEL_AUTO_HINT}
+                  >
+                    AI model
+                  </h3>
+                  <BrainstormModelPicker
+                    catalog={ideationModelCatalog}
+                    isLoading={isIdeationModelCatalogLoading}
+                    value={ideationModelPicker}
+                    onChange={onIdeationModelPickerChange}
+                    disabled={isGenerating}
+                    autoModeDescription={null}
+                    modeToggleVariant="quiet"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {selectedProfile && !profileReady ? (
-          <p className="text-sm text-amber-700 dark:text-amber-300">
-            Selected profile needs at least one pillar and a target audience in Brand Identity.
-          </p>
+          <BrandProfileReadinessCallout
+            variant="incomplete-profile"
+            profileId={selectedProfile.id}
+          />
         ) : null}
 
         {generateError ? (
-          <p className="text-sm text-red-600 dark:text-red-400">{generateError}</p>
+          <p className={pbFeedbackTextClassName('danger')}>{generateError}</p>
         ) : null}
 
-        <ContentIdeationProgressPanel
-          job={ideationJob}
-          includeReferenceSearch={Boolean(seedIdeas.trim())}
-          includeKeywordResearch={targetPlatform === 'medium'}
-        />
-
-        <Button
-          type="button"
-          size="sm"
-          onClick={onGenerate}
-          disabled={!canGenerate}
-          className="inline-flex items-center gap-2"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Generating…
-            </>
-          ) : (
-            <>
+        {contentIdeationCtaProgressOnly(ideationJob, isGenerating) ? (
+          <ContentIdeationProgressPanel
+            job={contentIdeationProgressPanelJob(ideationJob, isGenerating)}
+            includeReferenceSearch={includeReferenceSearch}
+            includeKeywordResearch={includeKeywordResearch}
+            onCancel={onCancelIdeationJob}
+          />
+        ) : (
+          <>
+            {ideationJob?.status === 'failed' ? (
+              <ContentIdeationProgressPanel
+                job={ideationJob}
+                includeReferenceSearch={includeReferenceSearch}
+                includeKeywordResearch={includeKeywordResearch}
+              />
+            ) : null}
+            {ideationClientCancelState === 'cancelled' ? (
+              <ContentIdeationProgressPanel clientCancelled />
+            ) : null}
+            <Button
+              id={IDEATION_ENGINE_GENERATE_BUTTON_ID}
+              type="button"
+              size="sm"
+              onClick={onGenerate}
+              disabled={!canGenerate}
+              className="inline-flex items-center gap-2"
+            >
               <Sparkles className="h-4 w-4" />
               Generate ideas
-            </>
-          )}
-        </Button>
+            </Button>
+          </>
+        )}
       </PageCard>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-          Candidate content ideas
-        </h2>
+        <h2 className={pbSectionTitleClassName}>Candidate content ideas</h2>
+        {ideationLiveMessage ? (
+          <span className="sr-only" role="status" aria-live="polite">
+            {ideationLiveMessage}
+          </span>
+        ) : null}
 
-        {lastGenerationStats && lastGenerationStats.referencedPublishedCount > 0 ? (
+        {lastGenerationStats
+          ? (() => {
+              const referenceLine = formatReferencedPublishedStatsLine(lastGenerationStats);
+              return referenceLine ? (
+                <p className="text-sm text-gray-600 dark:text-gray-400">{referenceLine}</p>
+              ) : null;
+            })()
+          : null}
+
+        {lastGenerationStats?.referencedPublishedHints?.map((hint) => (
+          <p key={hint.contentNodeId} className="text-sm text-gray-600 dark:text-gray-400">
+            {formatReferencedPublishedHintLine(hint, BRAND_PLATFORM_LABELS)}
+          </p>
+        ))}
+
+        {lastGenerationStats && (lastGenerationStats.publishedOutcomesCount ?? 0) > 0 ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Referenced {lastGenerationStats.referencedPublishedCount} past published post
-            {lastGenerationStats.referencedPublishedCount === 1 ? '' : 's'} for style and voice.
+            Grounded in {lastGenerationStats.publishedOutcomesCount} recently published post
+            {lastGenerationStats.publishedOutcomesCount === 1 ? '' : 's'}.
           </p>
         ) : null}
 
+        {lastGenerationStats && (lastGenerationStats.similarityDroppedCount ?? 0) > 0 ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Filtered {lastGenerationStats.similarityDroppedCount} near-duplicate idea
+            {lastGenerationStats.similarityDroppedCount === 1 ? '' : 's'} before saving.
+          </p>
+        ) : null}
+
+        {lastGenerationStats?.refineWarning ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {lastGenerationStats.refineWarning}
+          </p>
+        ) : null}
+
+        {lastGenerationStats
+          ? (() => {
+              const rejectionLine = formatRejectedFeedbackStatsLine(lastGenerationStats);
+              return rejectionLine ? (
+                <p className="text-sm text-gray-600 dark:text-gray-400">{rejectionLine}</p>
+              ) : null;
+            })()
+          : null}
+
         {isLoading ? (
-          <div className="flex min-h-[200px] items-center justify-center text-gray-500">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            Loading ideas…
-          </div>
+          <ContentIdeaGridSkeleton />
         ) : ideas.length === 0 ? (
-          <PageCard className={cn(emptyStateCardClassName, 'p-10')}>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              No candidate ideas yet. Use Generate ideas above, or wait for Radar / other sources.
-            </p>
-          </PageCard>
+          <EmptyState
+            icon={Lightbulb}
+            density="compact"
+            title="No candidate ideas yet"
+            description="Use Generate ideas above, or wait for Radar / other sources."
+            actionLabel={emptyAction.actionLabel}
+            onAction={emptyAction.onAction}
+          />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {ideas.map((idea) => (
-              <article key={idea.id} className={cn(gridItemCardClassName, 'flex flex-col')}>
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-gray-900 dark:text-white">{idea.title}</h3>
-                  <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
-                    {CONTENT_TYPE_LABELS[idea.contentType]}
-                  </span>
-                </div>
-                {idea.summary ? (
-                  <p className="mt-2 flex-1 text-sm text-gray-600 dark:text-gray-400">
-                    {idea.summary}
-                  </p>
-                ) : null}
-                {idea.rationale ? <ContentIdeaWhyCreateSection rationale={idea.rationale} /> : null}
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  {idea.targetPlatform ? (
-                    <span>{BRAND_PLATFORM_LABELS[idea.targetPlatform]}</span>
-                  ) : (
-                    <span>{contentIdeaSourceLabel(idea)}</span>
-                  )}
-                  {idea.sourceType === 'WEEKLY_REVIEW_QUICK_WIN' && idea.sourceRefId ? (
-                    <Link
-                      to={weeklyReviewQuickWinTaskHref(idea.sourceRefId)}
-                      className="underline decoration-dotted underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200"
-                    >
-                      View source task
-                    </Link>
-                  ) : null}
-                  {idea.tags.map((tag) => (
-                    <span key={tag} className="rounded bg-gray-100 px-2 py-0.5 dark:bg-gray-800">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => onApprove(idea)}
-                    disabled={approvingId === idea.id}
-                    className="flex-1"
-                  >
-                    {approvingId === idea.id ? 'Generating…' : 'Generate draft & open in Sandbox'}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => onReject(idea)}
-                  >
-                    Reject
-                  </Button>
-                </div>
-              </article>
+              <ContentIdeaCard
+                key={idea.id}
+                idea={idea}
+                isApproving={approvingId === idea.id}
+                onApprove={onApprove}
+                onReject={onReject}
+                sourceFallbackLabel={idea.targetPlatform ? undefined : contentIdeaSourceLabel(idea)}
+              />
             ))}
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlaskConical, ShieldAlert } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
@@ -7,10 +7,10 @@ import PlatformDefaultAppliedNotice from '@/components/molecules/personal-brandi
 import PlatformRuleConsistencyPanel from '@/components/molecules/personal-branding/PlatformRuleConsistencyPanel';
 import PlatformRuleSetPreviewPanel from '@/components/molecules/personal-branding/PlatformRuleSetPreviewPanel';
 import PlatformRuleTemplateChips from '@/components/molecules/personal-branding/PlatformRuleTemplateChips';
+import OrderedStringListEditor from '@/components/molecules/personal-branding/OrderedStringListEditor';
 import PlatformTemplateAppliedNotice from '@/components/molecules/personal-branding/PlatformTemplateAppliedNotice';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
 import { FormInput } from '@/components/atoms/FormInput';
-import { FormTextarea } from './BrandIdentityFormFields';
 import ProfileMultiSelect from './ProfileMultiSelect';
 import RhetoricalModeSelector from '@/components/molecules/personal-branding/RhetoricalModeSelector';
 import RhetoricalDeviceSelector from '@/components/molecules/personal-branding/RhetoricalDeviceSelector';
@@ -35,6 +35,8 @@ import {
   saveCustomSample,
 } from '@/lib/personal-branding/platform-rule-set-sample';
 import { personalBrandingService } from '@/services/personal-branding.service';
+import { usePlatformRulePreviewJob } from '@/hooks/usePlatformRulePreviewJob';
+import { useTerminalJobFailureAlert } from '@/hooks/useTerminalJobFailureAlert';
 import { reportClientError } from '@/lib/client-telemetry';
 import {
   BRAND_PLATFORM_LABELS,
@@ -42,6 +44,7 @@ import {
   type BrandProfile,
   type CreatePlatformRuleInput,
   type PlatformRuleCatalog,
+  type PlatformRulePreviewJob,
   type PlatformRuleRecord,
   type PlatformRuleSetPreviewResult,
   type PlatformRuleSetInfluenceItem,
@@ -59,6 +62,23 @@ const PLATFORM_OPTIONS = PLATFORMS.map((platform) => ({
   label: BRAND_PLATFORM_LABELS[platform],
   icon: <BrandPlatformIcon platform={platform} className="h-4 w-4" />,
 }));
+
+function normalizeRequirementList(value: string[] | string | null | undefined): string[] {
+  if (Array.isArray(value)) return value.map((item) => item.trim()).filter(Boolean);
+  return (value ?? '')
+    .split(/\r?\n/)
+    .map((item) => item.replace(/^\s*[-•*]\s*/, '').trim())
+    .filter(Boolean);
+}
+
+function parseOptionalPositiveInteger(value: string): { value: number | null; valid: boolean } {
+  if (!value.trim()) return { value: null, valid: true };
+  const parsed = Number(value);
+  return {
+    value: Number.isInteger(parsed) && parsed >= 1 ? parsed : null,
+    valid: Number.isInteger(parsed) && parsed >= 1,
+  };
+}
 
 interface PlatformRuleEditorDialogProps {
   isOpen: boolean;
@@ -83,9 +103,11 @@ export default function PlatformRuleEditorDialog({
 }: PlatformRuleEditorDialogProps) {
   const [platform, setPlatform] = useState<BrandPlatform>('linkedin');
   const [name, setName] = useState('');
+  const [characterMinimum, setCharacterMinimum] = useState('');
   const [characterLimit, setCharacterLimit] = useState('');
+  const [readTimeMinimumMinutes, setReadTimeMinimumMinutes] = useState('');
   const [readTimeLimitMinutes, setReadTimeLimitMinutes] = useState('');
-  const [requirements, setRequirements] = useState('');
+  const [requirements, setRequirements] = useState<string[]>([]);
   const [rhetoricalModes, setRhetoricalModes] = useState<RhetoricalModeSetting[]>([]);
   const [rhetoricalDevices, setRhetoricalDevices] = useState<RhetoricalDeviceId[]>([]);
   const [profileIds, setProfileIds] = useState<string[]>([]);
@@ -93,6 +115,7 @@ export default function PlatformRuleEditorDialog({
   const [previewResult, setPreviewResult] = useState<PlatformRuleSetPreviewResult | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewJobId, setPreviewJobId] = useState<string | null>(null);
   const [influences, setInfluences] = useState<PlatformRuleSetInfluenceItem[]>([]);
   const [influenceError, setInfluenceError] = useState<string | null>(null);
   const [influenceLoading, setInfluenceLoading] = useState(false);
@@ -107,6 +130,38 @@ export default function PlatformRuleEditorDialog({
   const [sampleText, setSampleText] = useState(PLATFORM_RULE_SET_SAMPLE_TEXT);
 
   const ruleSampleKey = initial?.id ?? PLATFORM_RULE_SET_DRAFT_SAMPLE_KEY;
+  const previewFingerprintRef = useRef<string | null>(null);
+
+  const handlePreviewTerminal = useCallback(
+    (job: PlatformRulePreviewJob) => {
+      setPreviewLoading(false);
+      window.sessionStorage.removeItem(`platform-rule-preview-job:${ruleSampleKey}`);
+      if (job.status === 'succeeded' && job.result) {
+        setPreviewResult(job.result);
+        setInfluences(job.result.appliedInfluences ?? []);
+        setInfluenceError(null);
+        setLastTestedFingerprint(previewFingerprintRef.current);
+      } else if (job.status === 'failed') {
+        setPreviewError(job.error ?? 'Failed to preview rule set');
+      } else if (job.status === 'cancelled') {
+        setPreviewError('Preview cancelled.');
+      }
+    },
+    [ruleSampleKey]
+  );
+
+  const previewJobQuery = usePlatformRulePreviewJob(previewJobId, handlePreviewTerminal, () =>
+    setPreviewError('Preview timed out while waiting for the worker.')
+  );
+
+  useTerminalJobFailureAlert({
+    feature: 'platformRuleSetPreview',
+    jobId: previewJobId,
+    status: previewJobQuery.data?.status,
+    error: previewJobQuery.data?.error,
+    message: previewJobQuery.data?.message,
+    stage: previewJobQuery.data?.stage,
+  });
 
   const applyPlatformLimitDefaults = useCallback(
     (nextPlatform: BrandPlatform) => {
@@ -152,7 +207,7 @@ export default function PlatformRuleEditorDialog({
       const template = getPlatformRuleTemplate(templateId);
       setPlatform(template.platform);
       setName(template.name);
-      setRequirements(template.requirements);
+      setRequirements(normalizeRequirementList(template.requirements));
       setRhetoricalModes(template.rhetoricalModes);
       setRhetoricalDevices(template.rhetoricalDevices);
       applyPlatformLimitDefaults(template.platform);
@@ -175,7 +230,9 @@ export default function PlatformRuleEditorDialog({
     () =>
       JSON.stringify({
         platform,
+        characterMinimum,
         characterLimit,
+        readTimeMinimumMinutes,
         readTimeLimitMinutes,
         requirements,
         rhetoricalModes,
@@ -185,7 +242,9 @@ export default function PlatformRuleEditorDialog({
       }),
     [
       platform,
+      characterMinimum,
       characterLimit,
+      readTimeMinimumMinutes,
       readTimeLimitMinutes,
       requirements,
       rhetoricalModes,
@@ -200,11 +259,15 @@ export default function PlatformRuleEditorDialog({
     if (initial) {
       setPlatform(initial.platform);
       setName(initial.name ?? '');
+      setCharacterMinimum(initial.characterMinimum != null ? String(initial.characterMinimum) : '');
       setCharacterLimit(initial.characterLimit != null ? String(initial.characterLimit) : '');
+      setReadTimeMinimumMinutes(
+        initial.readTimeMinimumMinutes != null ? String(initial.readTimeMinimumMinutes) : ''
+      );
       setReadTimeLimitMinutes(
         initial.readTimeLimitMinutes != null ? String(initial.readTimeLimitMinutes) : ''
       );
-      setRequirements(initial.requirements ?? '');
+      setRequirements(normalizeRequirementList(initial.requirements));
       setRhetoricalModes(initial.rhetoricalModes ?? []);
       setRhetoricalDevices(initial.rhetoricalDevices ?? []);
       setProfileIds(initial.profileIds ?? []);
@@ -214,9 +277,11 @@ export default function PlatformRuleEditorDialog({
     } else {
       setPlatform('linkedin');
       setName('');
+      setCharacterMinimum('');
       setCharacterLimit('');
+      setReadTimeMinimumMinutes('');
       setReadTimeLimitMinutes('');
-      setRequirements('');
+      setRequirements([]);
       setRhetoricalModes([]);
       setRhetoricalDevices([]);
       setProfileIds([]);
@@ -227,6 +292,9 @@ export default function PlatformRuleEditorDialog({
     setValidationError(null);
     setPreviewResult(null);
     setPreviewError(null);
+    setPreviewLoading(false);
+    setPreviewJobId(null);
+    previewFingerprintRef.current = null;
     setInfluences([]);
     setInfluenceError(null);
     setInfluenceLoading(false);
@@ -237,6 +305,20 @@ export default function PlatformRuleEditorDialog({
     setConsistencyDismissed(false);
     const sampleKey = initial?.id ?? PLATFORM_RULE_SET_DRAFT_SAMPLE_KEY;
     setSampleText(loadCustomSample(sampleKey) ?? PLATFORM_RULE_SET_SAMPLE_TEXT);
+    const savedJob = window.sessionStorage.getItem(`platform-rule-preview-job:${sampleKey}`);
+    if (savedJob) {
+      try {
+        const parsed = JSON.parse(savedJob) as { jobId?: string; fingerprint?: string };
+        if (parsed.jobId) {
+          previewFingerprintRef.current = parsed.fingerprint ?? null;
+          setPreviewJobId(parsed.jobId);
+          setPreviewLoading(true);
+          setLastTestedFingerprint(parsed.fingerprint ?? null);
+        }
+      } catch {
+        window.sessionStorage.removeItem(`platform-rule-preview-job:${sampleKey}`);
+      }
+    }
   }, [isOpen, initial]);
 
   useEffect(() => {
@@ -304,7 +386,7 @@ export default function PlatformRuleEditorDialog({
   };
 
   const handleAdjustRequirements = () => {
-    const textarea = document.getElementById('platform-rule-requirements');
+    const textarea = document.getElementById('requirements-new-item');
     if (textarea instanceof HTMLTextAreaElement) {
       textarea.focus();
       textarea.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
@@ -312,57 +394,57 @@ export default function PlatformRuleEditorDialog({
   };
 
   const handleTestRuleSet = async () => {
-    setPreviewLoading(true);
     setPreviewError(null);
     setInfluences([]);
     setInfluenceError(null);
     setActiveExcerpt(null);
     try {
-      const limit = characterLimit.trim() ? Number(characterLimit) : null;
-      const readMinutes = readTimeLimitMinutes.trim() ? Number(readTimeLimitMinutes) : null;
+      const parsedCharacterMinimum = parseOptionalPositiveInteger(characterMinimum);
+      const parsedCharacterLimit = parseOptionalPositiveInteger(characterLimit);
+      const parsedReadMinimum = parseOptionalPositiveInteger(readTimeMinimumMinutes);
+      const parsedReadLimit = parseOptionalPositiveInteger(readTimeLimitMinutes);
+      if (
+        !parsedCharacterMinimum.valid ||
+        !parsedCharacterLimit.valid ||
+        !parsedReadMinimum.valid ||
+        !parsedReadLimit.valid
+      ) {
+        setPreviewError('Targets must be whole numbers of at least 1.');
+        return;
+      }
+      const characterMinimumValue = parsedCharacterMinimum.value;
+      const limit = parsedCharacterLimit.value;
+      const readMinimum = parsedReadMinimum.value;
+      const readMinutes = parsedReadLimit.value;
+      if (
+        (characterMinimumValue != null && limit != null && characterMinimumValue > limit) ||
+        (readMinimum != null && readMinutes != null && readMinimum > readMinutes)
+      ) {
+        setPreviewError('Minimum targets must be less than or equal to maximum targets.');
+        return;
+      }
+      setPreviewLoading(true);
       const previewInput = {
         platform,
+        characterMinimum: characterMinimumValue,
         characterLimit: limit,
+        readTimeMinimumMinutes: readMinimum,
         readTimeLimitMinutes: readMinutes,
-        requirements: requirements.trim() || null,
+        requirements: requirements.map((item) => item.trim()).filter(Boolean),
         rhetoricalModes,
         rhetoricalDevices,
         brandProfileId: profileIds[0] ?? null,
         brandProfileIds: profileIds,
         sampleText: sampleText.trim() || undefined,
       };
-      const result = await personalBrandingService.previewPlatformRuleSet(previewInput);
-      setPreviewResult(result);
-      setLastTestedFingerprint(draftFingerprint);
+      const start = await personalBrandingService.previewPlatformRuleSet(previewInput);
+      previewFingerprintRef.current = draftFingerprint;
+      setPreviewJobId(start.jobId);
+      window.sessionStorage.setItem(
+        `platform-rule-preview-job:${ruleSampleKey}`,
+        JSON.stringify({ jobId: start.jobId, fingerprint: draftFingerprint })
+      );
       saveCustomSample(ruleSampleKey, sampleText);
-
-      setInfluenceLoading(true);
-      try {
-        const influenceResult = await personalBrandingService.annotatePlatformRuleSetInfluence({
-          ...previewInput,
-          sampleText: result.sampleText,
-          body: result.body,
-        });
-        setInfluences(influenceResult.appliedInfluences);
-      } catch (influenceErr) {
-        const message =
-          influenceErr instanceof Error
-            ? influenceErr.message
-            : 'Rule influence analysis unavailable';
-        void reportClientError({
-          message: `Platform rule influence failed: ${message}`,
-          source: 'web',
-          metadata: {
-            kind: 'personal-branding-handler',
-            feature: 'brandProfileExtraction',
-            action: 'ruleInfluence',
-          },
-        });
-        setInfluences([]);
-        setInfluenceError(message);
-      } finally {
-        setInfluenceLoading(false);
-      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to preview rule set';
       void reportClientError({
@@ -377,27 +459,84 @@ export default function PlatformRuleEditorDialog({
       setPreviewResult(null);
       setInfluences([]);
       setInfluenceError(null);
-      setInfluenceLoading(false);
       setPreviewError(message);
+      setPreviewJobId(null);
     } finally {
-      setPreviewLoading(false);
+      // The polling hook clears loading when the durable job reaches a terminal state.
+    }
+  };
+
+  const handleCancelPreview = async () => {
+    if (!previewJobId) return;
+    try {
+      const job = await personalBrandingService.cancelPlatformRulePreviewJob(previewJobId);
+      if (job.status === 'cancelled') {
+        handlePreviewTerminal(job);
+      } else {
+        setPreviewError(job.message ?? 'Cancelling preview…');
+      }
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : 'Failed to cancel preview');
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedRequirements = requirements.trim();
-    if (!trimmedRequirements) {
-      setValidationError('Requirements are required.');
+    const trimmedRequirements = requirements.map((item) => item.trim());
+    if (!trimmedRequirements.length || trimmedRequirements.some((item) => !item)) {
+      setValidationError('Add at least one non-blank requirement.');
+      return;
+    }
+    if (trimmedRequirements.length > 20) {
+      setValidationError('Requirements are limited to 20 items.');
+      return;
+    }
+    if (trimmedRequirements.some((item) => item.length > 500)) {
+      setValidationError('Each requirement must be 500 characters or fewer.');
+      return;
+    }
+    if (trimmedRequirements.reduce((total, item) => total + item.length, 0) > 8000) {
+      setValidationError('Requirements must total 8,000 characters or fewer.');
+      return;
+    }
+    if (
+      new Set(trimmedRequirements.map((item) => item.toLocaleLowerCase())).size !==
+      trimmedRequirements.length
+    ) {
+      setValidationError('Requirements must not contain duplicates.');
       return;
     }
     setValidationError(null);
-    const limit = characterLimit.trim() ? Number(characterLimit) : null;
-    const readMinutes = readTimeLimitMinutes.trim() ? Number(readTimeLimitMinutes) : null;
+    const parsedCharacterMinimum = parseOptionalPositiveInteger(characterMinimum);
+    const parsedCharacterLimit = parseOptionalPositiveInteger(characterLimit);
+    const parsedReadMinimum = parseOptionalPositiveInteger(readTimeMinimumMinutes);
+    const parsedReadLimit = parseOptionalPositiveInteger(readTimeLimitMinutes);
+    if (
+      !parsedCharacterMinimum.valid ||
+      !parsedCharacterLimit.valid ||
+      !parsedReadMinimum.valid ||
+      !parsedReadLimit.valid
+    ) {
+      setValidationError('Targets must be whole numbers of at least 1.');
+      return;
+    }
+    const characterMinimumValue = parsedCharacterMinimum.value;
+    const limit = parsedCharacterLimit.value;
+    const readMinimum = parsedReadMinimum.value;
+    const readMinutes = parsedReadLimit.value;
+    if (
+      (characterMinimumValue != null && limit != null && characterMinimumValue > limit) ||
+      (readMinimum != null && readMinutes != null && readMinimum > readMinutes)
+    ) {
+      setValidationError('Minimum targets must be less than or equal to maximum targets.');
+      return;
+    }
     const body = {
       platform,
       name: name.trim() || null,
+      characterMinimum: characterMinimumValue,
       characterLimit: limit,
+      readTimeMinimumMinutes: readMinimum,
       readTimeLimitMinutes: readMinutes,
       rhetoricalModes,
       rhetoricalDevices,
@@ -440,8 +579,41 @@ export default function PlatformRuleEditorDialog({
       onClose={onClose}
       title={initial ? 'Edit platform rule' : 'New platform rule'}
       size="xl"
+      trapFocus
+      footer={
+        <DialogFooter className="border-0 pt-0">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={handleCheckConsistency}
+            disabled={previewBusy || isSubmitting}
+            className="mr-auto inline-flex items-center gap-2"
+          >
+            <ShieldAlert className="size-4" aria-hidden />
+            Check consistency
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={handleTestRuleSet}
+            disabled={previewBusy || isSubmitting}
+            className="inline-flex items-center gap-2"
+          >
+            <FlaskConical className="size-4" aria-hidden />
+            Test this rule set
+          </Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" form="platform-rule-form" disabled={isSubmitting}>
+            {initial ? 'Save changes' : 'Create rule'}
+          </Button>
+        </DialogFooter>
+      }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="platform-rule-form" onSubmit={handleSubmit} className="space-y-4">
         <fieldset disabled={isSubmitting} className="space-y-4">
           {!initial && (
             <PlatformRuleTemplateChips
@@ -451,51 +623,122 @@ export default function PlatformRuleEditorDialog({
             />
           )}
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Platform</label>
-            <IconSelect
-              value={platform}
-              onChange={(next) => handlePlatformChange(next as BrandPlatform)}
-              options={PLATFORM_OPTIONS}
-              aria-label="Platform"
-              className="w-full"
-            />
-          </div>
+          <CollapsibleSection title="Scope" defaultOpen>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Platform</label>
+                <IconSelect
+                  value={platform}
+                  onChange={(next) => handlePlatformChange(next as BrandPlatform)}
+                  options={PLATFORM_OPTIONS}
+                  aria-label="Platform"
+                  className="w-full"
+                />
+              </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Rule name (optional)</label>
-            <FormInput value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
+              <div>
+                <label htmlFor="platform-rule-name" className="mb-1 block text-sm font-medium">
+                  Rule name (optional)
+                </label>
+                <FormInput
+                  id="platform-rule-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium">Character limit (optional)</label>
-              <FormInput
-                type="number"
-                min={1}
-                value={characterLimit}
-                onChange={(e) => {
-                  setCharacterLimit(e.target.value);
-                  setShowPlatformDefaultHint(false);
-                }}
+              <ProfileMultiSelect
+                profiles={profiles}
+                selectedIds={profileIds}
+                onChange={setProfileIds}
               />
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Read time limit in minutes (optional)
-              </label>
-              <FormInput
-                type="number"
-                min={1}
-                value={readTimeLimitMinutes}
-                onChange={(e) => {
-                  setReadTimeLimitMinutes(e.target.value);
-                  setShowPlatformDefaultHint(false);
-                }}
-              />
-              <p className="mt-1 text-xs text-gray-500">Enforced at 200 words per minute.</p>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Length target" defaultOpen>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="platform-rule-character-minimum"
+                  className="mb-1 block text-sm font-medium"
+                >
+                  Minimum characters (optional)
+                </label>
+                <FormInput
+                  id="platform-rule-character-minimum"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={characterMinimum}
+                  onChange={(e) => {
+                    setCharacterMinimum(e.target.value);
+                    setShowPlatformDefaultHint(false);
+                  }}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="platform-rule-character-limit"
+                  className="mb-1 block text-sm font-medium"
+                >
+                  Maximum characters (optional)
+                </label>
+                <FormInput
+                  id="platform-rule-character-limit"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={characterLimit}
+                  onChange={(e) => {
+                    setCharacterLimit(e.target.value);
+                    setShowPlatformDefaultHint(false);
+                  }}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="platform-rule-read-time-minimum"
+                  className="mb-1 block text-sm font-medium"
+                >
+                  Minimum read time in minutes (optional)
+                </label>
+                <FormInput
+                  id="platform-rule-read-time-minimum"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={readTimeMinimumMinutes}
+                  onChange={(e) => {
+                    setReadTimeMinimumMinutes(e.target.value);
+                    setShowPlatformDefaultHint(false);
+                  }}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="platform-rule-read-time-limit"
+                  className="mb-1 block text-sm font-medium"
+                >
+                  Maximum read time in minutes (optional)
+                </label>
+                <FormInput
+                  id="platform-rule-read-time-limit"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={readTimeLimitMinutes}
+                  onChange={(e) => {
+                    setReadTimeLimitMinutes(e.target.value);
+                    setShowPlatformDefaultHint(false);
+                  }}
+                />
+              </div>
             </div>
-          </div>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              Targets are checked during critique at 200 words per minute; generated Markdown is
+              never cut off.
+            </p>
+          </CollapsibleSection>
 
           {showPlatformDefaultHint && (
             <PlatformDefaultAppliedNotice onDismiss={() => setShowPlatformDefaultHint(false)} />
@@ -505,71 +748,79 @@ export default function PlatformRuleEditorDialog({
             <PlatformTemplateAppliedNotice onDismiss={() => setShowTemplateAppliedNotice(false)} />
           )}
 
-          <div>
-            <label className="mb-1 block text-sm font-medium" htmlFor="platform-rule-requirements">
-              Requirements <span className="text-red-600">*</span>
-            </label>
-            <FormTextarea
-              id="platform-rule-requirements"
-              value={requirements}
-              onChange={(e) => {
-                setRequirements(e.target.value);
+          <CollapsibleSection
+            title="Requirements"
+            summary={`${requirements.length} item${requirements.length === 1 ? '' : 's'}`}
+            defaultOpen
+          >
+            <OrderedStringListEditor
+              label="Requirements"
+              values={requirements}
+              onChange={(next) => {
+                setRequirements(next);
                 clearTemplateSelection();
               }}
-              rows={4}
-              placeholder="Writing constraints injected into the AI system prompt (tone, structure, must-include elements)."
+              placeholder="One requirement the draft must follow"
+              addLabel="Add requirement"
+              disabled={isSubmitting}
             />
             {initial?.needsReview && (
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
                 Legacy rule: add requirements before saving.
               </p>
             )}
             {validationError && (
-              <p className="mt-1 text-sm text-red-600" role="alert">
+              <p className="mt-2 text-sm text-red-600" role="alert">
                 {validationError}
               </p>
             )}
-          </div>
+          </CollapsibleSection>
 
           {catalog && (
-            <div className="grid gap-4 lg:grid-cols-2">
-              <CollapsibleSection title="Rhetorical modes" summary={modesSummary} defaultOpen>
-                <RhetoricalModeSelector
-                  catalog={catalog.modes}
-                  strengths={catalog.strengths}
-                  value={rhetoricalModes}
-                  onChange={(next) => {
-                    setRhetoricalModes(next);
-                    clearTemplateSelection();
-                  }}
-                  disabled={isSubmitting}
-                  hideLegend
-                />
-              </CollapsibleSection>
-              <CollapsibleSection
-                title="Allowed rhetorical devices"
-                summary={devicesSummary}
-                defaultOpen
-              >
-                <RhetoricalDeviceSelector
-                  catalog={catalog.devices}
-                  value={rhetoricalDevices}
-                  onChange={(next) => {
-                    setRhetoricalDevices(next);
-                    clearTemplateSelection();
-                  }}
-                  disabled={isSubmitting}
-                  hideLegend
-                />
-              </CollapsibleSection>
-            </div>
+            <CollapsibleSection
+              title="Writing craft"
+              summary={`${modesSummary} · ${devicesSummary}`}
+              defaultOpen
+            >
+              <div className="space-y-4">
+                <CollapsibleSection title="Rhetorical modes" summary={modesSummary} defaultOpen>
+                  <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                    Modes expose strength after selection.
+                  </p>
+                  <RhetoricalModeSelector
+                    catalog={catalog.modes}
+                    strengths={catalog.strengths}
+                    value={rhetoricalModes}
+                    onChange={(next) => {
+                      setRhetoricalModes(next);
+                      clearTemplateSelection();
+                    }}
+                    disabled={isSubmitting}
+                    hideLegend
+                  />
+                </CollapsibleSection>
+                <CollapsibleSection
+                  title="Allowed rhetorical devices"
+                  summary={devicesSummary}
+                  defaultOpen={false}
+                >
+                  <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                    Devices are an allowlist and do not have strength controls.
+                  </p>
+                  <RhetoricalDeviceSelector
+                    catalog={catalog.devices}
+                    value={rhetoricalDevices}
+                    onChange={(next) => {
+                      setRhetoricalDevices(next);
+                      clearTemplateSelection();
+                    }}
+                    disabled={isSubmitting}
+                    hideLegend
+                  />
+                </CollapsibleSection>
+              </div>
+            </CollapsibleSection>
           )}
-
-          <ProfileMultiSelect
-            profiles={profiles}
-            selectedIds={profileIds}
-            onChange={setProfileIds}
-          />
 
           <PlatformRuleConsistencyPanel
             issues={consistencyDismissed ? null : consistencyIssues}
@@ -579,6 +830,7 @@ export default function PlatformRuleEditorDialog({
           />
 
           <PlatformRuleSetPreviewPanel
+            platform={platform}
             sampleText={sampleText}
             onSampleTextChange={setSampleText}
             preview={previewResult}
@@ -590,38 +842,10 @@ export default function PlatformRuleEditorDialog({
             influenceError={influenceError}
             activeExcerpt={activeExcerpt}
             onSelectExcerpt={setActiveExcerpt}
+            jobStage={previewJobQuery.data?.stage}
+            onCancel={previewLoading ? handleCancelPreview : undefined}
+            onRetry={handleTestRuleSet}
           />
-
-          <DialogFooter>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={handleCheckConsistency}
-              disabled={previewBusy}
-              className="mr-auto inline-flex items-center gap-2"
-            >
-              <ShieldAlert className="size-4" aria-hidden />
-              Check consistency
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={handleTestRuleSet}
-              disabled={previewBusy}
-              className="inline-flex items-center gap-2"
-            >
-              <FlaskConical className="size-4" aria-hidden />
-              Test this rule set
-            </Button>
-            <Button type="button" size="sm" variant="secondary" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" size="sm">
-              {initial ? 'Save changes' : 'Create rule'}
-            </Button>
-          </DialogFooter>
         </fieldset>
       </form>
     </Dialog>

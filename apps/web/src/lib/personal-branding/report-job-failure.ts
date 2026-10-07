@@ -10,6 +10,7 @@ export type PersonalBrandingJobFeature =
   | 'contentStream'
   | 'contentIdeation'
   | 'contentIdeaApprove'
+  | 'platformRuleSetPreview'
   | 'contentImageInject'
   | 'contentKeywordOptimize'
   | 'contentTemplateAi'
@@ -20,7 +21,10 @@ export type PersonalBrandingJobFeature =
   | 'radarIngest'
   | 'radarDiscoveryParse'
   | 'reconFeed'
-  | 'rolodexReply';
+  | 'rolodexReply'
+  | 'eventDiscovery'
+  | 'projectIdeation'
+  | 'projectBuildKit';
 
 export interface ReportPersonalBrandingJobFailureInput {
   feature: PersonalBrandingJobFeature;
@@ -28,6 +32,8 @@ export interface ReportPersonalBrandingJobFailureInput {
   error?: string | null;
   message?: string | null;
   stage?: string | null;
+  errorCode?: string | null;
+  retryable?: boolean | null;
   /** Partial success (e.g. succeeded_with_warnings) — still alertable */
   partial?: boolean;
 }
@@ -39,7 +45,7 @@ export function resetPersonalBrandingJobFailureReporterForTests(): void {
 export function reportPersonalBrandingJobFailure(
   input: ReportPersonalBrandingJobFailureInput
 ): void {
-  const { feature, jobId, error, message, stage, partial } = input;
+  const { feature, jobId, error, message, stage, errorCode, retryable, partial } = input;
   const throttleKey = `${feature}:${jobId}`;
   const now = Date.now();
   const last = _lastSentAt.get(throttleKey) ?? 0;
@@ -56,6 +62,8 @@ export function reportPersonalBrandingJobFailure(
       jobId,
       stage: stage ?? undefined,
       error: error ?? undefined,
+      errorCode: errorCode ?? undefined,
+      retryable: retryable ?? undefined,
       partial: partial ?? false,
     },
   });

@@ -115,7 +115,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 vi.mock('@/hooks/use-toast', () => ({
-  useToast: () => ({ showToast, ToastContainer: () => null }),
+  useToast: () => ({ showToast }),
 }));
 
 function renderPanel(overrides?: Partial<Parameters<typeof ProfileLiveOutputTestPanel>[0]>) {

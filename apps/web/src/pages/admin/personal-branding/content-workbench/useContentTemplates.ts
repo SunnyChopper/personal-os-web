@@ -2,6 +2,9 @@ import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { useContentTemplateAiJob } from '@/hooks/useContentTemplateAiJob';
+import { reportTerminalJobClientTimeout } from '@/hooks/useTerminalJobFailureAlert';
+import { personalBrandingJobFailureMessage } from '@/lib/personal-branding/content-ideation-progress';
+import { reportPersonalBrandingJobFailure } from '@/lib/personal-branding/report-job-failure';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import type {
   ApproveContentTemplateCandidateInput,
@@ -98,7 +101,15 @@ export function useContentTemplates() {
         return;
       }
       if (job.status === 'failed') {
-        const message = job.error ?? job.message ?? 'Content template AI failed';
+        const message = personalBrandingJobFailureMessage(job, 'Content template AI failed');
+        reportPersonalBrandingJobFailure({
+          feature: 'contentTemplateAi',
+          jobId: job.jobId,
+          error: job.error,
+          message: job.message,
+          errorCode: job.errorCode,
+          retryable: job.retryable,
+        });
         if (kind === 'brainstorm') setBrainstormError(message);
         if (kind === 'extract') setExtractError(message);
         if (kind === 'retry') setRetryError(message);
@@ -111,11 +122,14 @@ export function useContentTemplates() {
   const handleTemplateAiClientTimeout = useCallback(() => {
     const message =
       'Template AI is still running but took longer than expected. Check candidates shortly or retry.';
+    if (templateAiJobId) {
+      reportTerminalJobClientTimeout('contentTemplateAi', templateAiJobId, 5 * 60 * 1000);
+    }
     if (templateAiJobKind === 'brainstorm') setBrainstormError(message);
     if (templateAiJobKind === 'extract') setExtractError(message);
     if (templateAiJobKind === 'retry') setRetryError(message);
     clearTemplateAiJob();
-  }, [clearTemplateAiJob, templateAiJobKind]);
+  }, [clearTemplateAiJob, templateAiJobId, templateAiJobKind]);
 
   const templateAiJob = useContentTemplateAiJob(
     templateAiJobId,

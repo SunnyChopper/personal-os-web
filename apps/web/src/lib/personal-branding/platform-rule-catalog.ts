@@ -166,4 +166,20 @@ export const PLATFORM_RULE_CATALOG: PlatformRuleCatalog = {
     youtube: { characterLimit: 5000, readTimeLimitMinutes: 8 },
     newsletter: { characterLimit: 3500, readTimeLimitMinutes: 7 },
   },
+  ideaCountDefaults: {
+    x: 3,
+    medium: 9,
+    linkedin: 6,
+    youtube: 6,
+    instagram: 6,
+    newsletter: 6,
+  },
+  ideaCountSoftMax: {
+    x: 6,
+    medium: 12,
+    linkedin: 9,
+    youtube: 9,
+    instagram: 9,
+    newsletter: 9,
+  },
 };

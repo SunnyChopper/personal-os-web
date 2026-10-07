@@ -1,7 +1,13 @@
-import { Loader2, Sparkles } from 'lucide-react';
+import { useRef } from 'react';
+import { Library, Loader2, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BrandProfileReadinessCallout } from '@/components/molecules/personal-branding/BrandProfileReadinessCallout';
+import { brandIdentityHref } from '@/lib/personal-branding/brand-identity-deep-links';
+import { useTerminalJobFailureAlert } from '@/hooks/useTerminalJobFailureAlert';
 import Button from '@/components/atoms/Button';
 import { Select } from '@/components/atoms/Select';
 import { MultiSelectVaultCombobox } from '@/components/molecules/MultiSelectVaultCombobox';
+import { EmptyState } from '@/components/molecules/EmptyState';
 import type {
   BrandPlatform,
   BrandProfile,
@@ -9,16 +15,26 @@ import type {
   ContentIdeaGenerationContextStats,
   ContentIdeationJob,
 } from '@/types/api/personal-branding.dto';
-import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
+import { BRAND_PLATFORM_LABELS } from '@/types/api/personal-branding.dto';
 import ContentIdeationProgressPanel from '@/components/molecules/personal-branding/ContentIdeationProgressPanel';
+import ContentIdeaCard from '@/components/organisms/personal-branding/ContentIdeaCard';
 import {
-  emptyStateCardClassName,
-  gridItemCardClassName,
-} from '@/lib/personal-branding/personal-branding-surfaces';
-import { PageCard } from '../PersonalBrandingPageTemplate';
-import { cn } from '@/lib/utils';
-import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
-import { ContentIdeaWhyCreateSection } from './ContentIdeaWhyCreateSection';
+  contentIdeationCtaProgressOnly,
+  contentIdeationProgressPanelJob,
+} from '@/lib/personal-branding/content-ideation-progress';
+import { PageCard, SectionIntro } from '../PersonalBrandingPageTemplate';
+import {
+  pbFeedbackTextClassName,
+  pbSectionTitleClassName,
+  statusPillClassName,
+} from '../personal-branding-ui';
+import {
+  formatRejectedFeedbackStatsLine,
+  IDEATION_IMAGE_SEARCH_HINT,
+  isBrandProfileReadyForIdeation,
+  VAULT_EXTRACTOR_GENERATE_BUTTON_ID,
+  VAULT_EXTRACTOR_VAULT_SEARCH_INPUT_ID,
+} from './content-workbench-helpers';
 
 const ALL_PLATFORMS = Object.keys(BRAND_PLATFORM_LABELS) as BrandPlatform[];
 
@@ -34,12 +50,17 @@ interface VaultExtractorTabProps {
   onTargetPlatformChange: (platform: BrandPlatform) => void;
   selectedVaultItemIds: string[];
   onVaultSelectionChange: (ids: string[]) => void;
+  vaultEnableImageSearch: boolean;
+  onVaultEnableImageSearchChange: (value: boolean) => void;
   vaultItemLabels: Record<string, string>;
   onVaultItemLabelsChange: (labels: Record<string, string>) => void;
   isGenerating: boolean;
   vaultJob?: ContentIdeationJob | null;
+  vaultClientCancelState?: 'idle' | 'cancelled';
+  onCancelVaultJob?: () => void;
   generateError: string | null;
   lastGenerationStats: ContentIdeaGenerationContextStats | null;
+  vaultLiveMessage?: string | null;
   onGenerate: () => void;
   onApprove: (idea: ContentIdea) => void;
   onReject: (idea: ContentIdea) => void;
@@ -57,42 +78,74 @@ export default function VaultExtractorTab({
   onTargetPlatformChange,
   selectedVaultItemIds,
   onVaultSelectionChange,
+  vaultEnableImageSearch,
+  onVaultEnableImageSearchChange,
   vaultItemLabels,
   onVaultItemLabelsChange,
   isGenerating,
   vaultJob,
+  vaultClientCancelState = 'idle',
+  onCancelVaultJob,
   generateError,
   lastGenerationStats,
+  vaultLiveMessage,
   onGenerate,
   onApprove,
   onReject,
 }: VaultExtractorTabProps) {
+  const navigate = useNavigate();
+  const vaultSearchInputRef = useRef<HTMLInputElement>(null);
+
   const selectedProfile = profiles.find((p) => p.id === selectedProfileId) ?? null;
   const profileReady = selectedProfile ? isBrandProfileReadyForIdeation(selectedProfile) : false;
   const canGenerate = Boolean(
     selectedProfileId && profileReady && selectedVaultItemIds.length > 0 && !isGenerating
   );
 
+  useTerminalJobFailureAlert({
+    feature: 'contentIdeation',
+    jobId: vaultJob?.jobId,
+    status: vaultJob?.status,
+    error: vaultJob?.error,
+    message: vaultJob?.message,
+    stage: vaultJob?.stage,
+    errorCode: vaultJob?.errorCode,
+    retryable: vaultJob?.retryable,
+  });
+
+  const focusVaultSources = () => {
+    const input =
+      vaultSearchInputRef.current ?? document.getElementById(VAULT_EXTRACTOR_VAULT_SEARCH_INPUT_ID);
+    if (!input || !(input instanceof HTMLElement)) return;
+    if (typeof input.scrollIntoView === 'function') {
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    input.focus();
+  };
+
+  const goToBrandIdentity = () => {
+    navigate(brandIdentityHref({ tab: 'core-profile' }));
+  };
+
+  const emptyAction =
+    profiles.length === 0
+      ? { actionLabel: 'Open Brand Identity', onAction: goToBrandIdentity }
+      : canGenerate
+        ? { actionLabel: 'Generate first ideas', onAction: onGenerate }
+        : { actionLabel: 'Select vault sources', onAction: focusVaultSources };
+
   return (
     <div className="space-y-6">
       <PageCard className="space-y-4">
-        <div>
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-            Extract ideas from Knowledge Vault
-          </h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Select vault notes or documents, combine them with your Brand Identity, and generate
-            on-brand content ideas. Rejected ideas inform future runs.
-          </p>
-        </div>
+        <SectionIntro
+          title="Extract ideas from Knowledge Vault"
+          description="Select vault notes or documents, combine them with your Brand Identity, and generate on-brand content ideas. Rejected ideas inform future runs."
+        />
 
         {profilesLoading ? (
           <p className="text-sm text-gray-500">Loading brand profiles…</p>
         ) : profiles.length === 0 ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-            Create a Brand Identity profile with core pillars and a target audience before
-            generating ideas.
-          </p>
+          <BrandProfileReadinessCallout variant="missing-profile" />
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block space-y-1.5 text-sm">
@@ -128,6 +181,20 @@ export default function VaultExtractorTab({
           </div>
         )}
 
+        <label className="flex items-start gap-2 text-sm" title={IDEATION_IMAGE_SEARCH_HINT}>
+          <input
+            type="checkbox"
+            checked={vaultEnableImageSearch}
+            onChange={(e) => onVaultEnableImageSearchChange(e.target.checked)}
+            disabled={isGenerating}
+            className="mt-0.5 shrink-0"
+            title={IDEATION_IMAGE_SEARCH_HINT}
+          />
+          <span className="font-medium text-gray-700 dark:text-gray-300">
+            Search &amp; inject images when drafting
+          </span>
+        </label>
+
         <div className="space-y-1.5">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Knowledge Vault sources
@@ -140,56 +207,69 @@ export default function VaultExtractorTab({
             labelLookup={vaultItemLabels}
             itemLabel="vault sources"
             onLabelLookupChange={onVaultItemLabelsChange}
+            searchInputId={VAULT_EXTRACTOR_VAULT_SEARCH_INPUT_ID}
+            searchInputRef={vaultSearchInputRef}
           />
         </div>
 
         {selectedProfile && !profileReady ? (
-          <p className="text-sm text-amber-700 dark:text-amber-300">
-            Selected profile needs at least one pillar and a target audience in Brand Identity.
-          </p>
+          <BrandProfileReadinessCallout
+            variant="incomplete-profile"
+            profileId={selectedProfile.id}
+          />
         ) : null}
 
         {generateError ? (
-          <p className="text-sm text-red-600 dark:text-red-400">{generateError}</p>
+          <p className={pbFeedbackTextClassName('danger')}>{generateError}</p>
         ) : null}
 
-        <ContentIdeationProgressPanel job={vaultJob} />
-
-        <Button
-          type="button"
-          size="sm"
-          onClick={onGenerate}
-          disabled={!canGenerate}
-          className="inline-flex items-center gap-2"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Generating…
-            </>
-          ) : (
-            <>
+        {contentIdeationCtaProgressOnly(vaultJob, isGenerating) ? (
+          <ContentIdeationProgressPanel
+            job={contentIdeationProgressPanelJob(vaultJob, isGenerating)}
+            onCancel={onCancelVaultJob}
+          />
+        ) : (
+          <>
+            {vaultJob?.status === 'failed' ? <ContentIdeationProgressPanel job={vaultJob} /> : null}
+            {vaultClientCancelState === 'cancelled' ? (
+              <ContentIdeationProgressPanel clientCancelled />
+            ) : null}
+            <Button
+              id={VAULT_EXTRACTOR_GENERATE_BUTTON_ID}
+              type="button"
+              size="sm"
+              onClick={onGenerate}
+              disabled={!canGenerate}
+              className="inline-flex items-center gap-2"
+            >
               <Sparkles className="h-4 w-4" />
               Generate ideas from vault
-            </>
-          )}
-        </Button>
+            </Button>
+          </>
+        )}
       </PageCard>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-          Vault-sourced content ideas
-        </h2>
+        <h2 className={pbSectionTitleClassName}>Vault-sourced content ideas</h2>
+        {vaultLiveMessage ? (
+          <span className="sr-only" role="status" aria-live="polite">
+            {vaultLiveMessage}
+          </span>
+        ) : null}
 
         {lastGenerationStats ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Generated {lastGenerationStats.existingGeneratedCount > 0 ? 'new ' : ''}ideas using{' '}
             {selectedVaultItemIds.length} vault source
             {selectedVaultItemIds.length === 1 ? '' : 's'}
-            {lastGenerationStats.rejectedFeedbackCount > 0
-              ? ` (${lastGenerationStats.rejectedFeedbackCount} prior rejection${
-                  lastGenerationStats.rejectedFeedbackCount === 1 ? '' : 's'
-                } applied as hard negatives)`
+            {(() => {
+              const rejectionLine = formatRejectedFeedbackStatsLine(lastGenerationStats);
+              return rejectionLine ? ` (${rejectionLine})` : '';
+            })()}
+            {(lastGenerationStats.publishedOutcomesCount ?? 0) > 0
+              ? `. Grounded in ${lastGenerationStats.publishedOutcomesCount} recently published post${
+                  lastGenerationStats.publishedOutcomesCount === 1 ? '' : 's'
+                }`
               : ''}
             .
           </p>
@@ -201,65 +281,42 @@ export default function VaultExtractorTab({
             Loading ideas…
           </div>
         ) : ideas.length === 0 ? (
-          <PageCard className={cn(emptyStateCardClassName, 'p-10')}>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              No vault-sourced ideas yet. Select Knowledge Vault items above and generate ideas.
-            </p>
-          </PageCard>
+          <EmptyState
+            icon={Library}
+            density="compact"
+            title="No vault-sourced ideas yet"
+            description="Select Knowledge Vault items above and generate ideas."
+            actionLabel={emptyAction.actionLabel}
+            onAction={emptyAction.onAction}
+          />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {ideas.map((idea) => (
-              <article key={idea.id} className={cn(gridItemCardClassName, 'flex flex-col')}>
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-gray-900 dark:text-white">{idea.title}</h3>
-                  <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">
-                    {CONTENT_TYPE_LABELS[idea.contentType]}
-                  </span>
-                </div>
-                {idea.summary ? (
-                  <p className="mt-2 flex-1 text-sm text-gray-600 dark:text-gray-400">
-                    {idea.summary}
-                  </p>
-                ) : null}
-                {idea.rationale ? <ContentIdeaWhyCreateSection rationale={idea.rationale} /> : null}
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  {idea.targetPlatform ? (
-                    <span>{BRAND_PLATFORM_LABELS[idea.targetPlatform]}</span>
-                  ) : null}
-                  {(idea.vaultItemIds ?? []).map((vaultId) => (
-                    <span
-                      key={vaultId}
-                      className="rounded bg-violet-50 px-2 py-0.5 text-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
-                    >
-                      {vaultItemLabels[vaultId] ?? `Vault ${vaultId.slice(0, 8)}…`}
-                    </span>
-                  ))}
-                  {idea.tags.map((tag) => (
-                    <span key={tag} className="rounded bg-gray-100 px-2 py-0.5 dark:bg-gray-800">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => onApprove(idea)}
-                    disabled={approvingId === idea.id}
-                    className="flex-1"
-                  >
-                    {approvingId === idea.id ? 'Generating…' : 'Generate draft & open in Sandbox'}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => onReject(idea)}
-                  >
-                    Reject
-                  </Button>
-                </div>
-              </article>
+              <ContentIdeaCard
+                key={idea.id}
+                idea={idea}
+                isApproving={approvingId === idea.id}
+                onApprove={onApprove}
+                onReject={onReject}
+                metaExtras={
+                  (idea.vaultItemSnapshots ?? []).length > 0 ||
+                  (idea.vaultItemIds ?? []).length > 0 ? (
+                    <>
+                      {(idea.vaultItemSnapshots ?? []).length > 0
+                        ? (idea.vaultItemSnapshots ?? []).map((snapshot) => (
+                            <span key={snapshot.id} className={statusPillClassName('neutral')}>
+                              {snapshot.title}
+                            </span>
+                          ))
+                        : (idea.vaultItemIds ?? []).map((vaultId) => (
+                            <span key={vaultId} className={statusPillClassName('neutral')}>
+                              {vaultItemLabels[vaultId] ?? `Vault ${vaultId.slice(0, 8)}…`}
+                            </span>
+                          ))}
+                    </>
+                  ) : undefined
+                }
+              />
             ))}
           </div>
         )}

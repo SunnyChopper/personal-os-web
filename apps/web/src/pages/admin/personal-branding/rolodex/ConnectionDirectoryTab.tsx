@@ -39,7 +39,7 @@ interface ConnectionDirectoryTabProps {
 }
 
 export default function ConnectionDirectoryTab({ rolodex }: ConnectionDirectoryTabProps) {
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const connections = rolodex.connections.data?.data ?? [];
   const [lastReconSort, setLastReconSort] = useState<LastReconSortDirection>('asc');
   const sortedConnections = useMemo(() => {
@@ -233,6 +233,7 @@ export default function ConnectionDirectoryTab({ rolodex }: ConnectionDirectoryT
         isOpen={editorOpen}
         onClose={() => setEditorOpen(false)}
         initial={editing}
+        showToast={showToast}
         isSubmitting={rolodex.createConnection.isPending || rolodex.updateConnection.isPending}
         onCreate={async (body) => {
           try {
@@ -260,7 +261,6 @@ export default function ConnectionDirectoryTab({ rolodex }: ConnectionDirectoryT
         }}
       />
 
-      <ToastContainer />
     </div>
   );
 }

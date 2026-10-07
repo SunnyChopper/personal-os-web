@@ -1,6 +1,7 @@
 import type {
   BrandPlatform,
   RepurposeJob,
+  RepurposeJobStage,
   RepurposeJobStatus,
 } from '@/types/api/personal-branding.dto';
 
@@ -18,38 +19,21 @@ export function hasInFlightRepurposeJobs(jobs: RepurposeJob[] | undefined): bool
   return (jobs ?? []).some((job) => repurposeJobInFlight(job.status));
 }
 
-export function repurposeGenerationBatchJobs(
-  repurposeJobs: RepurposeJob[],
-  inFlightJobs: RepurposeJob[]
-): RepurposeJob[] {
-  if (inFlightJobs.length === 0) return [];
-  const batchStart = inFlightJobs.reduce(
-    (min, job) => (job.createdAt < min ? job.createdAt : min),
-    inFlightJobs[0].createdAt
-  );
-  return repurposeJobs.filter((job) => job.createdAt >= batchStart);
-}
-
-export function repurposeBatchProgress(batchJobs: RepurposeJob[]): {
-  total: number;
-  completed: number;
-  inFlightCount: number;
-  percent: number;
-} {
-  const total = batchJobs.length;
-  if (total === 0) {
-    return { total: 0, completed: 0, inFlightCount: 0, percent: 0 };
+export function repurposeJobGeneratingStatusLabel(
+  job: RepurposeJob,
+  stageLabels: Record<RepurposeJobStage, string>
+): string {
+  if (job.stage) {
+    return stageLabels[job.stage] ?? job.stage;
   }
-  const completed = batchJobs.filter(
-    (job) => job.status === 'succeeded' || job.status === 'failed' || job.status === 'cancelled'
-  ).length;
-  const inFlightCount = batchJobs.filter((job) => repurposeJobInFlight(job.status)).length;
-  const percent = Math.round((completed / total) * 100);
-  return { total, completed, inFlightCount, percent };
+  return 'Generating…';
 }
 
-export function repurposeGenerationBannerLabel(inFlightCount: number): string {
-  return inFlightCount === 1 ? 'Generating 1 variant…' : `Generating ${inFlightCount} variants…`;
+export function repurposeJobGeneratingDetailMessage(job: RepurposeJob): string | undefined {
+  if (job.error && repurposeJobInFlight(job.status)) {
+    return job.error;
+  }
+  return job.message ?? undefined;
 }
 
 export function repurposeSkeletonPlatforms(

@@ -21,6 +21,9 @@ import {
   radarDiscoveryDisplayCounts,
   type RadarDiscoveryCandidateFilter,
 } from '@/lib/personal-branding/radar-discovery';
+import { reportPersonalBrandingJobFailure } from '@/lib/personal-branding/report-job-failure';
+import { reportClientError } from '@/lib/client-telemetry';
+import { reportTerminalJobClientTimeout } from '@/hooks/useTerminalJobFailureAlert';
 import type {
   RadarDiscoveryRun,
   StartRadarDiscoveryRunInput,
@@ -193,6 +196,12 @@ export default function RadarDiscoveryPanel({ signalRadar }: RadarDiscoveryPanel
         return;
       }
       if (job.status === 'failed') {
+        reportPersonalBrandingJobFailure({
+          feature: 'radarDiscoveryParse',
+          jobId: job.jobId,
+          error: job.error,
+          message: job.currentActivity,
+        });
         showToast({
           type: 'error',
           title: 'Parse failed',
@@ -201,6 +210,9 @@ export default function RadarDiscoveryPanel({ signalRadar }: RadarDiscoveryPanel
       }
     },
     () => {
+      if (activeParseJobId) {
+        reportTerminalJobClientTimeout('radarDiscoveryParse', activeParseJobId, 5 * 60 * 1000);
+      }
       setActiveParseJobId(null);
       setActiveParseRunId(null);
       setParsingCandidateId(null);
@@ -412,6 +424,18 @@ export default function RadarDiscoveryPanel({ signalRadar }: RadarDiscoveryPanel
       });
       return;
     }
+
+    void reportClientError({
+      message: `Personal Branding bulk discovery ${action}: ${failed} failure(s)`,
+      source: 'web',
+      metadata: {
+        kind: 'personal-branding-bulk',
+        feature: 'radarDiscovery',
+        action,
+        failureCount: failed,
+        total: results.length,
+      },
+    });
 
     showToast({
       type: failed === results.length ? 'error' : 'info',

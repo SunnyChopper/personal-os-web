@@ -50,6 +50,8 @@ describe('PLATFORM_RULE_CATALOG (aafeaa15dfe7)', () => {
       youtube: { characterLimit: 5000, readTimeLimitMinutes: 8 },
       newsletter: { characterLimit: 3500, readTimeLimitMinutes: 7 },
     });
+    expect(PLATFORM_RULE_CATALOG.ideaCountDefaults?.x).toBe(3);
+    expect(PLATFORM_RULE_CATALOG.ideaCountSoftMax?.x).toBe(6);
   });
 
   it('includes tooltip fields for every catalog entry', () => {

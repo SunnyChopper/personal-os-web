@@ -12,6 +12,7 @@ import type {
   ContentOpportunitySearchResult,
   CreatorConnection,
   ReplyGenerationDraft,
+  ReplyRejectionFeedbackCategory,
   ReplyRun,
   ReplySuggestion,
 } from '@/types/api/personal-branding.dto';
@@ -29,7 +30,7 @@ import ContentOpportunityDrawer from './ContentOpportunityDrawer';
 import DaysSinceLastTouchBadge from './DaysSinceLastTouchBadge';
 import InteractionsBoardFilterBar from './InteractionsBoardFilterBar';
 import LogInteractionDialog from './LogInteractionDialog';
-import ManualPrompterPasteDialog from './ManualPrompterPasteDialog';
+import ManualPrompterPasteDialog, { PASTE_POST_CTA_HINT } from './ManualPrompterPasteDialog';
 import ProfileLinkBadge from './ProfileLinkBadge';
 import RelationshipPriorityBadge from './RelationshipPriorityBadge';
 import RolodexPrompterDrawer from './RolodexPrompterDrawer';
@@ -110,7 +111,7 @@ export default function InteractionsBoardTab({
   onPrompterSeedConsumed,
   onMarkReconPostActioned,
 }: InteractionsBoardTabProps) {
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const connections = rolodex.connections.data?.data ?? [];
   const [filters, setFilters] = useState<InteractionsBoardFilters>(
     EMPTY_INTERACTIONS_BOARD_FILTERS
@@ -293,35 +294,49 @@ export default function InteractionsBoardTab({
       creatorText: string;
       platform: import('@/types/api/personal-branding.dto').BrandPlatform;
       interactionIntent?: string;
+      platformPostId?: string | null;
+      evidenceUrl?: string | null;
     },
     draft: ReplyGenerationDraft,
     resolved: { provider: string; model: string }
-  ): Promise<ReplyRun> => {
+  ): Promise<ReplyRun | undefined> => {
     try {
       const run = await replyRuns.startRun.mutateAsync({
         connectionId: connection.id,
         opportunityId: payload.opportunityId,
         platform: payload.platform,
         creatorText: payload.creatorText,
+        platformPostId: payload.platformPostId ?? undefined,
+        evidenceUrl: payload.evidenceUrl ?? undefined,
         profileId: draft.profileId || undefined,
         interactionIntent: payload.interactionIntent,
         mode: draft.mode,
         researchEnabled: draft.researchEnabled,
+        vaultGroundingEnabled: draft.vaultGroundingEnabled,
+        reconPostId: prompterPrefill?.reconPostId,
+        includeOperatorBriefing: draft.includeOperatorBriefing,
         provider: resolved.provider,
         model: resolved.model,
         reasoningEffort: draft.reasoningEffort ?? undefined,
         suggestionCount: draft.suggestionCount,
+        questionFirstBias: draft.questionFirstBias,
+        platformFormat: draft.platformFormat,
+        allowFullGenerationOnSparseText: draft.allowFullGenerationOnSparseText ?? false,
         suggestedParamsJson: draft as unknown as Record<string, unknown>,
       });
       setActiveRunId(run.id);
       setReadyRun(null);
-      if (draft.mode === 'AGENT') {
-        showToast({ type: 'info', title: 'Agent run started — drafting in background' });
-      }
+      showToast({
+        type: 'info',
+        title:
+          draft.mode === 'AGENT'
+            ? 'Agent run started — drafting in background'
+            : 'Reply generation started — drafting in background',
+      });
       return run;
     } catch (err) {
       showToast({ type: 'error', title: err instanceof Error ? err.message : 'Generation failed' });
-      throw err;
+      return undefined;
     }
   };
 
@@ -376,12 +391,13 @@ export default function InteractionsBoardTab({
 
   const handleRejectSuggestion = async (
     suggestion: ReplySuggestion,
-    feedbackText: string | null
+    feedbackText: string | null,
+    feedbackCategory: ReplyRejectionFeedbackCategory
   ) => {
     try {
       await replyRuns.updateSuggestion.mutateAsync({
         suggestionId: suggestion.id,
-        body: { status: 'REJECTED', feedbackText },
+        body: { status: 'REJECTED', feedbackText, feedbackCategory },
       });
       showToast({ type: 'success', title: 'Feedback saved for future runs' });
     } catch (err) {
@@ -530,6 +546,7 @@ export default function InteractionsBoardTab({
           size="sm"
           variant="secondary"
           className="shrink-0"
+          title={PASTE_POST_CTA_HINT}
           onClick={() => setPasteDialogOpen(true)}
         >
           <ClipboardPaste className="mr-1.5 h-4 w-4" />
@@ -737,13 +754,18 @@ export default function InteractionsBoardTab({
         profiles={profiles}
         defaultProfileId={selectedProfileId}
         activeRun={activeRun ?? null}
-        isGenerating={replyRuns.startRun.isPending}
+        isGenerating={
+          replyRuns.startRun.isPending ||
+          activeRun?.status === 'QUEUED' ||
+          activeRun?.status === 'RUNNING'
+        }
         isUpdatingSuggestion={replyRuns.updateSuggestion.isPending}
         initialCreatorText={prompterPrefill?.creatorText ?? pendingLog?.creatorText}
         initialInteractionIntent={prompterPrefill?.interactionIntent}
         initialAuthorHandle={prompterPrefill?.authorHandle}
         initialEvidenceUrl={prompterPrefill?.evidenceUrl}
         initialPlatformPostId={prompterPrefill?.platformPostId}
+        initialLearningCost={prompterPrefill?.learningCost}
         onClose={() => {
           setPrompterConnection(null);
           setPrompterPrefill(null);
@@ -762,8 +784,8 @@ export default function InteractionsBoardTab({
             reconPostId: prompterPrefill?.reconPostId,
           });
         }}
-        onRejectSuggestion={(suggestion, feedback) => {
-          void handleRejectSuggestion(suggestion, feedback);
+        onRejectSuggestion={(suggestion, feedback, feedbackCategory) => {
+          void handleRejectSuggestion(suggestion, feedback, feedbackCategory);
         }}
       />
 
@@ -800,6 +822,8 @@ export default function InteractionsBoardTab({
               platform:
                 (opportunity.platform as import('@/types/api/personal-branding.dto').BrandPlatform) ??
                 'x',
+              platformPostId: opportunity.platformPostId ?? undefined,
+              evidenceUrl: opportunity.postUrl ?? undefined,
             },
             draft,
             resolved
@@ -814,8 +838,8 @@ export default function InteractionsBoardTab({
             opportunity.postText
           );
         }}
-        onRejectSuggestion={(_opportunity, suggestion, feedback) => {
-          void handleRejectSuggestion(suggestion, feedback);
+        onRejectSuggestion={(_opportunity, suggestion, feedback, feedbackCategory) => {
+          void handleRejectSuggestion(suggestion, feedback, feedbackCategory);
         }}
         onLogCheckIn={(opportunity) => {
           if (!contentSearchConnection) return;
@@ -859,7 +883,6 @@ export default function InteractionsBoardTab({
         showToast={showToast}
       />
 
-      <ToastContainer />
     </div>
   );
 }

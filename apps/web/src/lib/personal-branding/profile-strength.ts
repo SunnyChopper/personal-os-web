@@ -191,9 +191,11 @@ export function hasResolvedPlatformPolicy(policy: {
   readTimeLimitMinutes?: number | null;
   rhetoricalModes: unknown[];
   rhetoricalDevices: unknown[];
-  requirements?: string | null;
+  requirements?: string | string[] | null;
 }): boolean {
-  const requirements = (policy.requirements ?? '').trim();
+  const requirements = Array.isArray(policy.requirements)
+    ? policy.requirements.filter(Boolean).join('\n')
+    : (policy.requirements ?? '').trim();
   return (
     policy.characterLimit != null ||
     policy.readTimeLimitMinutes != null ||

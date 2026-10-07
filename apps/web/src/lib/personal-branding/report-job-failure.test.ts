@@ -22,6 +22,8 @@ describe('reportPersonalBrandingJobFailure', () => {
       jobId: 'job-1',
       error: 'resolve_vault_model() takes 0 positional arguments but 2 were given',
       stage: 'generating',
+      errorCode: 'LLM_PROVIDER_ERROR',
+      retryable: true,
     });
 
     expect(reportClientError).toHaveBeenCalledOnce();
@@ -34,6 +36,8 @@ describe('reportPersonalBrandingJobFailure', () => {
           feature: 'contentStream',
           jobId: 'job-1',
           stage: 'generating',
+          errorCode: 'LLM_PROVIDER_ERROR',
+          retryable: true,
         }),
       })
     );

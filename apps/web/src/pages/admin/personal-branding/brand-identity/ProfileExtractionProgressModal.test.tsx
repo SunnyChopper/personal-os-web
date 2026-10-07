@@ -152,6 +152,7 @@ describe('ProfileExtractionProgressModal', () => {
           ...makeQueuedJob(),
           status: 'running',
           stage: 'analyzing_sources',
+          parsedSourceCount: 70,
           processedSourceCount: 15,
           totalChunkCount: 33,
           processedChunkCount: 26,

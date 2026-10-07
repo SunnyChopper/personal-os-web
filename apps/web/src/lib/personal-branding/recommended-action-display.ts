@@ -16,10 +16,10 @@ export function recommendedActionIconKind(action?: string | null): RecommendedAc
 
 export function nextActionCueForRecommendedAction(action?: string | null): string | null {
   switch (recommendedActionIconKind(action)) {
+    // reply/quote: badge + Draft CTA already name the action — omit redundant Next line
     case 'reply':
-      return 'Next: Reply in-thread';
     case 'quote':
-      return 'Next: Quote-tweet with your take';
+      return null;
     case 'like':
       return 'Next: Like to signal support';
     case 'monitor':

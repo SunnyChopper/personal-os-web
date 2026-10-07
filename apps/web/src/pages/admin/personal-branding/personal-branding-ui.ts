@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import type { ContentStatus } from '@/types/api/personal-branding.dto';
 
 /** Card section intro title (h2 inside PageCard). */
 export const pbSectionTitleClassName = 'text-lg font-semibold text-gray-900 dark:text-white';
@@ -68,6 +69,50 @@ export function statusPillClassName(tone: StatusPillTone, className?: string): s
   return cn(statusPillBaseClassName, statusPillToneClassName[tone], className);
 }
 
+/** Content node lifecycle badge tone: Published = success, Archived = neutral, other = info (Draft). */
+export function contentStatusPillTone(status: ContentStatus): StatusPillTone {
+  if (status === 'PUBLISHED') return 'success';
+  if (status === 'SKIPPED') return 'neutral';
+  return 'info';
+}
+
+/** Shared content-type pill (Deep-Dive Blog, Social Thread, etc.) across Content Workbench. */
+export function contentTypePillClassName(className?: string): string {
+  return statusPillClassName('info', className);
+}
+
+export type PbFeedbackTextTone = 'info' | 'warning' | 'danger' | 'muted';
+
+const pbFeedbackTextToneClassName: Record<PbFeedbackTextTone, string> = {
+  info: 'text-sm text-blue-700 dark:text-blue-300',
+  warning: 'text-sm text-amber-700 dark:text-amber-300',
+  danger: 'text-sm text-red-600 dark:text-red-400',
+  muted: 'text-sm text-gray-600 dark:text-gray-400',
+};
+
+/** Inline progress, warning, error, and neutral status copy across Personal Branding. */
+export function pbFeedbackTextClassName(
+  tone: PbFeedbackTextTone,
+  className?: string
+): string {
+  return cn(pbFeedbackTextToneClassName[tone], className);
+}
+
+/** Shared keyboard focus ring for PB chips, links, expanders, and quiet controls. */
+export const pbFocusVisibleRingClassName =
+  'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900';
+
+/** Quiet icon/expander hover background (no text color shift). */
+export const pbQuietControlHoverClassName =
+  'hover:bg-gray-100 dark:hover:bg-gray-700/60';
+
+/** Rounded quiet control: hover background + PB focus-visible ring. */
+export const pbQuietControlClassName = cn(
+  'rounded transition',
+  pbQuietControlHoverClassName,
+  pbFocusVisibleRingClassName
+);
+
 /** Toggle / option chip used in dialogs (platform pickers, relationship type, etc.). */
 export function selectableChipClassName(
   selected: boolean,
@@ -76,6 +121,7 @@ export function selectableChipClassName(
 ): string {
   return cn(
     'rounded-lg border px-3 py-2 text-sm font-medium transition',
+    pbFocusVisibleRingClassName,
     selected
       ? 'border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-950/50 dark:text-blue-100'
       : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800',
@@ -84,9 +130,19 @@ export function selectableChipClassName(
   );
 }
 
+/** Compact filter-bar chip density (Interactions Board, Recon Feed Age/Sort, etc.). */
+export function selectableFilterChipClassName(selected: boolean, className?: string): string {
+  return selectableChipClassName(selected, cn('px-3 py-1.5 text-xs', className));
+}
+
+/** Compact control height aligned with selectableFilterChipClassName (tap floor 32px). */
+export const pbCompactControlDensityClassName = 'min-h-8 px-3 py-1.5 text-xs';
+
 /** Inline text links (source URLs, profile links). */
-export const linkAccentClassName =
-  'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300';
+export const linkAccentClassName = cn(
+  'rounded-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300',
+  pbFocusVisibleRingClassName
+);
 
 /** Submodule tab active/inactive (used by SubModuleTabShell). */
 export const tabActiveClassName =

@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   hasInFlightRepurposeJobs,
-  repurposeBatchProgress,
-  repurposeGenerationBannerLabel,
-  repurposeGenerationBatchJobs,
+  repurposeJobGeneratingDetailMessage,
+  repurposeJobGeneratingStatusLabel,
   repurposeJobInFlight,
   repurposeSkeletonPlatforms,
 } from './repurpose-generation-progress';
-import type { RepurposeJob } from '@/types/api/personal-branding.dto';
+import { REPURPOSE_JOB_STAGE_LABELS, type RepurposeJob } from '@/types/api/personal-branding.dto';
 
 function makeJob(overrides: Partial<RepurposeJob>): RepurposeJob {
   return {
@@ -31,42 +30,29 @@ describe('repurpose-generation-progress', () => {
     expect(hasInFlightRepurposeJobs([makeJob({ status: 'cancelling' })])).toBe(true);
   });
 
-  it('computes batch progress from generation wave jobs', () => {
-    const inFlight = [
-      makeJob({
-        jobId: 'a',
-        platform: 'linkedin',
-        status: 'running',
-        createdAt: '2026-07-21T01:00:00Z',
-      }),
-      makeJob({ jobId: 'b', platform: 'x', status: 'queued', createdAt: '2026-07-21T01:00:01Z' }),
-    ];
-    const all = [
-      ...inFlight,
-      makeJob({
-        jobId: 'old',
-        status: 'succeeded',
-        createdAt: '2026-07-20T00:00:00Z',
-      }),
-      makeJob({
-        jobId: 'c',
-        platform: 'medium',
-        status: 'succeeded',
-        createdAt: '2026-07-21T01:00:02Z',
-      }),
-    ];
-    const batch = repurposeGenerationBatchJobs(all, inFlight);
-    expect(batch).toHaveLength(3);
-    const progress = repurposeBatchProgress(batch);
-    expect(progress.total).toBe(3);
-    expect(progress.completed).toBe(1);
-    expect(progress.inFlightCount).toBe(2);
-    expect(progress.percent).toBe(33);
+  it('formats generating status label from stage labels', () => {
+    const job = makeJob({ stage: 'searching_references' });
+    expect(repurposeJobGeneratingStatusLabel(job, REPURPOSE_JOB_STAGE_LABELS)).toBe(
+      'Searching references'
+    );
+    expect(repurposeJobGeneratingStatusLabel(makeJob({}), REPURPOSE_JOB_STAGE_LABELS)).toBe(
+      'Generating…'
+    );
   });
 
-  it('formats banner label for singular and plural', () => {
-    expect(repurposeGenerationBannerLabel(1)).toBe('Generating 1 variant…');
-    expect(repurposeGenerationBannerLabel(3)).toBe('Generating 3 variants…');
+  it('prefers in-flight error over message for skeleton detail', () => {
+    const job = makeJob({
+      status: 'running',
+      message: 'Searching related published content for style references',
+      error: 'Transient provider error',
+    });
+    expect(repurposeJobGeneratingDetailMessage(job)).toBe('Transient provider error');
+
+    const queued = makeJob({
+      status: 'queued',
+      message: 'Queued for LinkedIn',
+    });
+    expect(repurposeJobGeneratingDetailMessage(queued)).toBe('Queued for LinkedIn');
   });
 
   it('skips skeleton platforms that already have variants', () => {

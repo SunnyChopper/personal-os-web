@@ -13,6 +13,7 @@ const run: ReplyRun = {
   creatorText: 'Great post',
   mode: 'AGENT',
   researchEnabled: false,
+  vaultGroundingEnabled: false,
   suggestionCount: 3,
   status: 'RUNNING',
   userId: 'user-1',

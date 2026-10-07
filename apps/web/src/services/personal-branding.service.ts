@@ -1,7 +1,8 @@
 import { apiClient } from '@/lib/api-client';
 import { PLATFORM_RULE_CATALOG } from '@/lib/personal-branding/platform-rule-catalog';
+import { RECON_INTERACTION_INTENT_MAX } from '@/lib/personal-branding/recon-prompter-seed';
 import { uploadToS3WithProgress } from '@/lib/upload-to-s3-with-progress';
-import { formatApiFailure } from '@/utils/api-error-formatter';
+import { formatApiError, formatApiFailure } from '@/utils/api-error-formatter';
 import type {
   ApproveContentIdeaInput,
   ContentIdeaApproveJob,
@@ -30,6 +31,7 @@ import type {
   ContentStreamJobStart,
   ContentStreamPost,
   ContentStreamPostStatus,
+  ContentStreamThemeSourcesResponse,
   ContentStreamSettings,
   ContentImageInjectJob,
   ContentImageInjectJobStart,
@@ -39,6 +41,8 @@ import type {
   ContentStatus,
   ContentType,
   ContentDraftGenerationResult,
+  ContentBodyEditInput,
+  ContentBodyEditResult,
   ContentTemplate,
   ContentTemplateAiJob,
   ContentTemplateAiJobStart,
@@ -122,12 +126,31 @@ import type {
   SubmitFollowConfidenceFeedbackInput,
   UpdateReconFeedSettingsInput,
   UpdateReconPostInput,
+  DistillSelectionGuidanceResult,
+  DistillReplyVoiceGuidanceResult,
+  CreateEventLocationStintInput,
+  CreateInPersonEventInput,
+  EventDiscoveryRun,
+  EventDiscoveryRunStartAccepted,
+  BrandProjectIdea,
+  BuildKitPatchOperation,
+  BrandProjectJob,
+  GenerateBrandProjectsInput,
+  BrandProjectPostPlatform,
+  BrandProjectRejectionCategory,
+  BrandProjectSettings,
+  UpdateBrandProjectSettingsInput,
+  EventDiscoverySettings,
+  EventLocationStint,
   GenerateContentIdeasInput,
   InjectContentImagesInput,
+  InPersonEvent,
+  InPersonEventIrrelevanceReason,
   GenerateTopicSuggestionsInput,
   GenerateTopicSuggestionsResult,
   PlatformRuleSetPreviewInput,
-  PlatformRuleSetPreviewResult,
+  PlatformRulePreviewJob,
+  PlatformRulePreviewJobStart,
   PlatformRuleSetInfluenceInput,
   PlatformRuleSetInfluenceResult,
   SuggestPlatformFitInput,
@@ -164,6 +187,9 @@ import type {
   UpdateReplySuggestionInput,
   TrackingMetric,
   TrackingMetricListResponse,
+  UpdateEventDiscoverySettingsInput,
+  UpdateEventLocationStintInput,
+  UpdateInPersonEventInput,
   UpdateBrandProfileInput,
   UpdateContentNodeInput,
   UpdateContentTemplateInput,
@@ -175,24 +201,28 @@ import type {
   UpdateTrackingMetricInput,
 } from '@/types/api/personal-branding.dto';
 
-function unwrap<T>(res: {
-  success: boolean;
-  data?: T;
-  error?: { message?: string; code?: string };
-}): T {
+type ApiFailureError = { message?: string; code?: string; details?: unknown };
+
+function throwApiFailure(error?: ApiFailureError): never {
+  const err = new Error(error?.message ?? 'Request failed') as Error & {
+    code?: string;
+    details?: unknown;
+  };
+  if (error?.code) err.code = error.code;
+  if (error?.details !== undefined) err.details = error.details;
+  throw err;
+}
+
+function unwrap<T>(res: { success: boolean; data?: T; error?: ApiFailureError }): T {
   if (!res.success || res.data === undefined) {
-    const err = new Error(res.error?.message ?? 'Request failed') as Error & { code?: string };
-    if (res.error?.code) err.code = res.error.code;
-    throw err;
+    throwApiFailure(res.error);
   }
   return res.data;
 }
 
-function assertSuccess(res: { success: boolean; error?: { message?: string; code?: string } }): void {
+function assertSuccess(res: { success: boolean; error?: ApiFailureError }): void {
   if (!res.success) {
-    const err = new Error(res.error?.message ?? 'Request failed') as Error & { code?: string };
-    if (res.error?.code) err.code = res.error.code;
-    throw err;
+    throwApiFailure(res.error);
   }
 }
 
@@ -593,9 +623,7 @@ export const personalBrandingService = {
     ),
 
   deletePlatformRule: async (ruleId: string): Promise<void> => {
-    assertSuccess(
-      await apiClient.delete(`/personal-branding/platform-rules/rules/${ruleId}`)
-    );
+    assertSuccess(await apiClient.delete(`/personal-branding/platform-rules/rules/${ruleId}`));
   },
 
   /**
@@ -620,10 +648,18 @@ export const personalBrandingService = {
   listContentNodes: async (
     page = 1,
     pageSize = 50,
-    status?: ContentStatus
+    status?: ContentStatus,
+    options?: {
+      includeSkipped?: boolean;
+      sortBy?: 'updatedAt' | 'createdAt';
+      sortOrder?: 'asc' | 'desc';
+    }
   ): Promise<PaginatedPersonalBranding<ContentNode>> => {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (status) q.set('status', status);
+    if (options?.includeSkipped) q.set('includeSkipped', 'true');
+    if (options?.sortBy) q.set('sortBy', options.sortBy);
+    if (options?.sortOrder) q.set('sortOrder', options.sortOrder);
     return unwrap(
       await apiClient.get<PaginatedPersonalBranding<ContentNode>>(`/personal-branding/content?${q}`)
     );
@@ -798,10 +834,7 @@ export const personalBrandingService = {
     );
   },
 
-  listAllContentIdeas: async (
-    status: ContentIdeaStatus,
-    pageSize = 50
-  ): Promise<ContentIdea[]> => {
+  listAllContentIdeas: async (status: ContentIdeaStatus, pageSize = 50): Promise<ContentIdea[]> => {
     const ideas: ContentIdea[] = [];
     let page = 1;
     while (true) {
@@ -830,13 +863,20 @@ export const personalBrandingService = {
     return res.data;
   },
 
-  getContentIdeaApproveJob: async (
+  getContentIdeaApproveJob: async (ideaId: string, jobId: string): Promise<ContentIdeaApproveJob> =>
+    unwrap(
+      await apiClient.get<ContentIdeaApproveJob>(
+        `/personal-branding/content-ideas/${ideaId}/approve-jobs/${jobId}`
+      )
+    ),
+
+  cancelContentIdeaApproveJob: async (
     ideaId: string,
     jobId: string
   ): Promise<ContentIdeaApproveJob> =>
     unwrap(
-      await apiClient.get<ContentIdeaApproveJob>(
-        `/personal-branding/content-ideas/${ideaId}/approve-jobs/${jobId}`
+      await apiClient.post<ContentIdeaApproveJob>(
+        `/personal-branding/content-ideas/${ideaId}/approve-jobs/${jobId}/cancel`
       )
     ),
 
@@ -885,16 +925,31 @@ export const personalBrandingService = {
 
   previewPlatformRuleSet: async (
     body: PlatformRuleSetPreviewInput
-  ): Promise<PlatformRuleSetPreviewResult> => {
-    const res = await apiClient.post<{ data: { result: PlatformRuleSetPreviewResult } }>(
+  ): Promise<PlatformRulePreviewJobStart> => {
+    const res = await apiClient.post<PlatformRulePreviewJobStart>(
       '/ai/personal-branding/platform-rule-set-preview',
       body
     );
-    if (!res.success || !res.data?.data?.result) {
+    if (!res.success || !res.data) {
       throw new Error(res.error?.message ?? 'Failed to preview rule set');
     }
-    return res.data.data.result;
+    return res.data;
   },
+
+  getPlatformRulePreviewJob: async (jobId: string): Promise<PlatformRulePreviewJob> =>
+    unwrap(
+      await apiClient.get<PlatformRulePreviewJob>(
+        `/personal-branding/platform-rule-preview-jobs/${jobId}`
+      )
+    ),
+
+  cancelPlatformRulePreviewJob: async (jobId: string): Promise<PlatformRulePreviewJob> =>
+    unwrap(
+      await apiClient.post<PlatformRulePreviewJob>(
+        `/personal-branding/platform-rule-preview-jobs/${jobId}/cancel`,
+        {}
+      )
+    ),
 
   annotatePlatformRuleSetInfluence: async (
     body: PlatformRuleSetInfluenceInput
@@ -953,6 +1008,13 @@ export const personalBrandingService = {
       await apiClient.get<ContentIdeationJob>(`/personal-branding/content-ideas/jobs/${jobId}`)
     ),
 
+  cancelContentIdeationJob: async (jobId: string): Promise<ContentIdeationJob> =>
+    unwrap(
+      await apiClient.post<ContentIdeationJob>(
+        `/personal-branding/content-ideas/jobs/${jobId}/cancel`
+      )
+    ),
+
   getContentStreamSettings: async (platform: BrandPlatform = 'x'): Promise<ContentStreamSettings> =>
     unwrap(
       await apiClient.get<ContentStreamSettings>(
@@ -1009,6 +1071,15 @@ export const personalBrandingService = {
       )
     ),
 
+  getContentStreamThemeSources: async (
+    postId: string
+  ): Promise<ContentStreamThemeSourcesResponse> =>
+    unwrap(
+      await apiClient.get<ContentStreamThemeSourcesResponse>(
+        `/personal-branding/content-stream/posts/${postId}/theme-sources`
+      )
+    ),
+
   clearContentStreamPosts: async (
     platform: BrandPlatform = 'x'
   ): Promise<{ deletedCount: number; userId: string }> =>
@@ -1028,7 +1099,11 @@ export const personalBrandingService = {
       { platform: 'x', ...body }
     );
     if (!res.success || !res.data?.jobId) {
-      throw new Error(formatApiFailure(res.error, 'Failed to start Content Stream generation'));
+      const err = new Error(
+        formatApiFailure(res.error, 'Failed to start Content Stream generation')
+      ) as Error & { code?: string };
+      if (res.error?.code) err.code = res.error.code;
+      throw err;
     }
     return res.data;
   },
@@ -1096,6 +1171,39 @@ export const personalBrandingService = {
     return res.data.data.result;
   },
 
+  finishContent: async (body: ContentBodyEditInput): Promise<ContentBodyEditResult> => {
+    const res = await apiClient.post<{ data: { result: ContentBodyEditResult } }>(
+      '/ai/personal-branding/finish-content',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to finish content');
+    }
+    return res.data.data.result;
+  },
+
+  lengthenContent: async (body: ContentBodyEditInput): Promise<ContentBodyEditResult> => {
+    const res = await apiClient.post<{ data: { result: ContentBodyEditResult } }>(
+      '/ai/personal-branding/lengthen-content',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to lengthen content');
+    }
+    return res.data.data.result;
+  },
+
+  formatContent: async (body: ContentBodyEditInput): Promise<ContentBodyEditResult> => {
+    const res = await apiClient.post<{ data: { result: ContentBodyEditResult } }>(
+      '/ai/personal-branding/format-content',
+      body
+    );
+    if (!res.success || !res.data?.data?.result) {
+      throw new Error(res.error?.message ?? 'Failed to format content');
+    }
+    return res.data.data.result;
+  },
+
   generateDraft: async (body: {
     topic: string;
     contentType: ContentType;
@@ -1141,9 +1249,7 @@ export const personalBrandingService = {
     ),
 
   deleteContentTemplate: async (templateId: string): Promise<void> => {
-    assertSuccess(
-      await apiClient.delete(`/personal-branding/content-templates/${templateId}`)
-    );
+    assertSuccess(await apiClient.delete(`/personal-branding/content-templates/${templateId}`));
   },
 
   listContentTemplateCandidates: async (
@@ -1633,18 +1739,24 @@ export const personalBrandingService = {
   },
 
   startReplyRun: async (body: CreateReplyRunInput): Promise<ReplyRun> => {
+    const trimmedIntent = body.interactionIntent?.trim();
+    const interactionIntent =
+      trimmedIntent && trimmedIntent.length > 0
+        ? trimmedIntent.slice(0, RECON_INTERACTION_INTENT_MAX)
+        : undefined;
+    const outbound: CreateReplyRunInput = { ...body, interactionIntent };
     const res = await apiClient.post<{ result?: ReplyRun } & ReplyRun>(
       '/personal-branding/rolodex/reply-runs',
-      body
+      outbound
     );
     if (!res.success || !res.data) {
-      throw new Error(res.error?.message ?? 'Failed to start reply generation');
+      throw new Error(formatApiError(res.error) || 'Failed to start reply generation');
     }
-    const payload = res.data;
-    if ('result' in payload && payload.result) {
-      return payload.result;
+    const data = res.data;
+    if ('result' in data && data.result) {
+      return data.result;
     }
-    return payload as ReplyRun;
+    return data as ReplyRun;
   },
 
   resolveXContent: async (body: ResolveXContentInput): Promise<ResolveXContentResult> =>
@@ -1657,6 +1769,16 @@ export const personalBrandingService = {
 
   getReplyRun: async (runId: string): Promise<ReplyRun> =>
     unwrap(await apiClient.get<ReplyRun>(`/personal-branding/rolodex/reply-runs/${runId}`)),
+
+  saveOperatorBriefingToVault: async (
+    runId: string
+  ): Promise<{ operatorBriefing: NonNullable<ReplyRun['operatorBriefing']> }> =>
+    unwrap(
+      await apiClient.post<{ operatorBriefing: NonNullable<ReplyRun['operatorBriefing']> }>(
+        `/personal-branding/rolodex/reply-runs/${runId}/save-operator-briefing`,
+        {}
+      )
+    ),
 
   listReplyRuns: async (
     params: {
@@ -1784,6 +1906,24 @@ export const personalBrandingService = {
       )
     ),
 
+  distillReconSelectionGuidance: async (): Promise<DistillSelectionGuidanceResult> =>
+    unwrap(
+      await apiClient.post<DistillSelectionGuidanceResult>(
+        '/personal-branding/rolodex/recon-feed/selection-guidance/distill',
+        {}
+      )
+    ),
+
+  distillReplyVoiceGuidance: async (
+    connectionId: string
+  ): Promise<DistillReplyVoiceGuidanceResult> =>
+    unwrap(
+      await apiClient.post<DistillReplyVoiceGuidanceResult>(
+        `/personal-branding/connections/${connectionId}/reply-voice-guidance/distill`,
+        {}
+      )
+    ),
+
   listFollowSuggestions: async (
     page = 1,
     pageSize = 50,
@@ -1859,4 +1999,277 @@ export const personalBrandingService = {
     unwrap(
       await apiClient.post<ReconRunSummary>(`/personal-branding/recon-runs/${runId}/cancel`, {})
     ),
+
+  getEventDiscoverySettings: async (signal?: AbortSignal): Promise<EventDiscoverySettings> =>
+    unwrap(
+      await apiClient.get<EventDiscoverySettings>('/personal-branding/event-settings', undefined, {
+        signal,
+      })
+    ),
+
+  updateEventDiscoverySettings: async (
+    body: UpdateEventDiscoverySettingsInput
+  ): Promise<EventDiscoverySettings> =>
+    unwrap(await apiClient.put<EventDiscoverySettings>('/personal-branding/event-settings', body)),
+
+  listEventLocations: async (
+    page = 1,
+    pageSize = 50,
+    signal?: AbortSignal
+  ): Promise<PaginatedPersonalBranding<EventLocationStint>> =>
+    unwrap(
+      await apiClient.get<PaginatedPersonalBranding<EventLocationStint>>(
+        `/personal-branding/event-locations?page=${page}&pageSize=${pageSize}`,
+        undefined,
+        { signal }
+      )
+    ),
+
+  createEventLocation: async (body: CreateEventLocationStintInput): Promise<EventLocationStint> =>
+    unwrap(await apiClient.post<EventLocationStint>('/personal-branding/event-locations', body)),
+
+  updateEventLocation: async (
+    locationId: string,
+    body: UpdateEventLocationStintInput
+  ): Promise<EventLocationStint> =>
+    unwrap(
+      await apiClient.patch<EventLocationStint>(
+        `/personal-branding/event-locations/${locationId}`,
+        body
+      )
+    ),
+
+  deleteEventLocation: async (locationId: string): Promise<void> => {
+    unwrap(await apiClient.delete(`/personal-branding/event-locations/${locationId}`));
+  },
+
+  listInPersonEvents: async (
+    params: {
+      page?: number;
+      pageSize?: number;
+      status?: string;
+      from?: string;
+      to?: string;
+      stintId?: string;
+      eventType?: string;
+      minFitScore?: number;
+      sortBy?: string;
+      sortOrder?: string;
+    } = {},
+    signal?: AbortSignal
+  ): Promise<PaginatedPersonalBranding<InPersonEvent>> => {
+    const q = new URLSearchParams();
+    q.set('page', String(params.page ?? 1));
+    q.set('pageSize', String(params.pageSize ?? 50));
+    if (params.status) q.set('status', params.status);
+    if (params.from) q.set('from', params.from);
+    if (params.to) q.set('to', params.to);
+    if (params.stintId) q.set('stintId', params.stintId);
+    if (params.eventType) q.set('eventType', params.eventType);
+    if (params.minFitScore != null) q.set('minFitScore', String(params.minFitScore));
+    if (params.sortBy) q.set('sortBy', params.sortBy);
+    if (params.sortOrder) q.set('sortOrder', params.sortOrder);
+    return unwrap(
+      await apiClient.get<PaginatedPersonalBranding<InPersonEvent>>(
+        `/personal-branding/events?${q}`,
+        undefined,
+        { signal }
+      )
+    );
+  },
+
+  createInPersonEvent: async (body: CreateInPersonEventInput): Promise<InPersonEvent> =>
+    unwrap(await apiClient.post<InPersonEvent>('/personal-branding/events', body)),
+
+  updateInPersonEvent: async (
+    eventId: string,
+    body: UpdateInPersonEventInput
+  ): Promise<InPersonEvent> =>
+    unwrap(await apiClient.patch<InPersonEvent>(`/personal-branding/events/${eventId}`, body)),
+
+  deleteInPersonEvent: async (eventId: string): Promise<void> => {
+    unwrap(await apiClient.delete(`/personal-branding/events/${eventId}`));
+  },
+
+  updateInPersonEventRelevance: async (
+    eventId: string,
+    body: {
+      relevant: boolean;
+      reason?: InPersonEventIrrelevanceReason | null;
+      overrideAiFilter?: boolean;
+    }
+  ): Promise<InPersonEvent> =>
+    unwrap(
+      await apiClient.patch<InPersonEvent>(`/personal-branding/events/${eventId}/relevance`, body)
+    ),
+
+  startEventDiscoveryRun: async (): Promise<EventDiscoveryRunStartAccepted> =>
+    unwrap(
+      await apiClient.post<EventDiscoveryRunStartAccepted>(
+        '/personal-branding/event-discovery/runs',
+        {}
+      )
+    ),
+
+  listEventDiscoveryRuns: async (
+    page = 1,
+    pageSize = 20,
+    signal?: AbortSignal
+  ): Promise<PaginatedPersonalBranding<EventDiscoveryRun>> =>
+    unwrap(
+      await apiClient.get<PaginatedPersonalBranding<EventDiscoveryRun>>(
+        `/personal-branding/event-discovery/runs?page=${page}&pageSize=${pageSize}`,
+        undefined,
+        { signal }
+      )
+    ),
+
+  getEventDiscoveryRun: async (runId: string, signal?: AbortSignal): Promise<EventDiscoveryRun> =>
+    unwrap(
+      await apiClient.get<EventDiscoveryRun>(
+        `/personal-branding/event-discovery/runs/${runId}`,
+        undefined,
+        { signal }
+      )
+    ),
+
+  cancelEventDiscoveryRun: async (runId: string): Promise<EventDiscoveryRun> =>
+    unwrap(
+      await apiClient.post<EventDiscoveryRun>(
+        `/personal-branding/event-discovery/runs/${runId}/cancel`,
+        {}
+      )
+    ),
+
+  listBrandProjectIdeas: async (
+    status?: string,
+    signal?: AbortSignal
+  ): Promise<PaginatedPersonalBranding<BrandProjectIdea>> =>
+    unwrap(
+      await apiClient.get<PaginatedPersonalBranding<BrandProjectIdea>>(
+        `/personal-branding/projects/ideas?page=1&pageSize=50${status ? `&status=${status}` : ''}`,
+        undefined,
+        { signal }
+      )
+    ),
+
+  getBrandProjectIdea: async (
+    ideaId: string,
+    signal?: AbortSignal
+  ): Promise<BrandProjectIdea | null> => {
+    const res = await apiClient.get<BrandProjectIdea>(
+      `/personal-branding/projects/ideas/${encodeURIComponent(ideaId)}`,
+      undefined,
+      { signal }
+    );
+    if (res.success && res.data !== undefined) {
+      return res.data;
+    }
+    const code = res.error?.code;
+    if (code === 'NOT_FOUND' || code === 'HTTP_404') {
+      return null;
+    }
+    throwApiFailure(res.error);
+  },
+
+  generateBrandProjects: async (
+    input: GenerateBrandProjectsInput
+  ): Promise<{ jobId: string; replayed?: boolean }> => {
+    const { radarItemIds: rawIds, ...rest } = input;
+    const radarItemIds = (rawIds ?? []).map((id) => id.trim()).filter((id) => id.length > 0);
+    const body: GenerateBrandProjectsInput =
+      radarItemIds.length > 0 ? { ...rest, radarItemIds } : rest;
+    return unwrap(
+      await apiClient.post<{ jobId: string; replayed?: boolean }>(
+        '/personal-branding/projects/generate',
+        body
+      )
+    );
+  },
+
+  getBrandProjectJob: async (jobId: string, signal?: AbortSignal): Promise<BrandProjectJob> =>
+    unwrap(
+      await apiClient.get<BrandProjectJob>(
+        `/personal-branding/projects/jobs/${jobId}`,
+        undefined,
+        { signal }
+      )
+    ),
+
+  rejectBrandProjectIdea: async (
+    ideaId: string,
+    body: { feedbackText: string; feedbackCategory?: BrandProjectRejectionCategory }
+  ): Promise<BrandProjectIdea> =>
+    unwrap(
+      await apiClient.post<BrandProjectIdea>(
+        `/personal-branding/projects/ideas/${ideaId}/reject`,
+        body
+      )
+    ),
+
+  reviseBrandProjectIdea: async (
+    ideaId: string,
+    body: { message: string }
+  ): Promise<BrandProjectIdea> =>
+    unwrap(
+      await apiClient.post<BrandProjectIdea>(
+        `/personal-branding/projects/ideas/${encodeURIComponent(ideaId)}/revise`,
+        body
+      )
+    ),
+
+  completeBrandProjectIdea: async (
+    ideaId: string,
+    body: {
+      postLinks: Array<{ platform: BrandProjectPostPlatform; url: string }>;
+    }
+  ): Promise<BrandProjectIdea> =>
+    unwrap(
+      await apiClient.post<BrandProjectIdea>(
+        `/personal-branding/projects/ideas/${ideaId}/complete`,
+        body
+      )
+    ),
+
+  startBrandProjectBuildKit: async (ideaId: string): Promise<{ jobId: string }> =>
+    unwrap(
+      await apiClient.post<{ jobId: string }>(
+        `/personal-branding/projects/ideas/${ideaId}/build-kit`,
+        {}
+      )
+    ),
+
+  startBrandProjectKitRevise: async (
+    ideaId: string,
+    repo: string
+  ): Promise<{ jobId: string }> =>
+    unwrap(
+      await apiClient.post<{ jobId: string }>(
+        `/personal-branding/projects/ideas/${encodeURIComponent(ideaId)}/build-kit/revise`,
+        { repo }
+      )
+    ),
+
+  patchBrandProjectBuildKit: async (
+    ideaId: string,
+    operations: BuildKitPatchOperation[]
+  ): Promise<BrandProjectIdea> =>
+    unwrap(
+      await apiClient.patch<BrandProjectIdea>(
+        `/personal-branding/projects/ideas/${encodeURIComponent(ideaId)}/build-kit`,
+        { operations }
+      )
+    ),
+
+  getBrandProjectSettings: async (signal?: AbortSignal): Promise<BrandProjectSettings> =>
+    unwrap(
+      await apiClient.get<BrandProjectSettings>('/personal-branding/projects/settings', undefined, {
+        signal,
+      })
+    ),
+
+  updateBrandProjectSettings: async (
+    input: UpdateBrandProjectSettingsInput
+  ): Promise<BrandProjectSettings> =>
+    unwrap(await apiClient.put<BrandProjectSettings>('/personal-branding/projects/settings', input)),
 };

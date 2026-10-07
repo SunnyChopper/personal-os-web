@@ -9,6 +9,7 @@ import { Select } from '@/components/atoms/Select';
 import { Textarea } from '@/components/atoms/Textarea';
 import { RadarItemPreviewCard } from '@/components/molecules/personal-branding/RadarItemPreviewCard';
 import { personalBrandingService } from '@/services/personal-branding.service';
+import { reportClientError } from '@/lib/client-telemetry';
 import {
   RADAR_AUTH_SCHEME_LABELS,
   RADAR_GITHUB_EVENT_TYPE_LABELS,
@@ -377,7 +378,17 @@ export default function SourceEditorDialog({
       setPreviewResult(result);
       setPreviewTab('cards');
     } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : 'Preview failed');
+      const message = err instanceof Error ? err.message : 'Preview failed';
+      void reportClientError({
+        message: `Radar source preview failed: ${message}`,
+        source: 'web',
+        metadata: {
+          kind: 'personal-branding-handler',
+          feature: 'radarIngest',
+          action: 'sourcePreview',
+        },
+      });
+      setPreviewError(message);
     } finally {
       setPreviewLoading(false);
     }

@@ -21,6 +21,8 @@ import type {
 import { cn } from '@/lib/utils';
 import ConnectionEditorDialog from './ConnectionEditorDialog';
 
+export const PASTE_POST_CTA_HINT = 'Paste any X URL or text';
+
 interface ManualPrompterPasteDialogProps {
   open: boolean;
   connections: CreatorConnection[];
@@ -300,11 +302,12 @@ export default function ManualPrompterPasteDialog({
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" size="sm" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
             type="button"
+            size="sm"
             disabled={!canOpenPrompter || isResolving}
             onClick={handleOpenPrompter}
           >

@@ -1,6 +1,6 @@
 import type { Toast } from '@/hooks/use-toast';
-import FollowUpAlertsCard from './FollowUpAlertsCard';
-import ReconFeedAlertsCard from './ReconFeedAlertsCard';
+import { pbBodySecondaryClassName } from '../personal-branding-ui';
+import RolodexNotificationsCard from './RolodexNotificationsCard';
 import ReconSettingsCard from './ReconSettingsCard';
 
 interface RolodexSettingsTabProps {
@@ -9,12 +9,11 @@ interface RolodexSettingsTabProps {
 
 export default function RolodexSettingsTab({ showToast }: RolodexSettingsTabProps) {
   return (
-    <div className="space-y-8">
-      <p className="text-sm text-gray-600 dark:text-gray-400">
+    <div className="space-y-4">
+      <p className={pbBodySecondaryClassName}>
         Notifications and Recon ingest for this module.
       </p>
-      <FollowUpAlertsCard showToast={showToast} />
-      <ReconFeedAlertsCard showToast={showToast} />
+      <RolodexNotificationsCard showToast={showToast} />
       <ReconSettingsCard showToast={showToast} />
     </div>
   );

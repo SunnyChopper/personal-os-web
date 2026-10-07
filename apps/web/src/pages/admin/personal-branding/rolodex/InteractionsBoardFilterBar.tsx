@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 import { X } from 'lucide-react';
 import type { CreatorConnection, RelationshipPriority } from '@/types/api/personal-branding.dto';
-import { selectableChipClassName } from '../personal-branding-ui';
-import { cn } from '@/lib/utils';
+import { selectableFilterChipClassName } from '../personal-branding-ui';
 import {
   EMPTY_INTERACTIONS_BOARD_FILTERS,
   hasActiveInteractionsBoardFilters,
@@ -140,7 +139,7 @@ export default function InteractionsBoardFilterBar({
               type="button"
               aria-pressed={selected}
               onClick={() => togglePriority(value)}
-              className={cn(selectableChipClassName(selected), 'px-3 py-1.5 text-xs')}
+              className={selectableFilterChipClassName(selected)}
             >
               {label}
               <span className="ml-1 tabular-nums text-gray-500 dark:text-gray-400">({count})</span>
@@ -167,7 +166,7 @@ export default function InteractionsBoardFilterBar({
               type="button"
               aria-pressed={selected}
               onClick={() => toggleSpecial(id)}
-              className={cn(selectableChipClassName(selected), 'px-3 py-1.5 text-xs')}
+              className={selectableFilterChipClassName(selected)}
             >
               {label}
               <span className="ml-1 tabular-nums text-gray-500 dark:text-gray-400">({count})</span>
@@ -189,7 +188,7 @@ export default function InteractionsBoardFilterBar({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => onSortModeChange(value)}
-                className={cn(selectableChipClassName(selected), 'px-3 py-1.5 text-xs')}
+                className={selectableFilterChipClassName(selected)}
               >
                 {label}
               </button>

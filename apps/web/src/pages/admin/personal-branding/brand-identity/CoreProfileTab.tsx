@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Sparkles, FlaskConical } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { FormInput } from '@/components/atoms/FormInput';
@@ -190,9 +191,20 @@ function ExtractionSourcesSection({
   );
 }
 
-function ProfileFormSection({ title, children }: { title: string; children: ReactNode }) {
+function ProfileFormSection({
+  title,
+  children,
+  id,
+}: {
+  title: string;
+  children: ReactNode;
+  id?: string;
+}) {
   return (
-    <section className="space-y-4 rounded-lg border-2 border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-900/30">
+    <section
+      id={id}
+      className="space-y-4 rounded-lg border-2 border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-900/30"
+    >
       <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
         {title}
       </h3>
@@ -260,7 +272,7 @@ function ExtractionProgressBanner({
       </div>
       {metrics.sources ? (
         <p className="text-xs tabular-nums text-amber-800/80 dark:text-amber-200/80">
-          Sources {metrics.sources.processed}/{metrics.sources.total}
+          Sources {metrics.sources.displayCount}/{metrics.sources.total}
           {metrics.chunks
             ? ` · Chunks ${metrics.chunks.processed}/${metrics.chunks.total}`
             : metrics.chunksPendingDiscovery
@@ -458,7 +470,7 @@ function ProfileEditor({
             </div>
           </ProfileFormSection>
 
-          <ProfileFormSection title="Brand pillars & audience">
+          <ProfileFormSection title="Brand pillars & audience" id="brand-identity-section-pillars">
             <StringListEditor
               label="Pillars"
               values={pillars}
@@ -558,7 +570,7 @@ function ProfileEditor({
 }
 
 export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const { settings: reconSettings } = useReconFeed();
   const [extractionOpen, setExtractionOpen] = useState(false);
   const [extractionProgressOpen, setExtractionProgressOpen] = useState(false);
@@ -596,6 +608,23 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
     isLocalDraftSelected && localDraft
       ? localDraft
       : (profileDetail.data ?? serverProfiles.find((p) => p.id === selectedProfileId) ?? null);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('section') !== 'pillars' || !selected) return;
+
+    const el = document.getElementById('brand-identity-section-pillars');
+    if (!el) return;
+
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const focusable = el.querySelector<HTMLElement>('input, textarea, button');
+    focusable?.focus({ preventScroll: true });
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('section');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, selected, setSearchParams]);
 
   const extractionSources =
     !isLocalDraftSelected && profileDetail.data?.sources?.length ? profileDetail.data.sources : [];
@@ -941,7 +970,6 @@ export default function CoreProfileTab({ brandIdentity }: CoreProfileTabProps) {
           }
         }}
       />
-      <ToastContainer />
     </TwoColumnLayout>
   );
 }

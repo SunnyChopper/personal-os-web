@@ -1,11 +1,21 @@
 import { useState } from 'react';
-import { ImageIcon, Plus, Search, Sparkles, Trash2 } from 'lucide-react';
+import {
+  AlignLeft,
+  Archive,
+  ArchiveRestore,
+  ImageIcon,
+  ListTree,
+  PenLine,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import PanelToggleHandle from '@/components/atoms/PanelToggleHandle';
 import Dialog from '@/components/molecules/Dialog';
 import Menubar from '@/components/molecules/Menubar';
-import { Select } from '@/components/atoms/Select';
-import { linkAccentClassName, statusPillClassName } from '../personal-branding-ui';
+import { pbBannerTitleClassName, pbFeedbackTextClassName } from '../personal-branding-ui';
 import MarkdownEditor from '@/components/molecules/MarkdownEditor';
 import { cn } from '@/lib/utils';
 import type {
@@ -15,15 +25,28 @@ import type {
   ContentStatus,
   ContentType,
 } from '@/types/api/personal-branding.dto';
-import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
+import { CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
 import { DialogFooter, PageCard, SidebarCard } from '../PersonalBrandingPageTemplate';
-import ContentStatusBadge from './ContentStatusBadge';
+import ContentLibraryPanel from './ContentLibraryPanel';
 import ContentStatusChangeModal, {
   type ContentStatusChangeMode,
   type PublishContentMetadata,
 } from './ContentStatusChangeModal';
 import BrandPillarMultiSelect from '@/components/molecules/personal-branding/BrandPillarMultiSelect';
 import { contentTextStats } from './content-workbench-helpers';
+import {
+  pbAssetPanelMaxHeightClassName,
+  pbDraftTitleInputClassName,
+  pbSidebarMobileMaxHeightClassName,
+  pbSidebarTwoColumnColsClassName,
+} from './content-workbench-constants';
+import { resolveSandboxEditorSaveStatus } from './resolve-sandbox-editor-save-status';
+import { CLIENT_JOB_CANCELLED_LABEL } from '@/lib/personal-branding/client-job-cancel';
+import DraftSettingsModal from './DraftSettingsModal';
+import {
+  publishMetadataFieldErrors,
+  type PublishMetadataFieldErrors,
+} from './publish-metadata-field-errors';
 
 interface SandboxWorkspaceTabProps {
   contentNodes: ContentNode[];
@@ -34,6 +57,7 @@ interface SandboxWorkspaceTabProps {
   editorBody: string;
   onBodyChange: (value: string) => void;
   contentType: ContentType;
+  onContentTypeChange: (value: ContentType) => void;
   draftPlatform: BrandPlatform | null;
   onDraftPlatformChange: (value: BrandPlatform | null) => void;
   draftCanonicalUrl: string;
@@ -44,26 +68,47 @@ interface SandboxWorkspaceTabProps {
   assetPrompts: AssetPromptsResult | null;
   isDirty: boolean;
   isSaving: boolean;
+  saveDraftError: string | null;
+  lastSavedAt: number | null;
   isPublishing: boolean;
   isUnpublishing: boolean;
   isDeleting: boolean;
+  isArchiving?: boolean;
+  isUnarchiving?: boolean;
   isGeneratingAssets: boolean;
+  isFinishingContent?: boolean;
+  isLengtheningContent?: boolean;
+  isFormattingContent?: boolean;
   isInjectingImages?: boolean;
   imageInjectError?: string | null;
   imageInjectMessage?: string | null;
+  imageInjectClientCancelState?: 'idle' | 'cancelled';
+  onCancelImageInject?: () => void;
   isOptimizingKeywords?: boolean;
   keywordOptimizeError?: string | null;
+  keywordOptimizeClientCancelState?: 'idle' | 'cancelled';
+  onCancelKeywordOptimize?: () => void;
   drawerOpen: boolean;
   onToggleDrawer: () => void;
+  showArchivedContent?: boolean;
+  onShowArchivedChange?: (value: boolean) => void;
+  contentLoadError?: boolean;
+  onRetryContentLoad?: () => void;
   onLoadDraft: (node: ContentNode) => void;
   onNewDraft: () => void;
   onSaveDraft: () => void;
   onDeleteDraft: () => void | Promise<void>;
+  onArchiveDraft?: () => void | Promise<void>;
+  onUnarchiveDraft?: () => void | Promise<void>;
   onPublish: (metadata: PublishContentMetadata) => void | Promise<void>;
   onUnpublish: () => void | Promise<void>;
   onGenerateAssetPrompts: () => void;
+  onFinishContent?: () => void;
+  onLengthenContent?: () => void;
+  onFormatPost?: () => void;
   onInjectImages?: () => void;
   onOptimizeKeywords?: () => void;
+  aiToolLiveMessage?: string | null;
 }
 
 export default function SandboxWorkspaceTab({
@@ -75,6 +120,7 @@ export default function SandboxWorkspaceTab({
   editorBody,
   onBodyChange,
   contentType,
+  onContentTypeChange,
   draftPlatform,
   onDraftPlatformChange,
   draftCanonicalUrl,
@@ -85,37 +131,72 @@ export default function SandboxWorkspaceTab({
   assetPrompts,
   isDirty,
   isSaving,
+  saveDraftError,
+  lastSavedAt,
   isPublishing,
   isUnpublishing,
   isDeleting,
+  isArchiving = false,
+  isUnarchiving = false,
   isGeneratingAssets,
+  isFinishingContent = false,
+  isLengtheningContent = false,
+  isFormattingContent = false,
   isInjectingImages = false,
   imageInjectError,
   imageInjectMessage,
+  imageInjectClientCancelState = 'idle',
+  onCancelImageInject,
   isOptimizingKeywords = false,
   keywordOptimizeError,
+  keywordOptimizeClientCancelState = 'idle',
+  onCancelKeywordOptimize,
   drawerOpen,
   onToggleDrawer,
+  showArchivedContent = false,
+  onShowArchivedChange,
+  contentLoadError = false,
+  onRetryContentLoad,
   onLoadDraft,
   onNewDraft,
   onSaveDraft,
   onDeleteDraft,
+  onArchiveDraft,
+  onUnarchiveDraft,
   onPublish,
   onUnpublish,
   onGenerateAssetPrompts,
+  onFinishContent,
+  onLengthenContent,
+  onFormatPost,
   onInjectImages,
   onOptimizeKeywords,
+  aiToolLiveMessage,
 }: SandboxWorkspaceTabProps) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [draftSettingsModalOpen, setDraftSettingsModalOpen] = useState(false);
+  const [brandPillarsModalOpen, setBrandPillarsModalOpen] = useState(false);
   const [statusChangeModal, setStatusChangeModal] = useState<ContentStatusChangeMode | null>(null);
-  const deleteDisabled = !activeDraftId || isSaving || isPublishing || isUnpublishing || isDeleting;
-  const isPublished = activeContentStatus === 'PUBLISHED';
+  const [publishFieldErrors, setPublishFieldErrors] = useState<PublishMetadataFieldErrors>({});
   const statusChangePending = isPublishing || isUnpublishing;
+  const lifecyclePending = statusChangePending || isArchiving || isUnarchiving;
+  const deleteDisabled = !activeDraftId || isSaving || lifecyclePending || isDeleting;
+  const isPublished = activeContentStatus === 'PUBLISHED';
+  const isArchived = activeContentStatus === 'SKIPPED';
   const draftLabel = editorTitle.trim() || 'Untitled draft';
   const publishStats = contentTextStats(editorBody);
 
   const closeStatusChangeModal = () => {
-    if (!statusChangePending) setStatusChangeModal(null);
+    if (!statusChangePending) {
+      setStatusChangeModal(null);
+      setPublishFieldErrors({});
+    }
+  };
+
+  const openStatusChangeModal = (mode: ContentStatusChangeMode) => {
+    setPublishFieldErrors({});
+    setStatusChangeModal(mode);
   };
 
   const handleStatusChangeConfirm = (metadata?: PublishContentMetadata) => {
@@ -126,9 +207,16 @@ export default function SandboxWorkspaceTab({
             if (!metadata) return Promise.resolve();
             return onPublish(metadata);
           };
-    void Promise.resolve(action()).then(() => {
-      setStatusChangeModal(null);
-    });
+    void Promise.resolve(action())
+      .then(() => {
+        setPublishFieldErrors({});
+        setStatusChangeModal(null);
+      })
+      .catch((error: unknown) => {
+        if (statusChangeModal === 'publish') {
+          setPublishFieldErrors(publishMetadataFieldErrors(error));
+        }
+      });
   };
 
   const publishLabel = isPublishing
@@ -139,9 +227,22 @@ export default function SandboxWorkspaceTab({
         ? 'Move to draft'
         : 'Publish';
 
-  const publishDisabled = isPublished
-    ? statusChangePending || !activeDraftId
-    : statusChangePending || !editorTitle.trim();
+  const publishDisabled = isArchived
+    ? true
+    : isPublished
+      ? statusChangePending || !activeDraftId
+      : statusChangePending || !editorTitle.trim();
+
+  const archiveDisabled =
+    !activeDraftId || isSaving || lifecyclePending || isDeleting || isArchived || !onArchiveDraft;
+
+  const unarchiveDisabled =
+    !activeDraftId ||
+    isSaving ||
+    lifecyclePending ||
+    isDeleting ||
+    !isArchived ||
+    !onUnarchiveDraft;
 
   const showOptimizeKeywords =
     Boolean(activeDraftId) &&
@@ -149,20 +250,57 @@ export default function SandboxWorkspaceTab({
     draftPlatform === 'medium' &&
     Boolean(onOptimizeKeywords);
 
+  const sandboxAiBusy =
+    isGeneratingAssets ||
+    isFinishingContent ||
+    isLengtheningContent ||
+    isFormattingContent ||
+    isInjectingImages ||
+    isOptimizingKeywords;
+  const sandboxAiBodyDisabled = sandboxAiBusy || !editorBody.trim();
+
+  const editorSaveStatus = resolveSandboxEditorSaveStatus({
+    isDirty,
+    isSaving,
+    saveError: saveDraftError,
+    lastSavedAt,
+  });
+
   const menubarMenus = [
     {
       key: 'file',
       label: 'File',
       items: [
-        {
-          key: 'publish',
-          label: publishLabel,
-          onClick: () => setStatusChangeModal(isPublished ? 'unpublish' : 'publish'),
-          disabled: publishDisabled,
-        },
+        ...(isArchived
+          ? [
+              {
+                key: 'unarchive',
+                label: isUnarchiving ? 'Restoring…' : 'Unarchive',
+                icon: ArchiveRestore,
+                onClick: () => {
+                  void Promise.resolve(onUnarchiveDraft?.());
+                },
+                disabled: unarchiveDisabled,
+              },
+            ]
+          : [
+              {
+                key: 'publish',
+                label: publishLabel,
+                onClick: () => openStatusChangeModal(isPublished ? 'unpublish' : 'publish'),
+                disabled: publishDisabled,
+              },
+              {
+                key: 'archive',
+                label: isArchiving ? 'Archiving…' : 'Archive',
+                icon: Archive,
+                onClick: () => setArchiveModalOpen(true),
+                disabled: archiveDisabled,
+              },
+            ]),
         {
           key: 'delete',
-          label: isDeleting ? 'Deleting…' : 'Delete',
+          label: isDeleting ? 'Deleting…' : 'Delete permanently',
           icon: Trash2,
           tone: 'danger' as const,
           onClick: () => setDeleteModalOpen(true),
@@ -175,24 +313,39 @@ export default function SandboxWorkspaceTab({
       label: 'AI Tools',
       items: [
         {
+          key: 'finish-content',
+          label: isFinishingContent ? 'Finishing…' : 'Finish Content',
+          icon: PenLine,
+          onClick: () => onFinishContent?.(),
+          disabled: sandboxAiBodyDisabled || !onFinishContent,
+        },
+        {
+          key: 'lengthen-content',
+          label: isLengtheningContent ? 'Lengthening…' : 'Lengthen Content',
+          icon: AlignLeft,
+          onClick: () => onLengthenContent?.(),
+          disabled: sandboxAiBodyDisabled || !onLengthenContent,
+        },
+        {
+          key: 'format-post',
+          label: isFormattingContent ? 'Formatting…' : 'Format Post',
+          icon: ListTree,
+          onClick: () => onFormatPost?.(),
+          disabled: sandboxAiBodyDisabled || !onFormatPost,
+        },
+        {
           key: 'generate-asset-prompts',
           label: isGeneratingAssets ? 'Generating…' : 'Generate Asset Prompts',
           icon: Sparkles,
           onClick: onGenerateAssetPrompts,
-          disabled:
-            isGeneratingAssets || isInjectingImages || !editorBody.trim() || isOptimizingKeywords,
+          disabled: sandboxAiBodyDisabled,
         },
         {
           key: 'inject-images',
           label: isInjectingImages ? 'Injecting images…' : 'Inject Images',
           icon: ImageIcon,
           onClick: () => onInjectImages?.(),
-          disabled:
-            isInjectingImages ||
-            isGeneratingAssets ||
-            isOptimizingKeywords ||
-            !editorBody.trim() ||
-            !onInjectImages,
+          disabled: sandboxAiBodyDisabled || !onInjectImages,
         },
         ...(showOptimizeKeywords
           ? [
@@ -201,14 +354,29 @@ export default function SandboxWorkspaceTab({
                 label: isOptimizingKeywords ? 'Optimizing…' : 'Optimize Keywords',
                 icon: Search,
                 onClick: () => onOptimizeKeywords?.(),
-                disabled:
-                  isOptimizingKeywords ||
-                  isGeneratingAssets ||
-                  !editorBody.trim() ||
-                  !activeDraftId,
+                disabled: sandboxAiBusy || !editorBody.trim() || !activeDraftId,
               },
             ]
           : []),
+      ],
+    },
+    {
+      key: 'settings',
+      label: 'Settings',
+      items: [
+        {
+          key: 'draft-settings',
+          label: 'Draft settings',
+          icon: SlidersHorizontal,
+          badge: CONTENT_TYPE_LABELS[contentType],
+          onClick: () => setDraftSettingsModalOpen(true),
+        },
+        {
+          key: 'brand-pillars',
+          label: 'Brand Pillars',
+          badge: draftPillars.length,
+          onClick: () => setBrandPillarsModalOpen(true),
+        },
       ],
     },
   ];
@@ -216,117 +384,58 @@ export default function SandboxWorkspaceTab({
   return (
     <div
       className={cn(
-        'grid h-full min-h-0 gap-6',
-        drawerOpen ? 'lg:grid-cols-[280px_1fr]' : 'lg:grid-cols-1'
+        'grid h-full min-h-0 gap-3 lg:gap-6',
+        drawerOpen ? pbSidebarTwoColumnColsClassName : 'lg:grid-cols-1'
       )}
     >
+      <h2 className="sr-only">Sandbox Workspace</h2>
+      {aiToolLiveMessage ? (
+        <span className="sr-only" role="status" aria-live="polite">
+          {aiToolLiveMessage}
+        </span>
+      ) : null}
       {drawerOpen ? (
         <SidebarCard
           className={cn(
-            'flex flex-col overflow-hidden lg:h-full lg:min-h-0',
-            'max-h-[35vh] lg:max-h-none'
+            'flex flex-col overflow-hidden p-3 lg:h-full lg:min-h-0 lg:p-4',
+            pbSidebarMobileMaxHeightClassName
           )}
         >
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Your content</h3>
-            <button
-              type="button"
-              onClick={onNewDraft}
-              className={cn(
-                'inline-flex items-center gap-1 text-xs font-medium',
-                linkAccentClassName
-              )}
-            >
-              <Plus size={14} />
-              New
-            </button>
-          </div>
-          <ul className="flex-1 space-y-2 overflow-y-auto">
-            {contentNodes.length === 0 ? (
-              <li className="text-xs text-gray-500 dark:text-gray-400">No content yet.</li>
-            ) : (
-              contentNodes.map((node) => (
-                <li key={node.id}>
-                  <button
-                    type="button"
-                    onClick={() => onLoadDraft(node)}
-                    className={cn(
-                      'w-full rounded-lg border px-3 py-2 text-left text-sm transition',
-                      activeDraftId === node.id
-                        ? 'border-blue-500/40 bg-blue-600/10 text-blue-900 dark:text-blue-100'
-                        : 'border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                    )}
-                  >
-                    <div className="font-medium truncate">{node.title}</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                      <ContentStatusBadge status={node.status} platform={node.platform} />
-                      <span aria-hidden="true">·</span>
-                      <span>{new Date(node.updatedAt).toLocaleDateString()}</span>
-                    </div>
-                    {node.pillars.length > 0 ? (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {node.pillars.map((pillar) => (
-                          <span
-                            key={pillar}
-                            className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                          >
-                            {pillar}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </button>
-                </li>
-              ))
-            )}
-          </ul>
+          <ContentLibraryPanel
+            contentNodes={contentNodes}
+            activeDraftId={activeDraftId}
+            onSelect={onLoadDraft}
+            onNewDraft={onNewDraft}
+            density="compact"
+            showArchived={showArchivedContent}
+            onShowArchivedChange={onShowArchivedChange}
+            loadError={contentLoadError}
+            onRetry={onRetryContentLoad}
+          />
         </SidebarCard>
       ) : null}
 
-      <PageCard className="relative flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden p-4 sm:p-6">
+      <PageCard className="relative flex h-full min-h-0 min-w-0 flex-col gap-2 overflow-hidden p-4 sm:gap-3 sm:p-6">
         <PanelToggleHandle
           collapsed={!drawerOpen}
           onToggle={onToggleDrawer}
-          className="absolute -left-3 top-6 z-10"
+          className="absolute left-2 top-4 z-20"
         />
 
         <Menubar menus={menubarMenus} ariaLabel="Content workbench actions" className="shrink-0" />
 
-        <div
-          role="toolbar"
-          aria-label="Draft actions"
-          className="flex shrink-0 flex-nowrap items-center gap-2 overflow-x-auto border-b border-gray-200 pb-3 dark:border-gray-700"
-        >
-          <input
-            value={editorTitle}
-            onChange={(e) => onTitleChange(e.target.value)}
-            placeholder="Draft title"
-            className="min-w-0 w-full flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-          />
-          <div className="flex shrink-0 flex-nowrap items-center gap-2">
-            <span className={statusPillClassName('neutral')}>
-              {CONTENT_TYPE_LABELS[contentType]}
-            </span>
-            <Select
-              value={draftPlatform ?? ''}
-              onChange={(e) => onDraftPlatformChange((e.target.value as BrandPlatform) || null)}
-              aria-label="Draft target platform"
-              className="w-auto shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
-            >
-              <option value="">No platform</option>
-              {(Object.keys(BRAND_PLATFORM_LABELS) as BrandPlatform[]).map((p) => (
-                <option key={p} value={p}>
-                  {BRAND_PLATFORM_LABELS[p]}
-                </option>
-              ))}
-            </Select>
+        <div className="shrink-0 border-b border-gray-200 pb-2 dark:border-gray-700 lg:pb-3">
+          <div
+            role="toolbar"
+            aria-label="Draft actions"
+            className="flex items-center gap-2 lg:gap-3"
+          >
             <input
-              type="url"
-              value={draftCanonicalUrl}
-              onChange={(e) => onDraftCanonicalUrlChange(e.target.value)}
-              placeholder="Canonical URL"
-              aria-label="Canonical URL"
-              className="w-44 shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+              value={editorTitle}
+              onChange={(e) => onTitleChange(e.target.value)}
+              placeholder="Untitled draft"
+              aria-label="Draft title"
+              className={cn('min-w-0 w-full flex-1', pbDraftTitleInputClassName)}
             />
             <Button
               type="button"
@@ -340,36 +449,58 @@ export default function SandboxWorkspaceTab({
           </div>
         </div>
 
-        {brandPillarOptions.length > 0 ? (
-          <div className="shrink-0 border-b border-gray-200 pb-3 dark:border-gray-700">
-            <div className="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
-              Brand pillars
-            </div>
-            <BrandPillarMultiSelect
-              options={brandPillarOptions}
-              value={draftPillars}
-              onChange={onDraftPillarsChange}
-              disabled={isSaving || isPublishing || isUnpublishing}
-            />
-          </div>
-        ) : null}
-
         {keywordOptimizeError ? (
-          <p className="shrink-0 text-sm text-amber-700 dark:text-amber-300" role="status">
+          <p className={cn('shrink-0', pbFeedbackTextClassName('warning'))} role="status">
             {keywordOptimizeError}
           </p>
         ) : null}
 
         {imageInjectError ? (
-          <p className="shrink-0 text-sm text-red-600 dark:text-red-400" role="alert">
+          <p className={cn('shrink-0', pbFeedbackTextClassName('danger'))} role="alert">
             {imageInjectError}
           </p>
         ) : null}
 
-        {isInjectingImages && imageInjectMessage ? (
-          <p className="shrink-0 text-sm text-gray-600 dark:text-gray-400" role="status">
-            {imageInjectMessage}
+        {imageInjectClientCancelState === 'cancelled' ? (
+          <p className="shrink-0 text-sm text-gray-700 dark:text-gray-300" role="status">
+            <span className="font-medium">Image injection cancelled.</span>{' '}
+            {CLIENT_JOB_CANCELLED_LABEL}
           </p>
+        ) : isInjectingImages ? (
+          <div
+            className={cn(
+              'flex shrink-0 flex-wrap items-center gap-2',
+              pbFeedbackTextClassName('muted')
+            )}
+          >
+            <span role="status">{imageInjectMessage ?? 'Injecting images…'}</span>
+            {onCancelImageInject ? (
+              <Button type="button" size="sm" variant="secondary" onClick={onCancelImageInject}>
+                Cancel
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {keywordOptimizeClientCancelState === 'cancelled' ? (
+          <p className="shrink-0 text-sm text-gray-700 dark:text-gray-300" role="status">
+            <span className="font-medium">Keyword optimization cancelled.</span>{' '}
+            {CLIENT_JOB_CANCELLED_LABEL}
+          </p>
+        ) : isOptimizingKeywords ? (
+          <div
+            className={cn(
+              'flex shrink-0 flex-wrap items-center gap-2',
+              pbFeedbackTextClassName('muted')
+            )}
+          >
+            <span role="status">Optimizing keywords…</span>
+            {onCancelKeywordOptimize ? (
+              <Button type="button" size="sm" variant="secondary" onClick={onCancelKeywordOptimize}>
+                Cancel
+              </Button>
+            ) : null}
+          </div>
         ) : null}
 
         <div
@@ -385,12 +516,21 @@ export default function SandboxWorkspaceTab({
             className="h-full"
             fullWidth
             enableRichEmbedsToggle
+            previewPlatform={draftPlatform}
+            autosaveStatus={editorSaveStatus.status}
+            autosaveLastSavedAt={editorSaveStatus.lastSavedAt}
+            autosaveErrorMessage={editorSaveStatus.errorMessage}
           />
         </div>
 
         {assetPrompts ? (
-          <PageCard className="max-h-[28vh] shrink-0 overflow-y-auto bg-gray-50 p-4 dark:bg-gray-900/50">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Asset prompts</h3>
+          <PageCard
+            className={cn(
+              pbAssetPanelMaxHeightClassName,
+              'shrink-0 overflow-y-auto bg-gray-50 p-4 dark:bg-gray-900/50'
+            )}
+          >
+            <h3 className={pbBannerTitleClassName}>Asset prompts</h3>
             {assetPrompts.blogPrompts && assetPrompts.blogPrompts.length > 0 ? (
               <ul className="mt-3 space-y-3">
                 {assetPrompts.blogPrompts.map((row, idx) => (
@@ -434,6 +574,18 @@ export default function SandboxWorkspaceTab({
         ) : null}
       </PageCard>
 
+      <DraftSettingsModal
+        isOpen={draftSettingsModalOpen}
+        onClose={() => setDraftSettingsModalOpen(false)}
+        contentType={contentType}
+        onContentTypeChange={onContentTypeChange}
+        draftPlatform={draftPlatform}
+        onDraftPlatformChange={onDraftPlatformChange}
+        draftCanonicalUrl={draftCanonicalUrl}
+        onDraftCanonicalUrlChange={onDraftCanonicalUrlChange}
+        isSaving={isSaving}
+      />
+
       <ContentStatusChangeModal
         isOpen={statusChangeModal !== null}
         mode={statusChangeModal ?? 'publish'}
@@ -442,24 +594,93 @@ export default function SandboxWorkspaceTab({
         readingTimeMinutes={publishStats.readingTimeMinutes}
         initialPlatform={draftPlatform}
         initialCanonicalUrl={draftCanonicalUrl}
+        serverFieldErrors={publishFieldErrors}
         isPending={statusChangePending}
         onClose={closeStatusChangeModal}
         onConfirm={handleStatusChangeConfirm}
       />
 
       <Dialog
-        isOpen={deleteModalOpen}
+        isOpen={brandPillarsModalOpen}
+        onClose={() => setBrandPillarsModalOpen(false)}
+        title="Brand pillars"
+        size="md"
+        trapFocus
+        footer={
+          <DialogFooter>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setBrandPillarsModalOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        }
+      >
+        <BrandPillarMultiSelect
+          options={brandPillarOptions}
+          value={draftPillars}
+          onChange={onDraftPillarsChange}
+          disabled={isSaving || isPublishing || isUnpublishing}
+        />
+      </Dialog>
+
+      <Dialog
+        isOpen={archiveModalOpen}
         onClose={() => {
-          if (!isDeleting) setDeleteModalOpen(false);
+          if (!isArchiving) setArchiveModalOpen(false);
         }}
-        title="Delete draft?"
+        title="Archive content?"
         size="sm"
       >
         <div className="space-y-4">
           <p className="text-gray-600 dark:text-gray-300">
-            Are you sure you want to delete{' '}
+            Archive <span className="font-medium text-gray-900 dark:text-white">{draftLabel}</span>?
+            It will be hidden from your default library but kept for history. You can restore it
+            from Show archived.
+          </p>
+          <DialogFooter>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setArchiveModalOpen(false)}
+              disabled={isArchiving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                void Promise.resolve(onArchiveDraft?.()).then(() => {
+                  setArchiveModalOpen(false);
+                });
+              }}
+              disabled={isArchiving}
+            >
+              {isArchiving ? 'Archiving…' : 'Archive'}
+            </Button>
+          </DialogFooter>
+        </div>
+      </Dialog>
+
+      <Dialog
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          if (!isDeleting) setDeleteModalOpen(false);
+        }}
+        title="Delete permanently?"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 dark:text-gray-300">
+            Permanently delete{' '}
             <span className="font-medium text-gray-900 dark:text-white">{draftLabel}</span>? This
-            action cannot be undone.
+            removes the content node and cannot be undone. To hide it while keeping history, use
+            Archive instead.
           </p>
           <DialogFooter>
             <Button
@@ -488,7 +709,7 @@ export default function SandboxWorkspaceTab({
                   Deleting...
                 </>
               ) : (
-                'Delete draft'
+                'Delete permanently'
               )}
             </Button>
           </DialogFooter>

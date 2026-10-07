@@ -18,9 +18,9 @@ describe('recommendedActionIconKind', () => {
 });
 
 describe('nextActionCueForRecommendedAction', () => {
-  it('returns distinct cues for reply and quote', () => {
-    expect(nextActionCueForRecommendedAction('reply')).toBe('Next: Reply in-thread');
-    expect(nextActionCueForRecommendedAction('quote')).toBe('Next: Quote-tweet with your take');
+  it('returns null for reply and quote (badge + Draft CTA already signal the action)', () => {
+    expect(nextActionCueForRecommendedAction('reply')).toBeNull();
+    expect(nextActionCueForRecommendedAction('quote')).toBeNull();
   });
 
   it('returns passive cues for like and monitor', () => {

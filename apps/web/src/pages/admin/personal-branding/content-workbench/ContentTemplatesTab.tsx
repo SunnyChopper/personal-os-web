@@ -2,6 +2,7 @@ import { Loader2, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import { Select } from '@/components/atoms/Select';
 import { Textarea } from '@/components/atoms/Textarea';
+import TemplateBodyPreview from '@/components/molecules/personal-branding/TemplateBodyPreview';
 import type {
   BrandPlatform,
   BrandProfile,
@@ -14,11 +15,13 @@ import type {
   TemplateSourceKind,
 } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
+import { BrandProfileReadinessCallout } from '@/components/molecules/personal-branding/BrandProfileReadinessCallout';
 import {
   emptyStateCardClassName,
   gridItemCardClassName,
 } from '@/lib/personal-branding/personal-branding-surfaces';
-import { PageCard } from '../PersonalBrandingPageTemplate';
+import { PageCard, SectionIntro, AlertBanner } from '../PersonalBrandingPageTemplate';
+import { pbFeedbackTextClassName, selectableChipClassName } from '../personal-branding-ui';
 import { cn } from '@/lib/utils';
 import { isBrandProfileReadyForIdeation } from './content-workbench-helpers';
 
@@ -138,18 +141,21 @@ export default function ContentTemplatesTab({
   return (
     <div className="space-y-6">
       <PageCard className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Template library</h2>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              Reusable structural skeletons for drafts and other content generation features.
-            </p>
-          </div>
-          <Button type="button" size="sm" onClick={onCreateTemplate} className="inline-flex gap-2">
-            <Plus size={16} />
-            New template
-          </Button>
-        </div>
+        <SectionIntro
+          title="Template library"
+          description="Reusable structural skeletons for drafts and other content generation features."
+          actions={
+            <Button
+              type="button"
+              size="sm"
+              onClick={onCreateTemplate}
+              className="inline-flex gap-2"
+            >
+              <Plus size={16} />
+              New template
+            </Button>
+          }
+        />
 
         {templatesLoading ? (
           <p className="text-sm text-gray-500">Loading templates…</p>
@@ -196,9 +202,7 @@ export default function ContentTemplatesTab({
                 {template.description ? (
                   <p className="text-sm text-gray-600 dark:text-gray-400">{template.description}</p>
                 ) : null}
-                <pre className="max-h-32 overflow-auto rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                  {template.templateBody}
-                </pre>
+                <TemplateBodyPreview body={template.templateBody} maxHeightClass="max-h-32" />
               </article>
             ))}
           </div>
@@ -206,22 +210,18 @@ export default function ContentTemplatesTab({
       </PageCard>
 
       <PageCard className="space-y-4">
-        <div>
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">AI brainstorm</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Propose reusable structural templates from your Brand Identity. Outputs are generic
-            outlines with placeholders — pillars shape pattern style, not topic. Rejected templates
-            inform future brainstorm and extraction runs.
-          </p>
-        </div>
+        <SectionIntro
+          title="AI brainstorm"
+          description="Propose reusable structural templates from your Brand Identity. Outputs are generic outlines with placeholders — pillars shape pattern style, not topic. Rejected templates inform future brainstorm and extraction runs."
+        />
 
         {profilesLoading ? (
           <p className="text-sm text-gray-500">Loading brand profiles…</p>
         ) : profiles.length === 0 ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-            Create a Brand Identity profile with core pillars and a target audience before
-            brainstorming templates.
-          </p>
+          <BrandProfileReadinessCallout
+            variant="missing-profile"
+            message="Create a Brand Identity profile with core pillars and a target audience before brainstorming templates."
+          />
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block space-y-1.5 text-sm">
@@ -295,13 +295,18 @@ export default function ContentTemplatesTab({
           />
         </label>
 
+        {selectedProfile && !profileReady ? (
+          <BrandProfileReadinessCallout
+            variant="incomplete-profile"
+            profileId={selectedProfile.id}
+          />
+        ) : null}
+
         {brainstormError ? (
-          <p className="text-sm text-red-600 dark:text-red-400">{brainstormError}</p>
+          <p className={pbFeedbackTextClassName('danger')}>{brainstormError}</p>
         ) : null}
         {isBrainstorming && brainstormProgressMessage ? (
-          <p className="text-sm text-indigo-700 dark:text-indigo-300">
-            {brainstormProgressMessage}
-          </p>
+          <p className={pbFeedbackTextClassName('info')}>{brainstormProgressMessage}</p>
         ) : null}
         {lastBrainstormStats ? (
           <p className="text-xs text-gray-500">
@@ -327,13 +332,10 @@ export default function ContentTemplatesTab({
       </PageCard>
 
       <PageCard className="space-y-4">
-        <div>
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Extract from URL</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Scrape a public page or Medium article and let the agent propose reusable templates.
-            Approve, reject with feedback, or retry with feedback before saving.
-          </p>
-        </div>
+        <SectionIntro
+          title="Extract from URL"
+          description="Scrape a public page or Medium article and let the agent propose reusable templates. Approve, reject with feedback, or retry with feedback before saving."
+        />
 
         <div className="space-y-3">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Source type</span>
@@ -341,12 +343,10 @@ export default function ContentTemplatesTab({
             {SOURCE_KIND_OPTIONS.map((option) => (
               <label
                 key={option.id}
-                className={cn(
-                  'inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm',
-                  sourceKind === option.id
-                    ? 'border-indigo-500 bg-indigo-50 text-indigo-900 dark:border-indigo-400 dark:bg-indigo-950/40 dark:text-indigo-100'
-                    : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-300',
-                  option.disabled && 'cursor-not-allowed opacity-50'
+                className={selectableChipClassName(
+                  sourceKind === option.id,
+                  'inline-flex cursor-pointer items-center gap-2',
+                  option.disabled
                 )}
               >
                 <input
@@ -368,14 +368,12 @@ export default function ContentTemplatesTab({
         </div>
 
         {sourceKind === 'MEDIUM_ARTICLE' ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-            <p>
-              Medium extraction uses the platform RapidAPI integration.
-              {hasMediumApiKey
-                ? ' The integration is configured.'
-                : ' RapidAPI is not configured at the platform level — contact your operator.'}
-            </p>
-          </div>
+          <AlertBanner tone="warning" className="p-3">
+            Medium extraction uses the platform RapidAPI integration.
+            {hasMediumApiKey
+              ? ' The integration is configured.'
+              : ' RapidAPI is not configured at the platform level — contact your operator.'}
+          </AlertBanner>
         ) : null}
 
         <label className="block space-y-1.5 text-sm">
@@ -389,11 +387,9 @@ export default function ContentTemplatesTab({
           />
         </label>
 
-        {extractError ? (
-          <p className="text-sm text-red-600 dark:text-red-400">{extractError}</p>
-        ) : null}
+        {extractError ? <p className={pbFeedbackTextClassName('danger')}>{extractError}</p> : null}
         {isExtracting && extractProgressMessage ? (
-          <p className="text-sm text-indigo-700 dark:text-indigo-300">{extractProgressMessage}</p>
+          <p className={pbFeedbackTextClassName('info')}>{extractProgressMessage}</p>
         ) : null}
         {lastExtractionStats ? (
           <p className="text-xs text-gray-500">
@@ -414,14 +410,10 @@ export default function ContentTemplatesTab({
       </PageCard>
 
       <PageCard className="space-y-4">
-        <div>
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Review candidates</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Generated proposals stay here until you approve them into the library or reject them. If
-            a proposal is too topic-specific, reject it or retry with feedback asking for a more
-            generic structure.
-          </p>
-        </div>
+        <SectionIntro
+          title="Review candidates"
+          description="Generated proposals stay here until you approve them into the library or reject them. If a proposal is too topic-specific, reject it or retry with feedback asking for a more generic structure."
+        />
 
         {candidatesLoading ? (
           <p className="text-sm text-gray-500">Loading candidates…</p>
@@ -451,11 +443,16 @@ export default function ContentTemplatesTab({
                   </p>
                 ) : null}
                 {candidate.extractionNotes ? (
-                  <p className="text-xs italic text-gray-500">{candidate.extractionNotes}</p>
+                  <div className="rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900/60">
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                      Structure intent
+                    </p>
+                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                      {candidate.extractionNotes}
+                    </p>
+                  </div>
                 ) : null}
-                <pre className="max-h-40 overflow-auto rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                  {candidate.templateBody}
-                </pre>
+                <TemplateBodyPreview body={candidate.templateBody} maxHeightClass="max-h-40" />
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"

@@ -4,6 +4,11 @@ import Dialog from '@/components/molecules/Dialog';
 import { Select } from '@/components/atoms/Select';
 import { BRAND_PLATFORM_LABELS, type BrandPlatform } from '@/types/api/personal-branding.dto';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
+import {
+  clientCanonicalUrlError,
+  isValidCanonicalUrl,
+  type PublishMetadataFieldErrors,
+} from './publish-metadata-field-errors';
 
 export type ContentStatusChangeMode = 'publish' | 'unpublish';
 
@@ -20,20 +25,10 @@ interface ContentStatusChangeModalProps {
   readingTimeMinutes?: number;
   initialPlatform?: BrandPlatform | null;
   initialCanonicalUrl?: string | null;
+  serverFieldErrors?: PublishMetadataFieldErrors;
   isPending: boolean;
   onClose: () => void;
   onConfirm: (metadata?: PublishContentMetadata) => void;
-}
-
-function isValidCanonicalUrl(url: string): boolean {
-  const trimmed = url.trim();
-  if (!trimmed) return false;
-  try {
-    const parsed = new URL(trimmed);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
 }
 
 export default function ContentStatusChangeModal({
@@ -44,6 +39,7 @@ export default function ContentStatusChangeModal({
   readingTimeMinutes,
   initialPlatform,
   initialCanonicalUrl,
+  serverFieldErrors = {},
   isPending,
   onClose,
   onConfirm,
@@ -62,12 +58,14 @@ export default function ContentStatusChangeModal({
     setUrlTouched(false);
   }, [initialCanonicalUrl, initialPlatform, isOpen, isPublish]);
 
-  const urlError =
-    isPublish && urlTouched && canonicalUrl.trim() && !isValidCanonicalUrl(canonicalUrl)
-      ? 'Enter a valid http:// or https:// URL'
+  const clientUrlError = isPublish ? clientCanonicalUrlError(canonicalUrl, urlTouched) : null;
+  const platformError = isPublish ? serverFieldErrors.platform : undefined;
+  const canonicalUrlError =
+    isPublish && (clientUrlError || serverFieldErrors.canonicalUrl)
+      ? (clientUrlError ?? serverFieldErrors.canonicalUrl)
       : null;
   const canPublish =
-    isPublish && Boolean(platform) && isValidCanonicalUrl(canonicalUrl) && !urlError;
+    isPublish && Boolean(platform) && isValidCanonicalUrl(canonicalUrl) && !clientUrlError;
 
   return (
     <Dialog
@@ -111,6 +109,7 @@ export default function ContentStatusChangeModal({
                   value={platform}
                   onChange={(e) => setPlatform((e.target.value as BrandPlatform) || '')}
                   aria-label="Original platform"
+                  aria-invalid={platformError ? true : undefined}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
                 >
                   <option value="">Select platform</option>
@@ -120,6 +119,9 @@ export default function ContentStatusChangeModal({
                     </option>
                   ))}
                 </Select>
+                {platformError ? (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{platformError}</p>
+                ) : null}
               </div>
               <div>
                 <label
@@ -135,10 +137,11 @@ export default function ContentStatusChangeModal({
                   onChange={(e) => setCanonicalUrl(e.target.value)}
                   onBlur={() => setUrlTouched(true)}
                   placeholder="https://medium.com/@you/post-slug"
+                  aria-invalid={canonicalUrlError ? true : undefined}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
                 />
-                {urlError ? (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{urlError}</p>
+                {canonicalUrlError ? (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{canonicalUrlError}</p>
                 ) : (
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Link to the live post on the original platform.

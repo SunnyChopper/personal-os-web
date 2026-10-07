@@ -109,12 +109,30 @@ describe('extractionProgressPercent', () => {
           stage: 'analyzing_sources',
           sourceTypes: ['pdf'],
           sourceCount: 70,
+          parsedSourceCount: 70,
           processedSourceCount: 0,
           totalChunkCount: 0,
           processedChunkCount: 0,
         })
       )
     ).toBe(24);
+  });
+
+  it('keeps parsing band active while parsedSourceCount is below sourceCount', () => {
+    expect(
+      extractionProgressPercent(
+        makeJob({
+          status: 'running',
+          stage: 'analyzing_sources',
+          sourceTypes: ['pdf'],
+          sourceCount: 70,
+          parsedSourceCount: 8,
+          processedSourceCount: 8,
+          totalChunkCount: 24,
+          processedChunkCount: 12,
+        })
+      )
+    ).toBe(13);
   });
 
   it('advances analyzing progress via chunk ratio when totals are known', () => {
@@ -125,6 +143,7 @@ describe('extractionProgressPercent', () => {
           stage: 'analyzing_sources',
           sourceTypes: ['pdf'],
           sourceCount: 70,
+          parsedSourceCount: 70,
           processedSourceCount: 60,
           totalChunkCount: 400,
           processedChunkCount: 128,
@@ -133,7 +152,7 @@ describe('extractionProgressPercent', () => {
     ).toBe(42);
   });
 
-  it('interpolates parsing progress near the parsing band start', () => {
+  it('interpolates parsing progress via parsedSourceCount ratio', () => {
     expect(
       extractionProgressPercent(
         makeJob({
@@ -141,10 +160,10 @@ describe('extractionProgressPercent', () => {
           stage: 'parsing_sources',
           sourceTypes: ['pdf'],
           sourceCount: 4,
-          processedSourceCount: 2,
+          parsedSourceCount: 2,
         })
       )
-    ).toBe(12);
+    ).toBe(18);
   });
 
   it('returns completion for succeeded_with_warnings jobs', () => {
@@ -192,6 +211,7 @@ describe('extractionProgressDetailSentence', () => {
           status: 'running',
           stage: 'analyzing_sources',
           sourceCount: 70,
+          parsedSourceCount: 70,
           processedSourceCount: 15,
           totalChunkCount: 33,
           processedChunkCount: 26,
@@ -200,19 +220,36 @@ describe('extractionProgressDetailSentence', () => {
     ).toBe('15 of 70 sources processed, 26 of 33 chunks analyzed');
   });
 
-  it('omits chunks when totalChunkCount is zero', () => {
+  it('omits chunks when totalChunkCount is zero during analyzing', () => {
     expect(
       extractionProgressDetailSentence(
         makeJob({
           status: 'running',
           stage: 'analyzing_sources',
           sourceCount: 70,
+          parsedSourceCount: 70,
           processedSourceCount: 0,
           totalChunkCount: 0,
           processedChunkCount: 0,
         })
       )
     ).toBe('0 of 70 sources processed');
+  });
+
+  it('uses parsed copy while parse gate is active', () => {
+    expect(
+      extractionProgressDetailSentence(
+        makeJob({
+          status: 'running',
+          stage: 'analyzing_sources',
+          sourceCount: 70,
+          parsedSourceCount: 8,
+          processedSourceCount: 8,
+          totalChunkCount: 24,
+          processedChunkCount: 12,
+        })
+      )
+    ).toBe('8 of 70 sources parsed, 12 of 24 chunks discovered');
   });
 
   it('returns null when sourceCount is missing', () => {
@@ -230,15 +267,46 @@ describe('formatExtractionMetrics', () => {
           status: 'running',
           stage: 'analyzing_sources',
           sourceCount: 70,
+          parsedSourceCount: 70,
           processedSourceCount: 0,
           totalChunkCount: 0,
           processedChunkCount: 128,
         })
       )
     ).toEqual({
-      sources: { processed: 0, total: 70, succeeded: 0, failed: 0 },
+      sources: {
+        processed: 0,
+        parsed: 70,
+        displayCount: 0,
+        total: 70,
+        succeeded: 0,
+        failed: 0,
+      },
       chunks: null,
-      chunksPendingDiscovery: true,
+      chunksPendingDiscovery: false,
+    });
+  });
+
+  it('shows parsed display count during parsing phase', () => {
+    expect(
+      formatExtractionMetrics(
+        makeJob({
+          status: 'running',
+          stage: 'analyzing_sources',
+          sourceCount: 70,
+          parsedSourceCount: 8,
+          processedSourceCount: 8,
+          totalChunkCount: 24,
+          processedChunkCount: 12,
+        })
+      ).sources
+    ).toEqual({
+      processed: 8,
+      parsed: 8,
+      displayCount: 8,
+      total: 70,
+      succeeded: 0,
+      failed: 0,
     });
   });
 
@@ -249,6 +317,7 @@ describe('formatExtractionMetrics', () => {
           status: 'running',
           stage: 'analyzing_sources',
           sourceCount: 70,
+          parsedSourceCount: 70,
           processedSourceCount: 60,
           totalChunkCount: 400,
           processedChunkCount: 128,
@@ -267,11 +336,27 @@ describe('extractionStepCaption', () => {
           status: 'running',
           stage: 'analyzing_sources',
           sourceCount: 70,
+          parsedSourceCount: 70,
           totalChunkCount: 400,
           processedChunkCount: 128,
         })
       )
     ).toBe('128 of 400 chunks analyzed');
+  });
+
+  it('shows PDF parse caption during parsing phase', () => {
+    expect(
+      extractionStepCaption(
+        'parsing_sources',
+        makeJob({
+          status: 'running',
+          stage: 'analyzing_sources',
+          sourceTypes: ['pdf'],
+          sourceCount: 70,
+          parsedSourceCount: 8,
+        })
+      )
+    ).toBe('8 of 70 PDFs parsed');
   });
 });
 
@@ -359,5 +444,31 @@ describe('extractionEffectiveStage', () => {
     expect(extractionEffectiveStage(makeJob({ status: 'running', stage: 'reading_sources' }))).toBe(
       'parsing_sources'
     );
+  });
+
+  it('forces parsing_sources while parsedSourceCount is below sourceCount', () => {
+    expect(
+      extractionEffectiveStage(
+        makeJob({
+          status: 'running',
+          stage: 'analyzing_sources',
+          sourceCount: 70,
+          parsedSourceCount: 8,
+        })
+      )
+    ).toBe('parsing_sources');
+  });
+
+  it('advances to analyzing_sources once every source is parsed', () => {
+    expect(
+      extractionEffectiveStage(
+        makeJob({
+          status: 'running',
+          stage: 'parsing_sources',
+          sourceCount: 70,
+          parsedSourceCount: 70,
+        })
+      )
+    ).toBe('analyzing_sources');
   });
 });

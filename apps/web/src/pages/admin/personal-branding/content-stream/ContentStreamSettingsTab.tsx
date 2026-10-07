@@ -191,6 +191,30 @@ export default function ContentStreamSettingsTab({
           {settings.lastErrorSummary ? (
             <p className="mt-2 text-red-600 dark:text-red-400">{settings.lastErrorSummary}</p>
           ) : null}
+          {settings.liveNowDiagnostics ? (
+            <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+              <p className="font-medium text-gray-900 dark:text-gray-100">
+                Live Now (X inspiration)
+              </p>
+              <p className="mt-1">
+                Status: {String(settings.liveNowDiagnostics.status ?? 'unknown')}
+                {typeof settings.liveNowSignalCount === 'number'
+                  ? ` · ${settings.liveNowSignalCount} cached signal(s)`
+                  : null}
+              </p>
+              {Array.isArray(settings.liveNowDiagnostics.reasonCodes) &&
+              settings.liveNowDiagnostics.reasonCodes.length > 0 ? (
+                <p className="mt-1 text-amber-700 dark:text-amber-300">
+                  {settings.liveNowDiagnostics.reasonCodes.join(', ')}
+                </p>
+              ) : null}
+              {!settings.hasRapidApiKey ? (
+                <p className="mt-1 text-amber-700 dark:text-amber-300">
+                  RapidAPI key missing — Live Now and own-post voice context are unavailable.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

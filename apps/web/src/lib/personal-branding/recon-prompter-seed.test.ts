@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ReconPost } from '@/types/api/personal-branding.dto';
+import { buildPrompterInteractionIntent } from '@/lib/personal-branding/manual-prompter-paste';
 import {
   buildReconInteractionIntent,
   buildReconPrompterSeed,
   ctaLabelForReconPost,
+  preferredIntentActionForReconPost,
+  RECON_INTERACTION_INTENT_MAX,
 } from './recon-prompter-seed';
 
 const basePost: ReconPost = {
@@ -12,7 +15,7 @@ const basePost: ReconPost = {
   connectionName: 'Alice',
   platformPostId: '123',
   authorUsername: 'alice',
-  text: 'Hello world',
+  text: 'We shipped a new observability pipeline with structured logs and trace correlation across services.',
   url: 'https://x.com/alice/status/123',
   postedAt: '2026-07-21T12:00:00.000Z',
   likeCount: 1,
@@ -38,69 +41,80 @@ describe('ctaLabelForReconPost', () => {
   });
 });
 
-describe('buildReconInteractionIntent', () => {
-  it('prefers suggestedAngle when present', () => {
-    expect(
-      buildReconInteractionIntent({
-        recommendedAction: 'reply',
-        authorUsername: 'alice',
-        suggestedAngle: 'Add a contrarian insight on their AI thesis to spark debate.',
-        relevanceRationale: 'High engagement window',
-        relevanceRationaleBullets: ['Strong thread momentum'],
-        text: 'AI will change everything',
-      })
-    ).toBe('Add a contrarian insight on their AI thesis to spark debate.');
+describe('preferredIntentActionForReconPost', () => {
+  it('maps quote to quote and other actions to reply', () => {
+    expect(preferredIntentActionForReconPost({ recommendedAction: 'quote' })).toBe('quote');
+    expect(preferredIntentActionForReconPost({ recommendedAction: 'reply' })).toBe('reply');
+    expect(preferredIntentActionForReconPost({ recommendedAction: 'monitor' })).toBe('reply');
   });
+});
 
-  it('builds reply-focused intent with rationale and excerpt fallback', () => {
+describe('buildReconInteractionIntent', () => {
+  it('prefers suggestedAngle when set', () => {
     const intent = buildReconInteractionIntent({
       recommendedAction: 'reply',
       authorUsername: 'alice',
-      suggestedAngle: null,
-      relevanceRationale: 'Timely take on product launch',
-      relevanceRationaleBullets: ['Brand fit on builder tools', 'Early replies get visibility'],
-      text: 'We just shipped v2. Here is what changed.',
+      suggestedAngle: 'Add a contrarian insight on their AI thesis to spark debate.',
+    });
+    expect(intent).toBe('Add a contrarian insight on their AI thesis to spark debate.');
+    expect(intent).not.toContain('@alice');
+  });
+
+  it('truncates suggestedAngle to reply-run max', () => {
+    const longAngle = 'x'.repeat(RECON_INTERACTION_INTENT_MAX + 50);
+    const intent = buildReconInteractionIntent({
+      recommendedAction: 'reply',
+      authorUsername: 'alice',
+      suggestedAngle: longAngle,
+    });
+    expect(intent.length).toBe(RECON_INTERACTION_INTENT_MAX);
+    expect(intent).toBe(longAngle.slice(0, RECON_INTERACTION_INTENT_MAX));
+  });
+
+  it('ignores rationale, bullets, and post excerpt when suggestedAngle is empty', () => {
+    const intent = buildReconInteractionIntent({
+      recommendedAction: 'reply',
+      authorUsername: 'alice',
+      suggestedAngle: '',
+    });
+    expect(intent).toBe(
+      buildPrompterInteractionIntent({ action: 'reply', authorUsername: 'alice' })
+    );
+    expect(intent).not.toContain('contrarian');
+    expect(intent).not.toContain('Opportunity:');
+    expect(intent).not.toContain('React to:');
+  });
+
+  it('uses reply chip framing for reply action when no suggestedAngle', () => {
+    const intent = buildReconInteractionIntent({
+      recommendedAction: 'reply',
+      authorUsername: 'alice',
     });
     expect(intent).toContain('@alice');
-    expect(intent).toContain('Reply to @alice');
-    expect(intent).toContain('Opportunity: Timely take on product launch');
-    expect(intent).toContain('Brand fit on builder tools');
-    expect(intent).toContain('React to:');
-    expect(intent).toContain('We just shipped v2.');
+    expect(intent).toContain('thoughtful reply');
   });
 
-  it('builds quote-focused intent with handle', () => {
-    expect(
-      buildReconInteractionIntent({
-        recommendedAction: 'quote',
-        authorUsername: 'bob',
-        suggestedAngle: null,
-        relevanceRationale: null,
-        relevanceRationaleBullets: null,
-        text: 'Hot take on markets',
-      })
-    ).toContain('@bob');
-    expect(
-      buildReconInteractionIntent({
-        recommendedAction: 'quote',
-        authorUsername: 'bob',
-        suggestedAngle: null,
-        relevanceRationale: null,
-        relevanceRationaleBullets: null,
-        text: 'Hot take on markets',
-      })
-    ).toContain('Quote @bob');
+  it('uses quote chip framing for quote action when no suggestedAngle', () => {
+    const intent = buildReconInteractionIntent({
+      recommendedAction: 'quote',
+      authorUsername: 'bob',
+    });
+    expect(intent).toBe(buildPrompterInteractionIntent({ action: 'quote', authorUsername: 'bob' }));
+    expect(intent).toContain('@bob');
+    expect(intent).toContain('quote post');
   });
 
-  it('falls back to generic engage intent without handle', () => {
+  it('uses engage framing for monitor and other actions when no suggestedAngle', () => {
     expect(
       buildReconInteractionIntent({
         recommendedAction: 'monitor',
         authorUsername: null,
-        suggestedAngle: null,
-        relevanceRationale: null,
-        relevanceRationaleBullets: null,
-        text: 'Some post',
+      })
+    ).toBe(buildPrompterInteractionIntent({ action: 'engage', authorUsername: null }));
+    expect(
+      buildReconInteractionIntent({
+        recommendedAction: 'monitor',
+        authorUsername: null,
       })
     ).toContain('the creator');
   });
@@ -111,12 +125,44 @@ describe('buildReconPrompterSeed', () => {
     const seed = buildReconPrompterSeed(basePost);
     expect(seed).toEqual({
       connectionId: 'conn-1',
-      creatorText: 'Hello world',
+      creatorText:
+        'We shipped a new observability pipeline with structured logs and trace correlation across services.',
       interactionIntent: buildReconInteractionIntent(basePost),
+      preferredIntentAction: 'reply',
+      limitedTextContext: false,
       authorHandle: 'alice',
       evidenceUrl: 'https://x.com/alice/status/123',
       platformPostId: '123',
       reconPostId: 'post-1',
+      learningCost: undefined,
     });
+  });
+
+  it('includes suggestedAngle in interactionIntent when present', () => {
+    const post: ReconPost = {
+      ...basePost,
+      suggestedAngle: 'Share a concrete infra lesson from your own rollout.',
+    };
+    const seed = buildReconPrompterSeed(post);
+    expect(seed.interactionIntent).toBe('Share a concrete infra lesson from your own rollout.');
+    expect(seed.preferredIntentAction).toBe('reply');
+  });
+
+  it('flags limitedTextContext for sparse post bodies', () => {
+    const post: ReconPost = {
+      ...basePost,
+      text: 'lol',
+    };
+    const seed = buildReconPrompterSeed(post);
+    expect(seed.limitedTextContext).toBe(true);
+  });
+
+  it('passes learningCost through for briefing toggle defaults', () => {
+    const post: ReconPost = {
+      ...basePost,
+      learningCost: 'high',
+    };
+    const seed = buildReconPrompterSeed(post);
+    expect(seed.learningCost).toBe('high');
   });
 });

@@ -1,10 +1,34 @@
-import { ChevronDown, ChevronLeft, ChevronRight, ClipboardPaste, Sparkles } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  ClipboardPaste,
+  MoreHorizontal,
+  Sparkles,
+  ThumbsUp,
+} from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Button from '@/components/atoms/Button';
+import { Skeleton } from '@/components/atoms/Skeleton';
+import DropdownMenuButton from '@/components/molecules/DropdownMenuButton';
+import { EmptyState } from '@/components/molecules/EmptyState';
 import FollowSuggestionConfidenceModal from '@/components/molecules/personal-branding/FollowSuggestionConfidenceModal';
 import EngagementRationale from '@/components/molecules/personal-branding/EngagementRationale';
+import { GoodPickAffirmBurst } from '@/components/molecules/GoodPickAffirmBurst';
+import { ClampedShowMoreText } from '@/components/molecules/personal-branding/ClampedShowMoreText';
+import { EyebrowLabel } from '@/components/molecules/personal-branding/EyebrowLabel';
 import RecommendedActionBadge from '@/components/molecules/personal-branding/RecommendedActionBadge';
+import LearningCostBadge from '@/components/molecules/personal-branding/LearningCostBadge';
 import RejectWithFeedbackModal from '@/components/molecules/personal-branding/RejectWithFeedbackModal';
 import ReconFeedRunMonitor from '@/components/organisms/personal-branding/ReconFeedRunMonitor';
 import type { Toast } from '@/hooks/use-toast';
@@ -15,40 +39,87 @@ import {
   useReconRunDetail,
   RECON_RUNS_PAGE_SIZE,
   buildReconScarcityMessage,
+  isProcessedReconPostStatus,
   type ReconPostListFilters,
 } from '@/hooks/useReconFeed';
+import { formatRelativeChatTimestamp } from '@/lib/chat/format-relative-time';
 import { extractErrorMessage } from '@/lib/react-query/error-utils';
 import {
   buildReconPrompterSeed,
   ctaLabelForReconPost,
   type ReconPrompterPrefill,
 } from '@/lib/personal-branding/recon-prompter-seed';
+import {
+  buildReconActiveEmptyPresentation,
+  resolveReconActiveEmptyKind,
+  type ReconAgePreset,
+} from '@/lib/personal-branding/recon-active-empty-state';
+import {
+  formatReconFeedListSummary,
+  isNonDefaultReconFeedFilters,
+  type ReconFeedSortField,
+} from '@/lib/personal-branding/recon-feed-list-summary';
+import {
+  formatReconRelevancePercent,
+  reconFollowSuggestionActionsClusterClassName,
+  reconPostActionsClusterClassName,
+  reconPostActionsCompactClusterClassName,
+  reconPostActionsWideClusterClassName,
+  reconPostAccentBarClassName,
+  reconPostContentColumnClassName,
+  reconPostHighOpportunityRibbonClassName,
+  reconPostLowTierTextClassName,
+  reconPostPrimaryCtaClusterClassName,
+  reconPostRelevanceTier,
+  reconPostRowShellClassName,
+  reconPostScoreCaptionClassName,
+  reconPostScorePillClassName,
+  reconPostScoreValueClassName,
+} from '@/lib/personal-branding/recon-post-row-surfaces';
 import { nextActionCueForRecommendedAction } from '@/lib/personal-branding/recommended-action-display';
+import { formatSocialCapitalAngleLabel } from '@/lib/personal-branding/social-capital-angle';
 import { cn } from '@/lib/utils';
 import type {
   CreateCreatorConnectionInput,
   CreatorConnection,
   FollowSuggestion,
   ReconPost,
+  ReconPostFeedbackCategory,
   ReconPostStatus,
   ReplyGenerationDraft,
+  ReplyRejectionFeedbackCategory,
   ReplySuggestion,
+  UpdateReconPostInput,
 } from '@/types/api/personal-branding.dto';
-import { RECON_POST_STATUS_LABELS } from '@/types/api/personal-branding.dto';
-import { PageCard } from '../PersonalBrandingPageTemplate';
-import { linkAccentClassName, selectableChipClassName } from '../personal-branding-ui';
+import { RECON_DISMISS_CATEGORY_LABELS, RECON_DISMISS_CATEGORIES, RECON_POST_STATUS_LABELS } from '@/types/api/personal-branding.dto';
+import { PageCard, SectionIntro } from '../PersonalBrandingPageTemplate';
+import {
+  formatPersonalBrandingDateTime,
+  linkAccentClassName,
+  pbCompactControlDensityClassName,
+  pbDenseListStackClassName,
+  pbFocusVisibleRingClassName,
+  pbMetaClassName,
+  selectableFilterChipClassName,
+} from '../personal-branding-ui';
 import ConnectionEditorDialog from './ConnectionEditorDialog';
 import EntityTypeBadge from './EntityTypeBadge';
 import LogInteractionDialog from './LogInteractionDialog';
-import ManualPrompterPasteDialog from './ManualPrompterPasteDialog';
+import ManualPrompterPasteDialog, { PASTE_POST_CTA_HINT } from './ManualPrompterPasteDialog';
 import ReconRunDetailDrawer from './ReconRunDetailDrawer';
 import RolodexPrompterDrawer from './RolodexPrompterDrawer';
 import { hasXHandle } from './rolodex-platform';
+import {
+  getReconMovePhase,
+  mergeReconDisplayPosts,
+  RECON_FEED_STATUS_MOVE_MS,
+  type ReconFeedStatusMoveDirection,
+  type ReconFeedStatusMoveMap,
+} from './recon-feed-status-move-queue';
 
 type RolodexHook = ReturnType<typeof useRolodex>;
 
-type ReconAgePreset = 'all' | '1d' | '2d' | '3d' | '7d' | '2wk';
-type ReconSortField = 'relevanceScore' | 'postedAt';
+type ReconSortField = ReconFeedSortField;
 
 const RECON_AGE_PRESETS: { value: ReconAgePreset; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -66,6 +137,20 @@ const RECON_SORT_OPTIONS: { value: ReconSortField; label: string }[] = [
 
 const RECON_PROCESSED_PANEL_ID = 'recon-processed-panel';
 
+const reconSecondaryGhostButtonClassName = cn(
+  pbCompactControlDensityClassName,
+  pbFocusVisibleRingClassName,
+  'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+);
+
+const reconPrimaryCtaButtonClassName = cn(
+  pbFocusVisibleRingClassName,
+  'inline-flex items-center gap-1'
+);
+
+const reconGoodPickRemoveButtonClassName =
+  'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100';
+
 function postedAfterForPreset(preset: ReconAgePreset): string | undefined {
   if (preset === 'all') return undefined;
   const days =
@@ -73,89 +158,191 @@ function postedAfterForPreset(preset: ReconAgePreset): string | undefined {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
-function formatDate(value?: string | null): string {
-  if (!value) return '—';
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return value;
-  }
+function formatProcessedCountBadge(loaded: number, total: number): string {
+  if (total === 0) return '0';
+  if (loaded < total) return `${loaded} of ${total}`;
+  return String(total);
 }
 
-function scoreBadgeClass(score?: number | null): string {
-  if (score === null || score === undefined)
-    return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
-  if (score >= 0.75) return 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300';
-  if (score >= 0.5) return 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300';
-  return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+function formatReconPostedAt(value?: string | null): { label: string; title?: string } {
+  if (!value) return { label: '—' };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { label: value };
+  return {
+    label: formatRelativeChatTimestamp(value),
+    title: formatPersonalBrandingDateTime(value),
+  };
 }
+
+const reconGoodPickChipClassName =
+  'inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400';
 
 function ReconPostRow({
   post,
   isUpdating,
   variant = 'active',
-  onStatus,
   onDraft,
+  onLogReply,
+  onGoodPick,
+  onDismiss,
   onRestore,
 }: {
   post: ReconPost;
   isUpdating: boolean;
   variant?: 'active' | 'processed';
-  onStatus: (status: ReconPostStatus) => void;
   onDraft: () => void;
+  onLogReply: () => void;
+  onGoodPick: () => void;
+  onDismiss: () => void;
   onRestore?: () => void;
 }) {
+  const [goodPickPulseKey, setGoodPickPulseKey] = useState(0);
+
+  const tier = reconPostRelevanceTier(post.relevanceScore);
+  const relevancePercent = formatReconRelevancePercent(post.relevanceScore);
   const draftLabel = ctaLabelForReconPost(post);
   const nextActionCue = nextActionCueForRecommendedAction(post.recommendedAction);
   const draftAriaLabel = `${draftLabel} for ${post.connectionName ?? 'connection'}${
     post.authorUsername ? ` @${post.authorUsername}` : ''
   }`;
+  const isGoodPick = post.feedbackVerdict === 'GOOD';
+  const handleGoodPickClick = () => {
+    if (!isGoodPick) {
+      setGoodPickPulseKey((key) => key + 1);
+    }
+    onGoodPick();
+  };
+  const dismissCategoryLabel =
+    post.feedbackCategory && post.feedbackCategory in RECON_DISMISS_CATEGORY_LABELS
+      ? RECON_DISMISS_CATEGORY_LABELS[
+          post.feedbackCategory as keyof typeof RECON_DISMISS_CATEGORY_LABELS
+        ]
+      : post.feedbackCategory;
+  const postedAtDisplay = formatReconPostedAt(post.postedAt);
   return (
     <div
-      className={cn(
-        'rounded-xl border border-gray-200 p-4 dark:border-gray-700',
-        variant === 'processed' && 'opacity-80'
-      )}
+      data-relevance-tier={tier}
+      className={cn(reconPostRowShellClassName({ tier, variant }), 'group')}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-gray-900 dark:text-white">
-              {post.connectionName ?? 'Connection'}
-            </span>
-            {post.authorUsername ? (
-              <span className="text-xs text-gray-500">@{post.authorUsername}</span>
+      {tier === 'high' ? (
+        <span
+          className={reconPostHighOpportunityRibbonClassName(tier)}
+          data-testid="high-opportunity-ribbon"
+        >
+          High opportunity
+        </span>
+      ) : null}
+      <span aria-hidden className={reconPostAccentBarClassName(tier)} />
+      <div className={cn('flex min-w-0 flex-col', pbDenseListStackClassName)}>
+        <div className="flex flex-wrap items-start gap-2">
+          <div className={cn(reconPostContentColumnClassName, 'space-y-1.5')}>
+            {tier === 'high' ? (
+              <div className="flex items-baseline gap-1.5">
+                <span
+                  className={reconPostScoreValueClassName({ tier, score: post.relevanceScore })}
+                  aria-label={`${relevancePercent} relevance`}
+                >
+                  {relevancePercent}
+                </span>
+                <span className={reconPostScoreCaptionClassName(tier)}>relevance</span>
+              </div>
             ) : null}
-            <span
-              className={cn(
-                'rounded-full px-2 py-0.5 text-xs font-medium',
-                scoreBadgeClass(post.relevanceScore)
-              )}
-            >
-              {post.relevanceScore !== null && post.relevanceScore !== undefined
-                ? `${(post.relevanceScore * 100).toFixed(0)}% relevance`
-                : 'Unscored'}
-            </span>
-            <RecommendedActionBadge action={post.recommendedAction} />
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium text-gray-900 dark:text-white">
+                {post.connectionName ?? 'Connection'}
+              </span>
+              {post.authorUsername ? (
+                <span className={pbMetaClassName}>@{post.authorUsername}</span>
+              ) : null}
+              {tier === 'mid' ? (
+                <span
+                  className={cn(
+                    reconPostScorePillClassName({ tier, score: post.relevanceScore }),
+                    reconPostScoreValueClassName({ tier, score: post.relevanceScore })
+                  )}
+                >
+                  {`${relevancePercent} relevance`}
+                </span>
+              ) : null}
+              {tier === 'low' ? (
+                <span
+                  className={cn(
+                    reconPostScoreValueClassName({ tier, score: post.relevanceScore }),
+                    reconPostScoreCaptionClassName(tier)
+                  )}
+                >
+                  {post.relevanceScore !== null && post.relevanceScore !== undefined
+                    ? `${relevancePercent} relevance`
+                    : 'Unscored'}
+                </span>
+              ) : null}
+              {post.socialCapitalAngle ? (
+                <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                  {formatSocialCapitalAngleLabel(post.socialCapitalAngle)}
+                </span>
+              ) : null}
+              <RecommendedActionBadge action={post.recommendedAction} />
+              <LearningCostBadge learningCost={post.learningCost} />
+              {post.ingestSource && post.ingestSource !== 'recon' ? (
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                  via Content Stream
+                </span>
+              ) : null}
+            </div>
           </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
-            {post.text}
-          </p>
+          <div className={reconPostPrimaryCtaClusterClassName}>
+            <Button
+              type="button"
+              size="sm"
+              variant="primary"
+              aria-label={draftAriaLabel}
+              disabled={isUpdating}
+              onClick={onDraft}
+              className={reconPrimaryCtaButtonClassName}
+            >
+              <Sparkles className="size-3.5 shrink-0" />
+              {draftLabel}
+            </Button>
+          </div>
+        </div>
+        <div className={cn(reconPostContentColumnClassName, 'space-y-1.5')}>
+          <ClampedShowMoreText
+            text={post.text}
+            lines={4}
+            className={cn('text-sm', reconPostLowTierTextClassName(tier))}
+          />
           {nextActionCue ? (
-            <p className="mt-2 text-xs font-medium text-gray-700 dark:text-gray-300">
-              {nextActionCue}
-            </p>
+            <p className={cn(pbMetaClassName, 'font-normal')}>{nextActionCue}</p>
           ) : null}
           <EngagementRationale
             lead={post.relevanceRationale}
             bullets={post.relevanceRationaleBullets}
-            className="mt-2"
-            leadClassName="text-xs text-gray-500 dark:text-gray-400"
-            bulletClassName="text-xs text-gray-500 dark:text-gray-400"
+            leadClassName={pbMetaClassName}
+            bulletClassName={pbMetaClassName}
           />
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+          {variant === 'active' && post.suggestedAngle?.trim() ? (
+            <p className={pbMetaClassName}>
+              <span className="font-medium text-gray-600 dark:text-gray-300">Angle:</span>{' '}
+              {post.suggestedAngle.trim()}
+            </p>
+          ) : null}
+          {variant === 'processed' && dismissCategoryLabel ? (
+            <p className={pbMetaClassName}>
+              Dismissed: {dismissCategoryLabel}
+              {post.feedbackText ? ` — ${post.feedbackText}` : ''}
+            </p>
+          ) : null}
+          {isGoodPick ? (
+            <GoodPickAffirmBurst pulseKey={goodPickPulseKey}>
+              <span className={reconGoodPickChipClassName} aria-label="Good pick affirmation">
+                <Check className="size-3 shrink-0" aria-hidden />
+                Good pick
+              </span>
+            </GoodPickAffirmBurst>
+          ) : null}
+          <div className={cn('flex flex-wrap items-center gap-3', pbMetaClassName)}>
             <span>{RECON_POST_STATUS_LABELS[post.status]}</span>
-            <span>{formatDate(post.postedAt)}</span>
+            <span title={postedAtDisplay.title}>{postedAtDisplay.label}</span>
             {post.url ? (
               <a href={post.url} target="_blank" rel="noreferrer" className={linkAccentClassName}>
                 View post
@@ -163,39 +350,92 @@ function ReconPostRow({
             ) : null}
           </div>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          <Button
-            type="button"
-            size="sm"
-            aria-label={draftAriaLabel}
-            disabled={isUpdating}
-            onClick={onDraft}
-            className="inline-flex items-center gap-1"
-          >
-            <Sparkles className="size-3.5 shrink-0" />
-            {draftLabel}
-          </Button>
-          <div className="flex flex-wrap justify-end gap-1">
-            {(['REVIEWED', 'ACTIONED', 'DISMISSED'] as ReconPostStatus[]).map((status) => (
+        <div className={reconPostActionsClusterClassName}>
+          <div className={reconPostActionsWideClusterClassName} data-testid="recon-post-actions-wide">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={isUpdating}
+              onClick={onLogReply}
+              className={reconSecondaryGhostButtonClassName}
+            >
+              Log reply
+            </Button>
+            {isGoodPick ? (
               <Button
-                key={status}
                 type="button"
                 size="sm"
-                variant={post.status === status ? 'primary' : 'secondary'}
-                disabled={isUpdating || post.status === status}
-                onClick={() => onStatus(status)}
+                variant="ghost"
+                disabled={isUpdating}
+                aria-label="Remove good pick"
+                onClick={handleGoodPickClick}
+                className={cn(reconSecondaryGhostButtonClassName, reconGoodPickRemoveButtonClassName)}
               >
-                {RECON_POST_STATUS_LABELS[status]}
+                Remove
               </Button>
-            ))}
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={isUpdating}
+                aria-label="Mark as good pick"
+                onClick={handleGoodPickClick}
+                className={cn('inline-flex items-center gap-1', reconSecondaryGhostButtonClassName)}
+              >
+                <ThumbsUp className="size-3.5 shrink-0" />
+                Good pick
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={isUpdating}
+              onClick={onDismiss}
+              className={reconSecondaryGhostButtonClassName}
+            >
+              Dismiss
+            </Button>
+          </div>
+          <div className={reconPostActionsCompactClusterClassName} data-testid="recon-post-actions-compact">
+            <DropdownMenuButton
+              icon={MoreHorizontal}
+              ariaLabel="More actions"
+              align="end"
+              items={[
+                {
+                  key: 'log-reply',
+                  label: 'Log reply',
+                  onClick: onLogReply,
+                  disabled: isUpdating,
+                },
+                {
+                  key: 'good-pick',
+                  label: isGoodPick ? 'Remove good pick' : 'Good pick',
+                  icon: ThumbsUp,
+                  onClick: handleGoodPickClick,
+                  disabled: isUpdating,
+                },
+                {
+                  key: 'dismiss',
+                  label: 'Dismiss',
+                  onClick: onDismiss,
+                  disabled: isUpdating,
+                  tone: 'danger',
+                },
+              ]}
+            />
           </div>
           {variant === 'processed' && onRestore ? (
             <Button
               type="button"
               size="sm"
-              variant="secondary"
+              variant="ghost"
               disabled={isUpdating}
               onClick={onRestore}
+              className={reconSecondaryGhostButtonClassName}
             >
               Restore to feed
             </Button>
@@ -224,9 +464,9 @@ function FollowSuggestionRow({
   const sharedCount = suggestion.sharedConnectionIds.length;
   const hasConfidence = suggestion.confidence !== null && suggestion.confidence !== undefined;
   return (
-    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+    <div className="min-w-0 w-full overflow-hidden rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+      <div className="flex flex-wrap items-start gap-2">
+        <div className={reconPostContentColumnClassName}>
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="font-medium text-gray-900 dark:text-white">
               {suggestion.displayName ?? `@${suggestion.xUsername}`}
@@ -256,7 +496,7 @@ function FollowSuggestionRow({
             ) : null}
           </p>
         </div>
-        <div className="flex gap-1">
+        <div className={reconFollowSuggestionActionsClusterClassName}>
           <Button type="button" size="sm" disabled={isUpdating || isProposing} onClick={onAdd}>
             {isProposing ? 'Preparing…' : 'Add to directory'}
           </Button>
@@ -272,10 +512,14 @@ function FollowSuggestionRow({
         </div>
       </div>
       {suggestion.bio ? (
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{suggestion.bio}</p>
+        <p className={cn('mt-2 text-sm text-gray-600 dark:text-gray-400', reconPostContentColumnClassName)}>
+          {suggestion.bio}
+        </p>
       ) : null}
       {suggestion.rationale ? (
-        <p className="mt-2 text-xs text-gray-500">{suggestion.rationale}</p>
+        <p className={cn('mt-2 text-xs text-gray-500', reconPostContentColumnClassName)}>
+          {suggestion.rationale}
+        </p>
       ) : null}
       {suggestion.profileUrl ? (
         <a
@@ -291,41 +535,234 @@ function FollowSuggestionRow({
   );
 }
 
+const RECON_LIST_IO_ROOT_MARGIN = '80px';
+
+function ReconFeedLoadMoreSkeleton() {
+  return (
+    <div
+      data-testid="recon-feed-load-more-skeleton"
+      className={cn(
+        reconPostRowShellClassName({ tier: 'mid', variant: 'active' }),
+        'pointer-events-none'
+      )}
+      aria-hidden
+    >
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className="mt-2 h-4 w-full" />
+      <Skeleton className="mt-2 h-4 w-5/6" />
+      <Skeleton className="mt-3 h-3 w-2/3" />
+    </div>
+  );
+}
+
 function PaginatedReconListPanel({
   loadedCount,
   total,
   hasNextPage,
   isFetchingNextPage,
+  isFetchNextPageError,
   onLoadMore,
+  agePreset,
+  sortField,
+  onClearFilters,
   children,
 }: {
   loadedCount: number;
   total: number;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
+  isFetchNextPageError: boolean;
   onLoadMore: () => void;
+  agePreset?: ReconAgePreset;
+  sortField?: ReconSortField;
+  onClearFilters?: () => void;
   children: ReactNode;
 }) {
+  const scrollRootRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const canAutoLoad = typeof IntersectionObserver !== 'undefined';
+
+  const tryLoadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
+      onLoadMore();
+    }
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, onLoadMore]);
+
+  useEffect(() => {
+    if (!canAutoLoad || !hasNextPage) {
+      return undefined;
+    }
+    const root = scrollRootRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          tryLoadMore();
+        }
+      },
+      { root, rootMargin: RECON_LIST_IO_ROOT_MARGIN, threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [canAutoLoad, hasNextPage, tryLoadMore]);
+
+  useEffect(() => {
+    if (!canAutoLoad || !hasNextPage || isFetchingNextPage || isFetchNextPageError) {
+      return;
+    }
+    const root = scrollRootRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel) {
+      return;
+    }
+    const rootRect = root.getBoundingClientRect();
+    const sentinelRect = sentinel.getBoundingClientRect();
+    const marginPx = 80;
+    if (sentinelRect.top <= rootRect.bottom + marginPx) {
+      tryLoadMore();
+    }
+  }, [
+    canAutoLoad,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    tryLoadMore,
+    loadedCount,
+  ]);
+
+  const showFallbackButton = hasNextPage && (!canAutoLoad || isFetchNextPageError);
+  const filterAware =
+    agePreset !== undefined && sortField !== undefined && onClearFilters !== undefined;
+  const showClearFilters =
+    filterAware && isNonDefaultReconFeedFilters(agePreset, sortField);
+
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        Showing {loadedCount} of {total}
-      </p>
-      <div className="max-h-[32rem] overflow-y-auto pr-1">
-        <div className="grid gap-3">{children}</div>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {filterAware
+            ? formatReconFeedListSummary({
+                loadedCount,
+                total,
+                agePreset,
+                sortField,
+              })
+            : `Showing ${loadedCount} of ${total}`}
+        </p>
+        {showClearFilters ? (
+          <button
+            type="button"
+            onClick={onClearFilters}
+            className={cn('text-xs font-medium', linkAccentClassName)}
+          >
+            Clear filters
+          </button>
+        ) : null}
       </div>
-      {hasNextPage ? (
+      <div
+        ref={scrollRootRef}
+        className="min-w-0 max-h-[32rem] overflow-y-auto overflow-x-hidden pr-1"
+        aria-busy={isFetchingNextPage}
+      >
+        <div className="grid min-w-0 gap-3">
+          {children}
+          {isFetchingNextPage ? <ReconFeedLoadMoreSkeleton /> : null}
+          {hasNextPage ? (
+            <div ref={sentinelRef} className="h-px w-full shrink-0" aria-hidden />
+          ) : null}
+        </div>
+      </div>
+      {showFallbackButton ? (
         <Button
           type="button"
           size="sm"
           variant="secondary"
           disabled={isFetchingNextPage}
           onClick={onLoadMore}
+          className={pbFocusVisibleRingClassName}
         >
-          {isFetchingNextPage ? 'Loading…' : 'Load more'}
+          {isFetchNextPageError ? 'Retry' : 'Load more'}
         </Button>
       ) : null}
     </div>
+  );
+}
+
+function ReconAnimatedPostList({
+  posts,
+  holdMap,
+  holdDirection,
+  enteringPostIds,
+  prefersReducedMotion,
+  variant,
+  updatingPostId,
+  onDraft,
+  onLogReply,
+  onGoodPick,
+  onDismiss,
+  onRestore,
+}: {
+  posts: ReconPost[];
+  holdMap: ReconFeedStatusMoveMap;
+  holdDirection: ReconFeedStatusMoveDirection;
+  enteringPostIds: ReadonlySet<string>;
+  prefersReducedMotion: boolean;
+  variant: 'active' | 'processed';
+  updatingPostId: string | null;
+  onDraft: (post: ReconPost) => void;
+  onLogReply: (post: ReconPost) => void;
+  onGoodPick: (post: ReconPost) => void;
+  onDismiss: (post: ReconPost) => void;
+  onRestore?: (post: ReconPost) => void;
+}) {
+  const displayPosts = useMemo(
+    () => mergeReconDisplayPosts(posts, holdMap, holdDirection),
+    [posts, holdMap, holdDirection]
+  );
+
+  return (
+    <AnimatePresence mode="popLayout" initial={false}>
+      {displayPosts.map((post) => {
+        const exiting = getReconMovePhase(post.id, holdMap) === 'exiting';
+        const entering = enteringPostIds.has(post.id);
+        const isUpdating = updatingPostId === post.id || exiting;
+        return (
+          <motion.div
+            key={post.id}
+            layout={!prefersReducedMotion}
+            initial={
+              entering && !prefersReducedMotion ? { opacity: 0, x: -16, scale: 0.98 } : false
+            }
+            animate={
+              exiting && !prefersReducedMotion
+                ? { opacity: 0, x: 24, scale: 0.98 }
+                : { opacity: 1, x: 0, scale: 1 }
+            }
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 24, scale: 0.98 }}
+            transition={{
+              duration: RECON_FEED_STATUS_MOVE_MS / 1000,
+              ease: 'easeInOut',
+            }}
+            className={cn('min-w-0', exiting && 'pointer-events-none')}
+          >
+            <ReconPostRow
+              post={post}
+              variant={variant}
+              isUpdating={isUpdating}
+              onDraft={() => onDraft(post)}
+              onLogReply={() => onLogReply(post)}
+              onGoodPick={() => onGoodPick(post)}
+              onDismiss={() => onDismiss(post)}
+              onRestore={onRestore ? () => onRestore(post) : undefined}
+            />
+          </motion.div>
+        );
+      })}
+    </AnimatePresence>
   );
 }
 
@@ -346,6 +783,7 @@ export default function ReconFeedTab({
   const [agePreset, setAgePreset] = useState<ReconAgePreset>('all');
   const [sortField, setSortField] = useState<ReconSortField>('relevanceScore');
   const [processedOpen, setProcessedOpen] = useState(false);
+  const processedHeadingId = useId();
   const [runsPage, setRunsPage] = useState(1);
   const [prompterConnection, setPrompterConnection] = useState<CreatorConnection | null>(null);
   const [prompterPrefill, setPrompterPrefill] = useState<ReconPrompterPrefill | null>(null);
@@ -390,8 +828,22 @@ export default function ReconFeedTab({
     return extractErrorMessage(failed.error, 'Failed to load Recon Feed');
   }, [recon.posts, recon.processedPosts, recon.followSuggestions, recon.runs]);
 
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const [holdById, setHoldById] = useState<ReconFeedStatusMoveMap>({});
+  const [enteringPostIds, setEnteringPostIds] = useState(() => new Set<string>());
+  const exitTimersRef = useRef<Record<string, number>>({});
+  const enteringTimersRef = useRef<Record<string, number>>({});
+
   const posts = recon.posts.items;
   const processedPosts = recon.processedPosts.items;
+  const processedCountBadge = formatProcessedCountBadge(
+    processedPosts.length,
+    recon.processedPosts.total
+  );
+  const displayActivePosts = useMemo(
+    () => mergeReconDisplayPosts(posts, holdById, 'toProcessed'),
+    [posts, holdById]
+  );
   const suggestions = recon.followSuggestions.items;
   const runs = recon.runs.data?.data ?? [];
   const trackedXHandleCount = useMemo(
@@ -414,6 +866,8 @@ export default function ReconFeedTab({
   const runsPageSize = recon.runs.data?.pageSize ?? RECON_RUNS_PAGE_SIZE;
   const runsTotalPages = Math.max(1, Math.ceil(runsTotal / runsPageSize));
   const [dismissingSuggestion, setDismissingSuggestion] = useState<FollowSuggestion | null>(null);
+  const [dismissingPost, setDismissingPost] = useState<ReconPost | null>(null);
+  const [logReplyPostId, setLogReplyPostId] = useState<string | null>(null);
   const [addingSuggestion, setAddingSuggestion] = useState<FollowSuggestion | null>(null);
   const [connectionPrefill, setConnectionPrefill] = useState<CreateCreatorConnectionInput | null>(
     null
@@ -428,6 +882,117 @@ export default function ReconFeedTab({
   const selectedRunDetail = useReconRunDetail(selectedRunId);
   const runDetail = selectedRunDetail.detail.data;
   const runIdFromUrl = searchParams.get('runId');
+
+  const clearStatusMoveTimer = useCallback((postId: string) => {
+    const timerId = exitTimersRef.current[postId];
+    if (timerId !== undefined) {
+      window.clearTimeout(timerId);
+      delete exitTimersRef.current[postId];
+    }
+  }, []);
+
+  const clearEnteringTimer = useCallback((postId: string) => {
+    const timerId = enteringTimersRef.current[postId];
+    if (timerId !== undefined) {
+      window.clearTimeout(timerId);
+      delete enteringTimersRef.current[postId];
+    }
+  }, []);
+
+  const commitStatusMove = useCallback(
+    (postId: string) => {
+      clearStatusMoveTimer(postId);
+      setHoldById((current) => {
+        if (!(postId in current)) return current;
+        const next = { ...current };
+        delete next[postId];
+        return next;
+      });
+    },
+    [clearStatusMoveTimer]
+  );
+
+  const scheduleEntering = useCallback(
+    (postId: string) => {
+      clearEnteringTimer(postId);
+      setEnteringPostIds((current) => {
+        if (current.has(postId)) return current;
+        const next = new Set(current);
+        next.add(postId);
+        return next;
+      });
+      enteringTimersRef.current[postId] = window.setTimeout(() => {
+        clearEnteringTimer(postId);
+        setEnteringPostIds((current) => {
+          if (!current.has(postId)) return current;
+          const next = new Set(current);
+          next.delete(postId);
+          return next;
+        });
+      }, RECON_FEED_STATUS_MOVE_MS);
+    },
+    [clearEnteringTimer]
+  );
+
+  const beginStatusMove = useCallback(
+    (post: ReconPost, direction: ReconFeedStatusMoveDirection) => {
+      if (prefersReducedMotion) return;
+      clearStatusMoveTimer(post.id);
+      setHoldById((current) => ({
+        ...current,
+        [post.id]: { post, direction, phase: 'exiting' },
+      }));
+      exitTimersRef.current[post.id] = window.setTimeout(() => {
+        commitStatusMove(post.id);
+      }, RECON_FEED_STATUS_MOVE_MS);
+    },
+    [clearStatusMoveTimer, commitStatusMove, prefersReducedMotion]
+  );
+
+  const clearStatusMove = useCallback(
+    (postId: string) => {
+      commitStatusMove(postId);
+      clearEnteringTimer(postId);
+      setEnteringPostIds((current) => {
+        if (!current.has(postId)) return current;
+        const next = new Set(current);
+        next.delete(postId);
+        return next;
+      });
+    },
+    [clearEnteringTimer, commitStatusMove]
+  );
+
+  const beginStatusMoveIfNeeded = useCallback(
+    (post: ReconPost, nextStatus: ReconPostStatus) => {
+      const wasActive = post.status === 'NEW';
+      const wasProcessed = isProcessedReconPostStatus(post.status);
+      if (wasActive && isProcessedReconPostStatus(nextStatus)) {
+        beginStatusMove(post, 'toProcessed');
+        scheduleEntering(post.id);
+      } else if (wasProcessed && nextStatus === 'NEW') {
+        beginStatusMove(post, 'toActive');
+        scheduleEntering(post.id);
+      }
+    },
+    [beginStatusMove, scheduleEntering]
+  );
+
+  const findReconPost = useCallback(
+    (postId: string) =>
+      posts.find((post) => post.id === postId) ??
+      processedPosts.find((post) => post.id === postId),
+    [posts, processedPosts]
+  );
+
+  useEffect(() => {
+    const exitTimers = exitTimersRef.current;
+    const enteringTimers = enteringTimersRef.current;
+    return () => {
+      Object.values(exitTimers).forEach((timerId) => window.clearTimeout(timerId));
+      Object.values(enteringTimers).forEach((timerId) => window.clearTimeout(timerId));
+    };
+  }, []);
 
   useEffect(() => {
     if (runIdFromUrl) {
@@ -450,17 +1015,34 @@ export default function ReconFeedTab({
     setSearchParams(next, { replace: true });
   };
 
-  const activeFeedEmptyMessage = useMemo(() => {
-    if (showScarcityHint && scarcityMessage) {
-      return scarcityMessage;
-    }
-    if (agePreset === 'all') {
-      return processedPosts.length > 0
-        ? 'No new posts to review. Check Processed below or run ingest for fresh items.'
-        : 'No recon posts yet. Run ingest after adding X handles.';
-    }
-    return 'No new posts in this window. Try a wider age filter or run ingest.';
-  }, [agePreset, processedPosts.length, scarcityMessage, showScarcityHint]);
+  const activeEmptyPresentation = useMemo(() => {
+    const kind = resolveReconActiveEmptyKind({
+      trackedXHandleCount,
+      showScarcityHint,
+      lastRunAt: recon.settings.data?.lastRunAt,
+      agePreset,
+    });
+    return buildReconActiveEmptyPresentation({
+      kind,
+      hasTrackedXHandles,
+      scarcityMessage,
+      agePreset,
+      processedCount: processedPosts.length,
+    });
+  }, [
+    trackedXHandleCount,
+    showScarcityHint,
+    recon.settings.data?.lastRunAt,
+    agePreset,
+    scarcityMessage,
+    hasTrackedXHandles,
+    processedPosts.length,
+  ]);
+
+  const runNowDisabled =
+    recon.startRun.isPending ||
+    !recon.settings.data?.hasRapidApiKey ||
+    recon.hasActiveNonPausedRun;
 
   const closeConnectionEditor = () => {
     setConnectionEditorOpen(false);
@@ -469,15 +1051,81 @@ export default function ReconFeedTab({
     setConnectionDraftSummary(null);
   };
 
-  const handlePostStatus = async (postId: string, status: ReconPostStatus) => {
+  const handlePostUpdate = async (post: ReconPost, body: UpdateReconPostInput) => {
+    if (body.status) beginStatusMoveIfNeeded(post, body.status);
     try {
-      await recon.updatePost.mutateAsync({ postId, body: { status } });
+      await recon.updatePost.mutateAsync({ postId: post.id, body });
     } catch (err) {
+      clearStatusMove(post.id);
       showToast({
         type: 'error',
         title: err instanceof Error ? err.message : 'Update failed',
       });
     }
+  };
+
+  const handlePostStatus = async (post: ReconPost, status: ReconPostStatus) => {
+    await handlePostUpdate(post, { status });
+  };
+
+  const handleGoodPick = async (post: ReconPost) => {
+    const nextVerdict = post.feedbackVerdict === 'GOOD' ? null : 'GOOD';
+    await handlePostUpdate(post, { feedbackVerdict: nextVerdict });
+  };
+
+  const submitDismissPost = async (
+    feedbackText: string | null,
+    feedbackCategory?: string | null
+  ) => {
+    if (!dismissingPost || !feedbackCategory) return;
+    beginStatusMoveIfNeeded(dismissingPost, 'DISMISSED');
+    try {
+      await recon.updatePost.mutateAsync({
+        postId: dismissingPost.id,
+        body: {
+          status: 'DISMISSED',
+          feedbackVerdict: 'BAD',
+          feedbackCategory: feedbackCategory as ReconPostFeedbackCategory,
+          feedbackText,
+        },
+      });
+      setDismissingPost(null);
+    } catch (err) {
+      clearStatusMove(dismissingPost.id);
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Dismiss failed',
+      });
+    }
+  };
+
+  const openLogReplyFromPost = (post: ReconPost) => {
+    const connection = connections.find((item) => item.id === post.connectionId);
+    if (!connection) {
+      showToast({
+        type: 'error',
+        title: 'Connection not found',
+        message: 'Add or restore this connection in the Directory, then try again.',
+      });
+      return;
+    }
+    setLogReplyPostId(post.id);
+    setCheckInConnection(connection);
+    setPendingLog({
+      connection,
+      creatorText: post.text,
+      vector: {
+        id: 'manual-reply',
+        label: 'Manual reply',
+        angle: 'log-reply',
+        draftText: '',
+        rationale: '',
+      },
+      evidenceUrl: post.url ?? null,
+      platform: 'x',
+      platformPostId: post.platformPostId,
+      channel: 'x',
+    });
   };
 
   const openPrompter = useCallback(
@@ -531,6 +1179,8 @@ export default function ReconFeedTab({
       creatorText: string;
       platform: import('@/types/api/personal-branding.dto').BrandPlatform;
       interactionIntent?: string;
+      platformPostId?: string | null;
+      evidenceUrl?: string | null;
     },
     draft: ReplyGenerationDraft,
     resolved: { provider: string; model: string }
@@ -540,24 +1190,36 @@ export default function ReconFeedTab({
         connectionId: connection.id,
         platform: payload.platform,
         creatorText: payload.creatorText,
+        platformPostId: payload.platformPostId ?? undefined,
+        evidenceUrl: payload.evidenceUrl ?? undefined,
         profileId: draft.profileId || undefined,
         interactionIntent: payload.interactionIntent,
         mode: draft.mode,
         researchEnabled: draft.researchEnabled,
+        vaultGroundingEnabled: draft.vaultGroundingEnabled,
+        reconPostId: prompterPrefill?.reconPostId,
+        includeOperatorBriefing: draft.includeOperatorBriefing,
         provider: resolved.provider,
         model: resolved.model,
         reasoningEffort: draft.reasoningEffort ?? undefined,
         suggestionCount: draft.suggestionCount,
+        questionFirstBias: draft.questionFirstBias,
+        platformFormat: draft.platformFormat,
+        allowFullGenerationOnSparseText: draft.allowFullGenerationOnSparseText ?? false,
         suggestedParamsJson: draft as unknown as Record<string, unknown>,
       });
       setActiveRunId(run.id);
-      if (draft.mode === 'AGENT') {
-        showToast({ type: 'info', title: 'Agent run started — drafting in background' });
-      }
+      showToast({
+        type: 'info',
+        title:
+          draft.mode === 'AGENT'
+            ? 'Agent run started — drafting in background'
+            : 'Reply generation started — drafting in background',
+      });
       return run;
     } catch (err) {
       showToast({ type: 'error', title: err instanceof Error ? err.message : 'Generation failed' });
-      throw err;
+      return undefined;
     }
   };
 
@@ -589,12 +1251,15 @@ export default function ReconFeedTab({
       });
       setCheckInConnection(connection);
       if (activePrefill?.reconPostId) {
+        const reconPost = findReconPost(activePrefill.reconPostId);
+        if (reconPost) beginStatusMoveIfNeeded(reconPost, 'ACTIONED');
         try {
           await recon.updatePost.mutateAsync({
             postId: activePrefill.reconPostId,
             body: { status: 'ACTIONED' },
           });
         } catch (err) {
+          clearStatusMove(activePrefill.reconPostId);
           showToast({
             type: 'error',
             title: err instanceof Error ? err.message : 'Could not mark Recon post as actioned',
@@ -608,12 +1273,13 @@ export default function ReconFeedTab({
 
   const handleRejectSuggestion = async (
     suggestion: ReplySuggestion,
-    feedbackText: string | null
+    feedbackText: string | null,
+    feedbackCategory: ReplyRejectionFeedbackCategory
   ) => {
     try {
       await replyRuns.updateSuggestion.mutateAsync({
         suggestionId: suggestion.id,
-        body: { status: 'REJECTED', feedbackText },
+        body: { status: 'REJECTED', feedbackText, feedbackCategory },
       });
       showToast({ type: 'success', title: 'Feedback saved for future runs' });
     } catch (err) {
@@ -714,6 +1380,24 @@ export default function ReconFeedTab({
     }
   };
 
+  const handleActiveEmptyAction = useCallback(() => {
+    const { kind } = activeEmptyPresentation;
+    if (kind === 'scarcity') {
+      openConnectionDirectory();
+      return;
+    }
+    if (kind === 'filtered') {
+      setAgePreset('all');
+      return;
+    }
+    void handleStartRun();
+  }, [activeEmptyPresentation, handleStartRun, openConnectionDirectory]);
+
+  const handleClearReconFilters = useCallback(() => {
+    setAgePreset('all');
+    setSortField('relevanceScore');
+  }, []);
+
   return (
     <div className="space-y-8">
       {loadError ? (
@@ -736,41 +1420,39 @@ export default function ReconFeedTab({
         />
       ) : null}
 
-      <PageCard className="space-y-4">
+      <PageCard className="min-w-0 space-y-2">
         <div className="space-y-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Active feed</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                New posts awaiting review, ranked by LLM relevance for engagement traction.
-              </p>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="shrink-0"
-              onClick={() => setPasteDialogOpen(true)}
-            >
-              <ClipboardPaste className="mr-1.5 h-4 w-4" />
-              Paste post
-            </Button>
-          </div>
-          <div className="flex flex-wrap items-end gap-6">
+          <SectionIntro
+            title="Active feed"
+            description="New posts awaiting review, ranked by LLM relevance for engagement traction."
+            actions={
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className={cn('shrink-0', pbCompactControlDensityClassName, pbFocusVisibleRingClassName)}
+                title={PASTE_POST_CTA_HINT}
+                onClick={() => setPasteDialogOpen(true)}
+              >
+                <ClipboardPaste className="mr-1.5 size-3.5 shrink-0" />
+                Paste post
+              </Button>
+            }
+          />
+          <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Age
-              </span>
-              <div className="flex flex-wrap gap-2">
+              <EyebrowLabel as="span">Age</EyebrowLabel>
+              <div
+                className="flex flex-wrap gap-2"
+                role="group"
+                aria-label="Filter by post age"
+              >
                 {RECON_AGE_PRESETS.map((preset) => (
                   <button
                     key={preset.value}
                     type="button"
                     onClick={() => setAgePreset(preset.value)}
-                    className={cn(
-                      selectableChipClassName(agePreset === preset.value),
-                      'rounded-full px-3 py-1 text-xs'
-                    )}
+                    className={selectableFilterChipClassName(agePreset === preset.value)}
                     aria-pressed={agePreset === preset.value}
                   >
                     {preset.label}
@@ -779,19 +1461,14 @@ export default function ReconFeedTab({
               </div>
             </div>
             <div className="space-y-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Sort by
-              </span>
-              <div className="flex flex-wrap gap-2">
+              <EyebrowLabel as="span">Sort by</EyebrowLabel>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Sort active feed">
                 {RECON_SORT_OPTIONS.map((option) => (
                   <button
                     key={option.value}
                     type="button"
                     onClick={() => setSortField(option.value)}
-                    className={cn(
-                      selectableChipClassName(sortField === option.value),
-                      'rounded-full px-3 py-1 text-xs'
-                    )}
+                    className={selectableFilterChipClassName(sortField === option.value)}
                     aria-pressed={sortField === option.value}
                   >
                     {option.label}
@@ -818,71 +1495,115 @@ export default function ReconFeedTab({
             </button>
           </div>
         ) : null}
-        {posts.length === 0 ? (
-          <div className="space-y-2 text-sm text-gray-500">
-            <p>{activeFeedEmptyMessage}</p>
-            {showScarcityHint ? (
-              <button
-                type="button"
-                onClick={openConnectionDirectory}
-                className={cn(linkAccentClassName, 'font-medium')}
-              >
-                {hasTrackedXHandles
-                  ? 'Open Connection Directory'
-                  : 'Add X handles in Connection Directory'}
-              </button>
-            ) : null}
-          </div>
+        {displayActivePosts.length === 0 ? (
+          <EmptyState
+            density="compact"
+            scene={activeEmptyPresentation.scene}
+            title={activeEmptyPresentation.title}
+            description={activeEmptyPresentation.description}
+            actionLabel={activeEmptyPresentation.actionLabel}
+            onAction={handleActiveEmptyAction}
+            actionDisabled={
+              activeEmptyPresentation.kind === 'awaitingIngest' ||
+              activeEmptyPresentation.kind === 'caughtUp'
+                ? runNowDisabled
+                : false
+            }
+          />
         ) : (
           <PaginatedReconListPanel
             loadedCount={posts.length}
             total={recon.posts.total}
             hasNextPage={Boolean(recon.posts.hasNextPage)}
             isFetchingNextPage={recon.posts.isFetchingNextPage}
+            isFetchNextPageError={Boolean(recon.posts.isFetchNextPageError)}
             onLoadMore={() => void recon.posts.fetchNextPage()}
+            agePreset={agePreset}
+            sortField={sortField}
+            onClearFilters={handleClearReconFilters}
           >
-            {posts.map((post) => (
-              <ReconPostRow
-                key={post.id}
-                post={post}
-                isUpdating={recon.updatingPostId === post.id}
-                onDraft={() => openPrompterFromPost(post)}
-                onStatus={(status) => void handlePostStatus(post.id, status)}
-              />
-            ))}
+            <ReconAnimatedPostList
+              posts={posts}
+              holdMap={holdById}
+              holdDirection="toProcessed"
+              enteringPostIds={enteringPostIds}
+              prefersReducedMotion={prefersReducedMotion}
+              variant="active"
+              updatingPostId={recon.updatingPostId}
+              onDraft={openPrompterFromPost}
+              onLogReply={openLogReplyFromPost}
+              onGoodPick={(post) => void handleGoodPick(post)}
+              onDismiss={setDismissingPost}
+            />
           </PaginatedReconListPanel>
         )}
       </PageCard>
 
-      <PageCard className="space-y-4">
+      <PageCard className="min-w-0 space-y-4">
         <button
           type="button"
           onClick={() => setProcessedOpen((prev) => !prev)}
-          className="flex w-full items-center gap-2 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
+          className={cn(
+            'flex w-full items-center gap-2 text-left hover:bg-gray-100/80 dark:hover:bg-gray-800/60',
+            pbFocusVisibleRingClassName
+          )}
           aria-expanded={processedOpen}
           aria-controls={RECON_PROCESSED_PANEL_ID}
         >
-          {processedOpen ? (
-            <ChevronDown className="h-5 w-5 shrink-0 text-gray-400" aria-hidden />
-          ) : (
-            <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden />
-          )}
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex-1 min-w-0">
+          <ChevronRight
+            className={cn(
+              'h-5 w-5 shrink-0 text-gray-400',
+              !prefersReducedMotion && 'transition-transform duration-200 ease-out',
+              processedOpen && 'rotate-90'
+            )}
+            aria-hidden
+          />
+          <h2
+            id={processedHeadingId}
+            className="min-w-0 flex-1 text-lg font-semibold text-gray-900 dark:text-white"
+          >
             Processed
           </h2>
-          {!processedOpen ? (
-            <span className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[50%]">
-              {recon.processedPosts.total === 0
-                ? 'No processed posts'
-                : `View processed · ${processedPosts.length} of ${recon.processedPosts.total}`}
-            </span>
-          ) : null}
+          <span
+            className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium tabular-nums text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+            aria-hidden
+          >
+            {processedCountBadge}
+          </span>
+          <span className="sr-only">{processedCountBadge} processed posts</span>
         </button>
-        {processedOpen ? (
-          <div id={RECON_PROCESSED_PANEL_ID} className="space-y-4">
+        <motion.div
+          id={RECON_PROCESSED_PANEL_ID}
+          role="region"
+          aria-labelledby={processedHeadingId}
+          aria-hidden={!processedOpen}
+          inert={!processedOpen ? true : undefined}
+          initial={false}
+          animate={
+            prefersReducedMotion
+              ? { height: processedOpen ? 'auto' : 0, opacity: processedOpen ? 1 : 0 }
+              : processedOpen
+                ? 'visible'
+                : 'hidden'
+          }
+          variants={{
+            visible: {
+              height: 'auto',
+              opacity: 1,
+              transition: { duration: 0.2, ease: 'easeOut' },
+            },
+            hidden: {
+              height: 0,
+              opacity: 0,
+              transition: { duration: 0.2, ease: 'easeOut' },
+            },
+          }}
+          className={cn('overflow-hidden', !processedOpen && 'pointer-events-none')}
+        >
+          <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Posts you reviewed, actioned, or dismissed. Restore any item to return it to the
-              active feed.
+              Posts you actioned or dismissed, plus feedback on good and bad picks. Restore any item
+              to return it to the active feed.
             </p>
             {processedPosts.length === 0 ? (
               <p className="text-sm text-gray-500">No processed posts yet.</p>
@@ -892,26 +1613,33 @@ export default function ReconFeedTab({
                 total={recon.processedPosts.total}
                 hasNextPage={Boolean(recon.processedPosts.hasNextPage)}
                 isFetchingNextPage={recon.processedPosts.isFetchingNextPage}
+                isFetchNextPageError={Boolean(recon.processedPosts.isFetchNextPageError)}
                 onLoadMore={() => void recon.processedPosts.fetchNextPage()}
+                agePreset={agePreset}
+                sortField={sortField}
+                onClearFilters={handleClearReconFilters}
               >
-                {processedPosts.map((post) => (
-                  <ReconPostRow
-                    key={post.id}
-                    post={post}
-                    variant="processed"
-                    isUpdating={recon.updatingPostId === post.id}
-                    onDraft={() => openPrompterFromPost(post)}
-                    onStatus={(status) => void handlePostStatus(post.id, status)}
-                    onRestore={() => void handlePostStatus(post.id, 'NEW')}
-                  />
-                ))}
+                <ReconAnimatedPostList
+                  posts={processedPosts}
+                  holdMap={holdById}
+                  holdDirection="toActive"
+                  enteringPostIds={enteringPostIds}
+                  prefersReducedMotion={prefersReducedMotion}
+                  variant="processed"
+                  updatingPostId={recon.updatingPostId}
+                  onDraft={openPrompterFromPost}
+                  onLogReply={openLogReplyFromPost}
+                  onGoodPick={(post) => void handleGoodPick(post)}
+                  onDismiss={setDismissingPost}
+                  onRestore={(post) => void handlePostStatus(post, 'NEW')}
+                />
               </PaginatedReconListPanel>
             )}
           </div>
-        ) : null}
+        </motion.div>
       </PageCard>
 
-      <PageCard className="space-y-4">
+      <PageCard className="min-w-0 space-y-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Follow suggestions</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Accounts followed by multiple tracked connections, ranked for brand alignment.
@@ -924,6 +1652,7 @@ export default function ReconFeedTab({
             total={recon.followSuggestions.total}
             hasNextPage={Boolean(recon.followSuggestions.hasNextPage)}
             isFetchingNextPage={recon.followSuggestions.isFetchingNextPage}
+            isFetchNextPageError={Boolean(recon.followSuggestions.isFetchNextPageError)}
             onLoadMore={() => void recon.followSuggestions.fetchNextPage()}
           >
             {suggestions.map((suggestion) => (
@@ -976,7 +1705,7 @@ export default function ReconFeedTab({
         }}
       />
 
-      <PageCard className="space-y-4">
+      <PageCard className="min-w-0 space-y-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Run history</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Click a run to inspect progress, activity log, and error details.
@@ -1018,11 +1747,20 @@ export default function ReconFeedTab({
                 {runs.map((run) => (
                   <tr
                     key={run.id}
+                    role="button"
+                    tabIndex={0}
                     className={cn(
                       'cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-900/40',
+                      pbFocusVisibleRingClassName,
                       selectedRunId === run.id && 'bg-blue-50/60 dark:bg-blue-950/20'
                     )}
                     onClick={() => setSelectedRunId(run.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedRunId(run.id);
+                      }
+                    }}
                   >
                     <td className="px-4 py-3 font-mono text-xs">{run.status}</td>
                     <td className="px-4 py-3">{run.trigger}</td>
@@ -1034,7 +1772,7 @@ export default function ReconFeedTab({
                     </td>
                     <td className="px-4 py-3">{run.followSuggestionsCreated}</td>
                     <td className="px-4 py-3">{run.apiCallsUsed}</td>
-                    <td className="px-4 py-3">{formatDate(run.finishedAt)}</td>
+                    <td className="px-4 py-3">{formatPersonalBrandingDateTime(run.finishedAt)}</td>
                     <td className="max-w-xs truncate px-4 py-3 text-xs text-red-600 dark:text-red-300">
                       {run.errorSummary || '—'}
                     </td>
@@ -1108,6 +1846,26 @@ export default function ReconFeedTab({
         }}
       />
 
+      <RejectWithFeedbackModal
+        isOpen={Boolean(dismissingPost)}
+        title="Dismiss post"
+        submitLabel="Dismiss"
+        subjectLabel={
+          dismissingPost
+            ? `${dismissingPost.connectionName ?? 'Connection'}${
+                dismissingPost.authorUsername ? ` @${dismissingPost.authorUsername}` : ''
+              }`
+            : undefined
+        }
+        promptText="Tell the system why this post is not worth engaging with so future Recon Feed scoring can improve."
+        categories={RECON_DISMISS_CATEGORIES}
+        isSubmitting={recon.updatePost.isPending}
+        onClose={() => setDismissingPost(null)}
+        onSubmit={(feedbackText, feedbackCategory) => {
+          void submitDismissPost(feedbackText, feedbackCategory);
+        }}
+      />
+
       <ConnectionEditorDialog
         isOpen={connectionEditorOpen}
         onClose={closeConnectionEditor}
@@ -1131,10 +1889,11 @@ export default function ReconFeedTab({
         onClose={() => {
           setCheckInConnection(null);
           setPendingLog(null);
+          setLogReplyPostId(null);
         }}
         connectionName={checkInConnection?.name ?? ''}
         followUpCadenceDays={checkInConnection?.followUpCadenceDays}
-        isSubmitting={rolodex.logInteraction.isPending}
+        isSubmitting={rolodex.logInteraction.isPending || recon.updatePost.isPending}
         initialCreatorText={pendingLog?.creatorText}
         initialResponseVectorId={pendingLog?.vector.id}
         initialEvidenceUrl={pendingLog?.evidenceUrl}
@@ -1145,8 +1904,28 @@ export default function ReconFeedTab({
           if (!checkInConnection) return;
           try {
             await rolodex.logInteraction.mutateAsync({ connectionId: checkInConnection.id, body });
+            if (logReplyPostId) {
+              const reconPost = findReconPost(logReplyPostId);
+              if (reconPost) beginStatusMoveIfNeeded(reconPost, 'ACTIONED');
+              try {
+                await recon.updatePost.mutateAsync({
+                  postId: logReplyPostId,
+                  body: { status: 'ACTIONED' },
+                });
+                setLogReplyPostId(null);
+              } catch (err) {
+                clearStatusMove(logReplyPostId);
+                showToast({
+                  type: 'error',
+                  title:
+                    err instanceof Error ? err.message : 'Could not mark Recon post as actioned',
+                });
+                throw err;
+              }
+            }
             showToast({ type: 'success', title: 'Interaction logged' });
             setPendingLog(null);
+            setCheckInConnection(null);
           } catch (err) {
             showToast({ type: 'error', title: err instanceof Error ? err.message : 'Save failed' });
             throw err;
@@ -1160,13 +1939,19 @@ export default function ReconFeedTab({
         profiles={profiles}
         defaultProfileId={selectedProfileId}
         activeRun={activeRun ?? null}
-        isGenerating={replyRuns.startRun.isPending}
+        isGenerating={
+          replyRuns.startRun.isPending ||
+          activeRun?.status === 'QUEUED' ||
+          activeRun?.status === 'RUNNING'
+        }
         isUpdatingSuggestion={replyRuns.updateSuggestion.isPending}
         initialCreatorText={prompterPrefill?.creatorText ?? pendingLog?.creatorText}
         initialInteractionIntent={prompterPrefill?.interactionIntent}
+        initialIntentAction={prompterPrefill?.preferredIntentAction}
         initialAuthorHandle={prompterPrefill?.authorHandle}
         initialEvidenceUrl={prompterPrefill?.evidenceUrl ?? pendingLog?.evidenceUrl}
         initialPlatformPostId={prompterPrefill?.platformPostId ?? pendingLog?.platformPostId}
+        initialLearningCost={prompterPrefill?.learningCost}
         onClose={() => {
           setPrompterConnection(null);
           setPrompterPrefill(null);
@@ -1181,8 +1966,8 @@ export default function ReconFeedTab({
           if (!prompterConnection) return;
           void handleAcceptSuggestion(prompterConnection, suggestion, creatorText, meta);
         }}
-        onRejectSuggestion={(suggestion, feedback) => {
-          void handleRejectSuggestion(suggestion, feedback);
+        onRejectSuggestion={(suggestion, feedback, feedbackCategory) => {
+          void handleRejectSuggestion(suggestion, feedback, feedbackCategory);
         }}
       />
 

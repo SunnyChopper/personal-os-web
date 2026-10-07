@@ -6,11 +6,14 @@ import {
 } from './content-node-labels';
 
 describe('contentStatusBadgeLabel', () => {
-  it('returns Draft for non-published statuses', () => {
+  it('returns Draft for non-published active statuses', () => {
     expect(contentStatusBadgeLabel('DRAFT')).toBe('Draft');
     expect(contentStatusBadgeLabel('FINALIZED')).toBe('Draft');
     expect(contentStatusBadgeLabel('PIPELINED')).toBe('Draft');
-    expect(contentStatusBadgeLabel('SKIPPED')).toBe('Draft');
+  });
+
+  it('returns Archived for SKIPPED', () => {
+    expect(contentStatusBadgeLabel('SKIPPED')).toBe('Archived');
   });
 
   it('returns Published when status is PUBLISHED without platform', () => {

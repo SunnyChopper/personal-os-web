@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { PenLine, Radio, Share2, User, Users, Waves } from 'lucide-react';
+import { CalendarDays, Hammer, PenLine, Radio, Share2, User, Users, Waves } from 'lucide-react';
 import { ROUTES } from '@/routes';
 import { Card } from '@/components/atoms/Card';
 import { cn } from '@/lib/utils';
@@ -35,6 +35,18 @@ const MODULES = [
     description: 'Trend stream and source management.',
     href: ROUTES.admin.personalBrandingRadar,
     icon: Radio,
+  },
+  {
+    title: 'Build ideas',
+    description: 'Trend-grounded build-in-public ideas for X and tutorials.',
+    href: ROUTES.admin.personalBrandingProjects,
+    icon: Hammer,
+  },
+  {
+    title: 'In-Person Events',
+    description: 'Discover events near your location stints.',
+    href: ROUTES.admin.personalBrandingEvents,
+    icon: CalendarDays,
   },
   {
     title: 'Rolodex',

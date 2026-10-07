@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { authService } from '@/lib/auth/auth.service';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { getResolvedWsUrl } from '@/lib/vite-public-env';
+import { reportClientError } from '@/lib/client-telemetry';
+import { reportPersonalBrandingJobFailure } from '@/lib/personal-branding/report-job-failure';
 import {
   RepurposeJobsWsClient,
   type RepurposeJobProgressPayload,
@@ -89,6 +91,14 @@ export function useRepurposeJobSocket(contentId: string | null): {
     const applyJobProgress = (payload: RepurposeJobProgressPayload) => {
       const key = queryKeys.personalBranding.content.repurposeJobs(contentId);
       queryClient.setQueryData<RepurposeJob[]>(key, (prev) => upsertJob(prev, payload));
+      if (payload.status === 'failed') {
+        reportPersonalBrandingJobFailure({
+          feature: 'contentRepurpose',
+          jobId: payload.jobId,
+          error: payload.error,
+          message: payload.message,
+        });
+      }
     };
 
     const applyVariant = (payload: RepurposeVariantCreatedPayload) => {
@@ -113,6 +123,14 @@ export function useRepurposeJobSocket(contentId: string | null): {
       .then(() => client.subscribe(contentId))
       .catch(() => {
         setConnectionState('failed');
+        void reportClientError({
+          message: 'Content Pipeline repurpose WebSocket connection failed',
+          metadata: {
+            kind: 'personal-branding-ws',
+            contentId,
+            feature: 'contentRepurpose',
+          },
+        });
       });
 
     return () => {

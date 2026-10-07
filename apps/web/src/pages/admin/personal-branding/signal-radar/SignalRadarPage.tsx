@@ -32,7 +32,7 @@ export default function SignalRadarPage() {
   const highlightItemId = searchParams.get('itemId');
   const [activeTab, setActiveTab] = useState<SignalRadarTabId>(tabFromUrl);
   const signalRadar = useSignalRadar();
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const isLoading = signalRadar.settings.isPending || signalRadar.sources.isPending;
 
   useEffect(() => {
@@ -76,7 +76,6 @@ export default function SignalRadarPage() {
           )
         }
       />
-      <ToastContainer />
     </div>
   );
 }

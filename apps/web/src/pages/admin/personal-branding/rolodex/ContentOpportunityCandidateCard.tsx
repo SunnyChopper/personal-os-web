@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
-import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
+import ReplyGeneratingState, {
+  type ReplyGeneratingSubmittedDraft,
+} from '@/components/molecules/personal-branding/ReplyGeneratingState';
+import ReplyPolishingStrip from '@/components/molecules/personal-branding/ReplyPolishingStrip';
 import ReplyGenerationPanel from '@/components/molecules/personal-branding/ReplyGenerationPanel';
 import ReplySuggestionsList from '@/components/molecules/personal-branding/ReplySuggestionsList';
 import { useRolodexReplyRuns } from '@/hooks/useRolodexReplyRuns';
 import type {
+  BrandPlatform,
   ContentOpportunity,
   ReplyGenerationDraft,
+  ReplyRejectionFeedbackCategory,
   ReplyRun,
   ReplySuggestion,
 } from '@/types/api/personal-branding.dto';
@@ -24,12 +29,13 @@ interface ContentOpportunityCandidateCardProps {
     opportunity: ContentOpportunity,
     draft: ReplyGenerationDraft,
     resolved: { provider: string; model: string }
-  ) => Promise<ReplyRun>;
+  ) => Promise<ReplyRun | undefined>;
   onAcceptSuggestion: (opportunity: ContentOpportunity, suggestion: ReplySuggestion) => void;
   onRejectSuggestion: (
     opportunity: ContentOpportunity,
     suggestion: ReplySuggestion,
-    feedbackText: string | null
+    feedbackText: string | null,
+    feedbackCategory: ReplyRejectionFeedbackCategory
   ) => void;
   onLogCheckIn: (opportunity: ContentOpportunity) => void;
   onComplete: (opportunity: ContentOpportunity) => void;
@@ -53,6 +59,8 @@ export default function ContentOpportunityCandidateCard({
 }: ContentOpportunityCandidateCardProps) {
   const [replyOpen, setReplyOpen] = useState(Boolean(initialRunId));
   const [runId, setRunId] = useState<string | null>(initialRunId);
+  const [lastSubmitted, setLastSubmitted] = useState<ReplyGeneratingSubmittedDraft | null>(null);
+  const [progressNowMs, setProgressNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     if (initialRunId) {
@@ -67,12 +75,40 @@ export default function ContentOpportunityCandidateCard({
     replyRuns.startRun.isPending ||
     activeRun?.status === 'QUEUED' ||
     activeRun?.status === 'RUNNING';
+  const generatingMode = activeRun?.mode ?? lastSubmitted?.mode ?? 'SIMPLE';
+
+  useEffect(() => {
+    if (!showRunProgress || suggestions.length > 0) {
+      return;
+    }
+    if (generatingMode !== 'AGENT') return;
+
+    const tick = () => setProgressNowMs(Date.now());
+    tick();
+    const intervalId = window.setInterval(tick, 500);
+    return () => window.clearInterval(intervalId);
+  }, [showRunProgress, suggestions.length, generatingMode]);
+
+  useEffect(() => {
+    if (!showRunProgress) {
+      setLastSubmitted(null);
+    }
+  }, [showRunProgress]);
 
   const handleGenerate = async (
     draft: ReplyGenerationDraft,
     resolved: { provider: string; model: string }
   ) => {
+    setLastSubmitted({
+      suggestionCount: draft.suggestionCount,
+      mode: draft.mode,
+      researchEnabled: draft.researchEnabled,
+      vaultGroundingEnabled: draft.vaultGroundingEnabled,
+      submittedAtMs: Date.now(),
+    });
+    setProgressNowMs(Date.now());
     const run = await onGenerateReply(opportunity, draft, resolved);
+    if (!run) return;
     setRunId(run.id);
     setReplyOpen(true);
   };
@@ -114,6 +150,7 @@ export default function ContentOpportunityCandidateCard({
         {replyOpen ? (
           <div className="space-y-4 border-t border-gray-200 px-4 py-4 dark:border-gray-700">
             <ReplyGenerationPanel
+              platform={(opportunity.platform as BrandPlatform) ?? 'x'}
               profiles={profiles}
               defaultProfileId={defaultProfileId}
               suggestedParams={opportunity.suggestedReplyParams}
@@ -125,9 +162,24 @@ export default function ContentOpportunityCandidateCard({
             />
 
             {showRunProgress && !suggestions.length ? (
-              <div className="flex justify-center py-4">
-                <AIThinkingIndicator message="Drafting replies…" size="lg" />
-              </div>
+              <ReplyGeneratingState
+                run={activeRun}
+                submittedDraft={lastSubmitted}
+                isPending={replyRuns.startRun.isPending && !activeRun}
+                nowMs={progressNowMs}
+              />
+            ) : null}
+
+            {showRunProgress && suggestions.length > 0 && activeRun?.status === 'RUNNING' ? (
+              <ReplyPolishingStrip
+                run={activeRun}
+                submittedDraft={lastSubmitted}
+                nowMs={progressNowMs}
+              />
+            ) : null}
+
+            {activeRun?.status === 'PARTIAL' && activeRun.error ? (
+              <p className="text-sm text-amber-700 dark:text-amber-300">{activeRun.error}</p>
             ) : null}
 
             {activeRun?.status === 'FAILED' && activeRun.error ? (
@@ -138,8 +190,8 @@ export default function ContentOpportunityCandidateCard({
               suggestions={suggestions}
               isUpdating={isUpdatingSuggestion}
               onAccept={(suggestion) => onAcceptSuggestion(opportunity, suggestion)}
-              onReject={(suggestion, feedback) =>
-                onRejectSuggestion(opportunity, suggestion, feedback)
+              onReject={(suggestion, feedback, feedbackCategory) =>
+                onRejectSuggestion(opportunity, suggestion, feedback, feedbackCategory)
               }
             />
           </div>

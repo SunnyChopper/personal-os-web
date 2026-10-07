@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
 import { FormInput } from '@/components/atoms/FormInput';
 import { FormTextarea } from '../PersonalBrandingFormFields';
 import OrderedStringListEditor from '@/components/molecules/personal-branding/OrderedStringListEditor';
+import OrderedSocialCapitalAnglePicker from '@/components/molecules/personal-branding/OrderedSocialCapitalAnglePicker';
 import PresetMultiSelectChips from '@/components/molecules/personal-branding/PresetMultiSelectChips';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
 import { linkAccentClassName, selectableChipClassName } from '../personal-branding-ui';
@@ -13,8 +15,11 @@ import type {
   RelationshipPriority,
   RelationshipStage,
   RelationshipType,
+  SocialCapitalAngle,
   UpdateCreatorConnectionInput,
 } from '@/types/api/personal-branding.dto';
+import { personalBrandingService } from '@/services/personal-branding.service';
+import type { Toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   ROLODEX_CADENCE_PRESETS,
@@ -41,6 +46,7 @@ interface ConnectionEditorDialogProps {
   subtitle?: string | null;
   draftSummary?: string | null;
   isSubmitting?: boolean;
+  showToast?: (toast: Omit<Toast, 'id'>) => void;
   onCreate: (body: CreateCreatorConnectionInput) => Promise<void>;
   onUpdate: (id: string, body: UpdateCreatorConnectionInput) => Promise<void>;
 }
@@ -76,6 +82,7 @@ export default function ConnectionEditorDialog({
   subtitle,
   draftSummary,
   isSubmitting = false,
+  showToast,
   onCreate,
   onUpdate,
 }: ConnectionEditorDialogProps) {
@@ -92,9 +99,18 @@ export default function ConnectionEditorDialog({
   const [nextFollowUpAt, setNextFollowUpAt] = useState('');
   const [nextAction, setNextAction] = useState('');
   const [conversationAngles, setConversationAngles] = useState<string[]>([]);
+  const [preferredSocialCapitalAngles, setPreferredSocialCapitalAngles] = useState<
+    SocialCapitalAngle[]
+  >([]);
   const [tags, setTags] = useState<string[]>([]);
   const [personalContext, setPersonalContext] = useState('');
   const [notes, setNotes] = useState('');
+  const [replyVoiceGuidance, setReplyVoiceGuidance] = useState('');
+
+  const distillReplyVoiceGuidance = useMutation({
+    mutationFn: (connectionId: string) =>
+      personalBrandingService.distillReplyVoiceGuidance(connectionId),
+  });
 
   const selectedPlatform = useMemo(() => getPlatformOption(platformId), [platformId]);
   const previewUrl = useMemo(() => {
@@ -125,9 +141,11 @@ export default function ConnectionEditorDialog({
       setNextFollowUpAt(toDateInputValue(initial.nextFollowUpAt));
       setNextAction(initial.nextAction ?? '');
       setConversationAngles(initial.conversationAngles ?? []);
+      setPreferredSocialCapitalAngles(initial.preferredSocialCapitalAngles ?? []);
       setTags(initial.tags ?? []);
       setPersonalContext(initial.personalContext ?? '');
       setNotes(initial.notes ?? '');
+      setReplyVoiceGuidance(initial.replyVoiceGuidance ?? '');
     } else if (prefill) {
       const xHandle = prefill.handles?.x ?? '';
       setName(prefill.name ?? '');
@@ -145,9 +163,11 @@ export default function ConnectionEditorDialog({
       setNextFollowUpAt(toDateInputValue(prefill.nextFollowUpAt));
       setNextAction(prefill.nextAction ?? '');
       setConversationAngles(prefill.conversationAngles ?? []);
+      setPreferredSocialCapitalAngles(prefill.preferredSocialCapitalAngles ?? []);
       setTags(prefill.tags ?? []);
       setPersonalContext(prefill.personalContext ?? '');
       setNotes(prefill.notes ?? '');
+      setReplyVoiceGuidance('');
     } else {
       setName('');
       setPlatformId(null);
@@ -161,9 +181,11 @@ export default function ConnectionEditorDialog({
       setNextFollowUpAt('');
       setNextAction('');
       setConversationAngles([]);
+      setPreferredSocialCapitalAngles([]);
       setTags([]);
       setPersonalContext('');
       setNotes('');
+      setReplyVoiceGuidance('');
     }
 
     setCadenceManuallySet(false);
@@ -220,9 +242,11 @@ export default function ConnectionEditorDialog({
       nextFollowUpAt: nextFollowUpIso,
       nextAction: nextAction.trim() || null,
       conversationAngles: normalizedConversationAngles,
+      preferredSocialCapitalAngles,
       personalContext: personalContext.trim() || null,
       tags,
       notes: notes.trim() || null,
+      replyVoiceGuidance: replyVoiceGuidance.trim() || null,
     };
 
     if (initial) {
@@ -231,6 +255,23 @@ export default function ConnectionEditorDialog({
       await onCreate(body);
     }
     onClose();
+  };
+
+  const handleDraftReplyVoiceGuidance = async () => {
+    if (!initial?.id) return;
+    try {
+      const result = await distillReplyVoiceGuidance.mutateAsync(initial.id);
+      setReplyVoiceGuidance(result.proposedGuidance);
+      showToast?.({
+        type: 'info',
+        title: 'Draft loaded — review and save connection to apply',
+      });
+    } catch (err) {
+      showToast?.({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Could not draft guidance',
+      });
+    }
   };
 
   return (
@@ -504,6 +545,14 @@ export default function ConnectionEditorDialog({
               disabled={isSubmitting}
             />
 
+            <OrderedSocialCapitalAnglePicker
+              label="Engagement angle preferences"
+              value={preferredSocialCapitalAngles}
+              onChange={setPreferredSocialCapitalAngles}
+              disabled={isSubmitting}
+              hint="Ordered bias for Recon scoring and reply angles (first = strongest). Leave empty for no preference."
+            />
+
             <PresetMultiSelectChips
               label="Tags"
               value={tags}
@@ -536,6 +585,38 @@ export default function ConnectionEditorDialog({
                 rows={2}
               />
             </div>
+
+            {initial ? (
+              <section className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Reply voice guidance
+                    </h3>
+                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                      Persistent instructions injected into reply generation for this connection,
+                      alongside accept/reject few-shots. Edit freely — nothing is overwritten unless
+                      you save.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={distillReplyVoiceGuidance.isPending}
+                    onClick={() => void handleDraftReplyVoiceGuidance()}
+                  >
+                    {distillReplyVoiceGuidance.isPending ? 'Drafting…' : 'Draft from feedback'}
+                  </Button>
+                </div>
+                <FormTextarea
+                  value={replyVoiceGuidance}
+                  onChange={(e) => setReplyVoiceGuidance(e.target.value)}
+                  rows={6}
+                  placeholder="Prefer: …\nAvoid: …"
+                />
+              </section>
+            ) : null}
           </div>
         </fieldset>
 
