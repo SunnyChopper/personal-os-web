@@ -23,33 +23,14 @@ describe('shouldAutoCollapseCompletedSection', () => {
 });
 
 describe('formatMostRecentCompletedSummary', () => {
-  it('formats title with points and completed date', () => {
+  it('formats title with completed date and omits points', () => {
     const summary = formatMostRecentCompletedSummary({
       title: 'Happiness',
       size: 220,
       completedDate: '2026-07-12',
     });
-    expect(summary).toContain('Happiness');
-    expect(summary).toContain('220pts');
-    expect(summary).toContain('Jul');
-  });
-
-  it('omits points when size is missing or zero', () => {
-    expect(
-      formatMostRecentCompletedSummary({
-        title: 'Ship release',
-        size: null,
-        completedDate: '2026-07-12',
-      })
-    ).toBe('Ship release · Jul 12, 2026');
-
-    expect(
-      formatMostRecentCompletedSummary({
-        title: 'Ship release',
-        size: 0,
-        completedDate: '2026-07-12',
-      })
-    ).toBe('Ship release · Jul 12, 2026');
+    expect(summary).toBe('Happiness · Jul 12, 2026');
+    expect(summary).not.toContain('220pts');
   });
 
   it('omits date when completedDate is missing', () => {
@@ -59,7 +40,7 @@ describe('formatMostRecentCompletedSummary', () => {
         size: 5,
         completedDate: null,
       })
-    ).toBe('Ship release · 5pts');
+    ).toBe('Ship release');
   });
 
   it('returns title only when no points or date', () => {

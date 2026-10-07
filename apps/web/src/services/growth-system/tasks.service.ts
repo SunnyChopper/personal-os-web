@@ -53,6 +53,7 @@ export const tasksService = {
         page: response.data.page,
         pageSize: response.data.pageSize,
         totalPages: Math.ceil(response.data.total / response.data.pageSize),
+        hasMore: response.data.hasMore,
       };
     }
 

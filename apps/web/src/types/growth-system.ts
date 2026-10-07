@@ -677,7 +677,8 @@ export interface UpdateTaskInput {
   dueDate?: string | null;
   scheduledDate?: string | null;
   completedDate?: string | null;
-  notes?: string;
+  /** Include JSON `null` in PATCH bodies to clear; omit key to leave unchanged. */
+  notes?: string | null;
   isRecurring?: boolean;
   recurrenceRule?: RecurrenceRule;
   pointValue?: number;
@@ -888,7 +889,6 @@ export interface CreateLogbookEntryInput {
 }
 
 export interface UpdateLogbookEntryInput {
-  date?: string; // Allow date updates to fix timezone-shifted dates
   title?: string;
   notes?: string;
   mood?: LogbookMood;
@@ -947,6 +947,7 @@ export interface PaginatedResponse<T> {
   page: number;
   pageSize: number;
   totalPages: number;
+  hasMore?: boolean;
 }
 
 export interface ApiResponse<T> {

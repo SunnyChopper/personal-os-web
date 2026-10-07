@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -85,6 +86,13 @@ import {
   retainGoalsWithMatchingAncestors,
 } from '@/components/molecules/goal-mindmap-utils';
 import { getStorageAdapter } from '@/lib/storage';
+import { filterGoalsForTimeline, childGoalsForParent } from '@/lib/growth-system/goals-filters';
+import {
+  GOAL_DEEPLINK_FROM_PROJECT_PARAM,
+  GOAL_DEEPLINK_GOAL_ID_PARAM,
+  buildProjectDetailReturnUrl,
+  parseGoalDeepLink,
+} from '@/lib/growth-system/goal-deep-link';
 import { Select } from '@/components/atoms/Select';
 
 const STATUSES: GoalStatus[] = [...GOAL_STATUSES];
@@ -149,6 +157,8 @@ type QuickFilter =
   | 'dormant';
 
 export default function GoalsPage() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<FilterOptions>({});
   const [viewMode, setViewMode] = useState<ViewMode>('mindmap');
@@ -168,6 +178,7 @@ export default function GoalsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [parentGoalForSubgoal, setParentGoalForSubgoal] = useState<Goal | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+  const [returnToProjectId, setReturnToProjectId] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [goalToDelete, setGoalToDelete] = useState<Goal | null>(null);
@@ -339,6 +350,21 @@ export default function GoalsPage() {
     return goals;
   }, [goals]);
 
+  useEffect(() => {
+    const { goalId, fromProjectId } = parseGoalDeepLink(searchParams);
+    if (!goalId || isLoading) return;
+    const match = goals.find((goal) => goal.id === goalId);
+    if (!match) return;
+
+    setSelectedGoal(match);
+    setReturnToProjectId(fromProjectId);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete(GOAL_DEEPLINK_GOAL_ID_PARAM);
+    nextParams.delete(GOAL_DEEPLINK_FROM_PROJECT_PARAM);
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, goals, isLoading]);
+
   // Track the last loaded goal ID to prevent unnecessary reloads
   const lastLoadedGoalIdRef = useRef<string | null>(null);
   const lastLoadedGoalVersionRef = useRef<string | null>(null);
@@ -435,10 +461,23 @@ export default function GoalsPage() {
   };
 
   const handleGoalClick = (goal: Goal) => {
+    setReturnToProjectId(null);
     setSelectedGoal(goal);
   };
 
+  const returnProject = useMemo(() => {
+    if (!returnToProjectId) return null;
+    return allProjects.find((project) => project.id === returnToProjectId) ?? null;
+  }, [returnToProjectId, allProjects]);
+
   const handleBackToGrid = () => {
+    if (returnToProjectId) {
+      const projectId = returnToProjectId;
+      setReturnToProjectId(null);
+      setSelectedGoal(null);
+      navigate(buildProjectDetailReturnUrl(projectId));
+      return;
+    }
     setSelectedGoal(null);
   };
 
@@ -615,7 +654,12 @@ export default function GoalsPage() {
     });
   }, [migratedGoals, searchQuery, filters, quickFilters, goalsHealth, goalsLinkedCounts]);
 
-  const timelineGoalIds = useMemo(() => filteredGoals.map((g) => g.id), [filteredGoals]);
+  const timelineGoals = useMemo(
+    () => filterGoalsForTimeline(filteredGoals, filters.status as GoalStatus | undefined),
+    [filteredGoals, filters.status]
+  );
+
+  const timelineGoalIds = useMemo(() => timelineGoals.map((g) => g.id), [timelineGoals]);
   const { dependencies: goalDependencies, addDependency } = useGoalDependencies(timelineGoalIds);
   const goalTimelineUpdate = useGoalTimelineUpdate();
 
@@ -1047,6 +1091,7 @@ export default function GoalsPage() {
           <GoalDetailView
             key={selectedGoal.id}
             goal={selectedGoal}
+            childGoals={childGoalsForParent(goals, selectedGoal.id)}
             tasks={tasks}
             metrics={metrics}
             habits={habits}
@@ -1054,8 +1099,12 @@ export default function GoalsPage() {
             projectContributionWeights={projectContributionWeights}
             onProjectContributionWeightChange={handleProjectContributionWeightChange}
             onBack={handleBackToGrid}
+            backLabel={
+              returnToProjectId ? `Back to ${returnProject?.name ?? 'Project'}` : undefined
+            }
             onEdit={() => setIsEditDialogOpen(true)}
             onDelete={() => setGoalToDelete(selectedGoal)}
+            onChildGoalClick={handleGoalClick}
             onToggleCriterion={handleToggleCriterion}
             onUpdateCriterion={(criterionId, updates) => {
               console.log('Update criterion', criterionId, updates);
@@ -1568,7 +1617,7 @@ export default function GoalsPage() {
         />
       ) : viewMode === 'timeline' ? (
         <GoalTimelineView
-          goals={filteredGoals}
+          goals={timelineGoals}
           dependencies={goalDependencies}
           onGoalClick={handleGoalClick}
           onGoalDatesChange={async (goalId, dates) => {

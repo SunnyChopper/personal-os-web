@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -9,8 +9,6 @@ import {
   Target,
   CheckSquare,
   Sparkles,
-  ChevronDown,
-  ChevronUp,
   LayoutGrid,
   List,
   Calendar as CalendarIcon,
@@ -71,9 +69,10 @@ import { ProjectCreateForm } from '@/components/organisms/ProjectCreateForm';
 import { ProjectEditForm } from '@/components/organisms/ProjectEditForm';
 import { TaskEditPanel } from '@/components/organisms/TaskEditPanel';
 import { TaskCreateForm } from '@/components/organisms/TaskCreateForm';
+import { TaskDetailDialog } from '@/components/organisms/TaskDetailDialog';
 import { LogbookEditor } from '@/components/organisms/LogbookEditor';
 import Dialog from '@/components/molecules/Dialog';
-import { ProjectGoalContributionWeightField } from '@/components/molecules/ProjectGoalContributionWeightField';
+import { ProjectLinkedGoalCard } from '@/components/molecules/ProjectLinkedGoalCard';
 import DropdownMenuButton from '@/components/molecules/DropdownMenuButton';
 import { EmptyState } from '@/components/molecules/EmptyState';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
@@ -85,6 +84,8 @@ import { pointBadgeStatusFromProject } from '@/lib/point-badge';
 import { SUBCATEGORY_LABELS } from '@/constants/growth-system';
 import { TaskListItem } from '@/components/molecules/TaskListItem';
 import { ProjectCompletedTasksSection } from '@/components/molecules/ProjectCompletedTasksSection';
+import { ProjectsPortfolioCompletedSection } from '@/components/molecules/ProjectsPortfolioCompletedSection';
+import { ProjectDetailCollapsible } from '@/components/molecules/ProjectDetailCollapsible';
 import { RelationshipPicker } from '@/components/organisms/RelationshipPicker';
 import { AIProjectAssistPanel } from '@/components/molecules/AIProjectAssistPanel';
 import { EntityExplainButton } from '@/components/molecules/EntityExplainButton';
@@ -96,6 +97,7 @@ import {
   aiProjectToolTabId,
   type AIProjectToolMode,
 } from '@/lib/projects/ai-project-tools-surfaces';
+import { taskCreatePrefillFromProject } from '@/lib/projects/task-create-prefill-from-project';
 import { AISuggestionBanner } from '@/components/molecules/AISuggestionBanner';
 import { AmbientPresenceStrip } from '@/components/organisms/assistant/AmbientPresenceStrip';
 import ProjectPortfolioHealthStrip from '@/components/molecules/projects/ProjectPortfolioHealthStrip';
@@ -124,24 +126,25 @@ import {
   countProjectsActiveFilters,
   filterProjectsForView,
 } from '@/lib/growth-system/projects-filters';
-import { buildProjectNeighborhood } from '@/lib/projects/project-graph-utils';
 import {
-  projectGridSelectionCountClassName,
-  projectGridSelectionStripClassName,
-} from '@/lib/growth-system/project-card-surfaces';
+  projectDetailImpactClusterClassName,
+  projectDetailImpactRowClassName,
+} from '@/lib/projects/project-detail-surfaces';
+import { buildProjectNeighborhood } from '@/lib/projects/project-graph-utils';
 import { useEntityLogbookLinkPicker } from '@/lib/growth-system/logbook-entity-links';
+import { buildGoalDetailUrl } from '@/lib/growth-system/goal-deep-link';
 
 type ViewMode = 'grid' | 'list' | 'timeline' | 'matrix';
 
 export default function ProjectsPage() {
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -175,6 +178,7 @@ export default function ProjectsPage() {
   const [logActivitySeed, setLogActivitySeed] = useState<{ notes: string } | null>(null);
   const [isCreatingLogActivity, setIsCreatingLogActivity] = useState(false);
   const [isCompletedTasksModalOpen, setIsCompletedTasksModalOpen] = useState(false);
+  const [isPortfolioCompletedOpen, setIsPortfolioCompletedOpen] = useState(false);
 
   const {
     isLogbookPickerOpen,
@@ -209,8 +213,14 @@ export default function ProjectsPage() {
     deleteProject,
   } = useProjects();
   const { goals, isLoading: goalsLoading } = useGoals();
-  const { tasks, isLoading: tasksLoading, updateTask, createTask } = useTasks();
+  const { tasks, isLoading: tasksLoading, updateTask, createTask, deleteTask } = useTasks();
   const { createEntry: createLogbookEntry } = useLogbook();
+
+  const [taskToView, setTaskToView] = useState<Task | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
+  const [deleteTaskError, setDeleteTaskError] = useState<string | null>(null);
 
   const isLoading = projectsLoading || goalsLoading || tasksLoading;
 
@@ -547,7 +557,6 @@ export default function ProjectsPage() {
   };
 
   const handleProjectClick = (project: Project) => {
-    setSelectedProjectIds([]);
     setSelectedProject(project);
   };
 
@@ -582,22 +591,6 @@ export default function ProjectsPage() {
     },
     [removeProjectDependency, showToast]
   );
-
-  const handleToggleProjectSelect = useCallback((project: Project) => {
-    setSelectedProjectIds((prev) =>
-      prev.includes(project.id) ? prev.filter((id) => id !== project.id) : [...prev, project.id]
-    );
-  }, []);
-
-  const handleClearProjectSelection = useCallback(() => {
-    setSelectedProjectIds([]);
-  }, []);
-
-  useEffect(() => {
-    if (viewMode !== 'grid') {
-      setSelectedProjectIds([]);
-    }
-  }, [viewMode]);
 
   const handleBackToGrid = () => {
     setSelectedProject(null);
@@ -821,6 +814,14 @@ export default function ProjectsPage() {
     setGoalLinkWeights((prev) => ({ ...prev, [goalId]: contributionWeight }));
   };
 
+  const handleOpenLinkedGoal = useCallback(
+    (goal: Goal) => {
+      if (!selectedProject) return;
+      navigate(buildGoalDetailUrl(goal.id, selectedProject.id));
+    },
+    [navigate, selectedProject]
+  );
+
   const handleCreateTasksFromAI = async (
     newTasks: import('../../types/growth-system').CreateTaskInput[]
   ) => {
@@ -845,10 +846,18 @@ export default function ProjectsPage() {
     };
   };
 
-  const handleCreateTaskFromHealthAction = (action: ProjectHealthPriorityAction) => {
-    setCreateTaskInitialValues(priorityActionToTaskPrefill(action.text));
+  const openCreateTaskDialog = (extra?: Partial<CreateTaskInput>) => {
+    if (!selectedProject) return;
+    setCreateTaskInitialValues({
+      ...taskCreatePrefillFromProject(selectedProject),
+      ...extra,
+    });
     setCreateTaskFormKey((key) => key + 1);
     setIsCreateTaskOpen(true);
+  };
+
+  const handleCreateTaskFromHealthAction = (action: ProjectHealthPriorityAction) => {
+    openCreateTaskDialog(priorityActionToTaskPrefill(action.text));
   };
 
   const handleLogActivityFromHealthAction = (action: ProjectHealthPriorityAction) => {
@@ -862,7 +871,6 @@ export default function ProjectsPage() {
     try {
       const response = await createTask({
         ...input,
-        area: selectedProject.area,
         projectIds: [selectedProject.id],
       });
       if (!response.success || !response.data) {
@@ -940,6 +948,42 @@ export default function ProjectsPage() {
   const handleEditTask = (task: Task) => {
     setSelectedTask(task);
     setIsTaskEditOpen(true);
+  };
+
+  const handleViewTask = (task: Task) => {
+    setTaskToView(task);
+    setIsDetailDialogOpen(true);
+  };
+
+  const handleDeleteTask = (task: Task) => {
+    setTaskToDelete(task);
+    setDeleteTaskError(null);
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete) return;
+    setDeleteTaskError(null);
+    setIsDeletingTask(true);
+    try {
+      await deleteTask(taskToDelete.id);
+      showToast({
+        type: 'success',
+        title: 'Task moved to trash',
+        message: `"${taskToDelete.title}" can be restored from Deleted filter.`,
+      });
+      setTaskToDelete(null);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to delete task. Please try again.';
+      setDeleteTaskError(errorMessage);
+      showToast({
+        type: 'error',
+        title: 'Failed to delete task',
+        message: errorMessage,
+      });
+    } finally {
+      setIsDeletingTask(false);
+    }
   };
 
   const handleUpdateTask = async (id: string, input: UpdateTaskInput) => {
@@ -1073,10 +1117,10 @@ export default function ProjectsPage() {
             </div>
 
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-              <div className="shrink-0 scale-[0.9] sm:scale-100">
+              <div className="shrink-0 scale-75 sm:scale-90 md:scale-100">
                 <ProgressRing
                   progress={progress}
-                  size="lg"
+                  size="md"
                   showLabel
                   color={detailProgressRingColor}
                 />
@@ -1135,9 +1179,9 @@ export default function ProjectsPage() {
             </p>
           )}
 
-          <div className="grid grid-cols-1 gap-4 border-t border-gray-200 pt-3 dark:border-gray-700 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3 mb-4">
+          <div className={projectDetailImpactRowClassName}>
             {selectedProject.impact > 0 && (
-              <div>
+              <div className={projectDetailImpactClusterClassName}>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Impact Score</div>
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-1">
@@ -1179,7 +1223,7 @@ export default function ProjectsPage() {
             )}
             {(selectedProject.completionBonusPoints ?? 0) > 0 &&
             selectedProject.rewardLedgerStatus === 'awarded' ? (
-              <div>
+              <div className={projectDetailImpactClusterClassName}>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                   Completion bonus
                 </div>
@@ -1197,7 +1241,7 @@ export default function ProjectsPage() {
               </div>
             ) : null}
             {selectedProject.startDate && (
-              <div>
+              <div className={projectDetailImpactClusterClassName}>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Start Date</div>
                 <div className="text-lg font-semibold text-gray-900 dark:text-white">
                   {formatDateString(selectedProject.startDate) || '—'}
@@ -1205,7 +1249,7 @@ export default function ProjectsPage() {
               </div>
             )}
             {selectedProject.targetEndDate && (
-              <div>
+              <div className={projectDetailImpactClusterClassName}>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Target End</div>
                 <div className="text-lg font-semibold text-gray-900 dark:text-white">
                   {formatDateString(selectedProject.targetEndDate) || '—'}
@@ -1215,42 +1259,39 @@ export default function ProjectsPage() {
           </div>
 
           {selectedProject.notes && (
-            <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</h3>
+            <ProjectDetailCollapsible
+              key={`notes-${selectedProject.id}`}
+              title="Notes"
+              defaultOpen={false}
+            >
               <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
                 {selectedProject.notes}
               </p>
-            </div>
+            </ProjectDetailCollapsible>
           )}
 
           <EntityMemoryThreadPanel
+            key={`memory-${selectedProject.id}`}
             entityType="project"
             entityId={selectedProject.id}
             fetchThread={projectsService.getMemoryThread}
             onEmptyAction={openLogbookPicker}
             reloadKey={memoryReloadKey}
             isEmptyActionLoading={isLogbookLoading}
+            collapsible
+            defaultOpen={false}
           />
 
-          <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={() => setShowDependenciesPanel(!showDependenciesPanel)}
-              className="flex items-center gap-2 text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-              aria-expanded={showDependenciesPanel}
-            >
-              <GitBranch size={18} />
-              <span>Dependencies</span>
-              {detailDepEdgeCount > 0 ? (
-                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium tabular-nums text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
-                  {detailDepEdgeCount}
-                </span>
-              ) : null}
-              {showDependenciesPanel ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </button>
-
-            {showDependenciesPanel && selectedProject && detailGraphNeighborhood ? (
-              <div className="mt-4 space-y-2">
+          <ProjectDetailCollapsible
+            key={`deps-${selectedProject.id}`}
+            title="Dependencies"
+            count={detailDepEdgeCount}
+            icon={GitBranch}
+            isOpen={showDependenciesPanel}
+            onOpenChange={setShowDependenciesPanel}
+          >
+            {selectedProject && detailGraphNeighborhood ? (
+              <div className="space-y-2">
                 <p className="text-xs text-gray-600 dark:text-gray-400">
                   Finish-to-start links with this project. Drag the right connector on the Timeline
                   to add new dependencies.
@@ -1265,61 +1306,53 @@ export default function ProjectsPage() {
                 />
               </div>
             ) : null}
-          </div>
+          </ProjectDetailCollapsible>
 
           {isAIConfigured && (
-            <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setShowAIAssist(!showAIAssist)}
-                className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
-              >
-                <Sparkles size={18} />
-                <span>AI Project Tools</span>
-                {showAIAssist ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </button>
-
-              {showAIAssist && (
-                <div className="mt-4 space-y-3">
-                  <div
-                    className="flex flex-wrap gap-2"
-                    role="tablist"
-                    aria-label="AI project tools"
-                  >
-                    {AI_PROJECT_TOOL_MODES.map(({ id, label }) => {
-                      const tabId = aiProjectToolTabId(id);
-                      const selected = aiMode === id;
-                      return (
-                        <button
-                          key={id}
-                          id={tabId}
-                          type="button"
-                          role="tab"
-                          aria-selected={selected}
-                          aria-controls={AI_PROJECT_ASSIST_PANEL_ID}
-                          onClick={() => setAIMode(id)}
-                          className={aiProjectToolPillClassName(selected)}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <AIProjectAssistPanel
-                    mode={aiMode}
-                    project={selectedProject}
-                    tasks={projectTasks}
-                    onClose={() => setShowAIAssist(false)}
-                    onCreateTasks={handleCreateTasksFromAI}
-                    onCreateTaskFromAction={handleCreateTaskFromHealthAction}
-                    onLogActivityFromAction={handleLogActivityFromHealthAction}
-                    onRequestGenerateTasks={() => setAIMode('generate')}
-                    onWeeklyRiskPinChange={handleWeeklyRiskPinChange}
-                    labelledBy={aiProjectToolTabId(aiMode)}
-                  />
+            <ProjectDetailCollapsible
+              key={`ai-${selectedProject.id}`}
+              title="AI Project Tools"
+              icon={Sparkles}
+              tone="amber"
+              isOpen={showAIAssist}
+              onOpenChange={setShowAIAssist}
+            >
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2" role="tablist" aria-label="AI project tools">
+                  {AI_PROJECT_TOOL_MODES.map(({ id, label }) => {
+                    const tabId = aiProjectToolTabId(id);
+                    const selected = aiMode === id;
+                    return (
+                      <button
+                        key={id}
+                        id={tabId}
+                        type="button"
+                        role="tab"
+                        aria-selected={selected}
+                        aria-controls={AI_PROJECT_ASSIST_PANEL_ID}
+                        onClick={() => setAIMode(id)}
+                        className={aiProjectToolPillClassName(selected)}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
+
+                <AIProjectAssistPanel
+                  mode={aiMode}
+                  project={selectedProject}
+                  tasks={projectTasks}
+                  onClose={() => setShowAIAssist(false)}
+                  onCreateTasks={handleCreateTasksFromAI}
+                  onCreateTaskFromAction={handleCreateTaskFromHealthAction}
+                  onLogActivityFromAction={handleLogActivityFromHealthAction}
+                  onRequestGenerateTasks={() => setAIMode('generate')}
+                  onWeeklyRiskPinChange={handleWeeklyRiskPinChange}
+                  labelledBy={aiProjectToolTabId(aiMode)}
+                />
+              </div>
+            </ProjectDetailCollapsible>
           )}
         </div>
 
@@ -1334,7 +1367,7 @@ export default function ProjectsPage() {
                 <Button
                   size="sm"
                   className="w-full sm:w-auto"
-                  onClick={() => setIsCreateTaskOpen(true)}
+                  onClick={() => openCreateTaskDialog()}
                 >
                   Create Task
                 </Button>
@@ -1356,7 +1389,7 @@ export default function ProjectsPage() {
                 title="No tasks linked"
                 description="Create a new task linked to this project, or link existing tasks"
                 actionLabel="Create Task"
-                onAction={() => setIsCreateTaskOpen(true)}
+                onAction={() => openCreateTaskDialog()}
                 secondaryActionLabel="Link Tasks"
                 onSecondaryAction={() => {
                   setSelectedTaskIds([]);
@@ -1371,8 +1404,12 @@ export default function ProjectsPage() {
                       <TaskListItem
                         key={task.id}
                         task={task}
+                        presentation="project"
+                        onView={handleViewTask}
+                        onClick={handleViewTask}
                         onEdit={handleEditTask}
-                        onDelete={() => handleUnlinkTaskFromProject(task.id, selectedProject.id)}
+                        onUnlink={() => handleUnlinkTaskFromProject(task.id, selectedProject.id)}
+                        onDelete={handleDeleteTask}
                         deleteLabel="Unlink task"
                         deleteAriaLabel={`Unlink ${task.title} from ${selectedProject.name}`}
                         deleteIcon={<Link2Off className="w-4 h-4" />}
@@ -1388,8 +1425,10 @@ export default function ProjectsPage() {
                     mostRecentDoneTask={mostRecentDoneTask}
                     olderDoneTasks={olderDoneTasks}
                     projectName={selectedProject.name}
+                    onView={handleViewTask}
                     onEdit={handleEditTask}
                     onUnlink={(taskId) => handleUnlinkTaskFromProject(taskId, selectedProject.id)}
+                    onDelete={handleDeleteTask}
                     onViewAllCompleted={() => setIsCompletedTasksModalOpen(true)}
                   />
                 )}
@@ -1449,69 +1488,21 @@ export default function ProjectsPage() {
 
                     return (
                       <div key={fullGoal.id} className={cn(isEmbedded && 'ml-3 sm:ml-4')}>
-                        <div
-                          className={cn(
-                            'group rounded-lg border p-4 transition-all duration-200',
-                            isEmbedded
-                              ? 'border-blue-200/80 bg-blue-50/40 hover:border-blue-300 dark:border-blue-800/60 dark:bg-blue-950/20 dark:hover:border-blue-700'
-                              : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600'
-                          )}
-                        >
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                            <div className="min-w-0 flex-1">
-                              <div className="mb-2.5 flex flex-wrap items-center gap-2 sm:gap-3">
-                                <PriorityIndicator
-                                  priority={fullGoal.priority}
-                                  size="sm"
-                                  variant="badge"
-                                />
-                                <Target className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                                <h3 className="min-w-0 flex-1 break-words text-base font-semibold leading-tight text-gray-900 dark:text-white sm:truncate">
-                                  {fullGoal.title}
-                                </h3>
-                                <StatusBadge status={fullGoal.status} size="sm" />
-                              </div>
-
-                              {fullGoal.description && (
-                                <p className="mb-3 line-clamp-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-                                  {fullGoal.description}
-                                </p>
-                              )}
-
-                              <div className="flex flex-wrap items-center gap-2.5 text-sm">
-                                <AreaBadge area={fullGoal.area} size="sm" />
-                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                  {fullGoal.timeHorizon}
-                                </span>
-                                {criteriaProgress > 0 && (
-                                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-                                    <span className="text-xs font-medium">{criteriaProgress}%</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-end gap-1.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                              {depth === 0 && (
-                                <ProjectGoalContributionWeightField
-                                  value={goalLinkWeights[fullGoal.id] ?? 1}
-                                  onCommit={(weight) =>
-                                    handleGoalContributionWeightChange(fullGoal.id, weight)
-                                  }
-                                />
-                              )}
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleGoalChipRemove(fullGoal.id)}
-                                className="!p-2 hover:!bg-amber-50 hover:!text-amber-600 dark:hover:!bg-amber-900/20 dark:hover:!text-amber-400"
-                                aria-label={`Unlink ${fullGoal.title} from ${selectedProject.name}`}
-                              >
-                                <Link2Off className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
+                        <ProjectLinkedGoalCard
+                          goal={fullGoal}
+                          projectName={selectedProject.name}
+                          criteriaProgress={criteriaProgress}
+                          isEmbedded={isEmbedded}
+                          showContributionWeight={depth === 0}
+                          contributionWeight={goalLinkWeights[fullGoal.id] ?? 1}
+                          onOpen={handleOpenLinkedGoal}
+                          onContributionWeightChange={
+                            depth === 0
+                              ? (weight) => handleGoalContributionWeightChange(fullGoal.id, weight)
+                              : undefined
+                          }
+                          onUnlink={() => void handleGoalChipRemove(fullGoal.id)}
+                        />
 
                         {children.length > 0 && (
                           <div
@@ -1625,17 +1616,72 @@ export default function ProjectsPage() {
               <TaskListItem
                 key={task.id}
                 task={task}
+                presentation="projectCompletedModal"
+                onView={handleViewTask}
+                onClick={handleViewTask}
                 onEdit={(t) => {
                   setIsCompletedTasksModalOpen(false);
                   handleEditTask(t);
                 }}
-                onDelete={() => handleUnlinkTaskFromProject(task.id, selectedProject.id)}
+                onUnlink={() => handleUnlinkTaskFromProject(task.id, selectedProject.id)}
+                onDelete={handleDeleteTask}
                 deleteLabel="Unlink task"
                 deleteAriaLabel={`Unlink ${task.title} from ${selectedProject.name}`}
                 deleteIcon={<Link2Off className="w-4 h-4" />}
                 deleteButtonClassName="hover:!bg-amber-50 hover:!text-amber-600 dark:hover:!bg-amber-900/20 dark:hover:!text-amber-400"
               />
             ))}
+          </div>
+        </Dialog>
+
+        <TaskDetailDialog
+          task={taskToView}
+          isOpen={isDetailDialogOpen}
+          layer={isCompletedTasksModalOpen ? 'nested' : undefined}
+          onClose={() => {
+            setIsDetailDialogOpen(false);
+            setTaskToView(null);
+          }}
+          onEdit={(t) => {
+            setIsDetailDialogOpen(false);
+            setTaskToView(null);
+            setIsCompletedTasksModalOpen(false);
+            handleEditTask(t);
+          }}
+        />
+
+        <Dialog
+          isOpen={!!taskToDelete}
+          onClose={() => !isDeletingTask && setTaskToDelete(null)}
+          title="Move to trash"
+          layer={isCompletedTasksModalOpen ? 'nested' : undefined}
+        >
+          <div className="space-y-4 relative">
+            {deleteTaskError && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-red-700 dark:text-red-300 text-sm">{deleteTaskError}</p>
+              </div>
+            )}
+
+            <p className="text-gray-700 dark:text-gray-300">
+              Move &quot;{taskToDelete?.title}&quot; to trash? You can restore it later from the
+              Deleted filter.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setTaskToDelete(null);
+                  setDeleteTaskError(null);
+                }}
+                disabled={isDeletingTask}
+              >
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteTask} disabled={isDeletingTask}>
+                {isDeletingTask ? 'Moving...' : 'Move to trash'}
+              </Button>
+            </div>
           </div>
         </Dialog>
 
@@ -1758,7 +1804,6 @@ export default function ProjectsPage() {
             </div>
           </div>
         </Dialog>
-        <ToastContainer />
       </PageContainer>
     );
   }
@@ -1921,21 +1966,6 @@ export default function ProjectsPage() {
         />
       ) : viewMode === 'grid' ? (
         <div className="space-y-8">
-          {selectedProjectIds.length > 0 ? (
-            <div className={projectGridSelectionStripClassName}>
-              <span className={projectGridSelectionCountClassName}>
-                {selectedProjectIds.length}{' '}
-                {selectedProjectIds.length === 1 ? 'project' : 'projects'} selected
-              </span>
-              <button
-                type="button"
-                onClick={handleClearProjectSelection}
-                className="text-xs font-medium text-blue-700 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:text-blue-300"
-              >
-                Clear
-              </button>
-            </div>
-          ) : null}
           {incompleteProjects.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 items-stretch">
               {incompleteProjects.map((project) => {
@@ -1949,9 +1979,6 @@ export default function ProjectsPage() {
                     viewMode="grid"
                     display={display}
                     linkedGoalCount={getLinkedGoalsFull(project).length}
-                    isSelected={selectedProjectIds.includes(project.id)}
-                    selectionActive={selectedProjectIds.length > 0}
-                    onToggleSelect={handleToggleProjectSelect}
                     {...stats}
                   />
                 );
@@ -1959,31 +1986,28 @@ export default function ProjectsPage() {
             </div>
           )}
           {completeProjects.length > 0 && (
-            <div>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-                Completed ({completeProjects.length})
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 items-stretch">
-                {completeProjects.map((project) => {
-                  const stats = getProjectStats(project.id);
-                  const display = getProjectDisplay(project);
-                  return (
-                    <ProjectCard
-                      key={project.id}
-                      project={project}
-                      onClick={handleProjectClick}
-                      viewMode="grid"
-                      display={display}
-                      linkedGoalCount={getLinkedGoalsFull(project).length}
-                      isSelected={selectedProjectIds.includes(project.id)}
-                      selectionActive={selectedProjectIds.length > 0}
-                      onToggleSelect={handleToggleProjectSelect}
-                      {...stats}
-                    />
-                  );
-                })}
-              </div>
-            </div>
+            <ProjectsPortfolioCompletedSection
+              count={completeProjects.length}
+              isOpen={isPortfolioCompletedOpen}
+              onOpenChange={setIsPortfolioCompletedOpen}
+              contentClassName="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 items-stretch"
+            >
+              {completeProjects.map((project) => {
+                const stats = getProjectStats(project.id);
+                const display = getProjectDisplay(project);
+                return (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onClick={handleProjectClick}
+                    viewMode="grid"
+                    display={display}
+                    linkedGoalCount={getLinkedGoalsFull(project).length}
+                    {...stats}
+                  />
+                );
+              })}
+            </ProjectsPortfolioCompletedSection>
           )}
         </div>
       ) : viewMode === 'list' ? (
@@ -2018,10 +2042,13 @@ export default function ProjectsPage() {
             </div>
           )}
           {completeProjects.length > 0 && (
-            <div className="space-y-2 pt-4">
-              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-                Completed ({completeProjects.length})
-              </h2>
+            <ProjectsPortfolioCompletedSection
+              count={completeProjects.length}
+              isOpen={isPortfolioCompletedOpen}
+              onOpenChange={setIsPortfolioCompletedOpen}
+              className="pt-4"
+              contentClassName="space-y-2"
+            >
               {completeProjects.map((project) => {
                 const stats = getProjectStats(project.id);
                 const display = getProjectDisplay(project);
@@ -2043,7 +2070,7 @@ export default function ProjectsPage() {
                   />
                 );
               })}
-            </div>
+            </ProjectsPortfolioCompletedSection>
           )}
         </div>
       ) : viewMode === 'matrix' ? (
@@ -2119,7 +2146,6 @@ export default function ProjectsPage() {
           </div>
         </div>
       </Dialog>
-      <ToastContainer />
     </PageContainer>
   );
 }

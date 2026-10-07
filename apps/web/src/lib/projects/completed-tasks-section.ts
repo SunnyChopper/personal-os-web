@@ -1,4 +1,3 @@
-import { formatTaskStoryPointsLabel } from '@/constants/growth-system';
 import type { Task } from '@/types/growth-system';
 import { formatDateString } from '@/utils/date-formatters';
 
@@ -9,18 +8,17 @@ export function shouldAutoCollapseCompletedSection(completedCount: number): bool
   return completedCount > COMPLETED_SECTION_AUTO_COLLAPSE_AFTER;
 }
 
-export type CompletedSummaryTask = Pick<Task, 'title' | 'completedDate' | 'size'>;
+export type CompletedSummaryTask = Pick<Task, 'title' | 'completedDate'> & {
+  size?: number | null;
+};
 
 /**
  * One-line summary for the most recent completed task (collapsed section).
- * Format: `title · {pts} · {date}` with middle segments omitted when absent.
+ * Format: `title · {date}` with date omitted when absent.
+ * Story points / PTS are omitted in project contexts.
  */
 export function formatMostRecentCompletedSummary(task: CompletedSummaryTask): string {
   const parts: string[] = [task.title];
-
-  if (task.size != null && task.size > 0) {
-    parts.push(formatTaskStoryPointsLabel(task.size));
-  }
 
   const completedDate = formatDateString(task.completedDate);
   if (completedDate) {

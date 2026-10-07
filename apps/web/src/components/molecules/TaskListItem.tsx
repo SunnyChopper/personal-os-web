@@ -1,14 +1,18 @@
+import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   AlignLeft,
   Calendar,
   Check,
   Clock,
+  Eye,
   GitBranch,
+  Link2Off,
+  MoreVertical,
   Pencil,
   RotateCcw,
   Trash2,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import type { Task } from '@/types/growth-system';
 import { VelocityDragBadge } from '@/components/molecules/VelocityDragInterventionCard';
@@ -19,13 +23,23 @@ import { DependencyBadge } from '@/components/atoms/DependencyBadge';
 import { PointBadge } from '@/components/atoms/PointBadge';
 import { pointBadgeStatusFromTask, pointBadgeStatusHint } from '@/lib/point-badge';
 import Button from '@/components/atoms/Button';
+import DropdownMenuButton, { type MenuItem } from '@/components/molecules/DropdownMenuButton';
 import { cn } from '@/lib/utils';
 import { formatTaskStoryPointsLabel } from '@/constants/growth-system';
 import { differenceInCalendarDaysLocal, formatDateString } from '@/utils/date-formatters';
+import {
+  clampTaskDescriptionPreview,
+  projectCompletedModalRowClassName,
+  projectTaskDescriptionClassName,
+  projectTaskRowFlushClassName,
+  projectTaskShowMoreButtonClassName,
+} from '@/lib/projects/project-task-row-surfaces';
 
 /** Dense single-line row when the row container is ≥36rem (see task-list-view-density contract L1). */
 export const TASK_LIST_ITEM_DENSE_GRID =
   '@[36rem]:grid @[36rem]:grid-cols-[auto_minmax(8rem,1fr)_7.5rem_5rem_6.5rem_auto] @[36rem]:items-center @[36rem]:gap-x-3';
+
+export type TaskListItemPresentation = 'list' | 'project' | 'projectCompletedModal';
 
 type DateInfo = {
   text: string;
@@ -70,6 +84,9 @@ interface TaskListItemProps {
   onRestore?: (task: Task) => void;
   onComplete?: (task: Task) => void;
   onClick?: (task: Task) => void;
+  onView?: (task: Task) => void;
+  onUnlink?: (task: Task) => void;
+  presentation?: TaskListItemPresentation;
   dependencyCount?: number;
   blockedByCount?: number;
   blockedByTasks?: Task[];
@@ -102,7 +119,8 @@ function formatDueDate(dateString: string | null): DateInfo | null {
   };
 }
 
-function dueDateClassName(dueInfo: DateInfo) {
+function dueDateClassName(dueInfo: DateInfo, isComplete?: boolean) {
+  if (isComplete) return 'text-gray-500 dark:text-gray-400';
   if (dueInfo.overdue) return 'text-red-600 dark:text-red-400';
   if (dueInfo.urgent) return 'text-orange-600 dark:text-orange-400';
   if (dueInfo.warning) return 'text-yellow-700 dark:text-yellow-400';
@@ -116,6 +134,9 @@ export function TaskListItem({
   onRestore,
   onComplete,
   onClick,
+  onView,
+  onUnlink,
+  presentation = 'list',
   dependencyCount = 0,
   blockedByCount = 0,
   blockedByTasks = [],
@@ -127,11 +148,21 @@ export function TaskListItem({
   deleteButtonClassName,
   actionsVisibility = 'hover',
 }: TaskListItemProps) {
-  const isDone = task.status === 'Done';
+  const isDone = task.status === 'Done' || Boolean(task.completedDate);
   const showDoneAction = Boolean(onComplete) && !isDone;
+  const isProjectPresentation =
+    presentation === 'project' || presentation === 'projectCompletedModal';
+
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const clampedDescription = useMemo(
+    () => clampTaskDescriptionPreview(task.description),
+    [task.description]
+  );
 
   const handleClick = () => {
-    if (onClick) {
+    if (onView) {
+      onView(task);
+    } else if (onClick) {
       onClick(task);
     }
   };
@@ -143,7 +174,7 @@ export function TaskListItem({
 
   const hasSecondaryChrome =
     Boolean(task.rolloverCount) ||
-    Boolean(task.description || task.extendedDescription) ||
+    (!isProjectPresentation && Boolean(task.description || task.extendedDescription)) ||
     projectCount > 0 ||
     goalCount > 0 ||
     blockedByCount > 0 ||
@@ -157,6 +188,51 @@ export function TaskListItem({
     actionsVisibility === 'hover'
       ? '@[36rem]:opacity-0 @[36rem]:transition-opacity @[36rem]:duration-150 @[36rem]:group-hover:opacity-100 @[36rem]:group-focus-within:opacity-100'
       : '';
+
+  const menuItems: MenuItem[] = useMemo(() => {
+    const items: MenuItem[] = [];
+
+    if (onView || onClick) {
+      items.push({
+        key: 'view',
+        label: 'View details',
+        icon: Eye,
+        onClick: () => {
+          if (onView) {
+            onView(task);
+          } else if (onClick) {
+            onClick(task);
+          }
+        },
+      });
+    }
+
+    items.push({
+      key: 'edit',
+      label: 'Edit task',
+      icon: Pencil,
+      onClick: () => onEdit(task),
+    });
+
+    if (onUnlink) {
+      items.push({
+        key: 'unlink',
+        label: 'Unlink from project',
+        icon: Link2Off,
+        onClick: () => onUnlink(task),
+      });
+    }
+
+    items.push({
+      key: 'delete',
+      label: 'Delete task',
+      icon: Trash2,
+      tone: 'danger',
+      onClick: () => onDelete(task),
+    });
+
+    return items;
+  }, [task, onView, onClick, onEdit, onUnlink, onDelete]);
 
   const renderActions = (size: 'desktop' | 'mobile') => (
     <div
@@ -254,7 +330,7 @@ export function TaskListItem({
       ) : (
         <Calendar className="h-3 w-3 shrink-0 text-gray-400 dark:text-gray-500" aria-hidden />
       )}
-      <span className={cn('truncate text-xs font-medium', dueDateClassName(displayDate))}>
+      <span className={cn('truncate text-xs font-medium', dueDateClassName(displayDate, isDone))}>
         {displayDate.text}
       </span>
     </div>
@@ -288,9 +364,16 @@ export function TaskListItem({
   );
 
   const secondaryChrome = hasSecondaryChrome ? (
-    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-gray-100 pt-1.5 @[36rem]:col-span-full dark:border-gray-700/60">
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-x-2 gap-y-1',
+        isProjectPresentation
+          ? 'mt-1 pt-0.5 border-t-0'
+          : 'mt-1.5 border-t border-gray-100 pt-1.5 @[36rem]:col-span-full dark:border-gray-700/60'
+      )}
+    >
       <VelocityDragBadge rolloverCount={task.rolloverCount} />
-      {task.description || task.extendedDescription ? (
+      {!isProjectPresentation && (task.description || task.extendedDescription) ? (
         <span
           className="inline-flex items-center text-gray-400 @[36rem]:hidden dark:text-gray-500"
           title="Has description"
@@ -333,70 +416,154 @@ export function TaskListItem({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -12 }}
       transition={{ duration: 0.15 }}
-      className={cn(
-        '@container group min-w-0 rounded-md border px-3 py-2 transition-colors duration-150 @[36rem]:py-1.5',
-        isDone
-          ? 'border-gray-200/80 bg-gray-50/80 dark:border-gray-700/60 dark:bg-gray-800/50'
-          : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600',
-        onClick &&
-          'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900'
-      )}
+      className={
+        isProjectPresentation
+          ? cn(
+              'group min-w-0 transition-colors duration-150',
+              presentation === 'projectCompletedModal'
+                ? cn(projectCompletedModalRowClassName, 'rounded-lg p-3')
+                : cn(projectTaskRowFlushClassName, 'rounded-md px-3 py-2'),
+              (onClick || onView) &&
+                'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900'
+            )
+          : cn(
+              '@container group min-w-0 rounded-md border px-3 py-2 transition-colors duration-150 @[36rem]:py-1.5',
+              isDone
+                ? 'border-gray-200/80 bg-gray-50/80 dark:border-gray-700/60 dark:bg-gray-800/50'
+                : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600',
+              (onClick || onView) &&
+                'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900'
+            )
+      }
       onClick={(e) => {
         if (
           (e.target as HTMLElement).closest('button') ||
-          (e.target as HTMLElement).closest('input[type="checkbox"]')
+          (e.target as HTMLElement).closest('input[type="checkbox"]') ||
+          (e.target as HTMLElement).closest('[role="menu"]') ||
+          (e.target as HTMLElement).closest('[role="menuitem"]')
         ) {
           return;
         }
         handleClick();
       }}
       onKeyDown={(e) => {
-        if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+        if ((onClick || onView) && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           handleClick();
         }
       }}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      aria-label={onClick ? `View task details: ${task.title}` : undefined}
+      role={onClick || onView ? 'button' : undefined}
+      tabIndex={onClick || onView ? 0 : undefined}
+      aria-label={
+        onView
+          ? `View task details: ${task.title}`
+          : onClick
+            ? `View task details: ${task.title}`
+            : undefined
+      }
     >
-      {/* Desktop: aligned grid */}
-      <div
-        className={cn('hidden min-w-0', TASK_LIST_ITEM_DENSE_GRID)}
-        data-testid="task-list-item-dense-layout"
-      >
-        <div className="shrink-0">
-          <PriorityIndicator priority={task.priority} size="sm" variant="dot" />
-        </div>
-        {titleContent}
-        <div className="min-w-0 truncate">
-          <AreaBadge area={task.area} size="sm" />
-        </div>
-        {pointsCell}
-        <div className="min-w-0">{dueCell}</div>
-        {renderActions('desktop')}
-        {secondaryChrome}
-      </div>
-
-      {/* Mobile / tablet: stacked compact row */}
-      <div
-        className="flex min-w-0 flex-col gap-2 @[36rem]:hidden"
-        data-testid="task-list-item-stacked-layout"
-      >
-        <div className="flex min-w-0 items-start gap-2">
-          <div className="shrink-0 pt-0.5">
-            <PriorityIndicator priority={task.priority} size="sm" variant="badge" />
-          </div>
+      {presentation === 'projectCompletedModal' ? (
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-1.5">
-            {titleContent}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <div className="flex items-start gap-2">
+              <div className="shrink-0 pt-0.5">
+                <PriorityIndicator priority={task.priority} size="sm" variant="dot" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <SubtaskProgressChip task={task} />
+                  <h3
+                    className="break-words text-sm font-medium text-gray-700 line-through dark:text-gray-300"
+                    title={task.title}
+                  >
+                    {task.title}
+                  </h3>
+                </div>
+
+                {clampedDescription.previewText ? (
+                  <div className={projectTaskDescriptionClassName}>
+                    <span>
+                      {isDescriptionExpanded
+                        ? clampedDescription.fullText
+                        : clampedDescription.previewText}
+                    </span>
+                    {clampedDescription.isClamped ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsDescriptionExpanded((prev) => !prev);
+                        }}
+                        className={projectTaskShowMoreButtonClassName}
+                      >
+                        {isDescriptionExpanded ? 'Show Less' : 'Show More'}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+                  <AreaBadge area={task.area} size="sm" />
+                  {displayDate ? (
+                    <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                      {isScheduledOnly ? (
+                        <Clock className="h-3 w-3 shrink-0" aria-hidden />
+                      ) : (
+                        <Calendar className="h-3 w-3 shrink-0" aria-hidden />
+                      )}
+                      <span
+                        className={cn('text-xs font-medium', dueDateClassName(displayDate, isDone))}
+                      >
+                        {displayDate.text}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="flex shrink-0 items-center gap-1.5 pt-0.5"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            <StatusBadge status={task.status} size="sm" />
+            <DropdownMenuButton
+              icon={MoreVertical}
+              ariaLabel={`Actions for ${task.title}`}
+              align="end"
+              portal
+              items={menuItems}
+              className="shrink-0"
+            />
+          </div>
+        </div>
+      ) : presentation === 'project' ? (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <PriorityIndicator
+                priority={task.priority}
+                size="sm"
+                variant={isDone ? 'dot' : 'badge'}
+              />
+              <SubtaskProgressChip task={task} />
+              <h3
+                className={cn(
+                  'min-w-0 flex-1 truncate text-sm font-medium',
+                  isDone
+                    ? 'text-gray-500 line-through dark:text-gray-400'
+                    : 'text-gray-900 dark:text-white'
+                )}
+                title={task.title}
+              >
+                {task.title}
+              </h3>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
               <AreaBadge area={task.area} size="sm" />
-              {task.size ? (
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {formatTaskStoryPointsLabel(task.size)}
-                </span>
-              ) : null}
-              {task.pointValue ? <TaskRewardPointsRow task={task} compact /> : null}
               {displayDate ? (
                 <div className="flex items-center gap-1">
                   {isScheduledOnly ? (
@@ -404,45 +571,98 @@ export function TaskListItem({
                   ) : (
                     <Calendar className="h-3 w-3 text-gray-400 dark:text-gray-500" aria-hidden />
                   )}
-                  <span className={cn('text-xs font-medium', dueDateClassName(displayDate))}>
+                  <span
+                    className={cn('text-xs font-medium', dueDateClassName(displayDate, isDone))}
+                  >
                     {displayDate.text}
                   </span>
                 </div>
               ) : null}
             </div>
           </div>
-          {renderActions('mobile')}
-        </div>
-        {hasSecondaryChrome ? (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-gray-100 pt-1.5 pl-8 dark:border-gray-700/60">
-            <VelocityDragBadge rolloverCount={task.rolloverCount} />
-            {(projectCount > 0 || goalCount > 0) && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {projectCount > 0 && `Projects: ${projectCount}`}
-                {projectCount > 0 && goalCount > 0 && ' · '}
-                {goalCount > 0 && `Goals: ${goalCount}`}
-              </span>
-            )}
-            {blockedByCount > 0 ? (
-              <DependencyBadge
-                type="blocked"
-                count={blockedByCount}
-                tooltip={
-                  blockedByTasks.length > 0
-                    ? `Blocked by:\n${blockedByTasks.map((t) => `• ${t.title}`).join('\n')}`
-                    : undefined
-                }
-              />
-            ) : null}
-            {dependencyCount > 0 ? (
-              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                <GitBranch className="h-3.5 w-3.5" aria-hidden />
-                <span className="text-xs tabular-nums">{dependencyCount}</span>
-              </div>
-            ) : null}
+
+          <div
+            className="flex shrink-0 items-center gap-1.5"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            <StatusBadge status={task.status} size="sm" className="hidden sm:inline-flex" />
+            <DropdownMenuButton
+              icon={MoreVertical}
+              ariaLabel={`Actions for ${task.title}`}
+              align="end"
+              portal
+              items={menuItems}
+              className="shrink-0"
+            />
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : (
+        <>
+          {/* Desktop: aligned grid */}
+          <div
+            className={cn('hidden min-w-0', TASK_LIST_ITEM_DENSE_GRID)}
+            data-testid="task-list-item-dense-layout"
+          >
+            <div className="shrink-0">
+              <PriorityIndicator priority={task.priority} size="sm" variant="dot" />
+            </div>
+            {titleContent}
+            <div className="min-w-0 truncate">
+              <AreaBadge area={task.area} size="sm" />
+            </div>
+            {pointsCell}
+            <div className="min-w-0">{dueCell}</div>
+            {renderActions('desktop')}
+            {secondaryChrome}
+          </div>
+
+          {/* Mobile / tablet: stacked compact row */}
+          <div
+            className="flex min-w-0 flex-col gap-2 @[36rem]:hidden"
+            data-testid="task-list-item-stacked-layout"
+          >
+            <div className="flex min-w-0 items-start gap-2">
+              <div className="shrink-0 pt-0.5">
+                <PriorityIndicator priority={task.priority} size="sm" variant="badge" />
+              </div>
+              <div className="min-w-0 flex-1 space-y-1.5">
+                {titleContent}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <AreaBadge area={task.area} size="sm" />
+                  {task.size ? (
+                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {formatTaskStoryPointsLabel(task.size)}
+                    </span>
+                  ) : null}
+                  {task.pointValue ? <TaskRewardPointsRow task={task} compact /> : null}
+                  {displayDate ? (
+                    <div className="flex items-center gap-1">
+                      {isScheduledOnly ? (
+                        <Clock className="h-3 w-3 text-gray-400 dark:text-gray-500" aria-hidden />
+                      ) : (
+                        <Calendar
+                          className="h-3 w-3 text-gray-400 dark:text-gray-500"
+                          aria-hidden
+                        />
+                      )}
+                      <span
+                        className={cn('text-xs font-medium', dueDateClassName(displayDate, isDone))}
+                      >
+                        {displayDate.text}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              {renderActions('mobile')}
+            </div>
+            {secondaryChrome}
+          </div>
+        </>
+      )}
+      {isProjectPresentation ? secondaryChrome : null}
     </motion.div>
   );
 }

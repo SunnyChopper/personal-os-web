@@ -16,6 +16,8 @@ export type ProjectCompletedTasksSectionProps = {
   projectName: string;
   onEdit: (task: Task) => void;
   onUnlink: (taskId: string) => void;
+  onDelete?: (task: Task) => void;
+  onView?: (task: Task) => void;
   onViewAllCompleted: () => void;
 };
 
@@ -26,6 +28,8 @@ export function ProjectCompletedTasksSection({
   projectName,
   onEdit,
   onUnlink,
+  onDelete,
+  onView,
   onViewAllCompleted,
 }: ProjectCompletedTasksSectionProps) {
   const [isOpen, setIsOpen] = useState(() => !shouldAutoCollapseCompletedSection(doneTasks.length));
@@ -96,8 +100,12 @@ export function ProjectCompletedTasksSection({
           <TaskListItem
             key={mostRecentDoneTask.id}
             task={mostRecentDoneTask}
+            presentation="project"
+            onView={onView}
+            onClick={onView}
             onEdit={onEdit}
-            onDelete={() => onUnlink(mostRecentDoneTask.id)}
+            onUnlink={() => onUnlink(mostRecentDoneTask.id)}
+            onDelete={onDelete ?? (() => onUnlink(mostRecentDoneTask.id))}
             deleteLabel="Unlink task"
             deleteAriaLabel={`Unlink ${mostRecentDoneTask.title} from ${projectName}`}
             deleteIcon={unlinkDeleteIcon}

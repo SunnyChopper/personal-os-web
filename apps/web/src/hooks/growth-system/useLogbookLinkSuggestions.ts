@@ -9,6 +9,7 @@ export type SuggestLogbookLinksInput = {
   energy?: number;
   limit?: number;
   useCache?: boolean;
+  excludeEntities?: Array<{ entityType: 'project' | 'goal'; entityId: string }>;
 };
 
 export function useLogbookLinkSuggestions() {
@@ -22,6 +23,7 @@ export function useLogbookLinkSuggestions() {
         energyLevel: input.energy,
         limit: input.limit ?? 3,
         useCache: input.useCache ?? true,
+        excludeEntities: input.excludeEntities,
       });
       if (!response.success || !response.data) {
         throw new Error(response.error?.message || 'Failed to fetch logbook link suggestions');

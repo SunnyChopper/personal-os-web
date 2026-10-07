@@ -4,7 +4,6 @@ import {
   getGridProjectAccentBarClass,
   projectGridAccentBarClassName,
   projectGridCardShellClassName,
-  projectGridSelectCheckboxClassName,
   projectPriorityAccentBgClass,
 } from '@/lib/growth-system/project-card-surfaces';
 
@@ -64,62 +63,30 @@ describe('getGridProjectAccentBarClass', () => {
 });
 
 describe('projectGridCardShellClassName', () => {
-  it('applies selected border and ring when selected', () => {
-    const selected = projectGridCardShellClassName({ isSelected: true });
-    expect(selected).toContain('border-blue-500');
-    expect(selected).toContain('ring-blue-500/25');
-  });
-
-  it('uses neutral border when not selected', () => {
-    const idle = projectGridCardShellClassName({ isSelected: false });
+  it('uses a compact padded shell with hover border emphasis', () => {
+    const idle = projectGridCardShellClassName();
+    expect(idle).toContain('p-3');
     expect(idle).toContain('border-gray-200');
     expect(idle).toContain('lg:hover:border-blue-500');
+    expect(idle).not.toContain('border-blue-500 ring-1');
   });
 });
 
 describe('projectGridAccentBarClassName', () => {
-  it('hides accent at rest when not selected', () => {
+  it('hides accent at rest and reveals on hover or focus', () => {
     const classes = projectGridAccentBarClassName({
-      isSelected: false,
       accentBgClass: 'bg-red-500',
     });
     expect(classes).toContain('opacity-0');
     expect(classes).toContain('group-hover:opacity-100');
-  });
-
-  it('shows accent when selected', () => {
-    const classes = projectGridAccentBarClassName({
-      isSelected: true,
-      accentBgClass: 'bg-red-500',
-    });
-    expect(classes).toContain('opacity-100');
+    expect(classes).toContain('group-focus-within:opacity-100');
   });
 
   it('returns null when no accent color', () => {
     expect(
       projectGridAccentBarClassName({
-        isSelected: false,
         accentBgClass: null,
       })
     ).toBeNull();
-  });
-});
-
-describe('projectGridSelectCheckboxClassName', () => {
-  it('hides checkbox at rest when selection is inactive', () => {
-    const classes = projectGridSelectCheckboxClassName({
-      isSelected: false,
-      selectionActive: false,
-    });
-    expect(classes).toContain('opacity-0');
-    expect(classes).toContain('group-hover:opacity-100');
-  });
-
-  it('shows checkbox when selection mode is active', () => {
-    const classes = projectGridSelectCheckboxClassName({
-      isSelected: false,
-      selectionActive: true,
-    });
-    expect(classes).toContain('opacity-100');
   });
 });

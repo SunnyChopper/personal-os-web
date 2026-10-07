@@ -1,4 +1,4 @@
-﻿import { useMemo } from 'react';
+﻿import { useMemo, useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { QueryKey } from '@tanstack/react-query';
 import {
@@ -28,9 +28,11 @@ import type {
   LogbookEntry,
   FilterOptions,
   TaskDependency,
+  PaginatedResponse,
 } from '@/types/growth-system';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import { queryKeys } from '@/lib/react-query/query-keys';
+import { trackDomainEvent } from '@/lib/analytics';
 import { extractApiError, isNetworkError } from '@/lib/react-query/error-utils';
 import {
   applyGoalDeletedToCache,
@@ -52,12 +54,15 @@ import {
   findTaskInClientCache,
 } from '@/lib/react-query/growth-system-cache';
 import { invalidateRelevantNowAfterGrowthTaskMutation } from '@/hooks/assistant-streaming/growth-system-mutation-invalidation';
+import { mergeTaskPage, shouldContinueTaskExhaust } from '@/lib/growth-system/exhaust-task-pages';
 
-// TODO: These hooks use React Query to fetch data from backend API
-// Currently will fail until backend is implemented or mock data is provided
-// Auth requirement is temporarily bypassed (see ProtectedRoute component)
+export type UseTasksOptions = {
+  /** Fetch all pages while API hasMore is true (Tasks board only). */
+  exhaustPages?: boolean;
+};
 
-export const useTasks = (filters?: FilterOptions) => {
+export const useTasks = (filters?: FilterOptions, options?: UseTasksOptions) => {
+  const exhaustPages = options?.exhaustPages === true;
   // TODO: Temporarily not checking user authentication (bypassed in ProtectedRoute)
   const queryClient = useQueryClient();
   const { recordError, recordSuccess } = useBackendStatus();
@@ -81,9 +86,14 @@ export const useTasks = (filters?: FilterOptions) => {
   const dashboardTasks =
     dashboardQueryState?.status === 'success' ? (dashboardSummary?.data?.tasks ?? []) : undefined;
 
+  const listFilterKey = useMemo(() => JSON.stringify(listFilters), [listFilters]);
+  const taskListQueryKey = queryKeys.growthSystem.tasks.list(
+    listFilters as Record<string, unknown>
+  );
+
   // TODO: Temporarily allowing queries without user authentication
-  const { data, isLoading, error, isError } = useQuery({
-    queryKey: queryKeys.growthSystem.tasks.list(listFilters as Record<string, unknown>),
+  const { data, isLoading, error, isError, isSuccess } = useQuery({
+    queryKey: taskListQueryKey,
     queryFn: async () => {
       try {
         const result = await tasksService.getAll(listFilters);
@@ -100,10 +110,75 @@ export const useTasks = (filters?: FilterOptions) => {
         throw err;
       }
     },
-    enabled: !dashboardControlsLoading, // Only fetch if dashboard isn't controlling data
+    enabled: exhaustPages ? true : !dashboardControlsLoading,
     staleTime: 10 * 60 * 1000, // 10 minutes - goals don't change frequently
     gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
   });
+
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
+  useEffect(() => {
+    if (!exhaustPages || !isSuccess || isError) {
+      setIsFetchingMore(false);
+      return;
+    }
+
+    const initial = queryClient.getQueryData<PaginatedResponse<Task>>(taskListQueryKey);
+    if (!initial?.hasMore) {
+      setIsFetchingMore(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      setIsFetchingMore(true);
+      let pagesFetched = 1;
+      let hasMore = true;
+
+      while (!cancelled && shouldContinueTaskExhaust(hasMore, pagesFetched)) {
+        const cached = queryClient.getQueryData<PaginatedResponse<Task>>(taskListQueryKey);
+        if (!cached) break;
+
+        const nextPageNum = cached.page + 1;
+        try {
+          const result = await tasksService.getAll({ ...listFilters, page: nextPageNum });
+          if (cancelled) break;
+
+          const merged = mergeTaskPage(cached.data, {
+            data: result.data,
+            hasMore: result.hasMore,
+            total: result.total,
+            page: result.page,
+            pageSize: result.pageSize,
+          });
+
+          hasMore = merged.hasMore;
+          pagesFetched += 1;
+
+          queryClient.setQueryData<PaginatedResponse<Task>>(taskListQueryKey, {
+            data: merged.data,
+            total: merged.total,
+            page: result.page,
+            pageSize: merged.pageSize,
+            totalPages: Math.ceil(merged.total / merged.pageSize) || 1,
+            hasMore: merged.hasMore,
+          });
+
+          if (!shouldContinueTaskExhaust(hasMore, pagesFetched)) break;
+        } catch {
+          break;
+        }
+      }
+
+      if (!cancelled) setIsFetchingMore(false);
+    })();
+
+    return () => {
+      cancelled = true;
+      setIsFetchingMore(false);
+    };
+  }, [exhaustPages, isSuccess, isError, listFilterKey, listFilters, queryClient, taskListQueryKey]);
 
   const createMutation = useMutation({
     mutationFn: (input: CreateTaskInput) => tasksService.create(input),
@@ -224,6 +299,7 @@ export const useTasks = (filters?: FilterOptions) => {
     onSuccess: (response) => {
       if (response.success && response.data) {
         upsertTaskCache(queryClient, response.data);
+        trackDomainEvent('tasks', 'completed');
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.wallet.all });
       invalidateRelevantNowAfterGrowthTaskMutation(queryClient);
@@ -259,7 +335,7 @@ export const useTasks = (filters?: FilterOptions) => {
   const isNetworkErr = apiError ? isNetworkError(apiError) : false;
 
   const isWaitingForDashboard =
-    dashboardControlsLoading && !data?.data && dashboardTasks === undefined;
+    !exhaustPages && dashboardControlsLoading && !data?.data && dashboardTasks === undefined;
 
   const splitDraggedTaskMutation = useMutation({
     mutationFn: (parent: Task) => tasksService.createVelocityDragSplit(parent),
@@ -274,8 +350,12 @@ export const useTasks = (filters?: FilterOptions) => {
   });
 
   return {
-    tasks: isError && isNetworkErr ? [] : (data?.data ?? dashboardTasks ?? []),
+    tasks:
+      isError && isNetworkErr ? [] : (data?.data ?? (exhaustPages ? [] : (dashboardTasks ?? []))),
     isLoading: (isWaitingForDashboard || isLoading) && !isError,
+    isFetchingMore: exhaustPages ? isFetchingMore : false,
+    hasMore: data?.hasMore ?? false,
+    total: data?.total,
     isError,
     error: apiError || error,
     createTask: createMutation.mutateAsync,
@@ -351,6 +431,7 @@ export const useHabits = () => {
     onSuccess: (response) => {
       if (response.success && response.data) {
         upsertHabitCache(queryClient, response.data);
+        trackDomainEvent('habits', 'completed');
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.wallet.detail() });
     },
@@ -625,6 +706,7 @@ export const useProjects = () => {
       if (project.status === 'Completed') {
         void queryClient.invalidateQueries({ queryKey: queryKeys.wallet.all });
       }
+      invalidateRelevantNowAfterGrowthTaskMutation(queryClient);
     },
   });
 
@@ -632,6 +714,7 @@ export const useProjects = () => {
     mutationFn: (id: string) => projectsService.delete(id),
     onSuccess: (_response, projectId) => {
       removeProjectCache(queryClient, projectId);
+      invalidateRelevantNowAfterGrowthTaskMutation(queryClient);
     },
   });
 

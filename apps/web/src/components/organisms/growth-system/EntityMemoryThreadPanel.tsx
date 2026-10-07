@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Brain, Loader2 } from 'lucide-react';
 import { EmptyState } from '@/components/molecules/EmptyState';
+import { ProjectDetailCollapsible } from '@/components/molecules/ProjectDetailCollapsible';
 import type { EntityMemoryThread, EntityMemoryThreadItem } from '@/types/growth-system';
 
 interface EntityMemoryThreadPanelProps {
@@ -12,6 +13,8 @@ interface EntityMemoryThreadPanelProps {
   onEmptyAction?: () => void;
   reloadKey?: number;
   isEmptyActionLoading?: boolean;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }
 
 function categoryClass(category: string): string {
@@ -51,6 +54,8 @@ export function EntityMemoryThreadPanel({
   onEmptyAction,
   reloadKey = 0,
   isEmptyActionLoading = false,
+  collapsible = false,
+  defaultOpen = false,
 }: EntityMemoryThreadPanelProps) {
   const [thread, setThread] = useState<EntityMemoryThread | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,14 +80,11 @@ export function EntityMemoryThreadPanel({
     };
   }, [entityId, entityType, days, fetchThread, reloadKey]);
 
-  return (
-    <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-      <div className="flex items-center gap-2 mb-3">
-        <Brain className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Memory thread</h3>
-        <span className="text-xs text-gray-500 dark:text-gray-400">Last {days} days</span>
-      </div>
+  const threadCount = thread ? (thread.totalItems ?? thread.items.length) : null;
+  const count = loading ? null : (threadCount ?? 0);
 
+  const panelContent = (
+    <>
       {loading && (
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-4">
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -141,6 +143,32 @@ export function EntityMemoryThreadPanel({
           })}
         </ul>
       )}
+    </>
+  );
+
+  if (collapsible) {
+    return (
+      <ProjectDetailCollapsible
+        title="Memory thread"
+        count={count}
+        suffix={`Last ${days} days`}
+        icon={Brain}
+        iconClassName="text-indigo-600 dark:text-indigo-400"
+        defaultOpen={defaultOpen}
+      >
+        {panelContent}
+      </ProjectDetailCollapsible>
+    );
+  }
+
+  return (
+    <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex items-center gap-2 mb-3">
+        <Brain className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Memory thread</h3>
+        <span className="text-xs text-gray-500 dark:text-gray-400">Last {days} days</span>
+      </div>
+      {panelContent}
     </div>
   );
 }
