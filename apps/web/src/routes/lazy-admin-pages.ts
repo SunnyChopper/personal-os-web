@@ -10,7 +10,6 @@ export const DailyLearningPage = lazyWithRetry(() => import('@/pages/admin/Daily
 export const InboxPage = lazyWithRetry(() => import('@/pages/admin/InboxPage'));
 export const CheatSheetPage = lazyWithRetry(() => import('@/pages/admin/CheatSheetPage'));
 export const SyntopicPage = lazyWithRetry(() => import('@/pages/admin/SyntopicPage'));
-export const ProjectLabsPage = lazyWithRetry(() => import('@/pages/admin/ProjectLabsPage'));
 export const TaskLinksPage = lazyWithRetry(() => import('@/pages/admin/TaskLinksPage'));
 export const FeynmanStudyPage = lazyWithRetry(() => import('@/pages/admin/FeynmanStudyPage'));
 export const CourseDetailPage = lazyWithRetry(() => import('@/pages/admin/CourseDetailPage'));
@@ -46,7 +45,9 @@ export const HealthFitnessNutritionPage = lazyWithRetry(
 export const HealthFitnessWorkoutsPage = lazyWithRetry(
   () => import('@/pages/admin/HealthFitnessWorkoutsPage')
 );
-export const HealthFitnessAuraPage = lazyWithRetry(() => import('@/pages/admin/HealthFitnessAuraPage'));
+export const HealthFitnessAuraPage = lazyWithRetry(
+  () => import('@/pages/admin/HealthFitnessAuraPage')
+);
 export const HealthFitnessRewardsPage = lazyWithRetry(
   () => import('@/pages/admin/HealthFitnessRewardsPage')
 );
@@ -57,15 +58,25 @@ export const VoyagerTripsTab = lazyWithRetry(() => import('@/pages/admin/voyager
 export const VoyagerMilestonesTab = lazyWithRetry(
   () => import('@/pages/admin/voyager/VoyagerMilestonesTab')
 );
-export const VoyagerItineraryTab = lazyWithRetry(() => import('@/pages/admin/voyager/VoyagerItineraryTab'));
+export const VoyagerItineraryTab = lazyWithRetry(
+  () => import('@/pages/admin/voyager/VoyagerItineraryTab')
+);
 export const CareerLayout = lazyWithRetry(() => import('@/pages/admin/career/CareerLayout'));
 export const CareerDevelopmentOverviewPage = lazyWithRetry(
   () => import('@/pages/admin/career/CareerDevelopmentOverviewPage')
 );
-export const ResumeBuilderPage = lazyWithRetry(() => import('@/pages/admin/career/ResumeBuilderPage'));
+export const ResumeBuilderPage = lazyWithRetry(
+  () => import('@/pages/admin/career/ResumeBuilderPage')
+);
 export const JobSourcesPage = lazyWithRetry(() => import('@/pages/admin/career/JobSourcesPage'));
 export const PersonalBrandingLayout = lazyWithRetry(
   () => import('@/pages/admin/personal-branding/PersonalBrandingLayout')
+);
+export const PersonalBrandingProjectsPage = lazyWithRetry(
+  () => import('@/pages/admin/personal-branding/projects/ProjectsPage')
+);
+export const BuildIdeaDetailPage = lazyWithRetry(
+  () => import('@/pages/admin/personal-branding/projects/BuildIdeaDetailPage')
 );
 export const PersonalBrandingOverviewPage = lazyWithRetry(
   () => import('@/pages/admin/personal-branding/PersonalBrandingOverviewPage')
@@ -88,22 +99,42 @@ export const ContentStreamPage = lazyWithRetry(
 export const RolodexPage = lazyWithRetry(
   () => import('@/pages/admin/personal-branding/rolodex/RolodexPage')
 );
+export const InPersonEventsPage = lazyWithRetry(
+  () => import('@/pages/admin/personal-branding/in-person-events/InPersonEventsPage')
+);
 export const MemoryAuditPage = lazyWithRetry(() => import('@/pages/admin/MemoryAuditPage'));
-export const AssistantSettingsPage = lazyWithRetry(() => import('@/pages/admin/AssistantSettingsPage'));
+export const AssistantSettingsPage = lazyWithRetry(
+  () => import('@/pages/admin/AssistantSettingsPage')
+);
+export const AssistantSpecialistsPage = lazyWithRetry(
+  () => import('@/pages/admin/AssistantSpecialistsPage')
+);
 export const ProactiveAutomationsPage = lazyWithRetry(
   () => import('@/pages/admin/ProactiveAutomationsPage')
 );
 export const InterventionsPage = lazyWithRetry(() => import('@/pages/admin/InterventionsPage'));
 export const ObservabilityPage = lazyWithRetry(() => import('@/pages/admin/ObservabilityPage'));
-export const AssistantSandboxPage = lazyWithRetry(() => import('@/pages/admin/AssistantSandboxPage'));
-export const ToolsOverviewPage = lazyWithRetry(() => import('@/pages/admin/tools/ToolsOverviewPage'));
-export const WorkflowsListPage = lazyWithRetry(() => import('@/pages/admin/tools/WorkflowsListPage'));
-export const WorkflowEditorPage = lazyWithRetry(() => import('@/pages/admin/tools/WorkflowEditorPage'));
+export const AssistantSandboxPage = lazyWithRetry(
+  () => import('@/pages/admin/AssistantSandboxPage')
+);
+export const ToolsOverviewPage = lazyWithRetry(
+  () => import('@/pages/admin/tools/ToolsOverviewPage')
+);
+export const WorkflowsListPage = lazyWithRetry(
+  () => import('@/pages/admin/tools/WorkflowsListPage')
+);
+export const WorkflowEditorPage = lazyWithRetry(
+  () => import('@/pages/admin/tools/WorkflowEditorPage')
+);
 export const CronBuilderPage = lazyWithRetry(() => import('@/pages/admin/tools/CronBuilderPage'));
 export const PostmanPage = lazyWithRetry(() => import('@/pages/admin/tools/PostmanPage'));
 export const WebhooksListPage = lazyWithRetry(() => import('@/pages/admin/tools/WebhooksListPage'));
-export const WebhookDetailPage = lazyWithRetry(() => import('@/pages/admin/tools/WebhookDetailPage'));
-export const WhiteboardsListPage = lazyWithRetry(() => import('@/pages/admin/tools/WhiteboardsListPage'));
+export const WebhookDetailPage = lazyWithRetry(
+  () => import('@/pages/admin/tools/WebhookDetailPage')
+);
+export const WhiteboardsListPage = lazyWithRetry(
+  () => import('@/pages/admin/tools/WhiteboardsListPage')
+);
 export const WhiteboardPage = lazyWithRetry(() => import('@/pages/admin/tools/WhiteboardPage'));
 export const FormattersPage = lazyWithRetry(() => import('@/pages/admin/tools/FormattersPage'));
 export const JwtPage = lazyWithRetry(() => import('@/pages/admin/tools/JwtPage'));

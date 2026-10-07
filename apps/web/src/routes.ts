@@ -29,6 +29,9 @@ export const ROUTES = {
     personalBrandingRadar: `${ADMIN_BASE}/personal-branding/radar` as const,
     personalBrandingContentStream: `${ADMIN_BASE}/personal-branding/content-stream` as const,
     personalBrandingRolodex: `${ADMIN_BASE}/personal-branding/rolodex` as const,
+    personalBrandingEvents: `${ADMIN_BASE}/personal-branding/events` as const,
+    personalBrandingProjects: `${ADMIN_BASE}/personal-branding/projects` as const,
+    personalBrandingProjectIdea: `${ADMIN_BASE}/personal-branding/projects/:ideaId` as const,
     tasks: `${ADMIN_BASE}/tasks` as const,
     habits: `${ADMIN_BASE}/habits` as const,
     metrics: `${ADMIN_BASE}/metrics` as const,
@@ -46,6 +49,7 @@ export const ROUTES = {
     healthFitnessRewards: `${ADMIN_BASE}/health-fitness/rewards` as const,
     assistant: `${ADMIN_BASE}/assistant` as const,
     assistantToolSafety: `${ADMIN_BASE}/assistant/settings` as const,
+    assistantSpecialists: `${ADMIN_BASE}/assistant/specialists` as const,
     assistantProactive: `${ADMIN_BASE}/assistant/proactive` as const,
     assistantInterventions: `${ADMIN_BASE}/assistant/interventions` as const,
     assistantObservability: `${ADMIN_BASE}/assistant/observability` as const,
@@ -67,7 +71,6 @@ export const ROUTES = {
     knowledgeVaultInbox: `${ADMIN_BASE}/knowledge-vault/inbox` as const,
     knowledgeVaultCheatSheet: `${ADMIN_BASE}/knowledge-vault/cheat-sheet` as const,
     knowledgeVaultSyntopic: `${ADMIN_BASE}/knowledge-vault/syntopic` as const,
-    knowledgeVaultProjectLabs: `${ADMIN_BASE}/knowledge-vault/project-labs` as const,
     knowledgeVaultTaskLinks: `${ADMIN_BASE}/knowledge-vault/task-links` as const,
     knowledgeVaultDailyLearning: `${ADMIN_BASE}/knowledge-vault/daily-learning` as const,
     knowledgeVaultFeynmanStudy: `${ADMIN_BASE}/knowledge-vault/study` as const,
@@ -109,6 +112,10 @@ export function isAdminLoginPath(pathname: string): boolean {
   return p === ROUTES.admin.login;
 }
 
+export function personalBrandingProjectIdeaPath(ideaId: string): string {
+  return `${ROUTES.admin.personalBrandingProjects}/${encodeURIComponent(ideaId)}`;
+}
+
 export const ADMIN_CHILD_ROUTES = {
   dashboard: 'dashboard' as const,
   zenDashboard: 'zen-dashboard' as const,
@@ -132,6 +139,7 @@ export const ADMIN_CHILD_ROUTES = {
   healthFitnessRewards: 'health-fitness/rewards' as const,
   assistant: 'assistant' as const,
   assistantToolSafety: 'assistant/settings' as const,
+  assistantSpecialists: 'assistant/specialists' as const,
   assistantProactive: 'assistant/proactive' as const,
   assistantInterventions: 'assistant/interventions' as const,
   assistantObservability: 'assistant/observability' as const,
@@ -153,7 +161,6 @@ export const ADMIN_CHILD_ROUTES = {
   knowledgeVaultInbox: 'knowledge-vault/inbox' as const,
   knowledgeVaultCheatSheet: 'knowledge-vault/cheat-sheet' as const,
   knowledgeVaultSyntopic: 'knowledge-vault/syntopic' as const,
-  knowledgeVaultProjectLabs: 'knowledge-vault/project-labs' as const,
   knowledgeVaultTaskLinks: 'knowledge-vault/task-links' as const,
   knowledgeVaultDailyLearning: 'knowledge-vault/daily-learning' as const,
   knowledgeVaultFeynmanStudy: 'knowledge-vault/study' as const,

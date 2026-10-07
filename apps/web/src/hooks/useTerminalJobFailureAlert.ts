@@ -14,11 +14,13 @@ export interface TerminalJobFailureAlertInput {
   error?: string | null;
   message?: string | null;
   stage?: string | null;
+  errorCode?: string | null;
+  retryable?: boolean | null;
   partial?: boolean;
 }
 
 export function useTerminalJobFailureAlert(input: TerminalJobFailureAlertInput): void {
-  const { feature, jobId, status, error, message, stage, partial } = input;
+  const { feature, jobId, status, error, message, stage, errorCode, retryable, partial } = input;
   const reportedRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -40,9 +42,11 @@ export function useTerminalJobFailureAlert(input: TerminalJobFailureAlertInput):
       error,
       message,
       stage,
+      errorCode,
+      retryable,
       partial: isPartial,
     });
-  }, [feature, jobId, status, error, message, stage, partial]);
+  }, [feature, jobId, status, error, message, stage, errorCode, retryable, partial]);
 }
 
 export function reportTerminalJobClientTimeout(

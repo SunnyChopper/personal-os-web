@@ -15,7 +15,7 @@ function throwWithCode(
 /**
  * Lightweight brand-profile picker: list + selected id only.
  * Prefer this over `usePersonalBrandingBrandIdentity` when the page only needs
- * profile id/name options (Rolodex, Project Labs, etc.) — the full Brand Identity
+ * profile id/name options (Rolodex, PB Projects settings, etc.) — the full Brand Identity
  * hook also fetches platform rules, catalog, detail, versions, and output-tests.
  */
 export function useBrandProfilesList(page = 1, pageSize = 50) {

@@ -26,14 +26,11 @@ export function useGrowthSystemDashboard(options?: DashboardSummaryRequest) {
           // Populate individual query caches so existing hooks can read from cache
           const summaryData = result.data;
 
-          // Populate all task list caches (including filtered keys used by useTasks)
-          queryClient.setQueriesData(
-            { queryKey: queryKeys.growthSystem.tasks.lists() },
-            {
-              success: true,
-              data: summaryData.tasks,
-            }
-          );
+          // Populate unfiltered task list cache only (do not clobber filtered Tasks board keys)
+          queryClient.setQueryData(queryKeys.growthSystem.tasks.lists(), {
+            success: true,
+            data: summaryData.tasks,
+          });
 
           // Populate goals cache
           queryClient.setQueryData(queryKeys.growthSystem.goals.lists(), {

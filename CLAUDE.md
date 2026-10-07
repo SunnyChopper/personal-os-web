@@ -131,8 +131,8 @@ Note: `APILLMAdapter` expects `{ success, data: { result, confidence, provider, 
 After `terraform apply` in `**../infrastructure/envs/<dev|prod>/`** (monorepo) or any clone of `**personal-os-infra**`, copy outputs into GitHub **Settings → Environments → secrets** on `**personal-os-web`\*\* for that environment:
 
 - `AWS_DEPLOY_ROLE_ARN`, `SPA_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`, `GARDEN_ASSETS_BUCKET`, `GARDEN_LAMBDA_NAME`
-- `VITE_API_BASE_URL`, `VITE_WS_URL`, `VITE_AWS_REGION`, `VITE_AWS_USER_POOL_ID`, `VITE_AWS_USER_POOL_WEB_CLIENT_ID`, `VITE_AWS_IDENTITY_POOL_ID`
-- Public garden (OpenNext / `deploy-garden.yml`): `NEXT_PUBLIC_SITE_URL`, `PUBLIC_GARDEN_DATABASE_URL`, `PUBLIC_GARDEN_USER_ID`, `OPENAI_API_KEY`
+- `VITE_API_BASE_URL`, `VITE_WS_URL`, `VITE_AWS_REGION`, `VITE_AWS_USER_POOL_ID`, `VITE_AWS_USER_POOL_WEB_CLIENT_ID`, `VITE_AWS_IDENTITY_POOL_ID`, `VITE_GA_MEASUREMENT_ID` (optional GA4)
+- Public garden (OpenNext / `deploy-garden.yml`): `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_GA_MEASUREMENT_ID`, `PUBLIC_GARDEN_DATABASE_URL`, `PUBLIC_GARDEN_USER_ID`, `OPENAI_API_KEY`
 
 **OIDC role ARN** (`AWS_DEPLOY_ROLE_ARN`): `terraform output -raw github_deploy_role_arn` from the **edge** stack (`infrastructure/envs/<stage>`).
 

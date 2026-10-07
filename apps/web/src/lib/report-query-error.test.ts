@@ -55,6 +55,35 @@ describe('report-query-error', () => {
     );
   });
 
+  it('skips Content Stream daily budget exhausted mutation telemetry (266fcbd78690)', () => {
+    const err = new Error(
+      'Daily post budget exhausted; try again tomorrow or use force'
+    ) as Error & { code?: string };
+    err.code = 'HTTP_400';
+    expect(shouldSkipQueryErrorReport(err.code, err.message)).toBe(true);
+    reportMutationCacheError(err, ['personal-branding', 'content-stream', 'generate', 'x']);
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
+  it('skips budget exhausted when message includes Code line from formatApiFailure', () => {
+    const err = new Error(
+      'Daily post budget exhausted; try again tomorrow or use force\nCode: HTTP_400'
+    );
+    expect(shouldSkipQueryErrorReport(undefined, err.message)).toBe(true);
+    reportMutationCacheError(err, ['personal-branding', 'content-stream', 'generate', 'x']);
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
+  it('skips cost guardrail denial mutation telemetry', () => {
+    const err = new Error(
+      "Cost guardrail: personal_branding daily budget exceeded ($6.00 / $5.00). Feature 'contentIdeation' is paused until the period resets or you resume from Observability → Cost."
+    ) as Error & { code?: string };
+    err.code = 'HTTP_400';
+    expect(shouldSkipQueryErrorReport(err.code, err.message)).toBe(true);
+    reportMutationCacheError(err, ['personal-branding', 'content-ideas', 'generate']);
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
   it('skips context-usage ETIMEDOUT telemetry', () => {
     const err = Object.assign(
       new Error('Request timed out. The server may be slow or unavailable.'),
@@ -86,8 +115,35 @@ describe('report-query-error', () => {
     expect(
       shouldSkipQueryCacheErrorReport(['chatbot', 'unread-summary'], 'ETIMEDOUT', err.message)
     ).toBe(true);
+    expect(
+      shouldSkipQueryCacheErrorReport(
+        ['chatbot', 'coach-escalations', 'pending'],
+        'ETIMEDOUT',
+        err.message
+      )
+    ).toBe(true);
     reportQueryCacheError(err, ['chatbot', 'interventions', 'unread-count']);
     reportQueryCacheError(err, ['chatbot', 'unread-summary']);
+    reportQueryCacheError(err, ['chatbot', 'coach-escalations', 'pending']);
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
+  it('skips ambient whisper ETIMEDOUT telemetry (8b25dbe8c269)', () => {
+    const err = Object.assign(
+      new Error('Request timed out. The server may be slow or unavailable.'),
+      { code: 'ETIMEDOUT' }
+    );
+    expect(
+      shouldSkipQueryCacheErrorReport(
+        ['chatbot', 'ambient', 'growthTasks'],
+        'ETIMEDOUT',
+        err.message
+      )
+    ).toBe(true);
+    expect(
+      shouldSkipQueryCacheErrorReport(['chatbot', 'ambient', 'dashboard'], 'ETIMEDOUT', err.message)
+    ).toBe(true);
+    reportQueryCacheError(err, ['chatbot', 'ambient', 'growthTasks']);
     expect(reportClientError).not.toHaveBeenCalled();
   });
 

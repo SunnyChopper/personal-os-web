@@ -3,11 +3,14 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
+  applyOptimisticReconPostFeedbackUpdate,
   applyOptimisticReconPostStatusUpdate,
   buildReconScarcityMessage,
   flattenReconFeedPages,
   isReconScarce,
+  MONITOR_RUN_STATUSES,
   postedAfterForScarcityWindow,
+  reconRunPollInterval,
   RECON_SCARCITY_MAX_COUNT,
   RECON_SCARCITY_WINDOW_MS,
   useReconFeed,
@@ -18,6 +21,7 @@ import { personalBrandingService } from '@/services/personal-branding.service';
 vi.mock('@/services/personal-branding.service', () => ({
   personalBrandingService: {
     getReconFeedSettings: vi.fn(),
+    getReconRun: vi.fn(),
     listReconPosts: vi.fn(),
     listReconRuns: vi.fn(),
     listFollowSuggestions: vi.fn(),
@@ -100,6 +104,33 @@ describe('flattenReconFeedPages', () => {
   });
 });
 
+describe('applyOptimisticReconPostFeedbackUpdate', () => {
+  it('patches feedbackVerdict in active and processed caches without moving posts', () => {
+    const active = infinitePages([reconPost('a', 'NEW')]);
+    const processed = infinitePages([reconPost('b', 'DISMISSED')]);
+    const result = applyOptimisticReconPostFeedbackUpdate(active, processed, 'a', {
+      feedbackVerdict: 'GOOD',
+    });
+    expect(result.active?.pages[0].data[0]).toMatchObject({
+      id: 'a',
+      status: 'NEW',
+      feedbackVerdict: 'GOOD',
+    });
+    expect(result.processed?.pages[0].data[0]).toMatchObject({ id: 'b', status: 'DISMISSED' });
+  });
+
+  it('clears feedbackVerdict when toggling good pick off', () => {
+    const active = infinitePages([{ ...reconPost('a', 'NEW'), feedbackVerdict: 'GOOD' as const }]);
+    const result = applyOptimisticReconPostFeedbackUpdate(active, infinitePages([]), 'a', {
+      feedbackVerdict: null,
+    });
+    expect(result.active?.pages[0].data[0]).toMatchObject({
+      id: 'a',
+      feedbackVerdict: null,
+    });
+  });
+});
+
 describe('applyOptimisticReconPostStatusUpdate', () => {
   it('moves a NEW post into processed when dismissed', () => {
     const active = infinitePages([reconPost('a', 'NEW')]);
@@ -151,6 +182,98 @@ describe('recon scarcity helpers', () => {
   });
 });
 
+describe('reconRunPollInterval', () => {
+  it('does not poll paused runs', () => {
+    expect(reconRunPollInterval({ status: 'paused', pollAfterMs: 2500 })).toBe(false);
+  });
+
+  it('polls running runs with clamped interval', () => {
+    expect(reconRunPollInterval({ status: 'running', pollAfterMs: 100 })).toBe(1500);
+    expect(reconRunPollInterval({ status: 'running', pollAfterMs: 4000 })).toBe(4000);
+  });
+});
+
+describe('MONITOR_RUN_STATUSES', () => {
+  it('includes paused for monitor visibility', () => {
+    expect(MONITOR_RUN_STATUSES.has('paused')).toBe(true);
+    expect(MONITOR_RUN_STATUSES.has('running')).toBe(true);
+  });
+});
+
+describe('useReconFeed activeRunId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(personalBrandingService.getReconFeedSettings).mockResolvedValue({
+      minRelevanceScore: 0.55,
+      maxPostsPerConnection: 10,
+      maxPostAgeDays: 7,
+      syncCadence: 'MANUAL_ONLY',
+      enabled: false,
+      trendStreamResearchEnabled: false,
+      hasRapidApiKey: true,
+      syncStartTime: '09:00',
+      syncTimezone: 'America/Chicago',
+      userId: 'user-1',
+      createdAt: '2026-07-21T00:00:00.000Z',
+      updatedAt: '2026-07-21T00:00:00.000Z',
+    });
+    vi.mocked(personalBrandingService.listReconPosts).mockResolvedValue({
+      success: true,
+      data: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
+    });
+    vi.mocked(personalBrandingService.listFollowSuggestions).mockResolvedValue({
+      success: true,
+      data: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
+    });
+    vi.mocked(personalBrandingService.getReconRun).mockResolvedValue({
+      id: 'run-paused',
+      status: 'paused',
+      trigger: 'manual',
+      connectionsTotal: 5,
+      connectionsSucceeded: 2,
+      connectionsFailed: 0,
+      postsDiscovered: 10,
+      postsScored: 3,
+      followSuggestionsCreated: 0,
+      apiCallsUsed: 5,
+      createdAt: '2026-07-21T00:00:00.000Z',
+      updatedAt: '2026-07-21T00:00:00.000Z',
+    });
+  });
+
+  it('sets activeRunId for paused runs while hasActiveNonPausedRun stays false', async () => {
+    vi.mocked(personalBrandingService.listReconRuns).mockResolvedValue({
+      success: true,
+      data: {
+        data: [
+          {
+            id: 'run-paused',
+            status: 'paused',
+            trigger: 'manual',
+            connectionsTotal: 5,
+            connectionsSucceeded: 2,
+            connectionsFailed: 0,
+            postsDiscovered: 10,
+            postsScored: 3,
+            followSuggestionsCreated: 0,
+            apiCallsUsed: 5,
+            createdAt: '2026-07-21T00:00:00.000Z',
+            updatedAt: '2026-07-21T00:00:00.000Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+        hasMore: false,
+      },
+    });
+
+    const { result } = renderHook(() => useReconFeed(), { wrapper });
+    await waitFor(() => expect(result.current.activeRunId).toBe('run-paused'));
+    expect(result.current.hasActiveNonPausedRun).toBe(false);
+  });
+});
+
 describe('useReconFeed scarcity query', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -160,6 +283,7 @@ describe('useReconFeed scarcity query', () => {
       maxPostAgeDays: 7,
       syncCadence: 'MANUAL_ONLY',
       enabled: false,
+      trendStreamResearchEnabled: false,
       hasRapidApiKey: true,
       syncStartTime: '09:00',
       syncTimezone: 'America/Chicago',

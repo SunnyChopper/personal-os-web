@@ -38,3 +38,9 @@ export function getResolvedWsUrl(): string | undefined {
   if (import.meta.env.PROD) return CANONICAL_PROD_WS_URL;
   return undefined;
 }
+
+/** GA4 Measurement ID — unset disables client analytics (local dev default). */
+export function getGaMeasurementId(): string | undefined {
+  const explicit = import.meta.env.VITE_GA_MEASUREMENT_ID?.trim();
+  return explicit || undefined;
+}

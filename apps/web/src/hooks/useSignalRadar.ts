@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
+import { useTerminalJobFailureAlert } from '@/hooks/useTerminalJobFailureAlert';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import type {
@@ -405,6 +406,13 @@ export function useSignalRadarRunDetail(runId: string | null) {
     },
   });
 
+  useTerminalJobFailureAlert({
+    feature: 'radarIngest',
+    jobId: runId,
+    status: detail.data?.status,
+    error: detail.data?.errorSummary,
+  });
+
   return { detail };
 }
 
@@ -462,6 +470,13 @@ export function useSignalRadarDiscoveryRun(runId: string | null) {
     queryFn: () => personalBrandingService.getRadarDiscoveryRun(runId!),
     enabled: Boolean(runId),
     refetchInterval: (query) => radarDiscoveryPollInterval(query.state.data),
+  });
+
+  useTerminalJobFailureAlert({
+    feature: 'radarDiscovery',
+    jobId: runId,
+    status: detail.data?.status,
+    error: detail.data?.error,
   });
 
   return { detail };

@@ -65,6 +65,34 @@ describe('upsertTaskCache', () => {
   });
 });
 
+describe('dashboard task list hydrate', () => {
+  it('setQueryData on unfiltered list key does not overwrite filtered task list caches', () => {
+    const queryClient = new QueryClient();
+    const filteredKey = queryKeys.growthSystem.tasks.list({
+      pageSize: 100,
+      sortBy: 'priority',
+    });
+    const exhaustedTasks = [makeTask({ id: 'task-a' }), makeTask({ id: 'task-b' })];
+    queryClient.setQueryData(filteredKey, {
+      data: exhaustedTasks,
+      total: 150,
+      page: 2,
+      pageSize: 100,
+      totalPages: 2,
+      hasMore: false,
+    });
+
+    queryClient.setQueryData(queryKeys.growthSystem.tasks.lists(), {
+      success: true,
+      data: [makeTask({ id: 'dash-only' })],
+    });
+
+    const filteredCache = queryClient.getQueryData<{ data: Task[]; total: number }>(filteredKey);
+    expect(filteredCache?.data).toHaveLength(2);
+    expect(filteredCache?.total).toBe(150);
+  });
+});
+
 describe('removeGoalCache', () => {
   it('does not throw when dashboard summary arrays are missing', () => {
     const queryClient = new QueryClient();

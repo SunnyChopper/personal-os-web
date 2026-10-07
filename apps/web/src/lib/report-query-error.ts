@@ -74,11 +74,12 @@ function isContextUsageQueryKey(queryKey: unknown): boolean {
   return queryKey.some((segment) => segment === 'context-usage');
 }
 
-/** Admin shell badge polls — fail-open UX; timeouts are connectivity noise, not product defects. */
+/** Admin shell ambient polls — fail-open UX; timeouts are connectivity noise, not product defects. */
 function isShellBadgeQueryKey(queryKey: unknown): boolean {
   if (!Array.isArray(queryKey)) return false;
   if (queryKey.includes('unread-summary')) return true;
-  return queryKey.includes('interventions') && queryKey.includes('unread-count');
+  if (queryKey.includes('interventions') && queryKey.includes('unread-count')) return true;
+  return queryKey.includes('coach-escalations') && queryKey.includes('pending');
 }
 
 /** Static platform-rule catalog — SPA may still have cached query observers; timeouts are not defects. */
@@ -87,15 +88,31 @@ function isPlatformRuleCatalogQueryKey(queryKey: unknown): boolean {
   return queryKey.includes('platform-rules') && queryKey.includes('catalog');
 }
 
+/** Module whisper strips — fail-open UX; timeouts are connectivity noise, not product defects. */
+function isAmbientPresenceQueryKey(queryKey: unknown): boolean {
+  if (!Array.isArray(queryKey)) return false;
+  return queryKey.includes('chatbot') && queryKey.includes('ambient');
+}
+
 export type QueryCacheErrorReportOptions = {
   /** Active React Query observers; 0 means the page unmounted mid-flight. */
   observerCount?: number;
 };
 
+function isExpectedContentStreamBudgetExhausted(message?: string): boolean {
+  return /daily post budget exhausted/i.test(message || '');
+}
+
+export function isExpectedCostGuardrailDenial(message?: string): boolean {
+  return (message || '').trimStart().startsWith('Cost guardrail:');
+}
+
 export function shouldSkipQueryErrorReport(code?: string, message?: string): boolean {
   if (code && SKIP_CODES.has(code)) return true;
   const lower = (message || '').toLowerCase();
   if (lower.includes('session expired') || lower.includes('not authenticated')) return true;
+  if (isExpectedContentStreamBudgetExhausted(message)) return true;
+  if (isExpectedCostGuardrailDenial(message)) return true;
   return false;
 }
 
@@ -112,6 +129,7 @@ export function shouldSkipQueryCacheErrorReport(
   if (isContextUsageQueryKey(queryKey)) return true;
   if (isShellBadgeQueryKey(queryKey)) return true;
   if (isPlatformRuleCatalogQueryKey(queryKey)) return true;
+  if (isAmbientPresenceQueryKey(queryKey)) return true;
   return false;
 }
 
