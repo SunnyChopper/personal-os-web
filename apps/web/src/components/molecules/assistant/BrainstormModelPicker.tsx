@@ -14,8 +14,9 @@ type BrainstormModelPickerProps = {
   value: BrainstormModelPickerValue;
   onChange: (next: BrainstormModelPickerValue) => void;
   disabled?: boolean;
-  /** Override the hint shown when mode is ``auto``. */
-  autoModeDescription?: string;
+  /** Override the hint shown when mode is ``auto``. Pass ``null`` to hide the body hint. */
+  autoModeDescription?: string | null;
+  modeToggleVariant?: 'default' | 'quiet';
 };
 
 export function BrainstormModelPicker({
@@ -25,6 +26,7 @@ export function BrainstormModelPicker({
   onChange,
   disabled,
   autoModeDescription,
+  modeToggleVariant = 'default',
 }: BrainstormModelPickerProps) {
   const [manualSortBy, setManualSortBy] = useState<ManualModelSortKey>('default');
 
@@ -51,11 +53,17 @@ export function BrainstormModelPicker({
     );
   }
 
+  const defaultAutoModeDescription =
+    'Uses the deployment default brainstorm model (OpenAI gpt-5.4-mini unless overridden server-side). Same catalog rankings as chat when you switch to manual.';
+  const autoModeHint =
+    autoModeDescription === null ? null : (autoModeDescription ?? defaultAutoModeDescription);
+
   return (
     <div className="w-full min-w-0 text-left">
       <AssistantModelModeToggle
         mode={value.mode}
         disabled={disabled}
+        variant={modeToggleVariant}
         onChange={(mode) => {
           if (mode === 'auto') {
             onChange({ mode: 'auto', manualCatalogModelId: value.manualCatalogModelId });
@@ -69,12 +77,9 @@ export function BrainstormModelPicker({
           }
         }}
       />
-      {value.mode === 'auto' ? (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400">
-          {autoModeDescription ??
-            'Uses the deployment default brainstorm model (OpenAI gpt-5.4-mini unless overridden server-side). Same catalog rankings as chat when you switch to manual.'}
-        </p>
-      ) : (
+      {value.mode === 'auto' && autoModeHint ? (
+        <p className="text-[11px] text-gray-500 dark:text-gray-400">{autoModeHint}</p>
+      ) : value.mode === 'manual' ? (
         <>
           <AssistantModelManualSortChips
             sortBy={manualSortBy}
@@ -92,7 +97,7 @@ export function BrainstormModelPicker({
             Full catalog details match the assistant chat picker (scores, benchmarks, capabilities).
           </p>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

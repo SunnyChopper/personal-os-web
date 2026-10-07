@@ -5,7 +5,12 @@ import {
   AssistantModelManualSortChips,
   AssistantModelModeToggle,
 } from '@/components/molecules/assistant/AssistantModelPickerPrimitives';
-import { sortAssistantModels, type ManualModelSortKey } from '@/lib/assistant/model-picker-utils';
+import {
+  isRoutingOrientedCatalogEntry,
+  ROUTING_RESPONSE_PICKER_WARNING,
+  sortAssistantModels,
+  type ManualModelSortKey,
+} from '@/lib/assistant/model-picker-utils';
 import type { ModelPickerDraft } from '@/lib/assistant/run-config-picker-draft';
 import type { AssistantModelCatalogData } from '@/types/chatbot';
 
@@ -64,6 +69,16 @@ export function AssistantRunConfigPickerForm({
     [catalog, manualSortBy]
   );
 
+  const selectedResponseEntry = useMemo(() => {
+    if (!catalog || draft.mode !== 'manual') return undefined;
+    return catalog.models.find((m) => m.id === draft.responseModelId);
+  }, [catalog, draft.mode, draft.responseModelId]);
+
+  const showRoutingResponseWarning =
+    draft.mode === 'manual' &&
+    selectedResponseEntry != null &&
+    isRoutingOrientedCatalogEntry(selectedResponseEntry);
+
   if (isLoading || !catalog) {
     return <p className="text-sm text-gray-600 dark:text-gray-400">Loading models…</p>;
   }
@@ -112,6 +127,14 @@ export function AssistantRunConfigPickerForm({
         density={isSettingsLayout ? 'comfortable' : 'default'}
         onChange={(id) => onDraftChange({ responseModelId: id })}
       />
+      {showRoutingResponseWarning ? (
+        <p
+          className="text-[11px] text-amber-800 dark:text-amber-200/90 rounded-md border border-amber-200/80 dark:border-amber-800/80 bg-amber-50/80 dark:bg-amber-950/30 px-2.5 py-2"
+          role="note"
+        >
+          {ROUTING_RESPONSE_PICKER_WARNING}
+        </p>
+      ) : null}
     </div>
   );
 

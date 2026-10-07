@@ -5,7 +5,7 @@ import OverlayPortal from '@/components/molecules/OverlayPortal';
 import Button from '@/components/atoms/Button';
 import { Textarea } from '@/components/atoms/Textarea';
 import { FormField } from '@/components/molecules/FormField';
-import Dialog from '@/components/molecules/Dialog';
+import { InterventionDismissDialog } from '@/components/molecules/assistant/InterventionDismissDialog';
 import {
   useAssistantInterventionActions,
   useAssistantInterventions,
@@ -14,6 +14,12 @@ import { overlayBackdropClassName, overlaySurfaceClassName } from '@/lib/overlay
 import { ROUTES } from '@/routes';
 import { cn } from '@/lib/utils';
 import type { AssistantIntervention, AssistantInterventionKind } from '@/types/api-contracts';
+import {
+  formatInterventionLastSeen,
+  formatInterventionStackLabel,
+  interventionOccurrenceCount,
+  interventionStackChipClassName,
+} from '@/lib/assistant/intervention-stack-ui';
 
 const KIND_LABELS: Record<AssistantInterventionKind, string> = {
   coachIntervention: 'Coach',
@@ -69,6 +75,11 @@ function InterventionRow({
         </span>
         {item.status === 'unread' ? (
           <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" aria-label="Unread" />
+        ) : null}
+        {formatInterventionStackLabel(item) ? (
+          <span className={interventionStackChipClassName()}>
+            {formatInterventionStackLabel(item)}
+          </span>
         ) : null}
       </div>
       <p className="text-sm text-gray-900 dark:text-white line-clamp-2">{item.title}</p>
@@ -126,7 +137,7 @@ export function InterventionCenterDrawer({ open, onClose }: InterventionCenterDr
   };
 
   const handleDismiss = async () => {
-    if (!selected || dismissReason.trim().length < 3) return;
+    if (!selected) return;
     await dismiss.mutateAsync({ id: selected.id, reason: dismissReason.trim() });
     setDismissOpen(false);
     setDismissReason('');
@@ -214,6 +225,14 @@ export function InterventionCenterDrawer({ open, onClose }: InterventionCenterDr
                       <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                         {selected.title}
                       </h3>
+                      {interventionOccurrenceCount(selected) > 1 ? (
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {formatInterventionStackLabel(selected)} similar alerts
+                          {formatInterventionLastSeen(selected)
+                            ? ` · last seen ${formatInterventionLastSeen(selected)}`
+                            : ''}
+                        </p>
+                      ) : null}
                       <p className="mt-2 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                         {selected.body}
                       </p>
@@ -277,36 +296,16 @@ export function InterventionCenterDrawer({ open, onClose }: InterventionCenterDr
         </div>
       </div>
 
-      <Dialog
+      <InterventionDismissDialog
         isOpen={dismissOpen}
+        reason={dismissReason}
+        onReasonChange={setDismissReason}
         onClose={() => setDismissOpen(false)}
-        title="Dismiss intervention"
-      >
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-          Tell the Assistant why this is not relevant (helps future nudges).
-        </p>
-        <FormField label="Reason" htmlFor="dismiss-reason" className="mb-4">
-          <Textarea
-            id="dismiss-reason"
-            rows={3}
-            value={dismissReason}
-            onChange={(e) => setDismissReason(e.target.value)}
-            placeholder="Not a priority today…"
-          />
-        </FormField>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={() => setDismissOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={dismissReason.trim().length < 3 || dismiss.isPending}
-            onClick={() => void handleDismiss()}
-          >
-            Dismiss
-          </Button>
-        </div>
-      </Dialog>
+        onConfirm={() => void handleDismiss()}
+        isPending={dismiss.isPending}
+        reasonFieldId="dismiss-reason"
+        occurrenceCount={selected ? interventionOccurrenceCount(selected) : 1}
+      />
     </OverlayPortal>
   );
 }
