@@ -76,7 +76,7 @@ export default function PlannerPage() {
   const rolloverDecision = usePlannerRolloverDecision(weekStart, focusDateISO);
   const createSchedulingException = useCreateSchedulingException(weekStart);
   const deleteSchedulingException = useDeleteSchedulingException(weekStart);
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const { tasks } = useGrowthSystemDashboard();
   const priorityByTaskId = useMemo(() => buildPriorityByTaskId(tasks), [tasks]);
 
@@ -310,7 +310,6 @@ export default function PlannerPage() {
 
   return (
     <div className="mx-auto max-w-[1680px] space-y-5 p-4 pb-10">
-      <ToastContainer />
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-600/20 text-blue-600 ring-1 ring-gray-200 dark:text-blue-400 dark:ring-white/10">

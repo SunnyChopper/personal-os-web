@@ -17,9 +17,7 @@ const mutateBuildKit = vi.fn();
 const sampleKit: BrandProjectBuildKit = {
   setupPrompt: 'setup prompt body',
   cursorSkills: [{ name: 'skill-a', description: 'd', skillMarkdown: 'skill body' }],
-  modules: [
-    { order: 1, name: 'Mod', goal: 'goal', prompt: 'module prompt body', dependsOn: [] },
-  ],
+  modules: [{ order: 1, name: 'Mod', goal: 'goal', prompt: 'module prompt body', dependsOn: [] }],
   generatedAt: '2026-10-01T00:00:00.000Z',
 };
 
@@ -100,7 +98,9 @@ vi.mock('@/hooks/usePersonalBrandingProjects', () => ({
     error: hookState.listError,
     refetch: listRefetch,
   }),
-  useBrandProjectSettings: () => ({ data: { autoEnabled: false, dailyCount: 5, startTime: '09:00' } }),
+  useBrandProjectSettings: () => ({
+    data: { autoEnabled: false, dailyCount: 5, startTime: '09:00' },
+  }),
   usePersonalBrandingProjectsMutations: () => hookState,
 }));
 
@@ -218,7 +218,9 @@ describe('ProjectsPage', () => {
       </MemoryRouter>
     );
     expect(screen.getByText('Loading project ideas')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /no open project ideas/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /no open project ideas/i })
+    ).not.toBeInTheDocument();
   });
 
   it('shows list error with retry that refetches', async () => {
@@ -368,7 +370,9 @@ describe('ProjectsPage', () => {
     );
     const grid = screen.getByTestId('project-ideas-grid');
     expect(within(grid).queryByRole('status')).not.toBeInTheDocument();
-    expect(screen.getByTestId('generation-job-banner')).toHaveTextContent('Generation in progress…');
+    expect(screen.getByTestId('generation-job-banner')).toHaveTextContent(
+      'Generation in progress…'
+    );
   });
 
   it('shows truncation note when hasMore is true', () => {
@@ -408,7 +412,9 @@ describe('ProjectsPage', () => {
       </MemoryRouter>
     );
     expect(screen.getByRole('button', { name: /generate now/i })).toBeDisabled();
-    expect(screen.getByTestId('generation-job-banner')).toHaveTextContent('Generation in progress…');
+    expect(screen.getByTestId('generation-job-banner')).toHaveTextContent(
+      'Generation in progress…'
+    );
   });
 
   it('keeps Generate now enabled between poll fetches when job is terminal', () => {
@@ -428,7 +434,10 @@ describe('ProjectsPage', () => {
   it('shows failure with retry', async () => {
     const user = userEvent.setup();
     hookState.jobQuery = {
-      data: ideationJob({ status: 'failed', error: 'No trend items available for project ideation' }),
+      data: ideationJob({
+        status: 'failed',
+        error: 'No trend items available for project ideation',
+      }),
       isFetching: false,
     };
     render(
@@ -591,9 +600,7 @@ describe('ProjectsPage', () => {
 
   it('opens a trend picker and does not start a job on cancel', async () => {
     const user = userEvent.setup();
-    radarState.rows = [
-      radarItem({ id: 'high', title: 'High signal', aiRelevanceScore: 0.9 }),
-    ];
+    radarState.rows = [radarItem({ id: 'high', title: 'High signal', aiRelevanceScore: 0.9 })];
     render(
       <MemoryRouter initialEntries={['/admin/personal-branding/projects?tab=active']}>
         <ProjectsPage />
@@ -603,7 +610,9 @@ describe('ProjectsPage', () => {
     await user.click(screen.getByRole('button', { name: /generate now/i }));
     const dialog = await screen.findByRole('dialog', { name: 'Choose trend cards' });
     expect(mutateGenerate).not.toHaveBeenCalled();
-    expect(await within(dialog).findByRole('checkbox', { name: 'Select High signal' })).toBeChecked();
+    expect(
+      await within(dialog).findByRole('checkbox', { name: 'Select High signal' })
+    ).toBeChecked();
 
     await user.click(within(dialog).getByRole('button', { name: 'Clear' }));
     expect(within(dialog).getByRole('button', { name: 'Confirm' })).toBeDisabled();
@@ -627,7 +636,9 @@ describe('ProjectsPage', () => {
 
     await user.click(screen.getByRole('button', { name: /generate now/i }));
     const dialog = await screen.findByRole('dialog', { name: 'Choose trend cards' });
-    expect(await within(dialog).findByRole('checkbox', { name: 'Select High signal' })).toBeChecked();
+    expect(
+      await within(dialog).findByRole('checkbox', { name: 'Select High signal' })
+    ).toBeChecked();
     await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
     expect(mutateGenerate).toHaveBeenCalledWith({
       count: 5,

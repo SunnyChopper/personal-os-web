@@ -34,13 +34,11 @@ import {
   Library,
   GraduationCap,
   Network,
-  Globe,
   Layers,
   Sparkles,
   Inbox,
   Container,
   Wrench,
-  Workflow,
   Clock,
   LayoutGrid,
   FileText,
@@ -56,6 +54,8 @@ import {
   Dumbbell,
   Gift,
   Briefcase,
+  CalendarDays,
+  Hammer,
   Megaphone,
   User,
   PenLine,
@@ -63,7 +63,6 @@ import {
   Radio,
   Users,
   Waves,
-  FlaskConical,
 } from 'lucide-react';
 import LeisureModeToggle from '@/components/atoms/LeisureModeToggle';
 import { WalletWidget } from '@/components/molecules/WalletWidget';
@@ -116,24 +115,8 @@ const toolsNavigationChildren: NavItem[] = [
   { name: 'Overview', href: ROUTES.admin.tools.base, icon: LayoutGrid },
   { name: 'Markdown', href: ROUTES.admin.markdownViewer, icon: FileText },
   { name: 'Reward Studio', href: ROUTES.admin.rewardStudio, icon: Sparkles },
-  {
-    name: 'Orchestration',
-    href: ROUTES.admin.tools.workflows,
-    icon: Workflow,
-    children: [
-      { name: 'Workflow Engine', href: ROUTES.admin.tools.workflows, icon: Workflow },
-      { name: 'Cron Builder', href: ROUTES.admin.tools.cronBuilder, icon: Clock },
-    ],
-  },
-  {
-    name: 'Network',
-    href: ROUTES.admin.tools.postman,
-    icon: Globe,
-    children: [
-      { name: 'Local Postman', href: ROUTES.admin.tools.postman, icon: Globe },
-      { name: 'Webhook Catcher', href: ROUTES.admin.tools.webhooks, icon: Network },
-    ],
-  },
+  { name: 'Cron Builder', href: ROUTES.admin.tools.cronBuilder, icon: Clock },
+  { name: 'Webhook Catcher', href: ROUTES.admin.tools.webhooks, icon: Network },
   { name: 'Whiteboard', href: ROUTES.admin.tools.whiteboard, icon: LayoutGrid },
   {
     name: 'Data & Security',
@@ -165,6 +148,7 @@ const workNavigation: NavItem[] = [
     icon: MessageCircle,
     children: [
       { name: 'Settings', href: ROUTES.admin.assistantToolSafety, icon: Shield },
+      { name: 'Specialists', href: ROUTES.admin.assistantSpecialists, icon: Users },
       { name: 'Proactive', href: ROUTES.admin.assistantProactive, icon: Zap },
       { name: 'Interventions', href: ROUTES.admin.assistantInterventions, icon: Bell },
       { name: 'Observability', href: ROUTES.admin.assistantObservability, icon: BarChart2 },
@@ -177,11 +161,11 @@ const workNavigation: NavItem[] = [
     href: ROUTES.admin.growthSystem,
     icon: Activity,
     children: [
+      { name: 'Goals', href: ROUTES.admin.goals, icon: Target },
+      { name: 'Projects', href: ROUTES.admin.projects, icon: FolderKanban },
       { name: 'Tasks', href: ROUTES.admin.tasks, icon: CheckSquare },
       { name: 'Habits', href: ROUTES.admin.habits, icon: Calendar },
       { name: 'Metrics', href: ROUTES.admin.metrics, icon: TrendingUp },
-      { name: 'Goals', href: ROUTES.admin.goals, icon: Target },
-      { name: 'Projects', href: ROUTES.admin.projects, icon: FolderKanban },
       { name: 'Logbook', href: ROUTES.admin.logbook, icon: BookOpen },
       { name: 'Weekly Review', href: ROUTES.admin.weeklyReview, icon: Calendar },
       { name: 'Planner', href: ROUTES.admin.planner, icon: LayoutGrid },
@@ -215,6 +199,8 @@ const workNavigation: NavItem[] = [
         icon: Waves,
       },
       { name: 'Signal Radar', href: ROUTES.admin.personalBrandingRadar, icon: Radio },
+      { name: 'Build ideas', href: ROUTES.admin.personalBrandingProjects, icon: Hammer },
+      { name: 'In-Person Events', href: ROUTES.admin.personalBrandingEvents, icon: CalendarDays },
       { name: 'Rolodex', href: ROUTES.admin.personalBrandingRolodex, icon: Users },
     ],
   },
@@ -241,7 +227,6 @@ const workNavigation: NavItem[] = [
       { name: 'Flashcards', href: ROUTES.admin.knowledgeVaultFlashcards, icon: Layers },
       { name: 'Skill Tree', href: ROUTES.admin.knowledgeVaultSkillTree, icon: Network },
       { name: 'Concept Collider', href: ROUTES.admin.knowledgeVaultCollider, icon: Sparkles },
-      { name: 'Project Labs', href: ROUTES.admin.knowledgeVaultProjectLabs, icon: FlaskConical },
       { name: 'Compare Sources', href: ROUTES.admin.knowledgeVaultSyntopic, icon: FileText },
       { name: 'Cheat Sheets', href: ROUTES.admin.knowledgeVaultCheatSheet, icon: ClipboardList },
       { name: 'Task Links', href: ROUTES.admin.knowledgeVaultTaskLinks, icon: Link2 },
@@ -285,6 +270,7 @@ const leisureNavigation: NavItem[] = [
     icon: MessageCircle,
     children: [
       { name: 'Settings', href: ROUTES.admin.assistantToolSafety, icon: Shield },
+      { name: 'Specialists', href: ROUTES.admin.assistantSpecialists, icon: Users },
       { name: 'Proactive', href: ROUTES.admin.assistantProactive, icon: Zap },
       { name: 'Interventions', href: ROUTES.admin.assistantInterventions, icon: Bell },
       { name: 'Observability', href: ROUTES.admin.assistantObservability, icon: BarChart2 },
@@ -302,7 +288,7 @@ function navGroupContainsPath(item: NavItem, pathname: string): boolean {
 
 /**
  * Stable key for expand/collapse + route-collapsed tracking. Parent/child may share the same
- * `href` (e.g. Orchestration group vs Workflow Engine), so href alone is not unique.
+ * `href` (e.g. Data & Security vs Formatters), so href alone is not unique.
  */
 function navExpandKey(item: NavItem): string {
   return `${item.name}::${item.href}`;
@@ -361,6 +347,7 @@ function AdminLayoutContent() {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const resizeStartX = useRef<number>(0);
   const resizeStartWidth = useRef<number>(0);
+  // Assistant config routes (settings, specialists, proactive, interventions, observability) self-pad; sandbox intentionally owns the full viewport.
   const isFullBleedRoute =
     location.pathname.startsWith('/admin/markdown-viewer') ||
     location.pathname.startsWith('/admin/assistant') ||

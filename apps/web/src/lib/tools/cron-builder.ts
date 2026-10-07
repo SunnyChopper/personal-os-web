@@ -18,6 +18,32 @@ export function cronFromPreset(preset: CronQuickPreset): string {
   return PRESETS[preset];
 }
 
+export type CronFieldMode = 'every' | 'n';
+
+/** Map a 5-field cron onto the Cron Builder controls. */
+export function cronControlsFromExpression(expression: string): {
+  minute: CronFieldMode;
+  minuteN: string;
+  hour: CronFieldMode;
+  hourN: string;
+  dom: string;
+  month: string;
+  dow: string;
+} | null {
+  const parts = expression.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [minute, hour, dom, month, dow] = parts;
+  return {
+    minute: minute === '*' ? 'every' : 'n',
+    minuteN: minute,
+    hour: hour === '*' ? 'every' : 'n',
+    hourN: hour,
+    dom,
+    month,
+    dow,
+  };
+}
+
 export function describeCron(expression: string): { ok: boolean; human?: string; error?: string } {
   try {
     return { ok: true, human: cronstrue.toString(expression) };

@@ -1,4 +1,4 @@
-import type { Area, SubCategory, TimeHorizon } from '@/types/growth-system';
+import type { Area, Priority, SubCategory, TimeHorizon } from '@/types/growth-system';
 import { FormInput } from '@/components/atoms/FormInput';
 import { Select } from '@/components/atoms/Select';
 import { Textarea } from '@/components/atoms/Textarea';
@@ -7,6 +7,7 @@ import {
   AREAS,
   AREA_LABELS,
   GOAL_TIME_HORIZONS,
+  PRIORITIES,
   SUBCATEGORIES_BY_AREA,
   SUBCATEGORY_LABELS,
 } from '@/constants/growth-system';
@@ -17,6 +18,7 @@ export interface GoalCoreFormValues {
   area: Area;
   subCategory?: SubCategory;
   timeHorizon: TimeHorizon;
+  priority?: Priority;
 }
 
 export interface GoalCoreFormFieldsProps {
@@ -27,6 +29,7 @@ export interface GoalCoreFormFieldsProps {
   onBlur?: (field: keyof GoalCoreFormValues) => void;
   creatableTimeHorizons?: TimeHorizon[];
   showTimeHorizon?: boolean;
+  showPriority?: boolean;
   disabled?: boolean;
 }
 
@@ -41,9 +44,52 @@ export function GoalCoreFormFields({
   onBlur,
   creatableTimeHorizons = GOAL_TIME_HORIZONS.filter((h) => h !== 'Daily'),
   showTimeHorizon = true,
+  showPriority = false,
   disabled,
 }: GoalCoreFormFieldsProps) {
   const availableSubCategories = SUBCATEGORIES_BY_AREA[values.area] || [];
+
+  const timeHorizonField = showTimeHorizon ? (
+    <FormField
+      label="Time horizon"
+      htmlFor="goal-time-horizon"
+      required
+      error={touched.timeHorizon ? fieldErrors.timeHorizon : undefined}
+    >
+      <Select
+        id="goal-time-horizon"
+        value={values.timeHorizon}
+        onChange={(e) => onChange('timeHorizon', e.target.value as TimeHorizon)}
+        onBlur={() => onBlur?.('timeHorizon')}
+        className="w-full"
+        disabled={disabled}
+      >
+        {creatableTimeHorizons.map((horizon) => (
+          <option key={horizon} value={horizon}>
+            {horizon}
+          </option>
+        ))}
+      </Select>
+    </FormField>
+  ) : null;
+
+  const priorityField = showPriority ? (
+    <FormField label="Priority" htmlFor="goal-priority" required>
+      <Select
+        id="goal-priority"
+        value={values.priority ?? 'P3'}
+        onChange={(e) => onChange('priority', e.target.value as Priority)}
+        className="w-full"
+        disabled={disabled}
+      >
+        {PRIORITIES.map((priority) => (
+          <option key={priority} value={priority}>
+            {priority}
+          </option>
+        ))}
+      </Select>
+    </FormField>
+  ) : null;
 
   return (
     <div className="space-y-6">
@@ -122,29 +168,17 @@ export function GoalCoreFormFields({
         </FormField>
       </div>
 
-      {showTimeHorizon ? (
-        <FormField
-          label="Time horizon"
-          htmlFor="goal-time-horizon"
-          required
-          error={touched.timeHorizon ? fieldErrors.timeHorizon : undefined}
-        >
-          <Select
-            id="goal-time-horizon"
-            value={values.timeHorizon}
-            onChange={(e) => onChange('timeHorizon', e.target.value as TimeHorizon)}
-            onBlur={() => onBlur?.('timeHorizon')}
-            className="w-full"
-            disabled={disabled}
-          >
-            {creatableTimeHorizons.map((horizon) => (
-              <option key={horizon} value={horizon}>
-                {horizon}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-      ) : null}
+      {showTimeHorizon && showPriority ? (
+        <div className="grid grid-cols-2 gap-4">
+          {timeHorizonField}
+          {priorityField}
+        </div>
+      ) : (
+        <>
+          {timeHorizonField}
+          {priorityField}
+        </>
+      )}
     </div>
   );
 }

@@ -39,7 +39,10 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   };
 });
 
-import { useBrandProjectSettings, usePersonalBrandingProjectsMutations } from '@/hooks/usePersonalBrandingProjects';
+import {
+  useBrandProjectSettings,
+  usePersonalBrandingProjectsMutations,
+} from '@/hooks/usePersonalBrandingProjects';
 import { useBrandProfilesList } from '@/hooks/useBrandProfilesList';
 
 function mockSettingsQuery(overrides: Partial<ReturnType<typeof useBrandProjectSettings>> = {}) {
@@ -256,7 +259,9 @@ describe('BuildIdeasSettingsPanel', () => {
     render(<BuildIdeasSettingsPanel />);
     expect(screen.getByText('Automatic generation is off')).toBeInTheDocument();
     expect(screen.getByLabelText(/^start time$/i)).toBeDisabled();
-    expect(screen.getByText(/Turn on automatic generation to change the start time/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Turn on automatic generation to change the start time/i)
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /increase ideas per day/i })).not.toBeDisabled();
     expect(screen.getByLabelText(/^direction$/i)).not.toBeDisabled();
     expect(screen.getByLabelText(/brand profile/i)).not.toBeDisabled();

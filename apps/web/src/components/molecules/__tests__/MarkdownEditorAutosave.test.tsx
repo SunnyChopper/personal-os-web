@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import MarkdownEditor from '@/components/molecules/MarkdownEditor';
 
 describe('MarkdownEditor autosave footer', () => {
@@ -41,11 +41,43 @@ describe('MarkdownEditor autosave footer', () => {
       />
     );
     expect(screen.getByTestId('markdown-autosave-status')).toHaveAttribute('data-status', 'error');
-    expect(screen.getByText(/Couldn't autosave/)).toBeInTheDocument();
+    expect(screen.getByText(/Couldn't save/)).toBeInTheDocument();
   });
 
   it('hides footer when autosaveStatus is omitted', () => {
     render(<MarkdownEditor value="hello" onChange={() => {}} />);
     expect(screen.queryByTestId('markdown-autosave-status')).toBeNull();
+  });
+
+  it('does not announce pending status in the live region', () => {
+    render(<MarkdownEditor value="hello" onChange={() => {}} autosaveStatus="pending" />);
+    expect(screen.getByRole('status')).toHaveTextContent('');
+  });
+
+  it('announces saving and saved transitions in the live region', async () => {
+    const fiveSecondsAgo = Date.now() - 5000;
+    const { rerender } = render(
+      <MarkdownEditor value="hello" onChange={() => {}} autosaveStatus="saving" />
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Saving…');
+
+    rerender(
+      <MarkdownEditor
+        value="hello"
+        onChange={() => {}}
+        autosaveStatus="saved"
+        autosaveLastSavedAt={fiveSecondsAgo}
+      />
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Saved');
+    expect(screen.getByTestId('markdown-autosave-status')).toHaveTextContent(/Saved 5s ago/);
   });
 });

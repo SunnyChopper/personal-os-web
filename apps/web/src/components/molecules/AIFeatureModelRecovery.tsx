@@ -66,7 +66,7 @@ export function AIFeatureModelRecovery({
     setSelectedProvider(preferred);
     const models = catalog.models.filter((m) => m.provider === preferred);
     const pick =
-      models.find((m) => m.apiModelId === 'claude-sonnet-4-6') ??
+      models.find((m) => m.apiModelId === 'claude-sonnet-5') ??
       models.find((m) => m.apiModelId !== failedModel) ??
       models[0];
     if (pick) {

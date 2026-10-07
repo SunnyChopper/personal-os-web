@@ -317,14 +317,24 @@ describe('ReconFeedTab post body truncation', () => {
     const scrollHeight = overflow ? 120 : 40;
     const clientHeight = 40;
 
-    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
-      if (this.tagName === 'DIV' && this.textContent?.includes('Line one of a long recon post body')) {
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (
+        this.tagName === 'DIV' &&
+        this.textContent?.includes('Line one of a long recon post body')
+      ) {
         return scrollHeight;
       }
       return 0;
     });
-    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
-      if (this.tagName === 'DIV' && this.textContent?.includes('Line one of a long recon post body')) {
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (
+        this.tagName === 'DIV' &&
+        this.textContent?.includes('Line one of a long recon post body')
+      ) {
         return clientHeight;
       }
       return 0;
@@ -527,9 +537,7 @@ describe('ReconFeedTab list summary', () => {
 
     renderTab();
 
-    expect(
-      screen.getByText('1 post · all ages · sorted by relevance')
-    ).toBeInTheDocument();
+    expect(screen.getByText('1 post · all ages · sorted by relevance')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Showing \d+ of \d+/)).not.toBeInTheDocument();
   });
@@ -550,9 +558,7 @@ describe('ReconFeedTab list summary', () => {
     await user.click(within(ageGroup).getByRole('button', { name: '7d' }));
     await user.click(within(sortGroup).getByRole('button', { name: 'Posted' }));
 
-    expect(
-      screen.getByText('1 of 43 posts · last 7 days · sorted by posted')
-    ).toBeInTheDocument();
+    expect(screen.getByText('1 of 43 posts · last 7 days · sorted by posted')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
   });
 
@@ -580,9 +586,7 @@ describe('ReconFeedTab list summary', () => {
       'aria-pressed',
       'true'
     );
-    expect(
-      screen.getByText('1 of 43 posts · all ages · sorted by relevance')
-    ).toBeInTheDocument();
+    expect(screen.getByText('1 of 43 posts · all ages · sorted by relevance')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
 
@@ -612,7 +616,9 @@ describe('ReconFeedTab list summary', () => {
 
     renderTab();
 
-    const followSection = screen.getByRole('heading', { name: 'Follow suggestions' }).closest('div');
+    const followSection = screen
+      .getByRole('heading', { name: 'Follow suggestions' })
+      .closest('div');
     expect(followSection).toBeTruthy();
     expect(within(followSection!).getByText('Showing 1 of 5')).toBeInTheDocument();
     expect(within(followSection!).queryByText(/sorted by relevance/)).not.toBeInTheDocument();
@@ -707,7 +713,9 @@ describe('ReconFeedTab scarcity hint', () => {
 
     renderTab();
 
-    expect(screen.getByRole('heading', { name: 'Ready for your first ingest' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Ready for your first ingest' })
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Run now' }));
     expect(startRun).toHaveBeenCalled();
   });
@@ -772,9 +780,9 @@ describe('ReconFeedTab relevance hierarchy', () => {
 
     const highCard = screen.getByText('High relevance post body.').closest('[data-relevance-tier]');
     expect(highCard).toHaveAttribute('data-relevance-tier', 'high');
-    expect(within(highCard as HTMLElement).getByTestId('high-opportunity-ribbon')).toHaveTextContent(
-      'High opportunity'
-    );
+    expect(
+      within(highCard as HTMLElement).getByTestId('high-opportunity-ribbon')
+    ).toHaveTextContent('High opportunity');
     expect(within(highCard as HTMLElement).getByLabelText('90% relevance')).toBeInTheDocument();
     expect(within(highCard as HTMLElement).getByText('relevance')).toBeInTheDocument();
 
@@ -828,12 +836,15 @@ describe('ReconFeedTab relevance hierarchy', () => {
 
     renderTab();
 
-    const card = screen.getByText('Technical deep-dive post body.').closest('[data-relevance-tier]');
+    const card = screen
+      .getByText('Technical deep-dive post body.')
+      .closest('[data-relevance-tier]');
     expect(within(card as HTMLElement).getByText('Hard')).toBeInTheDocument();
-    expect(within(card as HTMLElement).getByText('Hard').closest('[data-learning-cost]')).toHaveAttribute(
-      'data-learning-cost',
-      'high'
-    );
+    expect(
+      within(card as HTMLElement)
+        .getByText('Hard')
+        .closest('[data-learning-cost]')
+    ).toHaveAttribute('data-learning-cost', 'high');
   });
 });
 
@@ -870,8 +881,12 @@ describe('ReconFeedTab feedback controls', () => {
 
     const wideActions = screen.getByTestId('recon-post-actions-wide');
     expect(screen.getByLabelText('Good pick affirmation')).toBeInTheDocument();
-    expect(within(wideActions).getByRole('button', { name: 'Remove good pick' })).toBeInTheDocument();
-    expect(within(wideActions).queryByRole('button', { name: 'Mark as good pick' })).not.toBeInTheDocument();
+    expect(
+      within(wideActions).getByRole('button', { name: 'Remove good pick' })
+    ).toBeInTheDocument();
+    expect(
+      within(wideActions).queryByRole('button', { name: 'Mark as good pick' })
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Good pick' })).not.toBeInTheDocument();
   });
 
@@ -1066,7 +1081,9 @@ describe('ReconFeedTab action CTA hierarchy', () => {
 
     const contentColumn = within(card)
       .getByText(activePost.text)
-      .closest(`[class*="${reconPostContentColumnClassName.split(' ').find((c) => c.startsWith('max-w-'))}"]`);
+      .closest(
+        `[class*="${reconPostContentColumnClassName.split(' ').find((c) => c.startsWith('max-w-'))}"]`
+      );
     expect(contentColumn?.className).toContain('max-w-4xl');
   });
 
@@ -1079,11 +1096,15 @@ describe('ReconFeedTab action CTA hierarchy', () => {
 
     renderTab();
 
-    expect(screen.getByRole('button', { name: 'Draft reply for Example Creator @example' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Draft reply for Example Creator @example' })
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Next: Reply/)).not.toBeInTheDocument();
     const compactActions = screen.getByTestId('recon-post-actions-compact');
     const wideActions = screen.getByTestId('recon-post-actions-wide');
-    expect(within(compactActions).getByRole('button', { name: 'More actions' })).toBeInTheDocument();
+    expect(
+      within(compactActions).getByRole('button', { name: 'More actions' })
+    ).toBeInTheDocument();
     expect(wideActions).toHaveClass('hidden');
     expect(within(wideActions).getByRole('button', { name: 'Log reply' })).toBeInTheDocument();
   });
@@ -1103,8 +1124,12 @@ describe('ReconFeedTab action CTA hierarchy', () => {
 
     const wideActions = screen.getByTestId('recon-post-actions-wide');
     expect(screen.getByLabelText('Good pick affirmation')).toBeInTheDocument();
-    expect(within(wideActions).getByRole('button', { name: 'Remove good pick' })).toBeInTheDocument();
-    expect(within(wideActions).queryByRole('button', { name: 'Mark as good pick' })).not.toBeInTheDocument();
+    expect(
+      within(wideActions).getByRole('button', { name: 'Remove good pick' })
+    ).toBeInTheDocument();
+    expect(
+      within(wideActions).queryByRole('button', { name: 'Mark as good pick' })
+    ).not.toBeInTheDocument();
 
     const primaryButtons = screen
       .getAllByRole('button')

@@ -264,32 +264,30 @@ export default function RolodexPrompterDrawer({
     }
   }, [drawerOpen]);
 
-  const prompterHeader = connection
-    ? (
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40">
-              <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Response prompter</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {connection.name}
-                {displayHandle ? ` · @${displayHandle}` : ''}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
+  const prompterHeader = connection ? (
+    <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+      <div className="flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40">
+          <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
         </div>
-      )
-    : null;
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Response prompter</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {connection.name}
+            {displayHandle ? ` · @${displayHandle}` : ''}
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+        aria-label="Close"
+      >
+        <X className="h-5 w-5" />
+      </button>
+    </div>
+  ) : null;
 
   const prompterFooter =
     connection && generateControls ? (
@@ -362,184 +360,185 @@ export default function RolodexPrompterDrawer({
     >
       {connection ? (
         <>
-      <div>
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-          Platform
-        </label>
-        <Select
-          value={platform}
-          onChange={(e) => setPlatform(e.target.value as BrandPlatform)}
-          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-        >
-          {PLATFORMS.map((p) => (
-            <option key={p} value={p}>
-              {BRAND_PLATFORM_LABELS[p]}
-            </option>
-          ))}
-        </Select>
-      </div>
-
-      <div>
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-          Creator text
-        </label>
-        <FormTextarea
-          value={creatorText}
-          onChange={(e) => handleCreatorTextChange(e.target.value)}
-          onPaste={(e) => {
-            const pasted = e.clipboardData.getData('text');
-            if (isXStatusUrl(pasted.trim())) {
-              e.preventDefault();
-              void resolvePastedUrl(pasted.trim());
-            }
-          }}
-          placeholder="Paste post URL or text…"
-          className="min-h-[80px]"
-        />
-        {isResolvingPaste ? (
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Resolving post from URL…</p>
-        ) : null}
-        {limitedTextContext ? (
-          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-            <p className="font-medium">Limited text context</p>
-            <p className="mt-1 leading-relaxed">
-              This post looks media-heavy or caption-only. Full replies may invent context. Prefer a
-              short react, curious question, or meme-style reply — or paste what the image shows.
-            </p>
-            <label className="mt-2 flex cursor-pointer items-start gap-2">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={allowFullGenerationOnSparseText}
-                onChange={(e) => setAllowFullGenerationOnSparseText(e.target.checked)}
-                disabled={showRunProgress}
-              />
-              <span>I know the media context — allow full generation</span>
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Platform
             </label>
+            <Select
+              value={platform}
+              onChange={(e) => setPlatform(e.target.value as BrandPlatform)}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+            >
+              {PLATFORMS.map((p) => (
+                <option key={p} value={p}>
+                  {BRAND_PLATFORM_LABELS[p]}
+                </option>
+              ))}
+            </Select>
           </div>
-        ) : null}
-        {evidenceUrl ? (
-          <a
-            href={evidenceUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline dark:text-blue-400"
-          >
-            <ExternalLink className="h-3 w-3" />
-            Evidence link
-          </a>
-        ) : null}
-      </div>
 
-      <div>
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            Intent
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {(['reply', 'quote'] as const).map((action) => (
-              <button
-                key={action}
-                type="button"
-                onClick={() => applyIntentChip(action)}
-                className={cn(
-                  selectableChipClassName(
-                    intentAction === action,
-                    intentAction === action ? 'ring-2 ring-blue-500/40' : undefined
-                  ),
-                  'capitalize'
-                )}
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Creator text
+            </label>
+            <FormTextarea
+              value={creatorText}
+              onChange={(e) => handleCreatorTextChange(e.target.value)}
+              onPaste={(e) => {
+                const pasted = e.clipboardData.getData('text');
+                if (isXStatusUrl(pasted.trim())) {
+                  e.preventDefault();
+                  void resolvePastedUrl(pasted.trim());
+                }
+              }}
+              placeholder="Paste post URL or text…"
+              className="min-h-[80px]"
+            />
+            {isResolvingPaste ? (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Resolving post from URL…
+              </p>
+            ) : null}
+            {limitedTextContext ? (
+              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                <p className="font-medium">Limited text context</p>
+                <p className="mt-1 leading-relaxed">
+                  This post looks media-heavy or caption-only. Full replies may invent context.
+                  Prefer a short react, curious question, or meme-style reply — or paste what the
+                  image shows.
+                </p>
+                <label className="mt-2 flex cursor-pointer items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={allowFullGenerationOnSparseText}
+                    onChange={(e) => setAllowFullGenerationOnSparseText(e.target.checked)}
+                    disabled={showRunProgress}
+                  />
+                  <span>I know the media context — allow full generation</span>
+                </label>
+              </div>
+            ) : null}
+            {evidenceUrl ? (
+              <a
+                href={evidenceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline dark:text-blue-400"
               >
-                {action}
-              </button>
-            ))}
+                <ExternalLink className="h-3 w-3" />
+                Evidence link
+              </a>
+            ) : null}
           </div>
-        </div>
-        <FormTextarea
-          value={interactionIntent}
-          onChange={(e) => setInteractionIntent(e.target.value)}
-          className="min-h-[72px]"
-          maxLength={REPLY_INTERACTION_INTENT_MAX}
-          placeholder={
-            limitedTextContext && !interactionIntent.trim()
-              ? 'Short react, curious question, or meme-style reply…'
-              : 'Warm follow-up, technical debate, share resource…'
-          }
-        />
-        <p
-          className={cn(
-            'mt-1 text-xs',
-            interactionIntentOverLimit
-              ? 'text-red-600 dark:text-red-400'
-              : 'text-gray-500 dark:text-gray-400'
-          )}
-        >
-          {interactionIntent.length}/{REPLY_INTERACTION_INTENT_MAX}
-        </p>
-      </div>
 
-      <ReplyGenerationPanel
-        platform={platform}
-        profiles={profiles}
-        defaultProfileId={defaultProfileId}
-        defaultIncludeOperatorBriefing={defaultIncludeOperatorBriefing(initialLearningCost)}
-        generateButtonPlacement="external"
-        onGenerateControlsChange={setGenerateControls}
-        disabled={
-          !creatorText.trim() || showRunProgress || interactionIntentOverLimit
-        }
-        lightweightLocked={lightweightLocked}
-        isGenerating={showRunProgress}
-        onGenerate={handleReplyPanelGenerate}
-      />
+          <div>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Intent
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(['reply', 'quote'] as const).map((action) => (
+                  <button
+                    key={action}
+                    type="button"
+                    onClick={() => applyIntentChip(action)}
+                    className={cn(
+                      selectableChipClassName(
+                        intentAction === action,
+                        intentAction === action ? 'ring-2 ring-blue-500/40' : undefined
+                      ),
+                      'capitalize'
+                    )}
+                  >
+                    {action}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <FormTextarea
+              value={interactionIntent}
+              onChange={(e) => setInteractionIntent(e.target.value)}
+              className="min-h-[72px]"
+              maxLength={REPLY_INTERACTION_INTENT_MAX}
+              placeholder={
+                limitedTextContext && !interactionIntent.trim()
+                  ? 'Short react, curious question, or meme-style reply…'
+                  : 'Warm follow-up, technical debate, share resource…'
+              }
+            />
+            <p
+              className={cn(
+                'mt-1 text-xs',
+                interactionIntentOverLimit
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-gray-500 dark:text-gray-400'
+              )}
+            >
+              {interactionIntent.length}/{REPLY_INTERACTION_INTENT_MAX}
+            </p>
+          </div>
 
-      {showRunProgress && !suggestions.length ? (
-        <ReplyGeneratingState
-          run={activeRun}
-          submittedDraft={lastSubmitted}
-          isPending={isGenerating && !activeRun}
-          nowMs={progressNowMs}
-        />
-      ) : null}
+          <ReplyGenerationPanel
+            platform={platform}
+            profiles={profiles}
+            defaultProfileId={defaultProfileId}
+            defaultIncludeOperatorBriefing={defaultIncludeOperatorBriefing(initialLearningCost)}
+            generateButtonPlacement="external"
+            onGenerateControlsChange={setGenerateControls}
+            disabled={!creatorText.trim() || showRunProgress || interactionIntentOverLimit}
+            lightweightLocked={lightweightLocked}
+            isGenerating={showRunProgress}
+            onGenerate={handleReplyPanelGenerate}
+          />
 
-      {showRunProgress && suggestions.length > 0 && activeRun?.status === 'RUNNING' ? (
-        <ReplyPolishingStrip
-          run={activeRun}
-          submittedDraft={lastSubmitted}
-          nowMs={progressNowMs}
-        />
-      ) : null}
+          {showRunProgress && !suggestions.length ? (
+            <ReplyGeneratingState
+              run={activeRun}
+              submittedDraft={lastSubmitted}
+              isPending={isGenerating && !activeRun}
+              nowMs={progressNowMs}
+            />
+          ) : null}
 
-      {activeRun?.status === 'PARTIAL' && activeRun.error ? (
-        <p className="text-sm text-amber-700 dark:text-amber-300">{activeRun.error}</p>
-      ) : null}
+          {showRunProgress && suggestions.length > 0 && activeRun?.status === 'RUNNING' ? (
+            <ReplyPolishingStrip
+              run={activeRun}
+              submittedDraft={lastSubmitted}
+              nowMs={progressNowMs}
+            />
+          ) : null}
 
-      {activeRun?.status === 'FAILED' && activeRun.error ? (
-        <p className="text-sm text-red-600 dark:text-red-400">{activeRun.error}</p>
-      ) : null}
+          {activeRun?.status === 'PARTIAL' && activeRun.error ? (
+            <p className="text-sm text-amber-700 dark:text-amber-300">{activeRun.error}</p>
+          ) : null}
 
-      <OperatorBriefingPanel
-        briefing={activeRun?.operatorBriefing}
-        isSaving={saveBriefingMutation.isPending}
-        onSaveToVault={
-          activeRun?.id && activeRun.operatorBriefing?.markdown
-            ? () => saveBriefingMutation.mutate()
-            : undefined
-        }
-      />
+          {activeRun?.status === 'FAILED' && activeRun.error ? (
+            <p className="text-sm text-red-600 dark:text-red-400">{activeRun.error}</p>
+          ) : null}
 
-      <ReplySuggestionsList
-        suggestions={suggestions}
-        isUpdating={isUpdatingSuggestion}
-        onAccept={(s) =>
-          onAcceptSuggestion(s, creatorText.trim(), {
-            evidenceUrl,
-            platformPostId,
-            authorHandle: displayHandle,
-          })
-        }
-        onReject={onRejectSuggestion}
-      />
+          <OperatorBriefingPanel
+            briefing={activeRun?.operatorBriefing}
+            isSaving={saveBriefingMutation.isPending}
+            onSaveToVault={
+              activeRun?.id && activeRun.operatorBriefing?.markdown
+                ? () => saveBriefingMutation.mutate()
+                : undefined
+            }
+          />
+
+          <ReplySuggestionsList
+            suggestions={suggestions}
+            isUpdating={isUpdatingSuggestion}
+            onAccept={(s) =>
+              onAcceptSuggestion(s, creatorText.trim(), {
+                evidenceUrl,
+                platformPostId,
+                authorHandle: displayHandle,
+              })
+            }
+            onReject={onRejectSuggestion}
+          />
         </>
       ) : null}
     </BottomSheet>

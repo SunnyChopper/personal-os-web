@@ -24,7 +24,11 @@ function item(overrides: Partial<RadarItem> & Pick<RadarItem, 'id'>): RadarItem 
 describe('precheckedRadarItemIds', () => {
   it('prechecks today cards by signal score and caps at 10', () => {
     const items = [
-      item({ id: 'yesterday', createdAt: new Date(2026, 9, 4, 12).toISOString(), aiRelevanceScore: 1 }),
+      item({
+        id: 'yesterday',
+        createdAt: new Date(2026, 9, 4, 12).toISOString(),
+        aiRelevanceScore: 1,
+      }),
       item({ id: 'low', aiRelevanceScore: 0.2, relevanceScore: 0.9 }),
       item({ id: 'high', aiRelevanceScore: 0.9, relevanceScore: 0.1 }),
       item({ id: 'tie-weaker', aiRelevanceScore: 0.5, relevanceScore: 0.1 }),

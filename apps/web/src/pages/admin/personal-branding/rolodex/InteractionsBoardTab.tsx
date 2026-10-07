@@ -882,7 +882,6 @@ export default function InteractionsBoardTab({
         onCreateConnection={async (body) => rolodex.createConnection.mutateAsync(body)}
         showToast={showToast}
       />
-
     </div>
   );
 }

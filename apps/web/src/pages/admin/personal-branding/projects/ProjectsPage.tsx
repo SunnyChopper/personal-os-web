@@ -14,7 +14,10 @@ import {
 } from '@/hooks/usePersonalBrandingProjects';
 import { useTerminalJobFailureAlert } from '@/hooks/useTerminalJobFailureAlert';
 import { gridItemCardClassName } from '@/lib/personal-branding/personal-branding-surfaces';
-import { projectIdeationJobInFlight, projectIdeationShowStatus } from '@/lib/personal-branding/project-ideation-progress';
+import {
+  projectIdeationJobInFlight,
+  projectIdeationShowStatus,
+} from '@/lib/personal-branding/project-ideation-progress';
 import { cn } from '@/lib/utils';
 import type { BrandProjectIdea, BrandProjectIdeaStatus } from '@/types/api/personal-branding.dto';
 import { formatCompleteMutationError } from '@/lib/personal-branding/format-complete-mutation-error';
@@ -171,16 +174,14 @@ export default function ProjectsPage() {
   const listInitialLoading = ideasQ.isPending && ideasQ.data === undefined;
   const listErrorNoData = ideasQ.isError && ideas.length === 0;
 
-  const ideationJob =
-    jobQuery.data?.jobType === 'ideation' ? jobQuery.data : undefined;
+  const ideationJob = jobQuery.data?.jobType === 'ideation' ? jobQuery.data : undefined;
   const ideationAwaitingFirstPoll =
     activeJobFeature === 'projectIdeation' &&
     activeJobId != null &&
     ideationJob == null &&
     !generate.isPending;
   const generateDisabled =
-    ideationAwaitingFirstPoll ||
-    projectIdeationJobInFlight(ideationJob, generate.isPending);
+    ideationAwaitingFirstPoll || projectIdeationJobInFlight(ideationJob, generate.isPending);
   const showIdeationStatus = projectIdeationShowStatus(ideationJob, generate.isPending);
   const generateCount = settingsQ.data?.dailyCount ?? 5;
   const openPicker = () => setPickerOpen(true);
@@ -240,10 +241,7 @@ export default function ProjectsPage() {
 
     return (
       <>
-        <div
-          className="grid gap-4 md:grid-cols-2 items-stretch"
-          data-testid="project-ideas-grid"
-        >
+        <div className="grid gap-4 md:grid-cols-2 items-stretch" data-testid="project-ideas-grid">
           {ideas.map((idea) => (
             <ProjectIdeaCard
               key={idea.id}
@@ -308,11 +306,7 @@ export default function ProjectsPage() {
                     <EyebrowLabel as="span" className="min-w-0">
                       {openIdeasCount} open
                     </EyebrowLabel>
-                    <Button
-                      className="shrink-0"
-                      onClick={openPicker}
-                      disabled={generateDisabled}
-                    >
+                    <Button className="shrink-0" onClick={openPicker} disabled={generateDisabled}>
                       Generate now
                     </Button>
                   </div>

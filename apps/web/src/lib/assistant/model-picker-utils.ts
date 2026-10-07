@@ -68,6 +68,23 @@ export function sortAssistantModels(
   );
 }
 
+/** True when catalog ``bestFor`` marks a routing / high-volume tier (mirror backend ``is_routing_oriented_response``). */
+export function isRoutingOrientedCatalogEntry(entry: AssistantModelCatalogEntry): boolean {
+  const tags = new Set(entry.bestFor ?? []);
+  if (!tags.has('routing')) return false;
+  const toolCapable = [
+    'toolHeavy',
+    'toolUse',
+    'fastCoding',
+    'agenticResearch',
+    'longHorizonAgents',
+  ];
+  return !toolCapable.some((tag) => tags.has(tag));
+}
+
+export const ROUTING_RESPONSE_PICKER_WARNING =
+  'Routing models (e.g. Nano) are best for classification and high-volume replies. For Coach, entity status, and tool-heavy turns, use Mini or higher for the response model.';
+
 /** Public path under `public/` for a monochrome provider mark (falls back to generic). */
 export function providerLogoSrc(provider: string): string {
   const p = provider.toLowerCase();

@@ -31,11 +31,7 @@ export function SettingsSaveStatus({ status, onRetry }: SettingsSaveStatusProps)
   const label = status === 'saving' ? 'Saving…' : 'Saved';
 
   return (
-    <p
-      className={cn('text-sm text-gray-600 dark:text-gray-400')}
-      role="status"
-      aria-live="polite"
-    >
+    <p className={cn('text-sm text-gray-600 dark:text-gray-400')} role="status" aria-live="polite">
       {label}
     </p>
   );

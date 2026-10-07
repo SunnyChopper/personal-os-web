@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  EVENT_TYPE_OPTIONS,
-  isAllEventTypes,
-  toggleEventTypeFilter,
-} from './event-type-filter';
+import { EVENT_TYPE_OPTIONS, isAllEventTypes, toggleEventTypeFilter } from './event-type-filter';
 
 describe('event-type-filter', () => {
   it('isAllEventTypes is true only for an empty allowlist', () => {

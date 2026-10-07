@@ -56,7 +56,7 @@ function MorningLaunchpadContent({ isOpen, onClose, topTasks }: MorningLaunchpad
   const today = localCalendarDate();
   const { data: recoveryRes } = useFitnessRecoveryRange(today, today, { enabled: isOpen });
   const upsertRecovery = useUpsertRecoveryMutation();
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [briefing, setBriefing] = useState<string>('');
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
@@ -661,7 +661,6 @@ function MorningLaunchpadContent({ isOpen, onClose, topTasks }: MorningLaunchpad
         >
           <X size={24} />
         </button>
-        <ToastContainer />
       </div>
     </OverlayPortal>
   );

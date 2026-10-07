@@ -17,7 +17,11 @@ const hookState = {
 };
 
 const mutationsState = {
-  buildKit: { mutate: buildKitMutate, isPending: false, variables: undefined as string | undefined },
+  buildKit: {
+    mutate: buildKitMutate,
+    isPending: false,
+    variables: undefined as string | undefined,
+  },
   jobQuery: { data: undefined },
   kitRevise: { mutate: vi.fn(), isPending: false, variables: undefined },
   applyKitRevision: { mutate: vi.fn(), isPending: false, error: null },
@@ -161,7 +165,9 @@ describe('BuildIdeaDetailPage', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Server error');
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /project idea not found/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /project idea not found/i })
+    ).not.toBeInTheDocument();
   });
 
   it('disables generate while a revise is pending', () => {
@@ -178,6 +184,8 @@ describe('BuildIdeaDetailPage', () => {
     renderAt('/admin/personal-branding/projects/idea-1');
 
     expect(screen.getByText(/loading project idea/i)).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /project idea not found/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /project idea not found/i })
+    ).not.toBeInTheDocument();
   });
 });

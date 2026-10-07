@@ -9,6 +9,10 @@ import { StatusBadge } from '@/components/atoms/StatusBadge';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
 import Button from '@/components/atoms/Button';
 import { TaskFieldMarkdown } from '@/components/molecules/TaskFieldMarkdown';
+import {
+  goalDetailLinkedListScrollClassName,
+  goalDetailLinkedSectionCardClassName,
+} from '@/lib/growth-system/goal-detail-surfaces';
 
 interface GoalTasksSectionProps {
   tasks: Task[];
@@ -44,7 +48,7 @@ export function GoalTasksSection({
 
   if (tasks.length === 0 && showEmpty) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 h-full flex flex-col">
+      <div className={`${goalDetailLinkedSectionCardClassName} flex flex-col`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <CheckSquare className="w-5 h-5" />
@@ -72,7 +76,7 @@ export function GoalTasksSection({
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 h-full flex flex-col">
+    <div className={`${goalDetailLinkedSectionCardClassName} flex flex-col`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -108,7 +112,7 @@ export function GoalTasksSection({
       </div>
 
       {/* Task List */}
-      <div className="flex-1">
+      <div className={tasks.length > 0 ? goalDetailLinkedListScrollClassName : undefined}>
         {filteredTasks.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">
             No {statusFilter === 'all' ? '' : statusFilter} tasks

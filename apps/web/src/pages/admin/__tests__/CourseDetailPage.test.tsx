@@ -10,7 +10,7 @@ const mockGetCourseWithModulesAndLessons = vi.fn();
 const mockMarkAccessed = vi.fn();
 const mockGenerateLessonContent = vi.fn();
 const mockShowToast = vi.fn();
-const mockResolveApiModel = vi.fn(() => 'anthropic:claude-sonnet-4-6');
+const mockResolveApiModel = vi.fn(() => 'anthropic:claude-sonnet-5');
 
 vi.mock('@/services/knowledge-vault', () => ({
   coursesService: {
@@ -33,7 +33,6 @@ vi.mock('@/hooks/use-toast', () => ({
     showToast: mockShowToast,
     dismissToast: vi.fn(),
     clearToasts: vi.fn(),
-    ToastContainer: () => null,
   }),
 }));
 
@@ -42,8 +41,8 @@ vi.mock('@/hooks/knowledge-vault/useCourseGeneratorAIModelPicker', () => ({
     catalog: {
       models: [
         {
-          id: 'anthropic:claude-sonnet-4-6',
-          apiModelId: 'claude-sonnet-4-6',
+          id: 'anthropic:claude-sonnet-5',
+          apiModelId: 'claude-sonnet-5',
           label: 'Claude Sonnet 4.6',
           provider: 'anthropic',
           qualityScore: 9,
@@ -51,11 +50,11 @@ vi.mock('@/hooks/knowledge-vault/useCourseGeneratorAIModelPicker', () => ({
           costScore: 5,
         },
       ],
-      defaults: { defaultReasoningModelId: 'anthropic:claude-sonnet-4-6' },
+      defaults: { defaultReasoningModelId: 'anthropic:claude-sonnet-5' },
       providersConfigured: { anthropic: true },
     },
     isCatalogLoading: false,
-    picker: { mode: 'manual', manualCatalogModelId: 'anthropic:claude-sonnet-4-6' },
+    picker: { mode: 'manual', manualCatalogModelId: 'anthropic:claude-sonnet-5' },
     setPicker: vi.fn(),
     resolveApiModel: mockResolveApiModel,
   }),
@@ -195,7 +194,7 @@ describe('CourseDetailPage', () => {
       data: null,
       error: 'Claude API error: model not found',
     });
-    mockResolveApiModel.mockReturnValue('anthropic:claude-sonnet-4-6');
+    mockResolveApiModel.mockReturnValue('anthropic:claude-sonnet-5');
   });
 
   it('deduplicates module headings', async () => {
@@ -242,7 +241,7 @@ describe('CourseDetailPage', () => {
         expect.objectContaining({
           courseId: 'course-1',
           lessonId: 'les-2',
-          model: 'anthropic:claude-sonnet-4-6',
+          model: 'anthropic:claude-sonnet-5',
         })
       );
     });

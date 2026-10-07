@@ -16,6 +16,7 @@ import { JitKnowledgePanel } from '@/components/organisms/JitKnowledgePanel';
 import { VelocityDragInterventionCard } from '@/components/molecules/VelocityDragInterventionCard';
 import { CookedTaskButton } from '@/components/organisms/planner/CookedTaskButton';
 import { TaskFieldMarkdown } from '@/components/molecules/TaskFieldMarkdown';
+import type { OverlayLayer } from '@/lib/overlay-layer';
 
 function TaskDetailStatCard({
   icon: Icon,
@@ -45,6 +46,7 @@ interface TaskDetailDialogProps {
   onSplitDraggedTask?: (task: Task) => void | Promise<void>;
   isSplittingDraggedTask?: boolean;
   splitDragError?: string | null;
+  layer?: OverlayLayer;
 }
 
 export function TaskDetailDialog({
@@ -55,6 +57,7 @@ export function TaskDetailDialog({
   onSplitDraggedTask,
   isSplittingDraggedTask,
   splitDragError,
+  layer,
 }: TaskDetailDialogProps) {
   if (!task) return null;
 
@@ -92,6 +95,7 @@ export function TaskDetailDialog({
       onClose={onClose}
       title="Task Details"
       size="lg"
+      layer={layer}
       className="max-h-[90vh]"
     >
       <div className="space-y-5">

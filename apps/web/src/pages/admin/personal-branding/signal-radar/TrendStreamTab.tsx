@@ -510,9 +510,7 @@ export default function TrendStreamTab({
         )
       );
       return {
-        starts: results.flatMap((result) =>
-          result.status === 'fulfilled' ? [result.value] : []
-        ),
+        starts: results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : [])),
         errors: results.flatMap((result) =>
           result.status === 'rejected'
             ? [result.reason instanceof Error ? result.reason.message : 'Profile job failed']
@@ -575,17 +573,10 @@ export default function TrendStreamTab({
     setBrainstormJobIds([]);
     clearContentWorkbenchIdempotencyKey(brainstormIdempotencyKeyRef);
     setBrainstormError('All profile brainstorms failed. Retry with a different profile selection.');
-  }, [
-    ideationJobs.allTerminal,
-    ideationJobs.jobs,
-    navigate,
-    queryClient,
-    showToast,
-  ]);
+  }, [ideationJobs.allTerminal, ideationJobs.jobs, navigate, queryClient, showToast]);
 
   const isBrainstorming =
-    brainstormMutation.isPending ||
-    (brainstormJobIds.length > 0 && !ideationJobs.allTerminal);
+    brainstormMutation.isPending || (brainstormJobIds.length > 0 && !ideationJobs.allTerminal);
 
   const toggleItemSelection = (itemId: string) => {
     setSelectedItemIds((current) => {
@@ -1031,7 +1022,6 @@ export default function TrendStreamTab({
         onClose={() => setIrrelevantModalItemIds([])}
         onSubmit={(reason) => void handleConfirmIrrelevant(reason)}
       />
-
     </div>
   );
 }

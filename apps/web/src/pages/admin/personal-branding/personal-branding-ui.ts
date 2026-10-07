@@ -91,10 +91,7 @@ const pbFeedbackTextToneClassName: Record<PbFeedbackTextTone, string> = {
 };
 
 /** Inline progress, warning, error, and neutral status copy across Personal Branding. */
-export function pbFeedbackTextClassName(
-  tone: PbFeedbackTextTone,
-  className?: string
-): string {
+export function pbFeedbackTextClassName(tone: PbFeedbackTextTone, className?: string): string {
   return cn(pbFeedbackTextToneClassName[tone], className);
 }
 
@@ -103,8 +100,7 @@ export const pbFocusVisibleRingClassName =
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900';
 
 /** Quiet icon/expander hover background (no text color shift). */
-export const pbQuietControlHoverClassName =
-  'hover:bg-gray-100 dark:hover:bg-gray-700/60';
+export const pbQuietControlHoverClassName = 'hover:bg-gray-100 dark:hover:bg-gray-700/60';
 
 /** Rounded quiet control: hover background + PB focus-visible ring. */
 export const pbQuietControlClassName = cn(

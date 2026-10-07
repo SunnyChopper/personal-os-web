@@ -260,7 +260,6 @@ export default function ConnectionDirectoryTab({ rolodex }: ConnectionDirectoryT
           }
         }}
       />
-
     </div>
   );
 }

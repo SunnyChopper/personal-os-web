@@ -2,7 +2,11 @@ import { useCallback, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import type { useInPersonEvents } from '@/hooks/useInPersonEvents';
-import { buildMonthGrid, eventDayDensityDotCount, formatEventDayAriaLabel } from '@/lib/date/month-grid';
+import {
+  buildMonthGrid,
+  eventDayDensityDotCount,
+  formatEventDayAriaLabel,
+} from '@/lib/date/month-grid';
 import {
   calendarDayDetailStripClassName,
   eventsCalendarDensityDotClassName,

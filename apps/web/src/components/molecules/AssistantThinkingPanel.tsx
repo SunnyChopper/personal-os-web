@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { AIThinkingIndicator } from '@/components/atoms/AIThinkingIndicator';
 import { AssistantExecutionTrace } from '@/components/molecules/AssistantExecutionTrace';
 import MarkdownRenderer from '@/components/molecules/MarkdownRenderer';
+import { getExecutionTraceAccordionLabel } from '@/lib/chat/assistant-execution-trace-entries';
 import { reasoningMarkdownComponents } from '@/lib/markdown/chat-message-markdown-components';
 import type { StatusEntry, WsToolCallCompletePayload } from '@/types/chatbot';
 
@@ -46,7 +47,11 @@ export function AssistantThinkingPanel({
   const label = hasThinking
     ? `Show Thinking (${countWords(thinking ?? '')} words)`
     : hasExecutionSteps
-      ? `Show execution steps (${executionSteps!.length})`
+      ? getExecutionTraceAccordionLabel({
+          statusHistory: executionSteps!,
+          toolCallDetails,
+          expanded,
+        })
       : 'Show Thinking';
 
   return (

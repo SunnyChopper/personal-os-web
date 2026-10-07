@@ -20,11 +20,7 @@ import {
   selectableChipClassName,
 } from '../personal-branding-ui';
 import { PageCard, SectionIntro } from '../PersonalBrandingPageTemplate';
-import {
-  EVENT_TYPE_OPTIONS,
-  isAllEventTypes,
-  toggleEventTypeFilter,
-} from './event-type-filter';
+import { EVENT_TYPE_OPTIONS, isAllEventTypes, toggleEventTypeFilter } from './event-type-filter';
 
 type Props = {
   events: ReturnType<typeof useInPersonEvents>;
@@ -62,8 +58,7 @@ export default function EventsSettingsTab({ events }: Props) {
   const [createTaskMinFitScore, setCreateTaskMinFitScore] = useState(80);
   const [selectedTypes, setSelectedTypes] = useState<InPersonEventType[]>([]);
 
-  const isSavingStint =
-    events.createLocation.isPending || events.updateLocation.isPending;
+  const isSavingStint = events.createLocation.isPending || events.updateLocation.isPending;
 
   useEffect(() => {
     if (!settings) return;
@@ -266,11 +261,11 @@ export default function EventsSettingsTab({ events }: Props) {
         </div>
       </PageCard>
 
-      <section aria-labelledby="events-settings-look-for-heading" className={pbSectionStackClassName}>
-        <SectionIntro
-          title="What to look for"
-          titleId="events-settings-look-for-heading"
-        />
+      <section
+        aria-labelledby="events-settings-look-for-heading"
+        className={pbSectionStackClassName}
+      >
+        <SectionIntro title="What to look for" titleId="events-settings-look-for-heading" />
         <div className={cn('grid gap-3', pbFieldGroupStackClassName)}>
           <FormField label="Interests" htmlFor="events-interests" hint="Separated by commas">
             <FormTextarea
@@ -299,11 +294,7 @@ export default function EventsSettingsTab({ events }: Props) {
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               All types includes any in-person event. Select specific types to narrow discovery.
             </p>
-            <div
-              className="mt-2 flex flex-wrap gap-1.5"
-              role="group"
-              aria-label="Event types"
-            >
+            <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Event types">
               <button
                 type="button"
                 aria-pressed={isAllEventTypes(selectedTypes)}
@@ -403,11 +394,11 @@ export default function EventsSettingsTab({ events }: Props) {
         </div>
       </section>
 
-      <section aria-labelledby="events-settings-cadence-heading" className={pbSectionStackClassName}>
-        <SectionIntro
-          title="Discovery cadence"
-          titleId="events-settings-cadence-heading"
-        />
+      <section
+        aria-labelledby="events-settings-cadence-heading"
+        className={pbSectionStackClassName}
+      >
+        <SectionIntro title="Discovery cadence" titleId="events-settings-cadence-heading" />
         <FormField label="Sync cadence" htmlFor="events-sync-cadence">
           <Select
             id="events-sync-cadence"

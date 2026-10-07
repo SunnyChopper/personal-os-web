@@ -24,7 +24,7 @@ type AIMode = 'prompts' | 'digest' | 'patterns' | 'sentiment' | 'review' | 'conn
 
 export default function LogbookPage() {
   const { entries: allEntries, isLoading, createEntry, updateEntry, deleteEntry } = useLogbook();
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
 
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
@@ -283,8 +283,6 @@ export default function LogbookPage() {
         onConfirm={handleDeleteEntry}
         isDeleting={isSubmitting}
       />
-
-      <ToastContainer />
     </div>
   );
 }

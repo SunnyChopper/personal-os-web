@@ -16,7 +16,7 @@ export default function CareerLayout() {
       : 'Hub for career tooling—starting with the résumé builder and room to grow.';
 
   return (
-    <PageContainer className="pb-12">
+    <PageContainer width="wide" className="pb-12">
       <header className="pt-2 pb-6">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 rounded-xl bg-blue-100/80 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200">

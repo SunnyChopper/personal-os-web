@@ -39,9 +39,7 @@ const sampleStint: EventLocationStint = {
   updatedAt: '2026-08-01T00:00:00.000Z',
 };
 
-function createEventsMock(
-  overrides: Partial<InPersonEventsHook> = {}
-): InPersonEventsHook {
+function createEventsMock(overrides: Partial<InPersonEventsHook> = {}): InPersonEventsHook {
   return {
     settings: { data: baseSettings, isPending: false, isError: false },
     locations: {
@@ -95,7 +93,10 @@ describe('EventsSettingsTab form labels', () => {
     expect(screen.getByLabelText('Label')).toHaveAttribute('placeholder', 'Conference week');
     expect(screen.getByLabelText('City')).toHaveAttribute('placeholder', 'Austin');
     expect(screen.getByLabelText('Interests')).toHaveAttribute('placeholder', 'comma-separated');
-    expect(screen.getByLabelText('Exclude keywords')).toHaveAttribute('placeholder', 'comma-separated');
+    expect(screen.getByLabelText('Exclude keywords')).toHaveAttribute(
+      'placeholder',
+      'comma-separated'
+    );
     expect(screen.getAllByText('Separated by commas', { exact: false })).toHaveLength(2);
     expect(
       screen.getByText('Separated by commas. Applied as a hard filter after AI scoring.')
@@ -161,9 +162,7 @@ describe('EventsSettingsTab location stints', () => {
 
     render(<EventsSettingsTab events={events} />);
 
-    expect(
-      screen.getByText(/Could not load saved location stints/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Could not load saved location stints/i)).toBeInTheDocument();
   });
 });
 

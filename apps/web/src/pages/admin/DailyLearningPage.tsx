@@ -4,7 +4,6 @@ import { queryKeys } from '@/lib/react-query/query-keys';
 import Button from '@/components/atoms/Button';
 import { cn } from '@/lib/utils';
 import { detectBrowserTimeZone, getIanaTimeZoneOptions } from '@/lib/iana-time-zones';
-import { useToast } from '@/hooks/use-toast';
 import {
   useAcceptAiSourceSuggestion,
   useAcceptDiscoveredSourceSuggestion,
@@ -323,7 +322,6 @@ function DigestCard({
 
 export default function DailyLearningPage() {
   const qc = useQueryClient();
-  const { ToastContainer } = useToast();
   const [tab, setTab] = useState<Tab>('feed');
   const [busy, setBusy] = useState<string | null>(null);
   const [trackModalOpen, setTrackModalOpen] = useState(false);
@@ -391,7 +389,6 @@ export default function DailyLearningPage() {
 
   return (
     <div className="w-full max-w-[1600px] mx-auto px-0 py-3 space-y-5">
-      <ToastContainer />
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">

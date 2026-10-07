@@ -347,6 +347,21 @@ export function GoalTimelineView({
     onAddDependency,
   ]);
 
+  if (goals.length === 0) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
+        <Calendar className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          No goals on the timeline
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Abandoned goals are hidden here unless you set the Status filter to Abandoned. Add target
+          dates to active goals to schedule them on the Gantt.
+        </p>
+      </div>
+    );
+  }
+
   if (goals.filter((g) => g.targetDate).length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">

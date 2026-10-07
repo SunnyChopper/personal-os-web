@@ -29,8 +29,7 @@ interface LogInteractionDialogProps {
 
 const optionalFieldLabelClassName =
   'mb-1 block text-xs font-normal text-gray-500 dark:text-gray-400';
-const cadenceLabelClassName =
-  'mb-1 block text-xs font-normal text-gray-500 dark:text-gray-400';
+const cadenceLabelClassName = 'mb-1 block text-xs font-normal text-gray-500 dark:text-gray-400';
 
 export default function LogInteractionDialog({
   isOpen,
@@ -87,7 +86,11 @@ export default function LogInteractionDialog({
           Add evidence below — a link or short description is required to save.
         </p>
         <fieldset disabled={isSubmitting} className="space-y-3">
-          <div className="space-y-3" role="group" aria-labelledby="log-interaction-evidence-heading">
+          <div
+            className="space-y-3"
+            role="group"
+            aria-labelledby="log-interaction-evidence-heading"
+          >
             <p
               id="log-interaction-evidence-heading"
               className="text-sm font-medium text-gray-900 dark:text-white"
@@ -95,7 +98,10 @@ export default function LogInteractionDialog({
               Evidence
             </p>
             <div>
-              <label htmlFor="log-interaction-evidence-url" className="mb-1 block text-sm font-medium text-gray-900 dark:text-white">
+              <label
+                htmlFor="log-interaction-evidence-url"
+                className="mb-1 block text-sm font-medium text-gray-900 dark:text-white"
+              >
                 Evidence URL
               </label>
               <FormInput
@@ -111,7 +117,10 @@ export default function LogInteractionDialog({
               Or describe the interaction if you don&apos;t have a link.
             </p>
             <div>
-              <label htmlFor="log-interaction-description" className="mb-1 block text-sm font-medium text-gray-900 dark:text-white">
+              <label
+                htmlFor="log-interaction-description"
+                className="mb-1 block text-sm font-medium text-gray-900 dark:text-white"
+              >
                 Description
               </label>
               <FormTextarea

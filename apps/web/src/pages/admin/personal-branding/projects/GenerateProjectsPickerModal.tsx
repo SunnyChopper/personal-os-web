@@ -35,10 +35,7 @@ export default function GenerateProjectsPickerModal({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const seededRef = useRef(false);
 
-  const todayItems = useMemo(
-    () => todaysRadarItems(items.data?.data ?? []),
-    [items.data]
-  );
+  const todayItems = useMemo(() => todaysRadarItems(items.data?.data ?? []), [items.data]);
 
   useEffect(() => {
     if (!open) {
@@ -137,9 +134,7 @@ export default function GenerateProjectsPickerModal({
           {listError}
         </p>
       ) : todayItems.length === 0 ? (
-        <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-          No trend cards from today.
-        </p>
+        <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">No trend cards from today.</p>
       ) : (
         <ul className="mt-4 space-y-3">
           {todayItems.map((item) => {

@@ -26,14 +26,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Hosted AWS dev stack mothballed — deploy-dev only via deploy/dev tag (revive path).
   deploy-dev:
     if: |-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/tags/deploy/dev') ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.event == 'pull_request' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+      (github.event_name == 'push' && github.ref == 'refs/tags/deploy/dev')
     runs-on: ubuntu-latest
     environment: dev
     steps:
@@ -84,6 +80,7 @@ jobs:
         env:
           SPA_CI_STAGE: spa-ci-dev
           VITE_AWS_IDENTITY_POOL_ID: ${{ secrets.VITE_AWS_IDENTITY_POOL_ID }}
+          VITE_GA_MEASUREMENT_ID: ${{ secrets.VITE_GA_MEASUREMENT_ID }}
 
       - name: Deploy SPA via shared script (--no-build; build step above)
         env:
@@ -153,6 +150,7 @@ jobs:
           VITE_AWS_USER_POOL_ID: ${{ secrets.VITE_AWS_USER_POOL_ID }}
           VITE_AWS_USER_POOL_WEB_CLIENT_ID: ${{ secrets.VITE_AWS_USER_POOL_WEB_CLIENT_ID }}
           VITE_AWS_IDENTITY_POOL_ID: ${{ secrets.VITE_AWS_IDENTITY_POOL_ID }}
+          VITE_GA_MEASUREMENT_ID: ${{ secrets.VITE_GA_MEASUREMENT_ID }}
 
       - name: Deploy SPA via shared script (--no-build; build step above)
         env:

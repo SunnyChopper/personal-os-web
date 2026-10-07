@@ -394,9 +394,7 @@ export function useContentWorkbench() {
           errorCode: job.errorCode,
           retryable: job.retryable,
         });
-        setImageInjectError(
-          personalBrandingJobFailureMessage(job, 'Failed to inject images')
-        );
+        setImageInjectError(personalBrandingJobFailureMessage(job, 'Failed to inject images'));
         setImageInjectJobId(null);
       }
     },
@@ -532,9 +530,7 @@ export function useContentWorkbench() {
           errorCode: job.errorCode,
           retryable: job.retryable,
         });
-        setApproveError(
-          personalBrandingJobFailureMessage(job, 'Failed to generate draft')
-        );
+        setApproveError(personalBrandingJobFailureMessage(job, 'Failed to generate draft'));
         setApproveJobId(null);
         setApproveJobIdeaId(null);
       }

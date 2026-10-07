@@ -70,9 +70,7 @@ describe('ConnectionEditorDialog reply voice guidance', () => {
     expect(mockOnUpdate).not.toHaveBeenCalled();
     const guidanceField = await screen.findByPlaceholderText(/Prefer:/i);
     expect(guidanceField).toHaveValue('**Prefer**\n- Short questions');
-    expect(mockShowToast).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'info' })
-    );
+    expect(mockShowToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'info' }));
   });
 
   it('includes replyVoiceGuidance in save payload', async () => {

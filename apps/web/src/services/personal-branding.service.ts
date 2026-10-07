@@ -2189,11 +2189,9 @@ export const personalBrandingService = {
 
   getBrandProjectJob: async (jobId: string, signal?: AbortSignal): Promise<BrandProjectJob> =>
     unwrap(
-      await apiClient.get<BrandProjectJob>(
-        `/personal-branding/projects/jobs/${jobId}`,
-        undefined,
-        { signal }
-      )
+      await apiClient.get<BrandProjectJob>(`/personal-branding/projects/jobs/${jobId}`, undefined, {
+        signal,
+      })
     ),
 
   rejectBrandProjectIdea: async (
@@ -2239,10 +2237,7 @@ export const personalBrandingService = {
       )
     ),
 
-  startBrandProjectKitRevise: async (
-    ideaId: string,
-    repo: string
-  ): Promise<{ jobId: string }> =>
+  startBrandProjectKitRevise: async (ideaId: string, repo: string): Promise<{ jobId: string }> =>
     unwrap(
       await apiClient.post<{ jobId: string }>(
         `/personal-branding/projects/ideas/${encodeURIComponent(ideaId)}/build-kit/revise`,
@@ -2271,5 +2266,7 @@ export const personalBrandingService = {
   updateBrandProjectSettings: async (
     input: UpdateBrandProjectSettingsInput
   ): Promise<BrandProjectSettings> =>
-    unwrap(await apiClient.put<BrandProjectSettings>('/personal-branding/projects/settings', input)),
+    unwrap(
+      await apiClient.put<BrandProjectSettings>('/personal-branding/projects/settings', input)
+    ),
 };

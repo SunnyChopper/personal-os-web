@@ -72,7 +72,9 @@ describe('LogInteractionDialog', () => {
     renderDialog();
 
     const dialog = screen.getByRole('dialog', { name: /Log check-in/i });
-    const fieldset = within(dialog).getByRole('group', { name: /Evidence/i }).closest('fieldset');
+    const fieldset = within(dialog)
+      .getByRole('group', { name: /Evidence/i })
+      .closest('fieldset');
     expect(fieldset).toHaveClass('space-y-3');
 
     expect(screen.getByLabelText('Description')).toHaveClass('min-h-[64px]');

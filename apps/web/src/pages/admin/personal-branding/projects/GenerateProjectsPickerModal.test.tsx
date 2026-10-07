@@ -66,7 +66,12 @@ describe('GenerateProjectsPickerModal', () => {
     ];
 
     render(
-      <GenerateProjectsPickerModal open isSubmitting={false} onClose={onClose} onConfirm={onConfirm} />
+      <GenerateProjectsPickerModal
+        open
+        isSubmitting={false}
+        onClose={onClose}
+        onConfirm={onConfirm}
+      />
     );
 
     expect(await screen.findByRole('checkbox', { name: 'Select Top 9' })).toBeChecked();
@@ -85,7 +90,12 @@ describe('GenerateProjectsPickerModal', () => {
     radarState.rows = [radarItem({ id: 'only', title: 'Only signal', aiRelevanceScore: 0.8 })];
 
     render(
-      <GenerateProjectsPickerModal open isSubmitting={false} onClose={onClose} onConfirm={onConfirm} />
+      <GenerateProjectsPickerModal
+        open
+        isSubmitting={false}
+        onClose={onClose}
+        onConfirm={onConfirm}
+      />
     );
 
     const dialog = await screen.findByRole('dialog', { name: 'Choose trend cards' });
@@ -108,7 +118,12 @@ describe('GenerateProjectsPickerModal', () => {
     ];
 
     render(
-      <GenerateProjectsPickerModal open isSubmitting={false} onClose={onClose} onConfirm={onConfirm} />
+      <GenerateProjectsPickerModal
+        open
+        isSubmitting={false}
+        onClose={onClose}
+        onConfirm={onConfirm}
+      />
     );
 
     expect(await screen.findByRole('checkbox', { name: 'Select High signal' })).toBeChecked();

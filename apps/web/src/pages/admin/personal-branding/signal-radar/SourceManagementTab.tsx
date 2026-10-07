@@ -201,7 +201,6 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
         source={healthSource}
         signalRadar={signalRadar}
       />
-
     </div>
   );
 }

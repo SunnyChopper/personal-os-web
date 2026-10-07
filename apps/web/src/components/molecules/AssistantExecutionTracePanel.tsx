@@ -1,7 +1,10 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { AssistantExecutionTrace } from '@/components/molecules/AssistantExecutionTrace';
-import { getVisibleExecutionTraceEntries } from '@/lib/chat/assistant-execution-trace-entries';
+import {
+  getExecutionTraceAccordionLabel,
+  getVisibleExecutionTraceEntries,
+} from '@/lib/chat/assistant-execution-trace-entries';
 import type {
   StatusEntry,
   WsToolApprovalRequiredPayload,
@@ -51,9 +54,11 @@ export function AssistantExecutionTracePanel({
     return null;
   }
 
-  const label = expanded
-    ? `Hide execution steps (${visibleCount})`
-    : `Show execution steps (${visibleCount})`;
+  const label = getExecutionTraceAccordionLabel({
+    statusHistory,
+    toolCallDetails,
+    expanded,
+  });
 
   return (
     <div className="mb-2 rounded-lg border border-gray-200 bg-white/60 p-2 dark:border-gray-700 dark:bg-gray-800/40">

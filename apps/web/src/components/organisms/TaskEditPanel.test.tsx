@@ -11,7 +11,6 @@ const { showToast } = vi.hoisted(() => ({
 vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
     showToast,
-    ToastContainer: () => null,
   }),
 }));
 
@@ -122,6 +121,66 @@ describe('TaskEditPanel save', () => {
 describe('TaskEditPanel polish', () => {
   afterEach(() => {
     cleanup();
+  });
+
+  it('renders Notes and Scheduled Date fields', () => {
+    renderPanel();
+
+    expect(screen.getByLabelText('Notes')).toBeInTheDocument();
+    expect(screen.getByLabelText('Scheduled Date')).toBeInTheDocument();
+  });
+
+  it('hydrates notes and scheduled date from task', () => {
+    renderPanel({
+      task: {
+        ...makeTask(),
+        notes: 'hello',
+        scheduledDate: '2026-09-07T00:00:00Z',
+      },
+    });
+
+    expect(screen.getByLabelText('Notes')).toHaveValue('hello');
+    expect(screen.getByLabelText('Scheduled Date')).toHaveValue('2026-09-07');
+  });
+
+  it('enables Save when only notes change', async () => {
+    const user = userEvent.setup();
+    renderPanel({
+      task: { ...makeTask(), notes: 'original' },
+    });
+
+    const saveButton = await screen.findByRole('button', { name: 'Save changes' });
+    expect(saveButton).toBeDisabled();
+
+    await user.type(screen.getByLabelText('Notes'), ' updated');
+
+    await waitFor(() => {
+      expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    });
+    expect(saveButton).toBeEnabled();
+  });
+
+  it('sends notes null when notes cleared on save', async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderPanel({
+      task: { ...makeTask(), notes: 'remove me' },
+    });
+
+    const notesInput = screen.getByLabelText('Notes');
+    await user.clear(notesInput);
+
+    const saveButton = await screen.findByRole('button', { name: 'Save changes' });
+    await waitFor(() => {
+      expect(saveButton).toBeEnabled();
+    });
+    await user.click(saveButton);
+
+    expect(onSave).toHaveBeenCalledWith(
+      'task-1',
+      expect.objectContaining({
+        notes: null,
+      })
+    );
   });
 
   it('renders section headings for scanability', () => {

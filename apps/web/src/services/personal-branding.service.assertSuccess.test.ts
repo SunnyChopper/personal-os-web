@@ -32,6 +32,29 @@ describe('assertSuccess', () => {
     }
   });
 
+  it('preserves error details on thrown Error', () => {
+    expect.assertions(3);
+    try {
+      assertSuccess({
+        success: false,
+        error: {
+          message: 'Publishing requires valid platform and canonical URL',
+          code: 'BAD_REQUEST',
+          details: {
+            fields: { platform: 'Original platform is required when publishing.' },
+          },
+        },
+      });
+    } catch (err) {
+      expect(err).toBeInstanceOf(Error);
+      const typed = err as Error & { code?: string; details?: unknown };
+      expect(typed.code).toBe('BAD_REQUEST');
+      expect(typed.details).toEqual({
+        fields: { platform: 'Original platform is required when publishing.' },
+      });
+    }
+  });
+
   it('does not throw when success is true', () => {
     expect(() => assertSuccess({ success: true })).not.toThrow();
   });

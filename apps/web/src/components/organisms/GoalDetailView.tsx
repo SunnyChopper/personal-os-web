@@ -1,5 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { AlertTriangle, ArrowLeft, Edit2, Trash2, ChevronDown, Folder, Plus } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowLeft,
+  Edit2,
+  Trash2,
+  ChevronDown,
+  Folder,
+  Plus,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PanInfo } from 'framer-motion';
 import type {
@@ -14,7 +23,9 @@ import type {
   GoalLinkSuggestion,
 } from '@/types/growth-system';
 import { PriorityIndicator } from '@/components/atoms/PriorityIndicator';
+import { StatusBadge } from '@/components/atoms/StatusBadge';
 import Button from '@/components/atoms/Button';
+import { ProjectDetailCollapsible } from '@/components/molecules/ProjectDetailCollapsible';
 import { GoalProgressDashboard } from '@/components/molecules/GoalProgressDashboard';
 import { GoalTasksSection } from '@/components/molecules/GoalTasksSection';
 import { GoalMetricsSection } from '@/components/molecules/GoalMetricsSection';
@@ -30,6 +41,15 @@ import { useEntityLogbookLinkPicker } from '@/lib/growth-system/logbook-entity-l
 import { useToast } from '@/hooks/use-toast';
 import { SUBCATEGORY_LABELS } from '@/constants/growth-system';
 import { goalProgressService } from '@/services/growth-system/goal-progress.service';
+import {
+  goalDetailChildGoalRowClassName,
+  goalDetailChildGoalsSectionClassName,
+  goalDetailDateClusterClassName,
+  goalDetailDateRowClassName,
+  goalDetailDeleteButtonClassName,
+  goalDetailLinkedListScrollClassName,
+  goalDetailLinkedSectionCardClassName,
+} from '@/lib/growth-system/goal-detail-surfaces';
 import { differenceInCalendarDaysLocal, formatDateString } from '@/utils/date-formatters';
 
 interface MetricWithLogs {
@@ -82,50 +102,111 @@ const headerVariants = {
   },
 };
 
-interface GoalTargetDateProps {
-  targetDate: string;
+interface GoalDatesRowProps {
+  startDate: string | null;
+  targetDate: string | null;
   isOverdue: boolean;
-  daysRemaining: number;
+  daysRemaining: number | null;
 }
 
-function GoalTargetDate({ targetDate, isOverdue, daysRemaining }: GoalTargetDateProps) {
-  const overdueDays = Math.abs(daysRemaining);
+function GoalDatesRow({ startDate, targetDate, isOverdue, daysRemaining }: GoalDatesRowProps) {
+  const overdueDays = daysRemaining !== null ? Math.abs(daysRemaining) : 0;
+  const formattedStart = startDate
+    ? formatDateString(startDate, { month: 'long', day: 'numeric', year: 'numeric' })
+    : null;
 
   return (
-    <motion.div variants={itemVariants}>
-      <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-1 font-medium uppercase tracking-wide">
-        Target Date
+    <motion.div variants={itemVariants} className={goalDetailDateRowClassName}>
+      <div className={goalDetailDateClusterClassName}>
+        <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-1 font-medium uppercase tracking-wide">
+          Start Date
+        </div>
+        <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+          {formattedStart ?? '—'}
+        </div>
       </div>
-      <div
-        className={`flex items-center gap-2 text-base sm:text-lg font-semibold ${
-          isOverdue ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
-        }`}
-      >
-        {isOverdue && (
-          <AlertTriangle className="w-5 h-5 flex-shrink-0" aria-hidden="true" strokeWidth={2} />
-        )}
-        <span>
-          {formatDateString(targetDate, {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric',
-          })}
-        </span>
+
+      {targetDate && daysRemaining !== null ? (
+        <div className={goalDetailDateClusterClassName}>
+          <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-1 font-medium uppercase tracking-wide">
+            Target Date
+          </div>
+          <div
+            className={`flex items-center gap-2 text-base sm:text-lg font-semibold ${
+              isOverdue ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
+            }`}
+          >
+            {isOverdue && (
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" aria-hidden="true" strokeWidth={2} />
+            )}
+            <span>
+              {formatDateString(targetDate, {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </span>
+          </div>
+          {isOverdue && (
+            <span
+              className="inline-flex mt-2 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+              aria-label={`${overdueDays} ${overdueDays === 1 ? 'day' : 'days'} overdue`}
+            >
+              {overdueDays} {overdueDays === 1 ? 'day' : 'days'} overdue
+            </span>
+          )}
+        </div>
+      ) : null}
+    </motion.div>
+  );
+}
+
+interface GoalChildGoalsSectionProps {
+  childGoals: Goal[];
+  onChildGoalClick?: (goal: Goal) => void;
+}
+
+function GoalChildGoalsSection({ childGoals, onChildGoalClick }: GoalChildGoalsSectionProps) {
+  if (childGoals.length === 0) return null;
+
+  return (
+    <motion.div variants={itemVariants} className={goalDetailChildGoalsSectionClassName}>
+      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+        <ArrowDown className="w-4 h-4" aria-hidden="true" />
+        <span>Child goals ({childGoals.length})</span>
       </div>
-      {isOverdue && (
-        <span
-          className="inline-flex mt-2 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
-          aria-label={`${overdueDays} ${overdueDays === 1 ? 'day' : 'days'} overdue`}
-        >
-          {overdueDays} {overdueDays === 1 ? 'day' : 'days'} overdue
-        </span>
-      )}
+      <div className="space-y-2">
+        {childGoals.map((childGoal, index) => (
+          <motion.button
+            key={childGoal.id}
+            type="button"
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.05 }}
+            onClick={() => onChildGoalClick?.(childGoal)}
+            className={`${goalDetailChildGoalRowClassName} w-full text-left`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                {childGoal.title}
+              </h4>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="px-2 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                  {childGoal.timeHorizon}
+                </span>
+                <StatusBadge status={childGoal.status} size="sm" />
+              </div>
+            </div>
+          </motion.button>
+        ))}
+      </div>
     </motion.div>
   );
 }
 
 interface GoalDetailViewProps {
   goal: Goal;
+  childGoals?: Goal[];
   tasks: Task[];
   metrics: MetricWithLogs[];
   habits: HabitWithStreak[];
@@ -133,8 +214,10 @@ interface GoalDetailViewProps {
   projectContributionWeights?: Record<string, number>;
   onProjectContributionWeightChange?: (projectId: string, weight: number) => void | Promise<void>;
   onBack: () => void;
+  backLabel?: string;
   onEdit: () => void;
   onDelete: () => void;
+  onChildGoalClick?: (goal: Goal) => void;
   onToggleCriterion?: (criterionId: string, isCompleted: boolean) => void;
   onUpdateCriterion?: (criterionId: string, updates: Partial<SuccessCriterion>) => void;
   onAddTask?: () => void;
@@ -154,6 +237,7 @@ interface GoalDetailViewProps {
 
 export function GoalDetailView({
   goal,
+  childGoals = [],
   tasks,
   metrics,
   habits,
@@ -161,8 +245,10 @@ export function GoalDetailView({
   projectContributionWeights = {},
   onProjectContributionWeightChange,
   onBack,
+  backLabel = 'Back to Goals',
   onEdit,
   onDelete,
+  onChildGoalClick,
   onToggleCriterion,
   onUpdateCriterion,
   onAddTask,
@@ -248,6 +334,39 @@ export function GoalDetailView({
       })
     );
   }, [goal.successCriteria]);
+
+  const progressSourceItems = useMemo(() => {
+    const criteria = (goal.successCriteria ?? []).map((c) => {
+      if (typeof c === 'string') {
+        const str = c as string;
+        return {
+          id: str,
+          description: str.replace(/✓/g, '').trim(),
+          isCompleted: str.includes('✓'),
+        };
+      }
+      const criterion = c as SuccessCriterion;
+      return {
+        id: criterion.id,
+        description: criterion.description,
+        isCompleted: criterion.isCompleted,
+      };
+    });
+    return {
+      criteria,
+      tasks: tasks.map((t) => ({ id: t.id, title: t.title, status: t.status })),
+      metrics: metrics.map((m) => ({
+        id: m.metric.id,
+        name: m.metric.name,
+        atTarget: m.progress >= 90,
+      })),
+      habits: habits.map((h) => ({
+        id: h.habit.id,
+        name: h.habit.name,
+        consistency: h.weeklyProgress,
+      })),
+    };
+  }, [goal.successCriteria, tasks, metrics, habits]);
 
   const daysRemaining = useMemo(() => {
     if (!goal.targetDate) return null;
@@ -344,10 +463,10 @@ export function GoalDetailView({
             whileHover={{ scale: 1.02 }}
             onClick={onBack}
             className="flex items-center gap-2 sm:gap-3 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4 sm:mb-6 lg:mb-8 transition-colors min-h-[44px] min-w-[44px] -m-2 p-2 touch-manipulation"
-            aria-label="Back to Goals"
+            aria-label={backLabel}
           >
             <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2} />
-            <span className="text-sm sm:text-base lg:text-lg font-medium">Back to Goals</span>
+            <span className="text-sm sm:text-base lg:text-lg font-medium">{backLabel}</span>
           </motion.button>
 
           {/* Header Card - Enhanced desktop layout with better horizontal space */}
@@ -414,10 +533,10 @@ export function GoalDetailView({
                 </motion.div>
                 <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.02 }}>
                   <Button
-                    variant="secondary"
+                    variant="destructive"
                     size="sm"
                     onClick={onDelete}
-                    className="hover:!bg-red-50 hover:!text-red-600 dark:hover:!bg-red-900/30 dark:hover:!text-red-400 min-h-[44px] touch-manipulation"
+                    className={`${goalDetailDeleteButtonClassName} min-h-[44px] touch-manipulation`}
                   >
                     <Trash2 className="w-4 h-4 mr-1.5" strokeWidth={2} />
                     <span className="text-sm">Delete</span>
@@ -426,36 +545,31 @@ export function GoalDetailView({
               </motion.div>
             </div>
 
-            {/* Desktop: Enhanced two-column layout for metadata and criteria with better spacing */}
-            {goal.successCriteria && goal.successCriteria.length > 0 ? (
-              <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 lg:gap-8 xl:gap-10 pt-4 sm:pt-6 lg:pt-8 border-t border-gray-200 dark:border-gray-700">
-                {/* Left Column: Target Date & Notes - Takes 2/5 on desktop */}
-                <div className="xl:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8 xl:border-r border-gray-200 dark:border-gray-700 xl:pr-6 lg:pr-8">
-                  {goal.targetDate && daysRemaining !== null && (
-                    <GoalTargetDate
-                      targetDate={goal.targetDate}
-                      isOverdue={isOverdue}
-                      daysRemaining={daysRemaining}
-                    />
-                  )}
+            {goal.notes ? (
+              <ProjectDetailCollapsible
+                key={`notes-${goal.id}`}
+                title="Notes"
+                defaultOpen={false}
+                className="border-t border-gray-200 dark:border-gray-700"
+              >
+                <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
+                  {goal.notes}
+                </p>
+              </ProjectDetailCollapsible>
+            ) : null}
 
-                  {goal.notes && (
-                    <motion.div
-                      variants={itemVariants}
-                      className={goal.targetDate ? 'pt-4 sm:pt-6 lg:pt-8' : ''}
-                    >
-                      <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                        Notes
-                      </h3>
-                      <p className="text-sm sm:text-base lg:text-lg text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
-                        {goal.notes}
-                      </p>
-                    </motion.div>
-                  )}
-                </div>
+            <div className="space-y-4 sm:space-y-6 lg:space-y-8 pt-4 sm:pt-6 lg:pt-8 border-t border-gray-200 dark:border-gray-700">
+              <GoalDatesRow
+                startDate={goal.startDate}
+                targetDate={goal.targetDate}
+                isOverdue={isOverdue}
+                daysRemaining={daysRemaining}
+              />
 
-                {/* Right Column: Success Criteria - Takes 3/5 on desktop */}
-                <motion.div variants={itemVariants} className="xl:col-span-3 xl:pl-6 lg:pl-8">
+              <GoalChildGoalsSection childGoals={childGoals} onChildGoalClick={onChildGoalClick} />
+
+              {goal.successCriteria && goal.successCriteria.length > 0 ? (
+                <motion.div variants={itemVariants}>
                   <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4 lg:mb-6">
                     Success Criteria
                   </h3>
@@ -466,41 +580,19 @@ export function GoalDetailView({
                     editable={true}
                   />
                 </motion.div>
-              </div>
-            ) : (
-              /* Single column layout when no success criteria */
-              <div className="space-y-4 sm:space-y-6 lg:space-y-8 pt-4 sm:pt-6 lg:pt-8 border-t border-gray-200 dark:border-gray-700 max-w-3xl">
-                {goal.targetDate && daysRemaining !== null && (
-                  <GoalTargetDate
-                    targetDate={goal.targetDate}
-                    isOverdue={isOverdue}
-                    daysRemaining={daysRemaining}
-                  />
-                )}
-
-                {goal.notes && (
-                  <motion.div
-                    variants={itemVariants}
-                    className={goal.targetDate ? 'pt-4 sm:pt-6 lg:pt-8' : ''}
-                  >
-                    <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                      Notes
-                    </h3>
-                    <p className="text-sm sm:text-base lg:text-lg text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
-                      {goal.notes}
-                    </p>
-                  </motion.div>
-                )}
-              </div>
-            )}
+              ) : null}
+            </div>
 
             <EntityMemoryThreadPanel
+              key={`memory-${goal.id}`}
               entityType="goal"
               entityId={goal.id}
               fetchThread={goalsService.getMemoryThread}
               onEmptyAction={openLogbookPicker}
               reloadKey={memoryReloadKey}
               isEmptyActionLoading={isLogbookLoading}
+              collapsible
+              defaultOpen={false}
             />
           </motion.div>
 
@@ -524,8 +616,7 @@ export function GoalDetailView({
                   <div className="space-y-4 lg:space-y-6">
                     <div className="h-4 lg:h-5 w-full bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                     <div className="h-4 lg:h-5 w-3/4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-                      <div className="h-20 lg:h-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                    <div className="grid grid-cols-2 gap-4 lg:gap-6">
                       <div className="h-20 lg:h-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                       <div className="h-20 lg:h-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                       <div className="h-20 lg:h-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
@@ -543,70 +634,66 @@ export function GoalDetailView({
                 variants={itemVariants}
                 className="mb-4 sm:mb-6 lg:mb-8"
               >
-                <GoalProgressDashboard progress={progress} showBreakdown={true} />
+                <GoalProgressDashboard
+                  progress={progress}
+                  showBreakdown={true}
+                  sourceItems={progressSourceItems}
+                />
               </motion.div>
             ) : null}
           </AnimatePresence>
 
-          {/* Entity Sections Grid - Grid-like feel: 2x2 layout on desktop with equal heights */}
+          {/* Entity Sections Grid */}
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 auto-rows-fr"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 items-start"
+            data-testid="goal-detail-linked-grid"
           >
             {/* Tasks Section */}
-            <motion.div variants={itemVariants} className="h-full">
-              <div className="h-full">
-                <GoalTasksSection
-                  tasks={tasks}
-                  onAddTask={onAddTask}
-                  showEmpty={true}
-                  linkSuggestions={taskLinkSuggestions}
-                  linkSuggestionsLoading={linkSuggestionsLoading}
-                  attachingSuggestionId={attachingSuggestionId}
-                  onAttachSuggestion={onAttachSuggestion}
-                />
-              </div>
+            <motion.div variants={itemVariants}>
+              <GoalTasksSection
+                tasks={tasks}
+                onAddTask={onAddTask}
+                showEmpty={true}
+                linkSuggestions={taskLinkSuggestions}
+                linkSuggestionsLoading={linkSuggestionsLoading}
+                attachingSuggestionId={attachingSuggestionId}
+                onAttachSuggestion={onAttachSuggestion}
+              />
             </motion.div>
 
             {/* Metrics Section */}
-            <motion.div variants={itemVariants} className="h-full">
-              <div className="h-full">
-                <GoalMetricsSection
-                  metrics={metrics}
-                  onLinkMetric={onLinkMetric}
-                  onLogMetric={onLogMetric}
-                  showEmpty={true}
-                  linkSuggestions={metricLinkSuggestions}
-                  linkSuggestionsLoading={linkSuggestionsLoading}
-                  attachingSuggestionId={attachingSuggestionId}
-                  onAttachSuggestion={onAttachSuggestion}
-                />
-              </div>
+            <motion.div variants={itemVariants}>
+              <GoalMetricsSection
+                metrics={metrics}
+                onLinkMetric={onLinkMetric}
+                onLogMetric={onLogMetric}
+                showEmpty={true}
+                linkSuggestions={metricLinkSuggestions}
+                linkSuggestionsLoading={linkSuggestionsLoading}
+                attachingSuggestionId={attachingSuggestionId}
+                onAttachSuggestion={onAttachSuggestion}
+              />
             </motion.div>
 
             {/* Habits Section */}
-            <motion.div variants={itemVariants} className="h-full">
-              <div className="h-full">
-                <GoalHabitsSection
-                  habits={habits}
-                  onLinkHabit={onLinkHabit}
-                  onCompleteHabit={onCompleteHabit}
-                  showEmpty={true}
-                  linkSuggestions={habitLinkSuggestions}
-                  linkSuggestionsLoading={linkSuggestionsLoading}
-                  attachingSuggestionId={attachingSuggestionId}
-                  onAttachSuggestion={onAttachSuggestion}
-                />
-              </div>
+            <motion.div variants={itemVariants}>
+              <GoalHabitsSection
+                habits={habits}
+                onLinkHabit={onLinkHabit}
+                onCompleteHabit={onCompleteHabit}
+                showEmpty={true}
+                linkSuggestions={habitLinkSuggestions}
+                linkSuggestionsLoading={linkSuggestionsLoading}
+                attachingSuggestionId={attachingSuggestionId}
+                onAttachSuggestion={onAttachSuggestion}
+              />
             </motion.div>
 
             {/* Projects Section */}
-            <motion.div
-              variants={itemVariants}
-              className="h-full flex flex-col bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 lg:p-8 shadow-sm hover:shadow-md transition-shadow"
-            >
+            <motion.div variants={itemVariants} className={goalDetailLinkedSectionCardClassName}>
               <div className="flex items-center justify-between mb-4 lg:mb-6">
                 <h3 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <Folder className="w-5 h-5" />
@@ -619,9 +706,9 @@ export function GoalDetailView({
                   </Button>
                 )}
               </div>
-              <div className="flex-1 flex flex-col">
+              <div>
                 {projects.length > 0 ? (
-                  <div className="space-y-2 sm:space-y-3">
+                  <div className={`space-y-2 sm:space-y-3 ${goalDetailLinkedListScrollClassName}`}>
                     {projects.map((project, index) => (
                       <motion.div
                         key={project.id}
@@ -686,7 +773,13 @@ export function GoalDetailView({
                 transition={{ duration: 0.3 }}
                 className="md:hidden bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4 overflow-hidden"
               >
-                {progress && <GoalProgressDashboard progress={progress} showBreakdown={true} />}
+                {progress && (
+                  <GoalProgressDashboard
+                    progress={progress}
+                    showBreakdown={true}
+                    sourceItems={progressSourceItems}
+                  />
+                )}
               </motion.div>
             )}
           </AnimatePresence>

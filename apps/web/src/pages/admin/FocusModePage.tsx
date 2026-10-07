@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useTasks } from '@/hooks/useGrowthSystem';
 import { ROUTES } from '@/routes';
+import { trackFocusSessionStart } from '@/lib/analytics';
 import type { Task } from '@/types/growth-system';
 import { formatDateString } from '@/utils/date-formatters';
 import { TaskFieldMarkdown } from '@/components/molecules/TaskFieldMarkdown';
@@ -46,6 +47,7 @@ export default function FocusModePage() {
       // Use setTimeout to avoid calling setState synchronously in effect
       setTimeout(() => {
         setSessionTasks(state.sessionTasks ?? []);
+        trackFocusSessionStart();
       }, 0);
     } else {
       navigate(ROUTES.admin.dashboard, { replace: true });

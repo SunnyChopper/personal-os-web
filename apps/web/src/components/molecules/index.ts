@@ -10,6 +10,8 @@ export { default as Combobox } from './Combobox';
 export type { ComboboxProps, ComboboxOption } from './Combobox';
 export { default as MultiCombobox } from './MultiCombobox';
 export type { MultiComboboxProps } from './MultiCombobox';
+export { default as ExpandOnFocusTextarea } from './ExpandOnFocusTextarea';
+export type { ExpandOnFocusTextareaProps } from './ExpandOnFocusTextarea';
 export { GoalCoreFormFields } from './GoalCoreFormFields';
 export { HabitCoreFormFields } from './HabitCoreFormFields';
 export { TaskCoreFormFields } from './TaskCoreFormFields';

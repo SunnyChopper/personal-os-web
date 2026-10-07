@@ -5,6 +5,7 @@ import { apiClient } from '@/lib/api-client';
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
     getChatThreads: vi.fn(),
+    getPendingCoachEscalations: vi.fn(),
   },
 }));
 
@@ -57,5 +58,25 @@ describe('chatbotService.getThreads', () => {
     });
 
     await expect(chatbotService.getThreads()).rejects.toThrow('Failed to fetch threads');
+  });
+});
+
+describe('chatbotService.getPendingCoachEscalations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('passes AbortSignal through to apiClient (3dd6d1c5e76d)', async () => {
+    const controller = new AbortController();
+    vi.mocked(apiClient.getPendingCoachEscalations).mockResolvedValue({
+      success: true,
+      data: { escalations: [] },
+    });
+
+    await chatbotService.getPendingCoachEscalations(controller.signal);
+
+    expect(apiClient.getPendingCoachEscalations).toHaveBeenCalledWith({
+      signal: controller.signal,
+    });
   });
 });

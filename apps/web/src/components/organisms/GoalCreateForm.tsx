@@ -73,6 +73,7 @@ export function GoalCreateForm({
     description: '',
     area: parentGoal?.area || 'Health',
     timeHorizon: parentGoal ? getNextTimeHorizon(parentGoal.timeHorizon) : 'Yearly',
+    priority: parentGoal?.priority ?? 'P3',
     successCriteria: [] as string[],
     parentGoalId: parentGoal?.id,
   });
@@ -196,15 +197,13 @@ export function GoalCreateForm({
       area: formData.area,
       subCategory: formData.subCategory || undefined,
       timeHorizon: formData.timeHorizon,
+      priority: formData.priority ?? 'P3',
       startDate: formData.startDate || undefined,
       targetDate: formData.targetDate || undefined,
       successCriteria: formData.successCriteria || undefined,
       parentGoalId: formData.parentGoalId || undefined,
       notes: formData.notes?.trim() || undefined,
       progressConfig: showProgressWeights ? progressWeights : undefined,
-      // Explicitly exclude fields not in CreateGoalInput
-      // priority and status are not supported by backend
-      // dailyTarget and weeklyTarget are for habits, not goals
     };
 
     onSubmit(submitData);
@@ -416,12 +415,14 @@ export function GoalCreateForm({
               area: formData.area,
               subCategory: formData.subCategory,
               timeHorizon: formData.timeHorizon,
+              priority: formData.priority,
             }}
             onChange={handleChange}
             fieldErrors={fieldErrors}
             touched={touched}
             onBlur={handleBlur}
             creatableTimeHorizons={CREATABLE_TIME_HORIZONS}
+            showPriority
             disabled={isLoading}
           />
 

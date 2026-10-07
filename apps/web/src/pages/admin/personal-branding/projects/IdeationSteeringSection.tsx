@@ -18,8 +18,7 @@ const DAILY_COUNT_MIN = 3;
 const DAILY_COUNT_MAX = 10;
 const DIRECTION_PLACEHOLDER = 'A weekend CLI that turns one paper into a demo.';
 const DIRECTION_HINT = 'Sent with Generate now and automatic runs.';
-const BRAND_PROFILE_NONE_HINT =
-  'Ideas will not use pillars or audience from a brand profile.';
+const BRAND_PROFILE_NONE_HINT = 'Ideas will not use pillars or audience from a brand profile.';
 
 export type ProfileOption = { id: string; name: string };
 
@@ -48,9 +47,7 @@ export default function IdeationSteeringSection({
 
   const debouncedDirection = useDebouncedValue(directionDraft, DIRECTION_DEBOUNCE_MS);
 
-  const dailyCount = isValidDailyCount(settings.dailyCount)
-    ? settings.dailyCount
-    : DAILY_COUNT_MIN;
+  const dailyCount = isValidDailyCount(settings.dailyCount) ? settings.dailyCount : DAILY_COUNT_MIN;
 
   const directionError = directionServerError ?? directionValidationError;
 
@@ -128,10 +125,7 @@ export default function IdeationSteeringSection({
         error={dailyCountError}
       >
         <div
-          className={cn(
-            formFieldClassName,
-            'inline-flex w-auto items-center gap-1 p-1 shadow-sm'
-          )}
+          className={cn(formFieldClassName, 'inline-flex w-auto items-center gap-1 p-1 shadow-sm')}
         >
           <Button
             type="button"

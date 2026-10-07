@@ -10,9 +10,7 @@ interface RolodexSettingsTabProps {
 export default function RolodexSettingsTab({ showToast }: RolodexSettingsTabProps) {
   return (
     <div className="space-y-4">
-      <p className={pbBodySecondaryClassName}>
-        Notifications and Recon ingest for this module.
-      </p>
+      <p className={pbBodySecondaryClassName}>Notifications and Recon ingest for this module.</p>
       <RolodexNotificationsCard showToast={showToast} />
       <ReconSettingsCard showToast={showToast} />
     </div>

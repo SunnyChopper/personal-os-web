@@ -11,7 +11,8 @@
     "build:opennext:verify": "next build && node ./scripts/fix-standalone-bun.mjs && open-next build && node ./scripts/verify-server-bundle-resolve.mjs",
     "start": "next start -p 3040",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:analytics": "bun run scripts/check-analytics-guard.ts"
   },
   "dependencies": {
     "@next/env": "15.2.4",

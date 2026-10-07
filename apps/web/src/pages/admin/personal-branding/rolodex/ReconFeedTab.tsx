@@ -8,15 +8,7 @@ import {
   ThumbsUp,
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Button from '@/components/atoms/Button';
 import { Skeleton } from '@/components/atoms/Skeleton';
@@ -91,7 +83,11 @@ import type {
   ReplySuggestion,
   UpdateReconPostInput,
 } from '@/types/api/personal-branding.dto';
-import { RECON_DISMISS_CATEGORY_LABELS, RECON_DISMISS_CATEGORIES, RECON_POST_STATUS_LABELS } from '@/types/api/personal-branding.dto';
+import {
+  RECON_DISMISS_CATEGORY_LABELS,
+  RECON_DISMISS_CATEGORIES,
+  RECON_POST_STATUS_LABELS,
+} from '@/types/api/personal-branding.dto';
 import { PageCard, SectionIntro } from '../PersonalBrandingPageTemplate';
 import {
   formatPersonalBrandingDateTime,
@@ -351,7 +347,10 @@ function ReconPostRow({
           </div>
         </div>
         <div className={reconPostActionsClusterClassName}>
-          <div className={reconPostActionsWideClusterClassName} data-testid="recon-post-actions-wide">
+          <div
+            className={reconPostActionsWideClusterClassName}
+            data-testid="recon-post-actions-wide"
+          >
             <Button
               type="button"
               size="sm"
@@ -370,7 +369,10 @@ function ReconPostRow({
                 disabled={isUpdating}
                 aria-label="Remove good pick"
                 onClick={handleGoodPickClick}
-                className={cn(reconSecondaryGhostButtonClassName, reconGoodPickRemoveButtonClassName)}
+                className={cn(
+                  reconSecondaryGhostButtonClassName,
+                  reconGoodPickRemoveButtonClassName
+                )}
               >
                 Remove
               </Button>
@@ -399,7 +401,10 @@ function ReconPostRow({
               Dismiss
             </Button>
           </div>
-          <div className={reconPostActionsCompactClusterClassName} data-testid="recon-post-actions-compact">
+          <div
+            className={reconPostActionsCompactClusterClassName}
+            data-testid="recon-post-actions-compact"
+          >
             <DropdownMenuButton
               icon={MoreHorizontal}
               ariaLabel="More actions"
@@ -512,7 +517,12 @@ function FollowSuggestionRow({
         </div>
       </div>
       {suggestion.bio ? (
-        <p className={cn('mt-2 text-sm text-gray-600 dark:text-gray-400', reconPostContentColumnClassName)}>
+        <p
+          className={cn(
+            'mt-2 text-sm text-gray-600 dark:text-gray-400',
+            reconPostContentColumnClassName
+          )}
+        >
           {suggestion.bio}
         </p>
       ) : null}
@@ -637,8 +647,7 @@ function PaginatedReconListPanel({
   const showFallbackButton = hasNextPage && (!canAutoLoad || isFetchNextPageError);
   const filterAware =
     agePreset !== undefined && sortField !== undefined && onClearFilters !== undefined;
-  const showClearFilters =
-    filterAware && isNonDefaultReconFeedFilters(agePreset, sortField);
+  const showClearFilters = filterAware && isNonDefaultReconFeedFilters(agePreset, sortField);
 
   return (
     <div className="space-y-2">
@@ -980,8 +989,7 @@ export default function ReconFeedTab({
 
   const findReconPost = useCallback(
     (postId: string) =>
-      posts.find((post) => post.id === postId) ??
-      processedPosts.find((post) => post.id === postId),
+      posts.find((post) => post.id === postId) ?? processedPosts.find((post) => post.id === postId),
     [posts, processedPosts]
   );
 
@@ -1040,9 +1048,7 @@ export default function ReconFeedTab({
   ]);
 
   const runNowDisabled =
-    recon.startRun.isPending ||
-    !recon.settings.data?.hasRapidApiKey ||
-    recon.hasActiveNonPausedRun;
+    recon.startRun.isPending || !recon.settings.data?.hasRapidApiKey || recon.hasActiveNonPausedRun;
 
   const closeConnectionEditor = () => {
     setConnectionEditorOpen(false);
@@ -1430,7 +1436,11 @@ export default function ReconFeedTab({
                 type="button"
                 size="sm"
                 variant="secondary"
-                className={cn('shrink-0', pbCompactControlDensityClassName, pbFocusVisibleRingClassName)}
+                className={cn(
+                  'shrink-0',
+                  pbCompactControlDensityClassName,
+                  pbFocusVisibleRingClassName
+                )}
                 title={PASTE_POST_CTA_HINT}
                 onClick={() => setPasteDialogOpen(true)}
               >
@@ -1442,11 +1452,7 @@ export default function ReconFeedTab({
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-2">
               <EyebrowLabel as="span">Age</EyebrowLabel>
-              <div
-                className="flex flex-wrap gap-2"
-                role="group"
-                aria-label="Filter by post age"
-              >
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by post age">
                 {RECON_AGE_PRESETS.map((preset) => (
                   <button
                     key={preset.value}

@@ -11,6 +11,7 @@ import type { Area } from '@/types/growth-system';
 import type { LongTermMemoryEntry } from '@/types/assistant-memory';
 import { Select } from '@/components/atoms/Select';
 import { Textarea } from '@/components/atoms/Textarea';
+import CoachReliabilityStrip from '@/components/molecules/observability/CoachReliabilityStrip';
 
 const AREAS: Area[] = ['Health', 'Wealth', 'Love', 'Happiness', 'Operations', 'Day Job'];
 
@@ -165,6 +166,8 @@ export default function MemoryAuditPage() {
           client-side on the loaded set.
         </p>
       </header>
+
+      <CoachReliabilityStrip className="mb-6" />
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-3 items-stretch sm:items-center">
         <div className="flex-1 min-w-[200px] relative">
