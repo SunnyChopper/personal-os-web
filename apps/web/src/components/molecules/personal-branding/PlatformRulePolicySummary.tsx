@@ -13,11 +13,13 @@ import type {
 } from '@/types/api/personal-branding.dto';
 
 export interface PlatformRulePolicySummaryProps {
+  characterMinimum?: number | null;
   characterLimit?: number | null;
+  readTimeMinimumMinutes?: number | null;
   readTimeLimitMinutes?: number | null;
   rhetoricalModes: RhetoricalModeSetting[];
   rhetoricalDevices: RhetoricalDeviceId[];
-  requirements?: string | null;
+  requirements?: string | string[] | null;
   needsReview?: boolean;
   catalog?: PlatformRuleCatalog | null;
   className?: string;
@@ -41,7 +43,9 @@ function ChipList({ children, className }: { children: ReactNode; className?: st
 
 export default function PlatformRulePolicySummary({
   characterLimit,
+  characterMinimum,
   readTimeLimitMinutes,
+  readTimeMinimumMinutes,
   rhetoricalModes,
   rhetoricalDevices,
   requirements,
@@ -50,7 +54,11 @@ export default function PlatformRulePolicySummary({
   className,
 }: PlatformRulePolicySummaryProps) {
   const requirementLines = parseRequirementLines(requirements);
-  const hasMeta = characterLimit != null || readTimeLimitMinutes != null;
+  const hasMeta =
+    characterMinimum != null ||
+    characterLimit != null ||
+    readTimeMinimumMinutes != null ||
+    readTimeLimitMinutes != null;
   const hasModes = rhetoricalModes.length > 0;
   const hasDevices = rhetoricalDevices.length > 0;
   const hasRequirements = requirementLines.length > 0;
@@ -63,19 +71,21 @@ export default function PlatformRulePolicySummary({
     <div className={cn('space-y-4', className)}>
       {hasMeta && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-700 dark:text-gray-300">
-          {characterLimit != null && (
+          {(characterMinimum != null || characterLimit != null) && (
             <span>
-              <span className="text-gray-500 dark:text-gray-400">Character limit</span>{' '}
+              <span className="text-gray-500 dark:text-gray-400">Characters</span>{' '}
               <span className="font-medium text-gray-900 dark:text-white">
-                {characterLimit.toLocaleString()}
+                {characterMinimum != null ? `${characterMinimum.toLocaleString()}–` : 'up to '}
+                {characterLimit?.toLocaleString() ?? '∞'}
               </span>
             </span>
           )}
-          {readTimeLimitMinutes != null && (
+          {(readTimeMinimumMinutes != null || readTimeLimitMinutes != null) && (
             <span>
               <span className="text-gray-500 dark:text-gray-400">Read time</span>{' '}
               <span className="font-medium text-gray-900 dark:text-white">
-                {readTimeLimitMinutes} min
+                {readTimeMinimumMinutes != null ? `${readTimeMinimumMinutes}–` : 'up to '}
+                {readTimeLimitMinutes ?? '∞'} min
               </span>
             </span>
           )}

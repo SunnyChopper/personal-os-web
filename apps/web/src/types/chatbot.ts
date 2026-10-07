@@ -83,6 +83,8 @@ export interface StatusEntry {
     | 'approvalResolved';
   message?: string;
   startedAt: number;
+  /** True when the planner chose a direct reply without invoking tools this turn. */
+  noToolsInvoked?: boolean;
   /** When stage is awaitingApproval, matches WsToolApprovalRequiredPayload.approvalId */
   approvalId?: string;
 }
@@ -278,6 +280,8 @@ export interface AssistantLastResolvedModels {
   resolvedReasoningModelId: string;
   resolvedResponseModelId: string;
   modelMode: string;
+  requestedResponseModelId?: string;
+  responseOverrideReason?: string;
 }
 
 export interface AssistantModelCatalogData {
@@ -319,6 +323,8 @@ export interface WsAssistantModelResolvedPayload {
   resolvedResponseModelId: string;
   modelMode: string;
   compactionMode?: AssistantCompactionMode;
+  requestedResponseModelId?: string;
+  responseOverrideReason?: string;
 }
 
 export interface WsAssistantDeltaPayload {
@@ -349,6 +355,7 @@ export interface WsStatusUpdatePayload {
   reasoningPhase?: AssistantReasoningPhase;
   reasoningStreamEnabled?: boolean;
   reasoningStreamDisabledReason?: string;
+  noToolsInvoked?: boolean;
 }
 
 export interface WsToolCallCompletePayload {
@@ -426,28 +433,30 @@ export type RelevantNowKind =
 
 export type CoachNudgeLevel = 'supportive' | 'firm' | 'strict';
 
-export interface RelevantNowItem {
+export interface RelevantNowSlot {
   kind: RelevantNowKind;
   entityId: string;
   title: string;
   subtitle: string;
   href: string;
   askPrompt: string;
-}
-
-export interface EscalationSlot extends RelevantNowItem {
-  kind: 'avoidanceCoach';
-  nudgeLevel: CoachNudgeLevel;
+  slotLabel: string;
+  reason: string;
+  nudgeLevel?: CoachNudgeLevel;
 }
 
 export interface AmbientCoachData {
   generatedAt: string;
-  escalation: EscalationSlot;
-  healthConstraint: RelevantNowItem;
-  crossModuleSignal: RelevantNowItem;
+  slots: RelevantNowSlot[];
+  chooser: {
+    strategy: 'deterministic' | 'llm';
+    cached: boolean;
+    model: string;
+  };
 }
 
-/** @deprecated Use AmbientCoachData — kept for gradual migration of imports */
+/** @deprecated Use RelevantNowSlot — retained for consumers migrating imports. */
+export type RelevantNowItem = RelevantNowSlot;
 export type RelevantNowData = AmbientCoachData;
 
 export type AmbientSurface =

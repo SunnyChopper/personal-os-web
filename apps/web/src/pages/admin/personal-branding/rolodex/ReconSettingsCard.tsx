@@ -13,7 +13,8 @@ import {
   SYNC_WEEKDAY_LABELS,
   type SyncCadence,
 } from '@/types/api/personal-branding.dto';
-import { PageCard } from '../PersonalBrandingPageTemplate';
+import { PageCard, SectionIntro } from '../PersonalBrandingPageTemplate';
+import { FormTextarea } from '../PersonalBrandingFormFields';
 
 const BROWSER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const DEFAULT_SYNC_START_TIME = '08:00';
@@ -38,6 +39,8 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
   const [minScore, setMinScore] = useState(0.5);
   const [maxPosts, setMaxPosts] = useState(5);
   const [maxPostAgeDays, setMaxPostAgeDays] = useState(DEFAULT_MAX_POST_AGE_DAYS);
+  const [trendStreamResearchEnabled, setTrendStreamResearchEnabled] = useState(false);
+  const [selectionGuidance, setSelectionGuidance] = useState('');
 
   const scheduleStatus = useMemo(
     () => describeSyncSchedule(settings, Date.now(), 'recon'),
@@ -66,6 +69,8 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
     setMinScore(settings.minRelevanceScore);
     setMaxPosts(settings.maxPostsPerConnection);
     setMaxPostAgeDays(settings.maxPostAgeDays ?? DEFAULT_MAX_POST_AGE_DAYS);
+    setTrendStreamResearchEnabled(settings.trendStreamResearchEnabled ?? false);
+    setSelectionGuidance(settings.selectionGuidance ?? '');
   }, [settings]);
 
   const handleSaveSettings = async () => {
@@ -73,18 +78,36 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
       const body: Parameters<typeof recon.updateSettings.mutateAsync>[0] = {
         syncCadence,
         syncStartTime: syncCadence === 'MANUAL_ONLY' ? null : syncStartTime,
-        syncEndTime: syncCadence === 'MANUAL_ONLY' ? null : syncEndTime,
+        syncEndTime: syncCadence === 'EVERY_N_HOURS' ? syncEndTime : null,
         syncTimezone: syncCadence === 'MANUAL_ONLY' ? null : BROWSER_TIMEZONE,
         syncIntervalHours: syncCadence === 'EVERY_N_HOURS' ? syncIntervalHours : null,
         syncDayOfWeek: syncCadence === 'WEEKLY' ? syncDayOfWeek : null,
         minRelevanceScore: minScore,
         maxPostsPerConnection: maxPosts,
         maxPostAgeDays,
+        trendStreamResearchEnabled,
+        selectionGuidance: selectionGuidance.trim() || null,
       };
       await recon.updateSettings.mutateAsync(body);
       showToast({ type: 'success', title: 'Recon Feed settings saved' });
     } catch (err) {
       showToast({ type: 'error', title: err instanceof Error ? err.message : 'Save failed' });
+    }
+  };
+
+  const handleDraftGuidance = async () => {
+    try {
+      const result = await recon.distillSelectionGuidance.mutateAsync();
+      setSelectionGuidance(result.proposedGuidance);
+      showToast({
+        type: 'info',
+        title: 'Draft loaded — review and save settings to apply',
+      });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: err instanceof Error ? err.message : 'Could not draft guidance',
+      });
     }
   };
 
@@ -102,29 +125,26 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
 
   return (
     <PageCard className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recon settings</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Pull X posts for Connection Directory entries with an X handle. RapidAPI is configured
-            at the platform level via Secrets Manager.
-          </p>
-        </div>
-        <span
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs',
-            settings?.hasRapidApiKey
-              ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-300'
-              : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400'
-          )}
-        >
-          <Radar className="size-3.5" aria-hidden />
-          <span className="font-medium">RapidAPI</span>
-          <span className="rounded px-1.5 py-0.5 font-medium">
-            {settings?.hasRapidApiKey ? 'Connected' : 'Not configured'}
+      <SectionIntro
+        title="Recon settings"
+        description="Pull X posts for Connection Directory entries with an X handle. RapidAPI is configured at the platform level via Secrets Manager."
+        actions={
+          <span
+            className={cn(
+              'inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs',
+              settings?.hasRapidApiKey
+                ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-300'
+                : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400'
+            )}
+          >
+            <Radar className="size-3.5" aria-hidden />
+            <span className="font-medium">RapidAPI</span>
+            <span className="rounded px-1.5 py-0.5 font-medium">
+              {settings?.hasRapidApiKey ? 'Connected' : 'Not configured'}
+            </span>
           </span>
-        </span>
-      </div>
+        }
+      />
 
       <section className="space-y-4">
         <div>
@@ -134,70 +154,74 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
             runs update last attempted only.
           </p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Sync cadence
-            </label>
-            <Select
-              value={syncCadence}
-              onChange={(e) => setSyncCadence(e.target.value as SyncCadence)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-            >
-              {(Object.keys(SYNC_CADENCE_LABELS) as SyncCadence[]).map((key) => (
-                <option key={key} value={key}>
-                  {SYNC_CADENCE_LABELS[key]}
-                </option>
-              ))}
-            </Select>
-          </div>
-          {syncCadence === 'EVERY_N_HOURS' ? (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Interval (hours)
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={168}
-                value={syncIntervalHours}
-                onChange={(e) => setSyncIntervalHours(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-              />
-            </div>
-          ) : null}
-          {syncCadence === 'WEEKLY' ? (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Day of week
-              </label>
-              <Select
-                value={String(syncDayOfWeek)}
-                onChange={(e) => setSyncDayOfWeek(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
-              >
-                {Object.entries(SYNC_WEEKDAY_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          ) : null}
-          {syncCadence !== 'MANUAL_ONLY' ? (
-            <>
+        <div>
+          <label
+            htmlFor="recon-sync-cadence"
+            className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            Sync cadence
+          </label>
+          <Select
+            id="recon-sync-cadence"
+            value={syncCadence}
+            onChange={(e) => setSyncCadence(e.target.value as SyncCadence)}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+          >
+            {(Object.keys(SYNC_CADENCE_LABELS) as SyncCadence[]).map((key) => (
+              <option key={key} value={key}>
+                {SYNC_CADENCE_LABELS[key]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        {syncCadence !== 'MANUAL_ONLY' ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {syncCadence === 'EVERY_N_HOURS' ? (
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Start time
+                  Interval (hours)
                 </label>
                 <input
-                  type="time"
-                  value={syncStartTime}
-                  onChange={(e) => setSyncStartTime(e.target.value)}
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={syncIntervalHours}
+                  onChange={(e) => setSyncIntervalHours(Number(e.target.value))}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
                 />
-                <p className="mt-1 text-xs text-gray-500">Local time ({BROWSER_TIMEZONE})</p>
               </div>
+            ) : null}
+            {syncCadence === 'WEEKLY' ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Day of week
+                </label>
+                <Select
+                  value={String(syncDayOfWeek)}
+                  onChange={(e) => setSyncDayOfWeek(Number(e.target.value))}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+                >
+                  {Object.entries(SYNC_WEEKDAY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            ) : null}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Start time
+              </label>
+              <input
+                type="time"
+                value={syncStartTime}
+                onChange={(e) => setSyncStartTime(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+              />
+              <p className="mt-1 text-xs text-gray-500">Local time ({BROWSER_TIMEZONE})</p>
+            </div>
+            {syncCadence === 'EVERY_N_HOURS' ? (
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   End time
@@ -209,9 +233,9 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
                 />
               </div>
-            </>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        ) : null}
         {settings ? (
           <div className="space-y-1">
             <p className="text-xs text-gray-500">
@@ -294,6 +318,56 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
           </p>
         </div>
       </div>
+
+      <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={trendStreamResearchEnabled}
+            onChange={(e) => setTrendStreamResearchEnabled(e.target.checked)}
+            className="mt-1 size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
+          />
+          <span>
+            <span className="block text-sm font-medium text-gray-900 dark:text-white">
+              Research new posts into Trend Stream
+            </span>
+            <span className="mt-1 block text-xs text-gray-600 dark:text-gray-400">
+              When enabled, newly ingested high-relevance X posts may create Trend Stream cards via
+              Tavily research (uses LLM + search credits).
+            </span>
+          </span>
+        </label>
+      </div>
+
+      <section className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+              Selection guidance
+            </h3>
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+              Persistent instructions injected into Recon Feed scoring alongside your recent good
+              picks and dismissals. Edit freely — nothing is overwritten unless you save.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={recon.distillSelectionGuidance.isPending}
+            onClick={() => void handleDraftGuidance()}
+          >
+            {recon.distillSelectionGuidance.isPending ? 'Drafting…' : 'Draft from feedback'}
+          </Button>
+        </div>
+        <FormTextarea
+          value={selectionGuidance}
+          onChange={(e) => setSelectionGuidance(e.target.value)}
+          rows={3}
+          className="min-h-[72px]"
+          placeholder="Prefer: …\nAvoid: …"
+        />
+      </section>
 
       <div className="flex flex-wrap gap-2">
         <Button

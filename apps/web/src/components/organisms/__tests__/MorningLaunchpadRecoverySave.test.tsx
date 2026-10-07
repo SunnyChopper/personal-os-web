@@ -33,7 +33,6 @@ vi.mock('@/hooks/useFitness', () => ({
 vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
     showToast: showToastMock,
-    ToastContainer: () => null,
   }),
 }));
 

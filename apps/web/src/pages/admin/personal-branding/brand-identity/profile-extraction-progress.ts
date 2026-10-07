@@ -53,9 +53,18 @@ const FILE_STAGE_BANDS: readonly StageBand[] = [
   { id: 'saving', weight: 9 },
 ];
 
+const MAP_PHASE_STAGES = new Set([
+  'queued',
+  'parsing_sources',
+  'reading_sources',
+  'analyzing_sources',
+]);
+
 export type ExtractionMetrics = {
   sources: {
     processed: number;
+    parsed: number;
+    displayCount: number;
     total: number;
     succeeded: number;
     failed: number;
@@ -106,7 +115,15 @@ function intraBandRatio(
     if (!clientProgress || clientProgress.phase !== 'uploading') return 0;
     return clientUploadRatio(clientProgress);
   }
-  if (stageId === 'queued' || stageId === 'parsing_sources') return 0;
+  if (stageId === 'queued') return 0;
+  if (stageId === 'parsing_sources') {
+    const sourceCount = job?.sourceCount ?? 0;
+    if (sourceCount <= 0) return 0;
+    if (job?.parsedSourceCount != null) {
+      return clampRatio(job.parsedSourceCount / sourceCount);
+    }
+    return 0;
+  }
   if (stageId === 'analyzing_sources') {
     const totalChunks = job?.totalChunkCount ?? 0;
     const processedChunks = job?.processedChunkCount ?? 0;
@@ -190,7 +207,24 @@ export function extractionEffectiveStage(
   }
 
   const rawStage = job?.stage ?? (job?.status === 'queued' ? 'queued' : 'parsing_sources');
-  return normalizeProgressStage(rawStage);
+  const normalized = normalizeProgressStage(rawStage);
+
+  const sourceCount = job?.sourceCount ?? 0;
+  const parsed = job?.parsedSourceCount;
+  if (job && sourceCount > 0 && parsed != null && MAP_PHASE_STAGES.has(normalized)) {
+    if (parsed < sourceCount) {
+      return 'parsing_sources';
+    }
+    if (
+      normalized === 'parsing_sources' ||
+      normalized === 'reading_sources' ||
+      normalized === 'queued'
+    ) {
+      return 'analyzing_sources';
+    }
+  }
+
+  return normalized;
 }
 
 export function formatUploadProgressDetail(
@@ -214,6 +248,16 @@ export function extractionProgressDetailSentence(
   const metrics = formatExtractionMetrics(job);
   if (!metrics.sources) return null;
 
+  const effectiveStage = extractionEffectiveStage(job);
+
+  if (effectiveStage === 'parsing_sources') {
+    let sentence = `${metrics.sources.parsed} of ${metrics.sources.total} sources parsed`;
+    if (metrics.chunks) {
+      sentence += `, ${metrics.chunks.processed} of ${metrics.chunks.total} chunks discovered`;
+    }
+    return sentence;
+  }
+
   const { processed, total } = metrics.sources;
   let sentence = `${processed} of ${total} sources processed`;
 
@@ -229,21 +273,26 @@ export function formatExtractionMetrics(job: ProfileExtractionJob | undefined): 
     return { sources: null, chunks: null, chunksPendingDiscovery: false };
   }
 
-  const sources = {
-    processed: job.processedSourceCount ?? 0,
-    total: job.sourceCount,
-    succeeded: job.succeededSourceCount ?? 0,
-    failed: job.failedSourceCount ?? 0,
-  };
+  const processed = job.processedSourceCount ?? 0;
+  const parsed = job.parsedSourceCount ?? 0;
+  const total = job.sourceCount;
+  const effectiveStage = extractionEffectiveStage(job);
+  const inParsingPhase = effectiveStage === 'parsing_sources';
+  const displayCount = inParsingPhase && job.parsedSourceCount != null ? parsed : processed;
 
   const totalChunks = job.totalChunkCount ?? 0;
   const processedChunks = job.processedChunkCount ?? 0;
-  const stage = normalizeProgressStage(job.stage);
-  const chunksPendingDiscovery =
-    stage === 'analyzing_sources' && totalChunks <= 0 && sources.processed < sources.total;
+  const chunksPendingDiscovery = inParsingPhase && totalChunks <= 0 && parsed < total;
 
   return {
-    sources,
+    sources: {
+      processed,
+      parsed,
+      displayCount,
+      total,
+      succeeded: job.succeededSourceCount ?? 0,
+      failed: job.failedSourceCount ?? 0,
+    },
     chunks: totalChunks > 0 ? { processed: processedChunks, total: totalChunks } : null,
     chunksPendingDiscovery,
   };
@@ -264,6 +313,10 @@ export function extractionStepCaption(
   const metrics = formatExtractionMetrics(job);
   if (!metrics.sources) return null;
 
+  const variant = resolveExtractionPipelineVariant(
+    resolveExtractionSourceTypes(job, clientProgress)
+  );
+
   if (stepId === 'analyzing_sources') {
     if (metrics.chunks) {
       return `${metrics.chunks.processed} of ${metrics.chunks.total} chunks analyzed`;
@@ -277,7 +330,15 @@ export function extractionStepCaption(
   }
 
   if (stepId === 'parsing_sources' && metrics.sources.total > 0) {
-    return `Preparing ${metrics.sources.total} sources`;
+    const count =
+      job?.parsedSourceCount != null ? metrics.sources.parsed : metrics.sources.processed;
+    if (variant === 'file') {
+      return `${count} of ${metrics.sources.total} PDFs parsed`;
+    }
+    if (variant === 'x') {
+      return `${count} of ${metrics.sources.total} sources fetched`;
+    }
+    return `${count} of ${metrics.sources.total} sources prepared`;
   }
 
   return null;
@@ -329,7 +390,7 @@ export function extractionProgressPercent(
     return Math.round(queuedBand?.weight ?? 4);
   }
 
-  const stageId = normalizeProgressStage(rawStage);
+  const stageId = extractionEffectiveStage(job, clientProgress);
   const idx = bandIndex(stageId, bands);
   const completedWeight = bands.slice(0, idx).reduce((sum, band) => sum + band.weight, 0);
   const currentBand = bands[idx];

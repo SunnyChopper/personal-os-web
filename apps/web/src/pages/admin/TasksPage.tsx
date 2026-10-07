@@ -63,6 +63,11 @@ import {
   persistKanbanCardDensity,
   readKanbanCardDensity,
 } from '@/components/organisms/kanban/kanban-density';
+import {
+  tasksExhaustCountClassName,
+  tasksExhaustIndicatorClassName,
+  tasksExhaustSpinnerClassName,
+} from '@/lib/growth-system/tasks-list-loading-surfaces';
 
 type ViewMode = 'list' | 'kanban' | 'calendar' | 'graph';
 
@@ -110,7 +115,7 @@ const filterPanelVariants = {
 };
 
 export default function TasksPage() {
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
@@ -196,6 +201,9 @@ export default function TasksPage() {
   const {
     tasks,
     isLoading: tasksDataLoading,
+    isFetchingMore: tasksFetchingMore,
+    hasMore: tasksHasMore,
+    total: tasksTotal,
     createTask,
     updateTask,
     completeTask,
@@ -203,7 +211,7 @@ export default function TasksPage() {
     restoreTask,
     splitDraggedTask,
     isSplittingDraggedTask,
-  } = useTasks(apiTaskFilters);
+  } = useTasks(apiTaskFilters, { exhaustPages: true });
   const { projects, isLoading: projectsDataLoading } = useProjects();
   const { goals } = useGoals();
   const boardIsLoading = tasksDataLoading || projectsDataLoading;
@@ -320,13 +328,16 @@ export default function TasksPage() {
     const taskId = searchParams.get('taskId');
     if (!taskId || tasksDataLoading) return;
     const match = tasks.find((task) => task.id === taskId);
-    if (!match) return;
+    if (!match) {
+      if (tasksFetchingMore || tasksHasMore) return;
+      return;
+    }
     setTaskToView(match);
     setIsDetailDialogOpen(true);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('taskId');
     setSearchParams(nextParams, { replace: true });
-  }, [searchParams, setSearchParams, tasks, tasksDataLoading]);
+  }, [searchParams, setSearchParams, tasks, tasksDataLoading, tasksFetchingMore, tasksHasMore]);
 
   useEffect(() => {
     const deepLink = parseTasksDeepLinkParams(searchParams);
@@ -683,6 +694,28 @@ export default function TasksPage() {
       >
         <h1 className="shrink-0 text-2xl font-bold text-gray-900 dark:text-white">Tasks</h1>
 
+        {tasksFetchingMore ? (
+          <div
+            className={tasksExhaustIndicatorClassName}
+            role="status"
+            aria-live="polite"
+            aria-busy
+          >
+            <Loader2 className={tasksExhaustSpinnerClassName} aria-hidden />
+            <span>
+              Loading more tasks…
+              {tasksTotal != null ? (
+                <>
+                  {' '}
+                  <span className={tasksExhaustCountClassName}>
+                    {tasks.length} of {tasksTotal}
+                  </span>
+                </>
+              ) : null}
+            </span>
+          </div>
+        ) : null}
+
         <div className="relative min-w-0 flex-1 xl:max-w-md">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
@@ -919,7 +952,9 @@ export default function TasksPage() {
                   Showing {filteredTasks.length}
                   {hasSearchQuery && filteredTasks.length !== visibleWithoutSearch.length
                     ? ` of ${visibleWithoutSearch.length}`
-                    : ''}{' '}
+                    : !hasSearchQuery && tasksTotal != null && tasksTotal > filteredTasks.length
+                      ? ` of ${tasksTotal}`
+                      : ''}{' '}
                   {filteredTasks.length === 1 ? 'task' : 'tasks'}
                 </span>
                 {filteredTasks.length > 0 ? (
@@ -1137,8 +1172,6 @@ export default function TasksPage() {
           </div>
         </div>
       </Dialog>
-
-      <ToastContainer />
 
       <TaskDetailDialog
         task={taskToView}

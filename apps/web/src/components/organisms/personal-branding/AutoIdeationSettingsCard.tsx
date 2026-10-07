@@ -9,6 +9,7 @@ import type { Toast } from '@/hooks/use-toast';
 import { useProactiveSettings } from '@/hooks/useProactive';
 import type { useSignalRadar } from '@/hooks/useSignalRadar';
 import { queryKeys } from '@/lib/react-query/query-keys';
+import { profileSupportsPlatform } from '@/lib/personal-branding/pipeline-profile-selection';
 import { isBrandProfileReadyForIdeation } from '@/pages/admin/personal-branding/content-workbench/content-workbench-helpers';
 import { selectableChipClassName } from '@/pages/admin/personal-branding/personal-branding-ui';
 import { PageCard } from '@/pages/admin/personal-branding/PersonalBrandingPageTemplate';
@@ -48,9 +49,10 @@ export default function AutoIdeationSettingsCard({
   const [enabled, setEnabled] = useState(false);
   const [topN, setTopN] = useState(DEFAULT_TOP_N);
   const [startTime, setStartTime] = useState(DEFAULT_AUTO_START_TIME);
-  const [brandProfileId, setBrandProfileId] = useState('');
+  const [brandProfileIds, setBrandProfileIds] = useState<string[]>([]);
   const [targetPlatform, setTargetPlatform] = useState<BrandPlatform>('linkedin');
   const [ideaCount, setIdeaCount] = useState(DEFAULT_IDEA_COUNT);
+  const [imageIdeaCount, setImageIdeaCount] = useState(0);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const [notifyEmail, setNotifyEmail] = useState(false);
   const [minAiRelevanceEnabled, setMinAiRelevanceEnabled] = useState(false);
@@ -77,6 +79,10 @@ export default function AutoIdeationSettingsCard({
     () => (profilesQ.data?.data ?? []).filter(isBrandProfileReadyForIdeation),
     [profilesQ.data?.data]
   );
+  const platformProfiles = useMemo(
+    () => readyProfiles.filter((profile) => profileSupportsPlatform(profile, targetPlatform)),
+    [readyProfiles, targetPlatform]
+  );
   const templates = templatesQ.data?.data ?? [];
   const sources = signalRadar.sources.data?.data ?? [];
   const excludedSourceIdSet = useMemo(() => new Set(excludedSourceIds), [excludedSourceIds]);
@@ -86,9 +92,22 @@ export default function AutoIdeationSettingsCard({
     setEnabled(settings.autoIdeationEnabled ?? false);
     setTopN(settings.autoIdeationTopN ?? DEFAULT_TOP_N);
     setStartTime(settings.autoIdeationStartTime || DEFAULT_AUTO_START_TIME);
-    setBrandProfileId(settings.autoIdeationBrandProfileId ?? '');
+    const savedProfileIds = settings.autoIdeationBrandProfileIds ?? [];
+    setBrandProfileIds(
+      savedProfileIds.length > 0
+        ? savedProfileIds
+        : settings.autoIdeationBrandProfileId
+          ? [settings.autoIdeationBrandProfileId]
+          : []
+    );
     setTargetPlatform(settings.autoIdeationTargetPlatform ?? 'linkedin');
     setIdeaCount(settings.autoIdeationCount ?? DEFAULT_IDEA_COUNT);
+    setImageIdeaCount(
+      Math.min(
+        settings.autoIdeationImageIdeaCount ?? 0,
+        settings.autoIdeationCount ?? DEFAULT_IDEA_COUNT
+      )
+    );
     setSelectedTemplateIds(settings.autoIdeationTemplateIds ?? []);
     setNotifyEmail(settings.autoIdeationNotifyEmail ?? false);
     const savedMin = settings.autoIdeationMinAiRelevanceScore;
@@ -98,9 +117,9 @@ export default function AutoIdeationSettingsCard({
   }, [settings]);
 
   useEffect(() => {
-    if (brandProfileId || readyProfiles.length === 0) return;
-    setBrandProfileId(readyProfiles[0]?.id ?? '');
-  }, [brandProfileId, readyProfiles]);
+    if (brandProfileIds.length > 0 || platformProfiles.length === 0) return;
+    setBrandProfileIds(platformProfiles.map((profile) => profile.id));
+  }, [brandProfileIds.length, platformProfiles]);
 
   const toggleTemplate = (templateId: string) => {
     setSelectedTemplateIds((current) => {
@@ -121,7 +140,9 @@ export default function AutoIdeationSettingsCard({
     });
   };
 
-  const canEnable = Boolean(brandProfileId) && readyProfiles.length > 0;
+  const canEnable =
+    brandProfileIds.some((id) => platformProfiles.some((profile) => profile.id === id)) &&
+    platformProfiles.length > 0;
   const saveDisabled = signalRadar.updateSettings.isPending || (enabled && !canEnable);
 
   const handleSave = async () => {
@@ -130,9 +151,11 @@ export default function AutoIdeationSettingsCard({
         autoIdeationEnabled: enabled,
         autoIdeationTopN: topN,
         autoIdeationStartTime: startTime,
-        autoIdeationBrandProfileId: brandProfileId || null,
+        autoIdeationBrandProfileId: null,
+        autoIdeationBrandProfileIds: brandProfileIds,
         autoIdeationTargetPlatform: targetPlatform,
         autoIdeationCount: ideaCount,
+        autoIdeationImageIdeaCount: imageIdeaCount,
         autoIdeationTemplateIds: selectedTemplateIds,
         autoIdeationNotifyEmail: notifyEmail,
         autoIdeationMinAiRelevanceScore: minAiRelevanceEnabled ? minAiRelevanceScore : null,
@@ -220,21 +243,43 @@ export default function AutoIdeationSettingsCard({
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Brand profile
+            Brand profiles
           </label>
-          <Select
-            value={brandProfileId}
-            onChange={(e) => setBrandProfileId(e.target.value)}
+          <fieldset
             disabled={!enabled || profilesQ.isPending}
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
+            className="space-y-2 rounded-lg border border-gray-300 bg-white p-3 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
           >
-            <option value="">Select profile…</option>
-            {readyProfiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.name}
-              </option>
-            ))}
-          </Select>
+            <legend className="sr-only">Brand profiles</legend>
+            {platformProfiles.length > 0 ? (
+              platformProfiles.map((profile) => (
+                <label
+                  key={profile.id}
+                  className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+                >
+                  <FormCheckbox
+                    checked={brandProfileIds.includes(profile.id)}
+                    disabled={!brandProfileIds.includes(profile.id) && brandProfileIds.length >= 5}
+                    onChange={() =>
+                      setBrandProfileIds((current) =>
+                        current.includes(profile.id)
+                          ? current.filter((id) => id !== profile.id)
+                          : [...current, profile.id]
+                      )
+                    }
+                  />
+                  <span>{profile.name}</span>
+                </label>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No ready profiles match this platform.
+              </p>
+            )}
+          </fieldset>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Profiles matching the selected platform are preselected. Select one to pin a single
+            profile or keep several for a mixed nightly run.
+          </p>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -242,7 +287,15 @@ export default function AutoIdeationSettingsCard({
           </label>
           <Select
             value={targetPlatform}
-            onChange={(e) => setTargetPlatform(e.target.value as BrandPlatform)}
+            onChange={(e) => {
+              const nextPlatform = e.target.value as BrandPlatform;
+              setTargetPlatform(nextPlatform);
+              setBrandProfileIds(
+                readyProfiles
+                  .filter((profile) => profileSupportsPlatform(profile, nextPlatform))
+                  .map((profile) => profile.id)
+              );
+            }}
             disabled={!enabled}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
           >
@@ -262,10 +315,38 @@ export default function AutoIdeationSettingsCard({
             min={1}
             max={12}
             value={ideaCount}
-            onChange={(e) => setIdeaCount(Number(e.target.value))}
+            onChange={(e) => {
+              const nextCount = Number(e.target.value);
+              setIdeaCount(nextCount);
+              setImageIdeaCount((current) => Math.min(current, nextCount));
+            }}
             disabled={!enabled}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Image-compatible ideas
+          </label>
+          <Select
+            value={String(imageIdeaCount)}
+            onChange={(e) => setImageIdeaCount(Number(e.target.value))}
+            disabled={!enabled}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
+          >
+            {Array.from({ length: ideaCount + 1 }, (_, count) => (
+              <option key={count} value={count}>
+                {count === 0
+                  ? 'None (text-only)'
+                  : count === ideaCount
+                    ? `All ${count} ideas`
+                    : `${count} idea${count === 1 ? '' : 's'}`}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            A subset of each nightly run can trigger image injection after approval.
+          </p>
         </div>
       </div>
 

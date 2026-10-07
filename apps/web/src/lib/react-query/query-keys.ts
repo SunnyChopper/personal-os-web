@@ -344,11 +344,6 @@ export const queryKeys = {
     vaultTaskLinksUnack: () => [...queryKeys.knowledgeVault.all, 'vault-task-links-unack'] as const,
     vaultTaskLinksUnackCount: () =>
       [...queryKeys.knowledgeVault.all, 'vault-task-links-unack-count'] as const,
-    projectLabIdeas: {
-      all: () => [...queryKeys.knowledgeVault.all, 'project-lab-ideas'] as const,
-      list: (status?: string) =>
-        [...queryKeys.knowledgeVault.projectLabIdeas.all(), 'list', status ?? 'GENERATED'] as const,
-    },
   },
 
   // Daily Learning
@@ -440,6 +435,14 @@ export const queryKeys = {
       [...queryKeys.proactive.all, 'automation-runs', automationId] as const,
   },
 
+  assistantSpecialists: {
+    all: ['assistant-specialists'] as const,
+    list: () => [...queryKeys.assistantSpecialists.all, 'list'] as const,
+    detail: (id: string) => [...queryKeys.assistantSpecialists.all, 'detail', id] as const,
+    documents: (id: string) => [...queryKeys.assistantSpecialists.all, 'documents', id] as const,
+    graph: (id: string) => [...queryKeys.assistantSpecialists.all, 'graph', id] as const,
+  },
+
   preferences: {
     all: ['preferences'] as const,
     timeZone: () => [...queryKeys.preferences.all, 'time-zone'] as const,
@@ -497,13 +500,14 @@ export const queryKeys = {
     },
     content: {
       all: () => [...queryKeys.personalBranding.all, 'content'] as const,
-      list: (page = 1, pageSize = 50, status?: string) =>
+      list: (page = 1, pageSize = 50, status?: string, includeSkipped?: boolean) =>
         [
           ...queryKeys.personalBranding.content.all(),
           'list',
           page,
           pageSize,
           status ?? 'all',
+          includeSkipped ? 'includeSkipped' : 'excludeSkipped',
         ] as const,
       detail: (contentId: string) =>
         [...queryKeys.personalBranding.content.all(), 'detail', contentId] as const,
@@ -540,6 +544,18 @@ export const queryKeys = {
       detail: (jobId: string) =>
         [...queryKeys.personalBranding.ideationJobs.all(), 'detail', jobId] as const,
     },
+    projects: {
+      all: () => [...queryKeys.personalBranding.all, 'projects'] as const,
+      idea: (ideaId: string) =>
+        [...queryKeys.personalBranding.projects.all(), 'idea', ideaId] as const,
+      ideas: (status?: string) =>
+        [...queryKeys.personalBranding.projects.all(), 'ideas', status ?? 'generated'] as const,
+      settings: () => [...queryKeys.personalBranding.projects.all(), 'settings'] as const,
+      jobs: {
+        detail: (jobId: string) =>
+          [...queryKeys.personalBranding.projects.all(), 'jobs', jobId] as const,
+      },
+    },
     contentStream: {
       all: () => [...queryKeys.personalBranding.all, 'content-stream'] as const,
       settings: (platform = 'x') =>
@@ -573,6 +589,21 @@ export const queryKeys = {
           contentId,
           jobId,
         ] as const,
+    },
+    contentIdeaApproveJobs: {
+      all: () => [...queryKeys.personalBranding.all, 'content-idea-approve-jobs'] as const,
+      detail: (ideaId: string, jobId: string) =>
+        [
+          ...queryKeys.personalBranding.contentIdeaApproveJobs.all(),
+          'detail',
+          ideaId,
+          jobId,
+        ] as const,
+    },
+    platformRulePreviewJobs: {
+      all: () => [...queryKeys.personalBranding.all, 'platform-rule-preview-jobs'] as const,
+      detail: (jobId: string) =>
+        [...queryKeys.personalBranding.platformRulePreviewJobs.all(), 'detail', jobId] as const,
     },
     rejectedFeedback: {
       all: () => [...queryKeys.personalBranding.all, 'rejected-ideas-feedback'] as const,
@@ -732,6 +763,7 @@ export const queryKeys = {
     },
     replyRuns: {
       all: () => [...queryKeys.personalBranding.all, 'reply-runs'] as const,
+      start: () => [...queryKeys.personalBranding.replyRuns.all(), 'start'] as const,
       list: (filters?: { status?: string; connectionId?: string }) =>
         [...queryKeys.personalBranding.replyRuns.all(), 'list', filters ?? {}] as const,
       detail: (runId: string) =>
@@ -760,6 +792,23 @@ export const queryKeys = {
         [...queryKeys.personalBranding.reconFeed.all(), 'run', runId] as const,
       scarcity: (minScore: number) =>
         [...queryKeys.personalBranding.reconFeed.all(), 'scarcity', minScore] as const,
+    },
+    inPersonEvents: {
+      all: () => [...queryKeys.personalBranding.all, 'in-person-events'] as const,
+      settings: () => [...queryKeys.personalBranding.inPersonEvents.all(), 'settings'] as const,
+      locations: (page = 1, pageSize = 50) =>
+        [...queryKeys.personalBranding.inPersonEvents.all(), 'locations', page, pageSize] as const,
+      events: (filters?: Record<string, unknown>) =>
+        [...queryKeys.personalBranding.inPersonEvents.all(), 'events', filters ?? {}] as const,
+      discoveryRuns: (page = 1, pageSize = 20) =>
+        [
+          ...queryKeys.personalBranding.inPersonEvents.all(),
+          'discovery-runs',
+          page,
+          pageSize,
+        ] as const,
+      discoveryRunDetail: (runId: string) =>
+        [...queryKeys.personalBranding.inPersonEvents.all(), 'discovery-run', runId] as const,
     },
   },
 

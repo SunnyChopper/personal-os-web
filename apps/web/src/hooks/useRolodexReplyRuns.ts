@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { queryKeys } from '@/lib/react-query/query-keys';
+import { useTerminalJobFailureAlert } from '@/hooks/useTerminalJobFailureAlert';
+import { reportPersonalBrandingJobFailure } from '@/lib/personal-branding/report-job-failure';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import type {
   CreateReplyRunInput,
@@ -61,6 +63,11 @@ export function useReplyRunTerminalNotifications(
         if (run.status === 'SUCCEEDED' || run.status === 'PARTIAL') {
           options.onReady(run);
         } else if (run.status === 'FAILED') {
+          reportPersonalBrandingJobFailure({
+            feature: 'rolodexReply',
+            jobId: run.id,
+            error: run.error,
+          });
           options.onFailed(run);
         }
       });
@@ -81,7 +88,16 @@ export function useRolodexReplyRuns(runId: string | null) {
     },
   });
 
+  useTerminalJobFailureAlert({
+    feature: 'rolodexReply',
+    jobId: runId,
+    status: query.data?.status,
+    error: query.data?.error,
+    partial: query.data?.status === 'PARTIAL',
+  });
+
   const startRun = useMutation({
+    mutationKey: queryKeys.personalBranding.replyRuns.start(),
     mutationFn: (body: CreateReplyRunInput) => personalBrandingService.startReplyRun(body),
     onSuccess: (run: ReplyRun) => {
       queryClient.setQueryData(queryKeys.personalBranding.replyRuns.detail(run.id), run);

@@ -9,8 +9,8 @@ import { chatbotService } from '@/services/chatbot.service';
 export function CoachEscalationModal() {
   const pendingQ = useQuery({
     queryKey: queryKeys.chatbot.coachEscalationsPending(),
-    queryFn: () => chatbotService.getPendingCoachEscalations(),
-    refetchOnWindowFocus: true,
+    queryFn: ({ signal }) => chatbotService.getPendingCoachEscalations(signal),
+    refetchOnWindowFocus: false,
     staleTime: 30_000,
   });
 

@@ -1,5 +1,5 @@
-import { startTransition, useCallback, useState } from 'react';
-import { AlertTriangle, Calendar, Hammer, Play } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { AlertTriangle, Calendar, Hammer, Loader2, Play } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -72,12 +72,12 @@ export function CoachEscalationDecisionCard({
   const handleAction = useCallback(
     (action: CoachEscalationAction) => {
       if (resolved || resolveMutation.isPending) return;
-      startTransition(() => {
-        resolveMutation.mutate(action);
-      });
+      resolveMutation.mutate(action);
     },
     [resolveMutation, resolved]
   );
+
+  const pendingAction = resolveMutation.isPending ? resolveMutation.variables : undefined;
 
   const coachOptions = (decision.options ?? []).filter((o): o is CoachEscalationAction =>
     ['acknowledgeCost', 'startNow', 'scheduleToday', 'breakDown'].includes(o)
@@ -121,20 +121,26 @@ export function CoachEscalationDecisionCard({
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           {coachOptions.map((action) => {
             const Icon = ACTION_ICONS[action];
+            const isActionPending = pendingAction === action;
             return (
               <button
                 key={action}
                 type="button"
                 disabled={resolveMutation.isPending}
+                aria-busy={isActionPending}
                 onClick={() => handleAction(action)}
                 className={cn(
-                  'inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  'inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60',
                   action === 'acknowledgeCost'
                     ? 'border border-red-300 bg-white text-red-900 hover:bg-red-50 dark:border-red-700 dark:bg-red-950/50 dark:text-red-100 dark:hover:bg-red-950'
                     : 'bg-red-700 text-white hover:bg-red-800 dark:bg-red-600 dark:hover:bg-red-500'
                 )}
               >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                {isActionPending ? (
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                ) : (
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                )}
                 {ACTION_LABELS[action]}
               </button>
             );

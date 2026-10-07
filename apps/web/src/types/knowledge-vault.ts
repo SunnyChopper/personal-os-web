@@ -97,6 +97,12 @@ export interface VaultDocumentReingestResult {
   chunkCount: number;
 }
 
+export interface CourseLessonGenerationTrace {
+  analysisBullets?: string[];
+  outlineMarkdown?: string | null;
+  polishNotes?: string | null;
+}
+
 export interface CourseLesson extends VaultItem {
   type: 'course_lesson';
   courseId: string;
@@ -105,6 +111,7 @@ export interface CourseLesson extends VaultItem {
   estimatedMinutes: number | null;
   completedAt: string | null;
   aiGenerated: boolean;
+  generationTrace?: CourseLessonGenerationTrace | null;
 }
 
 export interface Flashcard extends VaultItem {
@@ -256,6 +263,7 @@ export interface BackendCourseModule {
     estimatedMinutes?: number | null;
     isCompleted: boolean;
     completedAt?: string | null;
+    generationTrace?: CourseLessonGenerationTrace | null;
   }>;
 }
 
@@ -282,6 +290,7 @@ export interface BackendCourse {
     estimatedMinutes?: number | null;
     isCompleted: boolean;
     completedAt?: string | null;
+    generationTrace?: CourseLessonGenerationTrace | null;
   }>;
   progressPercentage: number;
   completedLessons: number;

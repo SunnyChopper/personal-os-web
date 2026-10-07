@@ -152,10 +152,8 @@ export const logbookService = {
   },
 
   async update(id: string, input: UpdateLogbookEntryInput): Promise<ApiResponse<LogbookEntry>> {
-    // Transform energy to energyLevel for the API request
-    // Include date if provided to fix timezone-shifted dates
+    // Transform energy to energyLevel for the API request; PATCH must not send date.
     const requestBody: Record<string, unknown> = {};
-    if (input.date !== undefined) requestBody.date = input.date;
     if (input.title !== undefined) requestBody.title = input.title;
     if (input.notes !== undefined) requestBody.notes = input.notes;
     if (input.mood !== undefined) requestBody.mood = input.mood;
@@ -253,6 +251,7 @@ export const logbookService = {
     energyLevel?: number;
     limit?: number;
     useCache?: boolean;
+    excludeEntities?: Array<{ entityType: 'project' | 'goal'; entityId: string }>;
   }): Promise<ApiResponse<LogbookEntityLinkSuggestions>> {
     return apiClient.post<LogbookEntityLinkSuggestions>('/ai/logbook/suggest-links', body);
   },

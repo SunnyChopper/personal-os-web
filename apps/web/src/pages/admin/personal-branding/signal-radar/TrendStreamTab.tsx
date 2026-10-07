@@ -19,7 +19,11 @@ import { cn } from '@/lib/utils';
 import { formatRelativeChatTimestamp } from '@/lib/chat/format-relative-time';
 import { linkAccentClassName } from '../personal-branding-ui';
 import { useToast } from '@/hooks/use-toast';
-import { useContentIdeationJob } from '@/hooks/useContentIdeationJob';
+import { useContentIdeationJobs } from '@/hooks/useContentIdeationJobs';
+import {
+  clearContentWorkbenchIdempotencyKey,
+  ensureContentWorkbenchIdempotencyKey,
+} from '@/lib/personal-branding/content-workbench-idempotency';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import { ROUTES } from '@/routes';
@@ -32,6 +36,8 @@ import {
 } from '@/hooks/useSignalRadar';
 import {
   RADAR_ITEM_TYPE_LABELS,
+  type BrandPlatform,
+  type ContentIdeationJobStart,
   type RadarItem,
   type RadarUserIrrelevanceReason,
 } from '@/types/api/personal-branding.dto';
@@ -314,7 +320,7 @@ export default function TrendStreamTab({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const prefersReducedMotion = useReducedMotion();
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [itemPage] = useState(1);
   const [itemFilters, setItemFilters] = useState<TrendStreamFilterState>({
@@ -325,7 +331,10 @@ export default function TrendStreamTab({
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [brainstormOpen, setBrainstormOpen] = useState(false);
   const [brainstormError, setBrainstormError] = useState<string | null>(null);
-  const [brainstormJobId, setBrainstormJobId] = useState<string | null>(null);
+  const [brainstormJobIds, setBrainstormJobIds] = useState<string[]>([]);
+  const [brainstormTargetPlatform, setBrainstormTargetPlatform] =
+    useState<BrandPlatform>('linkedin');
+  const brainstormIdempotencyKeyRef = useRef<string | null>(null);
   const [relevanceModalItemId, setRelevanceModalItemId] = useState<string | null>(null);
   const [irrelevantModalItemIds, setIrrelevantModalItemIds] = useState<string[]>([]);
   const [bulkIrrelevantPending, setBulkIrrelevantPending] = useState(false);
@@ -477,62 +486,97 @@ export default function TrendStreamTab({
   );
   const irrelevantModalItem = irrelevantModalItems.length === 1 ? irrelevantModalItems[0] : null;
 
-  const brainstormMutation = useMutation({
+  const brainstormMutation = useMutation<
+    { starts: ContentIdeationJobStart[]; errors: string[] },
+    Error,
+    TrendStreamBrainstormRequest
+  >({
     mutationFn: async (request: TrendStreamBrainstormRequest) => {
       if (selectedItemIds.length === 0) {
         throw new Error('Select at least one Trend Stream card');
       }
-      return personalBrandingService.generateRadarExtractedIdeas({
-        brandProfileId: request.brandProfileId,
-        radarItemIds: selectedItemIds,
-        targetPlatform: request.targetPlatform,
-        templateIds: request.templateIds,
-        count: request.count,
-      });
+      const baseKey = ensureContentWorkbenchIdempotencyKey(brainstormIdempotencyKeyRef);
+      const results = await Promise.allSettled(
+        request.brandProfileIds.map((brandProfileId) =>
+          personalBrandingService.generateRadarExtractedIdeas({
+            brandProfileId,
+            radarItemIds: selectedItemIds,
+            targetPlatform: request.targetPlatform,
+            templateIds: request.templateIds,
+            count: request.count,
+            imageIdeaCount: request.imageIdeaCount,
+            idempotencyKey: `${baseKey}:${brandProfileId}`,
+          })
+        )
+      );
+      return {
+        starts: results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : [])),
+        errors: results.flatMap((result) =>
+          result.status === 'rejected'
+            ? [result.reason instanceof Error ? result.reason.message : 'Profile job failed']
+            : []
+        ),
+      };
     },
-    onMutate: () => setBrainstormError(null),
-    onSuccess: (start) => {
-      setBrainstormJobId(start.jobId);
+    onMutate: () => {
+      setBrainstormError(null);
+      setBrainstormJobIds([]);
+      ensureContentWorkbenchIdempotencyKey(brainstormIdempotencyKeyRef);
+    },
+    onSuccess: ({ starts, errors }) => {
+      setBrainstormJobIds(starts.map((start) => start.jobId));
+      const warnings = starts
+        .map((start) => start.countAdjustmentWarning)
+        .filter((warning): warning is string => Boolean(warning));
+      if (warnings.length > 0) {
+        showToast({ type: 'warning', title: warnings[0] });
+      }
+      if (errors.length > 0) {
+        setBrainstormError(
+          `${errors.length} profile brainstorm${errors.length === 1 ? '' : 's'} could not be queued.`
+        );
+      }
+      if (starts.length === 0) {
+        clearContentWorkbenchIdempotencyKey(brainstormIdempotencyKeyRef);
+        if (errors.length > 0) {
+          setBrainstormError(errors.join('\n'));
+        }
+      }
     },
     onError: (err: Error) => setBrainstormError(err.message),
   });
 
-  const ideationJob = useContentIdeationJob(
-    brainstormJobId,
-    async (job) => {
-      if (job.status === 'succeeded' && job.result) {
-        await queryClient.invalidateQueries({ queryKey: queryKeys.personalBranding.ideas.all() });
-        setSelectedItemIds([]);
-        setBrainstormJobId(null);
-        setBrainstormOpen(false);
-        showToast({
-          type: 'success',
-          title: `Generated ${job.result.ideas.length} content idea${job.result.ideas.length === 1 ? '' : 's'}`,
-        });
-        navigate(`${ROUTES.admin.personalBrandingWorkbench}?tab=trend-ideas`);
-        return;
-      }
-      if (job.status === 'failed') {
-        setBrainstormJobId(null);
-        setBrainstormError(job.error ?? job.message ?? 'Content ideation failed');
-      }
-    },
-    () => {
-      setBrainstormJobId(null);
-      setBrainstormError(
-        'Content ideation is still running but took longer than expected. Check Trend Ideas shortly or retry.'
+  const ideationJobs = useContentIdeationJobs(brainstormJobIds);
+
+  useEffect(() => {
+    if (!ideationJobs.allTerminal) return;
+    const succeededJobs = ideationJobs.jobs.filter(
+      (job) => job.status === 'succeeded' && job.result
+    );
+    if (succeededJobs.length > 0) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.personalBranding.ideas.all() });
+      setSelectedItemIds([]);
+      setBrainstormJobIds([]);
+      clearContentWorkbenchIdempotencyKey(brainstormIdempotencyKeyRef);
+      setBrainstormOpen(false);
+      const ideaCount = succeededJobs.reduce(
+        (total, job) => total + (job.result?.ideas.length ?? 0),
+        0
       );
+      showToast({
+        type: 'success',
+        title: `Generated ${ideaCount} content idea${ideaCount === 1 ? '' : 's'}`,
+      });
+      navigate(`${ROUTES.admin.personalBrandingWorkbench}?tab=trend-ideas`);
+      return;
     }
-  );
+    setBrainstormJobIds([]);
+    clearContentWorkbenchIdempotencyKey(brainstormIdempotencyKeyRef);
+    setBrainstormError('All profile brainstorms failed. Retry with a different profile selection.');
+  }, [ideationJobs.allTerminal, ideationJobs.jobs, navigate, queryClient, showToast]);
 
   const isBrainstorming =
-    brainstormMutation.isPending ||
-    Boolean(
-      brainstormJobId &&
-      (!ideationJob.data ||
-        ideationJob.data.status === 'queued' ||
-        ideationJob.data.status === 'running')
-    );
+    brainstormMutation.isPending || (brainstormJobIds.length > 0 && !ideationJobs.allTerminal);
 
   const toggleItemSelection = (itemId: string) => {
     setSelectedItemIds((current) => {
@@ -948,13 +992,16 @@ export default function TrendStreamTab({
         profiles={brandProfiles}
         profilesLoading={profilesQ.isPending}
         defaultBrandProfileId={defaultProfileId}
+        targetPlatform={brainstormTargetPlatform}
+        onTargetPlatformChange={setBrainstormTargetPlatform}
         isSubmitting={isBrainstorming}
-        ideationJob={ideationJob.data}
+        ideationJobs={ideationJobs.jobs}
         errorMessage={brainstormError}
         onClose={() => {
           setBrainstormOpen(false);
           setBrainstormError(null);
-          setBrainstormJobId(null);
+          setBrainstormJobIds([]);
+          clearContentWorkbenchIdempotencyKey(brainstormIdempotencyKeyRef);
         }}
         onSubmit={(request) => brainstormMutation.mutate(request)}
       />
@@ -975,8 +1022,6 @@ export default function TrendStreamTab({
         onClose={() => setIrrelevantModalItemIds([])}
         onSubmit={(reason) => void handleConfirmIrrelevant(reason)}
       />
-
-      <ToastContainer />
     </div>
   );
 }

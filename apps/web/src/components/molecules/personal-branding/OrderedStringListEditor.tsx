@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
 import Button from '@/components/atoms/Button';
-import { FormInput } from '@/components/atoms/FormInput';
+import { Textarea } from '@/components/atoms/Textarea';
 
 export interface OrderedStringListEditorProps {
   label: string;
@@ -31,13 +31,33 @@ export default function OrderedStringListEditor({
   addLabel = 'Add',
 }: OrderedStringListEditorProps) {
   const [draft, setDraft] = useState('');
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const draftRef = useRef<HTMLTextAreaElement>(null);
   const atMax = values.length >= maxItems;
+  const duplicateCount = values.reduce<Record<string, number>>((counts, value) => {
+    const key = value.trim().toLocaleLowerCase();
+    if (key) counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  }, {});
 
   const addItem = () => {
     const trimmed = draft.trim();
-    if (!trimmed || atMax || values.includes(trimmed)) return;
+    if (!trimmed) {
+      setDraftError('Enter a requirement before adding it.');
+      return;
+    }
+    if (atMax) return;
+    if (trimmed.length > 500) {
+      setDraftError('Keep each requirement to 500 characters or fewer.');
+      return;
+    }
+    if (values.some((item) => item.trim().toLocaleLowerCase() === trimmed.toLocaleLowerCase())) {
+      setDraftError('That requirement is already in the list.');
+      return;
+    }
     onChange([...values, trimmed]);
     setDraft('');
+    setDraftError(null);
   };
 
   const updateAt = (index: number, nextValue: string) => {
@@ -46,6 +66,7 @@ export default function OrderedStringListEditor({
 
   const removeAt = (index: number) => {
     onChange(values.filter((_, i) => i !== index));
+    requestAnimationFrame(() => draftRef.current?.focus());
   };
 
   const moveUp = (index: number) => {
@@ -58,19 +79,29 @@ export default function OrderedStringListEditor({
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">{label}</label>
-      <div className="flex gap-2">
-        <FormInput
+      <label
+        htmlFor={`${label.toLocaleLowerCase().replace(/\s+/g, '-')}-new-item`}
+        className="block text-sm font-medium text-gray-900 dark:text-gray-100"
+      >
+        {label}
+      </label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Textarea
+          ref={draftRef}
+          id={`${label.toLocaleLowerCase().replace(/\s+/g, '-')}-new-item`}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={placeholder}
+          aria-label={`${label} new item`}
+          rows={2}
           disabled={disabled || atMax}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
               e.preventDefault();
               addItem();
             }
           }}
+          className="min-h-0 flex-1"
         />
         <Button
           type="button"
@@ -81,18 +112,38 @@ export default function OrderedStringListEditor({
           {addLabel}
         </Button>
       </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Add one item per row. Use Ctrl+Enter (Cmd+Enter on macOS) to add.
+      </p>
+      {draftError ? (
+        <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+          {draftError}
+        </p>
+      ) : null}
       {atMax ? (
         <p className="text-xs text-gray-500 dark:text-gray-400">Maximum {maxItems} items.</p>
       ) : null}
       {values.length > 0 ? (
         <ul className="space-y-2">
           {values.map((item, index) => (
-            <li key={`${index}-${item}`} className="flex items-center gap-2">
-              <FormInput
+            <li key={index} className="flex items-start gap-2">
+              <span
+                className="mt-2 w-6 shrink-0 text-right text-xs font-medium tabular-nums text-gray-500 dark:text-gray-400"
+                aria-hidden="true"
+              >
+                {index + 1}.
+              </span>
+              <Textarea
                 value={item}
                 onChange={(e) => updateAt(index, e.target.value)}
                 disabled={disabled}
                 aria-label={`${label} item ${index + 1}`}
+                rows={2}
+                aria-invalid={
+                  !item.trim() || duplicateCount[item.trim().toLocaleLowerCase()] > 1
+                    ? true
+                    : undefined
+                }
                 className="min-w-0 flex-1"
               />
               <div className="flex shrink-0 items-center gap-1">
@@ -130,6 +181,13 @@ export default function OrderedStringListEditor({
       ) : (
         <p className="text-xs text-gray-500 dark:text-gray-400">No items yet.</p>
       )}
+      {values.some(
+        (item) => !item.trim() || duplicateCount[item.trim().toLocaleLowerCase()] > 1
+      ) ? (
+        <p className="text-xs text-red-600 dark:text-red-400" role="status">
+          Remove blank rows and duplicate requirements before saving.
+        </p>
+      ) : null}
     </div>
   );
 }

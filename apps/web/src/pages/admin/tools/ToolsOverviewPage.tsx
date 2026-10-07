@@ -60,7 +60,7 @@ export default function ToolsOverviewPage() {
             <h1 className="text-4xl font-bold text-white">Tools</h1>
           </div>
           <p className="mb-6 text-lg text-blue-100 md:max-w-2xl">
-            Centralized productivity tools: orchestration, APIs, modeling, security utilities, and
+            Centralized productivity tools: scheduling, APIs, modeling, security utilities, and
             presentation — with Knowledge Vault integration where it matters.
           </p>
           <div className="flex flex-wrap gap-3">

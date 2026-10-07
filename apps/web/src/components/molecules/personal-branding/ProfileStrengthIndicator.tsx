@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import PlatformRulePolicySummary from '@/components/molecules/personal-branding/PlatformRulePolicySummary';
 import UniversalRulesFallbackNotice from '@/components/molecules/personal-branding/UniversalRulesFallbackNotice';
 import { useEffectivePlatformRules } from '@/hooks/useEffectivePlatformRules';
+import { PLATFORM_RULE_CATALOG } from '@/lib/personal-branding/platform-rule-catalog';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import {
   aggregateProfileStrengthSummary,
@@ -45,6 +46,8 @@ export default function ProfileStrengthIndicator({
     queryKey: queryKeys.personalBranding.platformRules.catalog(),
     queryFn: () => personalBrandingService.getPlatformRuleCatalog(),
     enabled: Object.keys(profileByPlatform).length > 0,
+    staleTime: Infinity,
+    initialData: PLATFORM_RULE_CATALOG,
   });
 
   const { effectiveQueries, isLoading: isLoadingRules } = useEffectivePlatformRules(

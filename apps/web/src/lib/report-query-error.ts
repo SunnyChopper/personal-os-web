@@ -74,20 +74,62 @@ function isContextUsageQueryKey(queryKey: unknown): boolean {
   return queryKey.some((segment) => segment === 'context-usage');
 }
 
+/** Admin shell ambient polls — fail-open UX; timeouts are connectivity noise, not product defects. */
+function isShellBadgeQueryKey(queryKey: unknown): boolean {
+  if (!Array.isArray(queryKey)) return false;
+  if (queryKey.includes('unread-summary')) return true;
+  if (queryKey.includes('interventions') && queryKey.includes('unread-count')) return true;
+  return queryKey.includes('coach-escalations') && queryKey.includes('pending');
+}
+
+/** Static platform-rule catalog — SPA may still have cached query observers; timeouts are not defects. */
+function isPlatformRuleCatalogQueryKey(queryKey: unknown): boolean {
+  if (!Array.isArray(queryKey)) return false;
+  return queryKey.includes('platform-rules') && queryKey.includes('catalog');
+}
+
+/** Module whisper strips — fail-open UX; timeouts are connectivity noise, not product defects. */
+function isAmbientPresenceQueryKey(queryKey: unknown): boolean {
+  if (!Array.isArray(queryKey)) return false;
+  return queryKey.includes('chatbot') && queryKey.includes('ambient');
+}
+
+export type QueryCacheErrorReportOptions = {
+  /** Active React Query observers; 0 means the page unmounted mid-flight. */
+  observerCount?: number;
+};
+
+function isExpectedContentStreamBudgetExhausted(message?: string): boolean {
+  return /daily post budget exhausted/i.test(message || '');
+}
+
+export function isExpectedCostGuardrailDenial(message?: string): boolean {
+  return (message || '').trimStart().startsWith('Cost guardrail:');
+}
+
 export function shouldSkipQueryErrorReport(code?: string, message?: string): boolean {
   if (code && SKIP_CODES.has(code)) return true;
   const lower = (message || '').toLowerCase();
   if (lower.includes('session expired') || lower.includes('not authenticated')) return true;
+  if (isExpectedContentStreamBudgetExhausted(message)) return true;
+  if (isExpectedCostGuardrailDenial(message)) return true;
   return false;
 }
 
 export function shouldSkipQueryCacheErrorReport(
   queryKey: unknown,
   code?: string,
-  message?: string
+  message?: string,
+  options?: QueryCacheErrorReportOptions
 ): boolean {
   if (shouldSkipQueryErrorReport(code, message)) return true;
-  if (isContextUsageQueryKey(queryKey) && isTimeoutError(code, message)) return true;
+  if (!isTimeoutError(code, message)) return false;
+  // Navigating away cancels observers but Axios may still hit 30s timeout (a98591bd8564).
+  if ((options?.observerCount ?? 1) === 0) return true;
+  if (isContextUsageQueryKey(queryKey)) return true;
+  if (isShellBadgeQueryKey(queryKey)) return true;
+  if (isPlatformRuleCatalogQueryKey(queryKey)) return true;
+  if (isAmbientPresenceQueryKey(queryKey)) return true;
   return false;
 }
 
@@ -103,10 +145,14 @@ function shouldThrottle(fp: string): boolean {
   return false;
 }
 
-export function reportQueryCacheError(error: unknown, queryKey: unknown): void {
+export function reportQueryCacheError(
+  error: unknown,
+  queryKey: unknown,
+  options?: QueryCacheErrorReportOptions
+): void {
   const key = serializeKey(queryKey);
   const { message, code, stack } = extractErrorDetails(error);
-  if (shouldSkipQueryCacheErrorReport(queryKey, code, message)) return;
+  if (shouldSkipQueryCacheErrorReport(queryKey, code, message, options)) return;
   const fp = fingerprint('react-query', key, message, code);
   if (shouldThrottle(fp)) return;
 

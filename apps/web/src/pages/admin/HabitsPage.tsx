@@ -94,7 +94,7 @@ export default function HabitsPage() {
     logCompletion,
     updateCompletionNote,
   } = useHabits();
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [habitLogs, setHabitLogs] = useState<Map<string, HabitLog[]>>(new Map());
   const [linkedGoals, setLinkedGoals] = useState<Map<string, Goal[]>>(new Map());
@@ -421,13 +421,13 @@ export default function HabitsPage() {
 
   const getStreak = (habitId: string): number => {
     const habit = habits.find((h) => h.id === habitId);
-    if (habit?.currentStreak != null) {
-      return habit.currentStreak;
-    }
-    const logs = habitLogs.get(habitId) || [];
-    if (logs.length === 0) return 0;
     const protectedDates = habit ? streakProtectedDatesForHabit(habit) : undefined;
-    return getAllStreaks(logs, protectedDates).current;
+    // Logs are the source of truth once loaded — cached habit.currentStreak is only
+    // refreshed on log/delete and stays stale after a missed day.
+    if (habitLogs.has(habitId)) {
+      return getAllStreaks(habitLogs.get(habitId) || [], protectedDates).current;
+    }
+    return habit?.currentStreak ?? 0;
   };
 
   const isTodayCompleted = (habitId: string): boolean => {
@@ -1186,7 +1186,6 @@ export default function HabitsPage() {
           />
         </Dialog>
       )}
-      <ToastContainer />
     </>
   );
 }

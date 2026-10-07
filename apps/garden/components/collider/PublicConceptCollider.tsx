@@ -13,6 +13,8 @@ import '@xyflow/react/dist/style.css';
 import type { MouseEvent } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { trackColliderSynthesize } from '@/lib/analytics';
+
 export function PublicConceptCollider({ initialNodes }: { initialNodes: ConceptNodeRow[] }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [result, setResult] = useState<string | null>(null);
@@ -67,8 +69,10 @@ export function PublicConceptCollider({ initialNodes }: { initialNodes: ConceptN
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'failed');
+      trackColliderSynthesize('success');
       setResult(data.text as string);
     } catch (e) {
+      trackColliderSynthesize('error');
       setResult(e instanceof Error ? e.message : 'Error');
     } finally {
       setLoading(false);

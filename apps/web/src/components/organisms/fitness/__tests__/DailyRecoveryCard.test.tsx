@@ -43,7 +43,6 @@ vi.mock('@/hooks/useGrowthSystem', () => ({
 vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
     showToast: vi.fn(),
-    ToastContainer: () => null,
   }),
 }));
 

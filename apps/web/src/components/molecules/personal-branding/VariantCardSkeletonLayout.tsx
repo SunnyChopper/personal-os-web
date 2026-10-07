@@ -11,6 +11,10 @@ interface VariantCardSkeletonLayoutProps {
   platform?: BrandPlatform;
   /** When true, show platform header with spinner (generating state). */
   generating?: boolean;
+  /** Stage label shown in generating header (e.g. "Searching references"). */
+  statusLabel?: string;
+  /** Latest job message shown under the generating header. */
+  detailMessage?: string;
   /** Stagger index for entrance animation. */
   index?: number;
   'aria-label'?: string;
@@ -23,9 +27,13 @@ export function VariantCardSkeletonLayout({
   className,
   platform,
   generating = false,
+  statusLabel,
+  detailMessage,
   index = 0,
   'aria-label': ariaLabel,
 }: VariantCardSkeletonLayoutProps) {
+  const generatingStatusLabel = statusLabel ?? 'Generating…';
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -35,32 +43,39 @@ export function VariantCardSkeletonLayout({
       role="status"
       aria-label={ariaLabel}
     >
-      <div className="flex items-center gap-2">
-        {platform ? (
-          <>
-            <BrandPlatformIcon
-              platform={platform}
-              className="size-5 text-blue-600 dark:text-blue-400"
-              title={BRAND_PLATFORM_LABELS[platform]}
-            />
-            {generating ? (
-              <Loader2 size={16} className="animate-spin text-blue-600 dark:text-blue-400" />
-            ) : (
-              <Skeleton variant="circular" className="size-4" />
-            )}
-            <span className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-400">
-              {BRAND_PLATFORM_LABELS[platform]}
-            </span>
-            {generating ? (
-              <span className="text-sm text-gray-500 dark:text-gray-400">· Generating…</span>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <Skeleton variant="circular" className="size-5" />
-            <Skeleton className="h-3 w-16" />
-          </>
-        )}
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          {platform ? (
+            <>
+              <BrandPlatformIcon
+                platform={platform}
+                className="size-5 text-blue-600 dark:text-blue-400"
+                title={BRAND_PLATFORM_LABELS[platform]}
+              />
+              {generating ? (
+                <Loader2 size={16} className="animate-spin text-blue-600 dark:text-blue-400" />
+              ) : (
+                <Skeleton variant="circular" className="size-4" />
+              )}
+              <span className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                {BRAND_PLATFORM_LABELS[platform]}
+              </span>
+              {generating ? (
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  · {generatingStatusLabel}
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Skeleton variant="circular" className="size-5" />
+              <Skeleton className="h-3 w-16" />
+            </>
+          )}
+        </div>
+        {generating && detailMessage ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">{detailMessage}</p>
+        ) : null}
       </div>
 
       <Skeleton className="h-4 w-3/4" />

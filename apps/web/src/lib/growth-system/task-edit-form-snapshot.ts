@@ -9,6 +9,7 @@ import type {
 export type TaskEditFormSnapshot = {
   title: string;
   description: string;
+  notes: string;
   area: Area;
   subCategory: string | undefined;
   priority: Priority;
@@ -29,6 +30,7 @@ function stableSnapshotJson(snapshot: TaskEditFormSnapshot): string {
     ...snapshot,
     title: snapshot.title.trim(),
     description: snapshot.description.trim(),
+    notes: snapshot.notes.trim(),
     dueDate: snapshot.dueDate.trim(),
     scheduledDate: snapshot.scheduledDate.trim(),
     projectIds: [...snapshot.projectIds].sort(),
@@ -48,6 +50,7 @@ export function taskEditFormSnapshotsEqual(
 export function buildTaskEditFormSnapshot(params: {
   title: string;
   description: string;
+  notes: string;
   area: Area;
   subCategory: string | undefined;
   priority: Priority;
@@ -65,6 +68,7 @@ export function buildTaskEditFormSnapshot(params: {
   return {
     title: params.title,
     description: params.description,
+    notes: params.notes,
     area: params.area,
     subCategory: params.subCategory,
     priority: params.priority,

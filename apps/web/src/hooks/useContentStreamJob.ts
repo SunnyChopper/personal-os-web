@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
+import { reportTerminalJobClientTimeout } from '@/hooks/useTerminalJobFailureAlert';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import type { ContentStreamJob, ContentStreamJobStatus } from '@/types/api/personal-branding.dto';
@@ -50,6 +51,7 @@ export function useContentStreamJob(
     if (!jobId || !startedAtRef.current) return;
     if (Date.now() - startedAtRef.current <= CLIENT_WAIT_BUDGET_MS) return;
     if (query.data && POLL_STATUSES.includes(query.data.status)) {
+      reportTerminalJobClientTimeout('contentStream', jobId, CLIENT_WAIT_BUDGET_MS);
       onClientTimeout?.();
     }
   }, [jobId, query.dataUpdatedAt, query.data, onClientTimeout]);

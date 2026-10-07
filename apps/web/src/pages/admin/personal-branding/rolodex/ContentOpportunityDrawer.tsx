@@ -11,6 +11,7 @@ import type {
   ContentOpportunitySearchResult,
   CreatorConnection,
   ReplyGenerationDraft,
+  ReplyRejectionFeedbackCategory,
   ReplyRun,
   ReplySuggestion,
 } from '@/types/api/personal-branding.dto';
@@ -32,12 +33,13 @@ interface ContentOpportunityDrawerProps {
     opportunity: ContentOpportunity,
     draft: ReplyGenerationDraft,
     resolved: { provider: string; model: string }
-  ) => Promise<ReplyRun>;
+  ) => Promise<ReplyRun | undefined>;
   onAcceptSuggestion: (opportunity: ContentOpportunity, suggestion: ReplySuggestion) => void;
   onRejectSuggestion: (
     opportunity: ContentOpportunity,
     suggestion: ReplySuggestion,
-    feedbackText: string | null
+    feedbackText: string | null,
+    feedbackCategory: ReplyRejectionFeedbackCategory
   ) => void;
   onLogCheckIn: (opportunity: ContentOpportunity) => void;
   onComplete: (opportunity: ContentOpportunity) => void;

@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Card } from '@/components/atoms/Card';
 import { cn } from '@/lib/utils';
+import { pbSidebarTwoColumnColsClassName } from '@/lib/personal-branding/personal-branding-surfaces';
 import { pbSectionDescriptionClassName, pbSectionTitleClassName } from './personal-branding-ui';
 
 interface ContainerProps {
@@ -19,7 +20,9 @@ export function PageCard({ children, className }: ContainerProps) {
  * Standard two-column layout for pages with sidebars.
  */
 export function TwoColumnLayout({ children, className }: ContainerProps) {
-  return <div className={cn('grid gap-6 lg:grid-cols-[280px_1fr]', className)}>{children}</div>;
+  return (
+    <div className={cn('grid gap-6', pbSidebarTwoColumnColsClassName, className)}>{children}</div>
+  );
 }
 
 /**
@@ -36,13 +39,22 @@ interface SectionIntroProps {
   description?: string;
   actions?: ReactNode;
   className?: string;
+  titleId?: string;
 }
 
-export function SectionIntro({ title, description, actions, className }: SectionIntroProps) {
+export function SectionIntro({
+  title,
+  description,
+  actions,
+  className,
+  titleId,
+}: SectionIntroProps) {
   return (
     <div className={cn('flex flex-wrap items-start justify-between gap-3', className)}>
       <div>
-        <h2 className={pbSectionTitleClassName}>{title}</h2>
+        <h2 id={titleId} className={pbSectionTitleClassName}>
+          {title}
+        </h2>
         {description ? <p className={pbSectionDescriptionClassName}>{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -62,11 +74,13 @@ interface AlertBannerProps {
   children: ReactNode;
   tone?: AlertBannerTone;
   className?: string;
+  role?: 'status' | 'alert';
 }
 
-export function AlertBanner({ children, tone = 'warning', className }: AlertBannerProps) {
+export function AlertBanner({ children, tone = 'warning', className, role }: AlertBannerProps) {
   return (
     <div
+      role={role}
       className={cn(
         'rounded-lg border px-4 py-3 text-sm',
         alertBannerToneClassName[tone],

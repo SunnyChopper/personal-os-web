@@ -5,6 +5,7 @@ import Button from '@/components/atoms/Button';
 import { Textarea } from '@/components/atoms/Textarea';
 import { FormField } from '@/components/molecules/FormField';
 import Dialog from '@/components/molecules/Dialog';
+import { InterventionDismissDialog } from '@/components/molecules/assistant/InterventionDismissDialog';
 import { EmptyState } from '@/components/molecules/EmptyState';
 import { PageContainer } from '@/components/templates/PageContainer';
 import {
@@ -14,6 +15,12 @@ import {
 import { ROUTES } from '@/routes';
 import { cn } from '@/lib/utils';
 import type { AssistantIntervention, AssistantInterventionKind } from '@/types/api-contracts';
+import {
+  formatInterventionLastSeen,
+  formatInterventionStackLabel,
+  interventionOccurrenceCount,
+  interventionStackChipClassName,
+} from '@/lib/assistant/intervention-stack-ui';
 
 const KIND_LABELS: Record<AssistantInterventionKind, string> = {
   coachIntervention: 'Coach',
@@ -116,10 +123,20 @@ export default function InterventionsPage() {
                     >
                       {KIND_LABELS[item.kind]}
                       {item.status === 'unread' ? ' · unread' : ''}
+                      {formatInterventionStackLabel(item) ? (
+                        <span className={cn('ml-2 normal-case', interventionStackChipClassName())}>
+                          {formatInterventionStackLabel(item)}
+                        </span>
+                      ) : null}
                     </p>
                     <h2 className="mt-1 text-base font-semibold text-gray-900 dark:text-white">
                       {item.title}
                     </h2>
+                    {interventionOccurrenceCount(item) > 1 && formatInterventionLastSeen(item) ? (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Last seen {formatInterventionLastSeen(item)}
+                      </p>
+                    ) : null}
                     <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-400">
                       {item.body}
                     </p>
@@ -166,40 +183,24 @@ export default function InterventionsPage() {
           </ul>
         )}
 
-        <Dialog
+        <InterventionDismissDialog
           isOpen={Boolean(dismissTarget)}
+          reason={dismissReason}
+          onReasonChange={setDismissReason}
           onClose={() => setDismissTarget(null)}
-          title="Dismiss intervention"
-        >
-          <FormField label="Reason" htmlFor="page-dismiss-reason" className="mb-4">
-            <Textarea
-              id="page-dismiss-reason"
-              rows={3}
-              value={dismissReason}
-              onChange={(e) => setDismissReason(e.target.value)}
-            />
-          </FormField>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setDismissTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={dismissReason.trim().length < 3}
-              onClick={() => {
-                if (!dismissTarget) return;
-                void dismiss
-                  .mutateAsync({ id: dismissTarget.id, reason: dismissReason.trim() })
-                  .then(() => {
-                    setDismissTarget(null);
-                    setDismissReason('');
-                  });
-              }}
-            >
-              Dismiss
-            </Button>
-          </div>
-        </Dialog>
+          isPending={dismiss.isPending}
+          reasonFieldId="page-dismiss-reason"
+          occurrenceCount={dismissTarget ? interventionOccurrenceCount(dismissTarget) : 1}
+          onConfirm={() => {
+            if (!dismissTarget) return;
+            void dismiss
+              .mutateAsync({ id: dismissTarget.id, reason: dismissReason.trim() })
+              .then(() => {
+                setDismissTarget(null);
+                setDismissReason('');
+              });
+          }}
+        />
 
         <Dialog
           isOpen={Boolean(replyTarget)}

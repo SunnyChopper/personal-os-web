@@ -38,6 +38,8 @@ describe('cost-guardrail-helpers', () => {
     expect(costGuardrailFeatureDisplayName('brandProfileExtraction')).toBe(
       'Brand profile extraction'
     );
+    expect(costGuardrailFeatureDisplayName('contentIdeation')).toBe('Content ideation');
+    expect(costGuardrailFeatureDisplayName('contentIdeaApprove')).toBe('Content idea approve');
     expect(costGuardrailFeatureDisplayName('customFeatureKey')).toBe('Custom Feature Key');
   });
 

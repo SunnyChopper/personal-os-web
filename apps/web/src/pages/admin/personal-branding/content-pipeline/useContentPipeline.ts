@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { queryKeys } from '@/lib/react-query/query-keys';
@@ -9,16 +9,15 @@ import type {
   ContentNode,
   PlatformFitSuggestionsResult,
   RegenerateVariantWithTweaksInput,
-  RepurposeJob,
   UpdateVariantDistributionStatusInput,
 } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS } from '@/types/api/personal-branding.dto';
 import {
   hasInFlightRepurposeJobs,
-  repurposeGenerationBatchJobs,
   repurposeJobInFlight,
   repurposeSkeletonPlatforms,
 } from '@/lib/personal-branding/repurpose-generation-progress';
+import { reportPersonalBrandingJobFailure } from '@/lib/personal-branding/report-job-failure';
 import {
   isBrandProfileSelectableForPipeline,
   collectActiveBrandPillars,
@@ -70,14 +69,12 @@ export function useContentPipeline() {
 
   const publishedQ = useQuery({
     queryKey: queryKeys.personalBranding.content.list(1, 100, 'PUBLISHED'),
-    queryFn: async () =>
-      unwrapList(await personalBrandingService.listContentNodes(1, 100, 'PUBLISHED')),
+    queryFn: async () => (await personalBrandingService.listContentNodes(1, 100, 'PUBLISHED')).data,
   });
 
   const pipelinedQ = useQuery({
     queryKey: queryKeys.personalBranding.content.list(1, 100, 'PIPELINED'),
-    queryFn: async () =>
-      unwrapList(await personalBrandingService.listContentNodes(1, 100, 'PIPELINED')),
+    queryFn: async () => (await personalBrandingService.listContentNodes(1, 100, 'PIPELINED')).data,
   });
 
   const profilesQ = useQuery({
@@ -112,6 +109,20 @@ export function useContentPipeline() {
   );
   const variants = variantsQ.data ?? [];
   const repurposeJobs = jobsQ.data ?? [];
+  const reportedFailedRepurposeJobs = useRef(new Set<string>());
+
+  useEffect(() => {
+    for (const job of repurposeJobs) {
+      if (job.status !== 'failed' || reportedFailedRepurposeJobs.current.has(job.jobId)) continue;
+      reportedFailedRepurposeJobs.current.add(job.jobId);
+      reportPersonalBrandingJobFailure({
+        feature: 'contentRepurpose',
+        jobId: job.jobId,
+        error: job.error,
+        message: job.message,
+      });
+    }
+  }, [repurposeJobs]);
 
   const sourceNodes = useMemo(
     () => mergePipelineSourceNodes([...(publishedQ.data ?? []), ...(pipelinedQ.data ?? [])]),
@@ -416,11 +427,6 @@ export function useContentPipeline() {
     [repurposeJobs]
   );
 
-  const generationBatchJobs = useMemo(
-    () => repurposeGenerationBatchJobs(repurposeJobs, inFlightJobs),
-    [repurposeJobs, inFlightJobs]
-  );
-
   const generatingSkeletonPlatforms = useMemo(
     () =>
       repurposeSkeletonPlatforms(
@@ -429,33 +435,6 @@ export function useContentPipeline() {
       ),
     [inFlightJobs, variants]
   );
-
-  const recentTerminalJobs = useMemo(() => {
-    const latestByPlatform = new Map<BrandPlatform, RepurposeJob>();
-    for (const job of repurposeJobs) {
-      const existing = latestByPlatform.get(job.platform);
-      if (!existing || job.createdAt > existing.createdAt) {
-        latestByPlatform.set(job.platform, job);
-      }
-    }
-    return [...latestByPlatform.values()].filter(
-      (job) => job.status === 'succeeded' || job.status === 'failed'
-    );
-  }, [repurposeJobs]);
-
-  const visibleJobs = useMemo(() => {
-    const byId = new Map<string, RepurposeJob>();
-    for (const job of [...inFlightJobs, ...recentTerminalJobs]) {
-      byId.set(job.jobId, job);
-    }
-    return [...byId.values()].sort((a, b) => {
-      const platformOrder = BRAND_PLATFORM_LABELS[a.platform].localeCompare(
-        BRAND_PLATFORM_LABELS[b.platform]
-      );
-      if (platformOrder !== 0) return platformOrder;
-      return b.createdAt.localeCompare(a.createdAt);
-    });
-  }, [inFlightJobs, recentTerminalJobs]);
 
   const busyPlatforms = useMemo(
     () =>
@@ -486,9 +465,7 @@ export function useContentPipeline() {
     profiles,
     variants,
     repurposeJobs,
-    visibleJobs,
     inFlightJobs,
-    generationBatchJobs,
     generatingSkeletonPlatforms,
     selectedContentId,
     setSelectedContentId,
@@ -537,15 +514,6 @@ function unwrapPaginated<T>(res: {
   data?: { data: T[] };
   error?: { message?: string };
 }): T[] {
-  if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Failed to load');
-  return res.data.data;
-}
-
-function unwrapList(res: {
-  success: boolean;
-  data?: { data: ContentNode[] };
-  error?: { message?: string };
-}) {
   if (!res.success || !res.data) throw new Error(res.error?.message ?? 'Failed to load');
   return res.data.data;
 }

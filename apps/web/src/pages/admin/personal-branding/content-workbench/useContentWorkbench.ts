@@ -1,11 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import { useContentIdeaApproveJob } from '@/hooks/useContentIdeaApproveJob';
 import { useContentIdeationJob } from '@/hooks/useContentIdeationJob';
 import { useContentImageInjectJob } from '@/hooks/useContentImageInjectJob';
 import { useKeywordOptimizationJob } from '@/hooks/useKeywordOptimizationJob';
 import { useIdeationEngineAIModelPicker } from '@/hooks/personal-branding/useIdeationEngineAIModelPicker';
+import {
+  consumeIgnoredTerminalJob,
+  markJobCancelled,
+  type ClientJobCancelState,
+} from '@/lib/personal-branding/client-job-cancel';
 import { contentIdeationJobInProgress } from '@/lib/personal-branding/content-ideation-progress';
+import { personalBrandingJobFailureMessage } from '@/lib/personal-branding/content-ideation-progress';
+import { reportPersonalBrandingJobFailure } from '@/lib/personal-branding/report-job-failure';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import type {
@@ -13,6 +22,7 @@ import type {
   BrandPlatform,
   BrandProfile,
   ContentIdea,
+  ContentIdeaApproveJob,
   ContentIdeaGenerationContextStats,
   ContentIdeationJob,
   ContentImageInjectJob,
@@ -25,9 +35,15 @@ import type { ApproveIdeaGenerateRequest } from './ApproveIdeaGenerateModal';
 import type { NewDraftAiRequest, NewDraftTemplateResult } from './NewDraftWizardModal';
 import type { PublishContentMetadata } from './ContentStatusChangeModal';
 import {
+  announceLiveMessage,
   collectActiveBrandPillars,
+  CONTENT_WORKBENCH_AI_TOOL_UPDATED_MESSAGE,
+  formatNewIdeasReadyMessage,
+  getApproveJobDraft,
   isBrandProfileReadyForIdeation,
+  selectTrendIdeas,
 } from './content-workbench-helpers';
+import { selectSandboxContentNodes } from './select-sandbox-content-nodes';
 import { layoutTemplateForContentType } from './content-workbench-templates';
 import { UNTITLED_DRAFT_LABEL } from './content-workbench-constants';
 
@@ -42,6 +58,7 @@ function isUntitledTitle(title: string): boolean {
 
 export function useContentWorkbench() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTabState] = useState(() => searchParams.get('tab') ?? 'sandbox');
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
@@ -58,7 +75,10 @@ export function useContentWorkbench() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [targetPlatform, setTargetPlatform] = useState<BrandPlatform>('linkedin');
   const [seedIdeas, setSeedIdeas] = useState('');
+  const [boostFromRecentPublishes, setBoostFromRecentPublishes] = useState(true);
   const [enableImageSearch, setEnableImageSearch] = useState(false);
+  const [vaultEnableImageSearch, setVaultEnableImageSearch] = useState(false);
+  const [enableKeywordResearch, setEnableKeywordResearch] = useState(false);
   const [ideaCount, setIdeaCount] = useState(6);
   const {
     catalog: ideationModelCatalog,
@@ -85,10 +105,40 @@ export function useContentWorkbench() {
   const [titlePromptOpen, setTitlePromptOpen] = useState(false);
   const [approvingIdea, setApprovingIdea] = useState<ContentIdea | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [approveJobId, setApproveJobId] = useState<string | null>(null);
+  const [approveJobIdeaId, setApproveJobIdeaId] = useState<string | null>(null);
+  const [ideationClientCancelState, setIdeationClientCancelState] =
+    useState<ClientJobCancelState>('idle');
+  const [vaultClientCancelState, setVaultClientCancelState] =
+    useState<ClientJobCancelState>('idle');
+  const [approveClientCancelState, setApproveClientCancelState] =
+    useState<ClientJobCancelState>('idle');
+  const [imageInjectClientCancelState, setImageInjectClientCancelState] =
+    useState<ClientJobCancelState>('idle');
+  const [keywordOptimizeClientCancelState, setKeywordOptimizeClientCancelState] =
+    useState<ClientJobCancelState>('idle');
+  const [ideationLiveMessage, setIdeationLiveMessage] = useState<string | null>(null);
+  const [vaultLiveMessage, setVaultLiveMessage] = useState<string | null>(null);
+  const [aiToolLiveMessage, setAiToolLiveMessage] = useState<string | null>(null);
+  const [showArchivedContent, setShowArchivedContent] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+
+  const ignoredTerminalJobIdsRef = useRef<Set<string>>(new Set());
 
   const contentQ = useQuery({
-    queryKey: queryKeys.personalBranding.content.list(1, 100),
-    queryFn: () => personalBrandingService.listContentNodes(1, 100),
+    queryKey: queryKeys.personalBranding.content.list(1, 100, undefined, true),
+    queryFn: () =>
+      personalBrandingService.listContentNodes(1, 100, undefined, {
+        includeSkipped: true,
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
+      }),
+  });
+
+  const draftedIdeasQ = useQuery({
+    queryKey: queryKeys.personalBranding.ideas.list(1, 50, 'DRAFTED'),
+    queryFn: () => personalBrandingService.listContentIdeas(1, 50, 'DRAFTED'),
+    enabled: activeTab === 'trend-ideas',
   });
 
   const ideasQ = useQuery({
@@ -113,12 +163,17 @@ export function useContentWorkbench() {
     [brandProfiles]
   );
 
-  const contentNodes = useMemo(() => {
-    const items = contentQ.data?.data?.data ?? [];
-    return items
-      .filter((n) => n.status !== 'SKIPPED')
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [contentQ.data]);
+  const contentNodes = useMemo(
+    () => selectSandboxContentNodes(contentQ.data, showArchivedContent ? 'archived' : 'active'),
+    [contentQ.data, showArchivedContent]
+  );
+
+  const trendIdeasQ = useMemo(
+    () => ({
+      isPending: ideasQ.isPending || (activeTab === 'trend-ideas' && draftedIdeasQ.isPending),
+    }),
+    [activeTab, draftedIdeasQ.isPending, ideasQ.isPending]
+  );
 
   const ideas = ideasQ.data?.data ?? [];
 
@@ -136,11 +191,26 @@ export function useContentWorkbench() {
   );
 
   const trendIdeas = useMemo(
-    () => ideas.filter((idea) => idea.sourceType === 'RADAR_INGESTED'),
-    [ideas]
+    () => selectTrendIdeas(ideas, draftedIdeasQ.data?.data ?? []),
+    [draftedIdeasQ.data?.data, ideas]
   );
 
-  const loadDraft = useCallback((node: ContentNode) => {
+  const sandboxBodyEditInput = useCallback(
+    () => ({
+      title: editorTitle.trim() || UNTITLED_DRAFT_LABEL,
+      body: editorBody,
+      contentType,
+      platform: draftPlatform ?? undefined,
+      ...(draftPillars.length > 0 ? { pillars: draftPillars } : {}),
+      ...(selectedProfileId ? { brandProfileId: selectedProfileId } : {}),
+    }),
+    [contentType, draftPillars, draftPlatform, editorBody, editorTitle, selectedProfileId]
+  );
+
+  const loadDraft = useCallback((node: ContentNode | null | undefined) => {
+    // Guard: sync approve onSuccess used to call loadDraft(result.draft) after the
+    // API moved to 202 job-start (no draft) → TypeError reading 'id' (bbc5bae966c5).
+    if (!node?.id) return;
     setActiveDraftId(node.id);
     setActiveContentStatus(node.status);
     setEditorTitle(node.title);
@@ -151,7 +221,46 @@ export function useContentWorkbench() {
     setDraftPillars(node.pillars ?? []);
     setAssetPrompts((node.assetPrompts as AssetPromptsResult | null) ?? null);
     setIsDirty(false);
+    const parsedUpdatedAt = Date.parse(node.updatedAt ?? '');
+    setLastSavedAt(Number.isFinite(parsedUpdatedAt) ? parsedUpdatedAt : null);
   }, []);
+
+  const openDraftFromIdea = useCallback(
+    (idea: ContentIdea) => {
+      const draftNodeId = idea.draftNodeId;
+      if (!draftNodeId) return;
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', 'sandbox');
+      next.set('contentId', draftNodeId);
+      setSearchParams(next, { replace: true });
+      setActiveTabState('sandbox');
+      const fromList = contentNodes.find((n) => n.id === draftNodeId);
+      if (fromList) {
+        loadDraft(fromList);
+        return;
+      }
+      void personalBrandingService.getContentNode(draftNodeId).then(loadDraft);
+    },
+    [contentNodes, loadDraft, searchParams, setSearchParams]
+  );
+
+  const openDraftFromLibrary = useCallback(
+    (node: ContentNode) => {
+      if (!node?.id) return;
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', 'sandbox');
+      next.set('contentId', node.id);
+      setSearchParams(next, { replace: true });
+      setActiveTabState('sandbox');
+      const fromList = contentNodes.find((n) => n.id === node.id);
+      if (fromList) {
+        loadDraft(fromList);
+        return;
+      }
+      void personalBrandingService.getContentNode(node.id).then(loadDraft);
+    },
+    [contentNodes, loadDraft, searchParams, setSearchParams]
+  );
 
   const setActiveTab = useCallback(
     (tabId: string) => {
@@ -226,6 +335,7 @@ export function useContentWorkbench() {
       }
       setIsDirty(false);
       setTitlePromptOpen(false);
+      setLastSavedAt(Date.now());
       void invalidateWorkbench();
     },
   });
@@ -276,7 +386,15 @@ export function useContentWorkbench() {
         return;
       }
       if (job.status === 'failed') {
-        setImageInjectError(job.error ?? job.message ?? 'Failed to inject images');
+        reportPersonalBrandingJobFailure({
+          feature: 'contentImageInject',
+          jobId: job.jobId,
+          error: job.error,
+          message: job.message,
+          errorCode: job.errorCode,
+          retryable: job.retryable,
+        });
+        setImageInjectError(personalBrandingJobFailureMessage(job, 'Failed to inject images'));
         setImageInjectJobId(null);
       }
     },
@@ -331,7 +449,17 @@ export function useContentWorkbench() {
         return;
       }
       if (job.status === 'failed') {
-        setKeywordOptimizeError(job.error ?? job.message ?? 'Keyword optimization failed');
+        reportPersonalBrandingJobFailure({
+          feature: 'contentKeywordOptimize',
+          jobId: job.jobId,
+          error: job.error,
+          message: job.message,
+          errorCode: job.errorCode,
+          retryable: job.retryable,
+        });
+        setKeywordOptimizeError(
+          personalBrandingJobFailureMessage(job, 'Keyword optimization failed')
+        );
         setKeywordOptimizeJobId(null);
       }
     },
@@ -365,7 +493,67 @@ export function useContentWorkbench() {
     onError: (err: Error) => setKeywordOptimizeError(err.message),
   });
 
+  const handleApproveJobTerminal = useCallback(
+    (job: ContentIdeaApproveJob) => {
+      if (job.status === 'succeeded') {
+        const draft = getApproveJobDraft(job);
+        if (!draft) {
+          setApproveError('Draft generation finished without a draft payload. Retry the idea.');
+          setApproveJobId(null);
+          setApproveJobIdeaId(null);
+          return;
+        }
+        const idea = job.result?.idea;
+        setApprovingIdea(null);
+        setApproveJobId(null);
+        setApproveJobIdeaId(null);
+        setApproveError(null);
+        loadDraft(draft);
+        setActiveTab('sandbox');
+        void invalidateWorkbench();
+        if (idea?.enableImageSearch) {
+          injectImagesMutation.mutate({
+            title: draft.title,
+            body: draft.body ?? '',
+            contentId: draft.id,
+            contentType: draft.contentType ?? undefined,
+          });
+        }
+        return;
+      }
+      if (job.status === 'failed') {
+        reportPersonalBrandingJobFailure({
+          feature: 'contentIdeaApprove',
+          jobId: job.jobId,
+          error: job.error,
+          message: job.message,
+          errorCode: job.errorCode,
+          retryable: job.retryable,
+        });
+        setApproveError(personalBrandingJobFailureMessage(job, 'Failed to generate draft'));
+        setApproveJobId(null);
+        setApproveJobIdeaId(null);
+      }
+    },
+    [invalidateWorkbench, injectImagesMutation.mutate, loadDraft, setActiveTab]
+  );
+
+  useContentIdeaApproveJob(approveJobIdeaId, approveJobId, handleApproveJobTerminal, () => {
+    if (approveJobId) {
+      reportPersonalBrandingJobFailure({
+        feature: 'contentIdeaApprove',
+        jobId: approveJobId,
+        error: 'Client poll stopped after 300000ms without terminal status',
+        stage: 'client_timeout',
+      });
+    }
+    setApproveError('Draft generation is taking longer than expected.');
+    setApproveJobId(null);
+    setApproveJobIdeaId(null);
+  });
+
   const approveIdeaMutation = useMutation({
+    mutationKey: ['personalBranding', 'contentIdea', 'approve'],
     mutationFn: (request: ApproveIdeaGenerateRequest) =>
       personalBrandingService.approveContentIdea(request.ideaId, {
         brandProfileId: request.brandProfileId,
@@ -374,33 +562,41 @@ export function useContentWorkbench() {
         pillars: request.pillars,
       }),
     onMutate: () => setApproveError(null),
-    onSuccess: ({ idea, draft }) => {
-      setApprovingIdea(null);
-      loadDraft(draft);
-      setActiveTab('sandbox');
-      void invalidateWorkbench();
-      if (idea.enableImageSearch) {
-        injectImagesMutation.mutate({
-          title: draft.title,
-          body: draft.body ?? '',
-          contentId: draft.id,
-          contentType: draft.contentType ?? undefined,
-        });
-      }
+    onSuccess: (start, request) => {
+      setApproveJobIdeaId(request.ideaId);
+      setApproveJobId(start.jobId);
     },
     onError: (err: Error) => setApproveError(err.message),
   });
 
+  const isApprovingIdea = approveIdeaMutation.isPending || Boolean(approveJobId);
+
+  const approvingIdeaId =
+    approveJobIdeaId ??
+    (approveIdeaMutation.isPending ? (approveIdeaMutation.variables?.ideaId ?? null) : null);
+
   const handleIdeationJobTerminal = useCallback(
     (job: ContentIdeationJob) => {
+      if (consumeIgnoredTerminalJob(ignoredTerminalJobIdsRef.current, job.jobId)) {
+        setIdeationJobId(null);
+        setIdeationClientCancelState('idle');
+        return;
+      }
       if (job.status === 'succeeded' && job.result) {
         setLastGenerationStats(job.result.contextStats);
+        announceLiveMessage(
+          setIdeationLiveMessage,
+          formatNewIdeasReadyMessage(job.result.ideas.length)
+        );
         void invalidateWorkbench();
         setIdeationJobId(null);
+        setIdeationClientCancelState('idle');
         return;
       }
       if (job.status === 'failed') {
-        setGenerateError(job.error ?? job.message ?? 'Failed to generate content ideas');
+        setGenerateError(
+          personalBrandingJobFailureMessage(job, 'Failed to generate content ideas')
+        );
         setIdeationJobId(null);
       }
     },
@@ -409,14 +605,26 @@ export function useContentWorkbench() {
 
   const handleVaultJobTerminal = useCallback(
     (job: ContentIdeationJob) => {
+      if (consumeIgnoredTerminalJob(ignoredTerminalJobIdsRef.current, job.jobId)) {
+        setVaultJobId(null);
+        setVaultClientCancelState('idle');
+        return;
+      }
       if (job.status === 'succeeded' && job.result) {
         setLastVaultGenerationStats(job.result.contextStats);
+        announceLiveMessage(
+          setVaultLiveMessage,
+          formatNewIdeasReadyMessage(job.result.ideas.length)
+        );
         void invalidateWorkbench();
         setVaultJobId(null);
+        setVaultClientCancelState('idle');
         return;
       }
       if (job.status === 'failed') {
-        setVaultGenerateError(job.error ?? job.message ?? 'Failed to generate vault content ideas');
+        setVaultGenerateError(
+          personalBrandingJobFailureMessage(job, 'Failed to generate vault content ideas')
+        );
         setVaultJobId(null);
       }
     },
@@ -443,8 +651,10 @@ export function useContentWorkbench() {
         brandProfileId: selectedProfileId,
         targetPlatform,
         seedIdeas: seedIdeas.trim() || null,
+        boostFromRecentPublishes,
         count: ideaCount,
         enableImageSearch,
+        enableKeywordResearch: targetPlatform === 'medium' ? false : enableKeywordResearch,
         ...(resolveIdeationApiModel() ? { model: resolveIdeationApiModel() } : {}),
       });
     },
@@ -454,9 +664,22 @@ export function useContentWorkbench() {
     },
     onSuccess: (start) => {
       setIdeationJobId(start.jobId);
+      if (start.countEffective != null && start.countEffective !== ideaCount) {
+        setIdeaCount(start.countEffective);
+      }
+      if (start.countAdjustmentWarning) {
+        showToast({ type: 'warning', title: start.countAdjustmentWarning });
+      }
     },
     onError: (err: Error) => setGenerateError(err.message),
   });
+
+  const handleTargetPlatformChange = useCallback((platform: BrandPlatform) => {
+    setTargetPlatform(platform);
+    if (platform === 'medium') {
+      setEnableKeywordResearch(false);
+    }
+  }, []);
 
   const generateVaultIdeasMutation = useMutation({
     mutationFn: async () => {
@@ -470,6 +693,7 @@ export function useContentWorkbench() {
         brandProfileId: selectedProfileId,
         vaultItemIds: selectedVaultItemIds,
         targetPlatform,
+        enableImageSearch: vaultEnableImageSearch,
       });
     },
     onMutate: () => {
@@ -478,17 +702,47 @@ export function useContentWorkbench() {
     },
     onSuccess: (start) => {
       setVaultJobId(start.jobId);
+      if (start.countAdjustmentWarning) {
+        showToast({ type: 'warning', title: start.countAdjustmentWarning });
+      }
     },
     onError: (err: Error) => setVaultGenerateError(err.message),
   });
 
+  const generatedIdeasQueryKey = queryKeys.personalBranding.ideas.list(1, 50, 'GENERATED');
+  type GeneratedIdeasPage = Awaited<ReturnType<typeof personalBrandingService.listContentIdeas>>;
+
   const rejectIdeaMutation = useMutation({
-    mutationFn: ({ ideaId, feedbackText }: { ideaId: string; feedbackText: string | null }) =>
+    mutationFn: ({
+      ideaId,
+      feedbackText,
+      feedbackCategory,
+    }: {
+      ideaId: string;
+      feedbackText: string | null;
+      feedbackCategory?: string | null;
+    }) =>
       personalBrandingService.rejectContentIdea(ideaId, {
         feedbackText: feedbackText ?? undefined,
+        feedbackCategory: feedbackCategory ?? undefined,
       }),
-    onSuccess: () => {
+    onMutate: async ({ ideaId }) => {
+      await queryClient.cancelQueries({ queryKey: generatedIdeasQueryKey });
+      const previous = queryClient.getQueryData<GeneratedIdeasPage>(generatedIdeasQueryKey);
       setRejectingIdea(null);
+      queryClient.setQueryData<GeneratedIdeasPage | undefined>(generatedIdeasQueryKey, (old) => {
+        if (!old?.data) return old;
+        const data = old.data.filter((idea) => idea.id !== ideaId);
+        return { ...old, data, total: Math.max(0, old.total - 1) };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(generatedIdeasQueryKey, context.previous);
+      }
+    },
+    onSuccess: () => {
       void invalidateWorkbench();
     },
   });
@@ -612,16 +866,122 @@ export function useContentWorkbench() {
     },
   });
 
+  const archiveDraftMutation = useMutation({
+    mutationFn: (contentId: string) =>
+      personalBrandingService.updateContentNode(contentId, { status: 'SKIPPED' }),
+    onSuccess: async (_node, archivedId) => {
+      await invalidateWorkbench();
+      if (activeDraftId === archivedId) {
+        startNewDraft();
+      }
+    },
+  });
+
+  const unarchiveDraftMutation = useMutation({
+    mutationFn: (contentId: string) =>
+      personalBrandingService.updateContentNode(contentId, { status: 'DRAFT' }),
+    onSuccess: async (node) => {
+      setShowArchivedContent(false);
+      setActiveContentStatus('DRAFT');
+      loadDraft(node);
+      await invalidateWorkbench();
+    },
+  });
+
+  const finishContentMutation = useMutation({
+    mutationFn: () => personalBrandingService.finishContent(sandboxBodyEditInput()),
+    onSuccess: (result) => {
+      setEditorBody(result.body);
+      setIsDirty(true);
+      announceLiveMessage(setAiToolLiveMessage, CONTENT_WORKBENCH_AI_TOOL_UPDATED_MESSAGE);
+    },
+  });
+
+  const lengthenContentMutation = useMutation({
+    mutationFn: () => personalBrandingService.lengthenContent(sandboxBodyEditInput()),
+    onSuccess: (result) => {
+      setEditorBody(result.body);
+      setIsDirty(true);
+      announceLiveMessage(setAiToolLiveMessage, CONTENT_WORKBENCH_AI_TOOL_UPDATED_MESSAGE);
+    },
+  });
+
+  const formatContentMutation = useMutation({
+    mutationFn: () => personalBrandingService.formatContent(sandboxBodyEditInput()),
+    onSuccess: (result) => {
+      setEditorBody(result.body);
+      setIsDirty(true);
+      announceLiveMessage(setAiToolLiveMessage, CONTENT_WORKBENCH_AI_TOOL_UPDATED_MESSAGE);
+    },
+  });
+
+  const cancelIdeationJob = useCallback(() => {
+    if (ideationJobId) {
+      markJobCancelled(ignoredTerminalJobIdsRef.current, ideationJobId);
+      void queryClient.cancelQueries({
+        queryKey: queryKeys.personalBranding.ideationJobs.detail(ideationJobId),
+      });
+      setIdeationJobId(null);
+    }
+    setIdeationClientCancelState('cancelled');
+  }, [ideationJobId, queryClient]);
+
+  const cancelVaultJob = useCallback(() => {
+    if (vaultJobId) {
+      markJobCancelled(ignoredTerminalJobIdsRef.current, vaultJobId);
+      void queryClient.cancelQueries({
+        queryKey: queryKeys.personalBranding.ideationJobs.detail(vaultJobId),
+      });
+      setVaultJobId(null);
+    }
+    setVaultClientCancelState('cancelled');
+  }, [queryClient, vaultJobId]);
+
+  const cancelApproveJob = useCallback(() => {
+    if (approveJobId) {
+      markJobCancelled(ignoredTerminalJobIdsRef.current, approveJobId);
+    }
+    setApproveJobId(null);
+    setApproveJobIdeaId(null);
+    setApproveClientCancelState('cancelled');
+  }, [approveJobId]);
+
+  const cancelImageInjectJob = useCallback(() => {
+    if (imageInjectJobId) {
+      markJobCancelled(ignoredTerminalJobIdsRef.current, imageInjectJobId);
+      void queryClient.cancelQueries({
+        queryKey: queryKeys.personalBranding.imageInjectJobs.detail(imageInjectJobId),
+      });
+      setImageInjectJobId(null);
+    }
+    setImageInjectClientCancelState('cancelled');
+  }, [imageInjectJobId, queryClient]);
+
+  const cancelKeywordOptimizeJob = useCallback(() => {
+    if (keywordOptimizeJobId) {
+      markJobCancelled(ignoredTerminalJobIdsRef.current, keywordOptimizeJobId);
+      setKeywordOptimizeJobId(null);
+    }
+    setKeywordOptimizeClientCancelState('cancelled');
+  }, [keywordOptimizeJobId]);
+
   return {
     activeTab,
     setActiveTab,
     contentQ,
+    contentLoadError: contentQ.isError,
+    retryContentLoad: () => {
+      void contentQ.refetch();
+    },
     ideasQ,
     contentNodes,
     ideas,
     ideationIdeas,
     vaultIdeas,
     trendIdeas,
+    trendIdeasQ,
+    openDraftFromIdea,
+    openDraftFromLibrary,
     activeDraftId,
     activeContentStatus,
     editorTitle,
@@ -632,6 +992,10 @@ export function useContentWorkbench() {
     editorBody,
     handleEditorBodyChange,
     contentType,
+    setContentType: (value: ContentType) => {
+      setContentType(value);
+      setIsDirty(true);
+    },
     draftPlatform,
     setDraftPlatform: (value: BrandPlatform | null) => {
       setDraftPlatform(value);
@@ -662,12 +1026,23 @@ export function useContentWorkbench() {
     saveWithResolvedTitle,
     keepUntitledAndSave,
     saveDraftMutation,
+    saveDraftError: saveDraftMutation.isError
+      ? (saveDraftMutation.error?.message ?? 'Failed to save draft')
+      : null,
+    lastSavedAt,
     deleteDraftMutation,
+    archiveDraftMutation,
+    unarchiveDraftMutation,
     publishMutation,
     unpublishMutation,
     approveIdeaMutation,
+    isApprovingIdea,
+    approvingIdeaId,
     rejectIdeaMutation,
     assetPromptsMutation,
+    finishContentMutation,
+    lengthenContentMutation,
+    formatContentMutation,
     injectImagesMutation,
     imageInjectJob: imageInjectJobQuery.data,
     imageInjectError,
@@ -682,6 +1057,21 @@ export function useContentWorkbench() {
       keywordOptimizeJobQuery.data?.status === 'queued' ||
       keywordOptimizeJobQuery.data?.status === 'running',
     onOptimizeKeywords: () => optimizeKeywordsMutation.mutate(),
+    aiToolLiveMessage,
+    ideationLiveMessage,
+    vaultLiveMessage,
+    ideationClientCancelState,
+    cancelIdeationJob,
+    vaultClientCancelState,
+    cancelVaultJob,
+    approveClientCancelState,
+    cancelApproveJob,
+    imageInjectClientCancelState,
+    cancelImageInjectJob,
+    keywordOptimizeClientCancelState,
+    cancelKeywordOptimizeJob,
+    showArchivedContent,
+    setShowArchivedContent,
     rejectingIdea,
     setRejectingIdea,
     approvingIdea,
@@ -693,11 +1083,17 @@ export function useContentWorkbench() {
     selectedProfileId,
     setSelectedProfileId,
     targetPlatform,
-    setTargetPlatform,
+    setTargetPlatform: handleTargetPlatformChange,
     seedIdeas,
     setSeedIdeas,
+    boostFromRecentPublishes,
+    setBoostFromRecentPublishes,
     enableImageSearch,
     setEnableImageSearch,
+    vaultEnableImageSearch,
+    setVaultEnableImageSearch,
+    enableKeywordResearch,
+    setEnableKeywordResearch,
     ideaCount,
     setIdeaCount,
     ideationModelCatalog,

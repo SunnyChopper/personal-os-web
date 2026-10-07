@@ -182,10 +182,10 @@ export const chatbotService = {
     throw new Error('Failed to compact thread context');
   },
 
-  async getPendingCoachEscalations(): Promise<
-    import('@/types/chatbot').CoachEscalationPendingItem[]
-  > {
-    const response = await apiClient.getPendingCoachEscalations();
+  async getPendingCoachEscalations(
+    signal?: AbortSignal
+  ): Promise<import('@/types/chatbot').CoachEscalationPendingItem[]> {
+    const response = await apiClient.getPendingCoachEscalations({ signal });
     if (response.success && response.data) {
       return response.data.escalations ?? [];
     }

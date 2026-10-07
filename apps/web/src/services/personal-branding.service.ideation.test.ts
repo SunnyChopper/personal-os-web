@@ -20,6 +20,7 @@ describe('personalBrandingService.generateContentIdeas', () => {
         jobId: 'job-manual-1',
         status: 'queued',
         pollAfterMs: 2000,
+        countEffective: 6,
       },
     });
 
@@ -37,6 +38,7 @@ describe('personalBrandingService.generateContentIdeas', () => {
     expect(result.jobId).toBe('job-manual-1');
     expect(result.status).toBe('queued');
     expect(result.pollAfterMs).toBe(2000);
+    expect(result.countEffective).toBe(6);
   });
 });
 
@@ -168,6 +170,9 @@ describe('personalBrandingService.generateRadarExtractedIdeas', () => {
       brandProfileId: 'profile-1',
       radarItemIds: ['radar-1'],
       targetPlatform: 'linkedin',
+      count: 5,
+      imageIdeaCount: 2,
+      idempotencyKey: 'intent-1:profile-1',
     });
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -176,10 +181,91 @@ describe('personalBrandingService.generateRadarExtractedIdeas', () => {
         brandProfileId: 'profile-1',
         radarItemIds: ['radar-1'],
         targetPlatform: 'linkedin',
+        count: 5,
+        imageIdeaCount: 2,
+        idempotencyKey: 'intent-1:profile-1',
       }
     );
     expect(result.jobId).toBe('job-1');
     expect(result.status).toBe('queued');
     expect(result.pollAfterMs).toBe(2000);
+  });
+});
+
+describe('personalBrandingService.generateVaultExtractedIdeas', () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it('sends the Vault image-search flag', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      success: true,
+      data: {
+        jobId: 'job-vault-1',
+        status: 'queued',
+        pollAfterMs: 2000,
+        countEffective: 4,
+      },
+    });
+
+    await personalBrandingService.generateVaultExtractedIdeas({
+      brandProfileId: 'profile-1',
+      vaultItemIds: ['note-1'],
+      targetPlatform: 'medium',
+      count: 4,
+      enableImageSearch: true,
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/ai/personal-branding/content-ideas/generate-from-vault',
+      {
+        brandProfileId: 'profile-1',
+        vaultItemIds: ['note-1'],
+        targetPlatform: 'medium',
+        count: 4,
+        enableImageSearch: true,
+      }
+    );
+  });
+});
+
+describe('personalBrandingService.generateBrandProjects', () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it('posts count and radarItemIds in camelCase', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      success: true,
+      data: { jobId: 'job-projects-1', replayed: false },
+    });
+
+    const result = await personalBrandingService.generateBrandProjects({
+      count: 5,
+      radarItemIds: [' radar-1 ', 'radar-2'],
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith('/personal-branding/projects/generate', {
+      count: 5,
+      radarItemIds: ['radar-1', 'radar-2'],
+    });
+    expect(result.jobId).toBe('job-projects-1');
+    expect(result.replayed).toBe(false);
+  });
+
+  it('omits radarItemIds when every id is blank', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      success: true,
+      data: { jobId: 'job-projects-2' },
+    });
+
+    await personalBrandingService.generateBrandProjects({
+      count: 5,
+      radarItemIds: [' ', ''],
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith('/personal-branding/projects/generate', {
+      count: 5,
+    });
   });
 });

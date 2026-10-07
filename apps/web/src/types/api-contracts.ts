@@ -372,6 +372,80 @@ export interface ProactiveAutomation {
   updatedAt: string;
 }
 
+export type AssistantSpecialistTriggerMode = 'auto' | 'manualOnly' | 'always';
+
+export interface AssistantSpecialistTriggers {
+  mode: AssistantSpecialistTriggerMode;
+  keywords: string[];
+  aliases: string[];
+  intentCategories: string[];
+  priority: number;
+}
+
+export interface AssistantSpecialist {
+  id: string;
+  displayName: string;
+  systemPrompt: string;
+  enabled: boolean;
+  livingContextDomains: string[];
+  triggers: AssistantSpecialistTriggers;
+  includeBrandProfile: boolean;
+  includeLtm: boolean;
+  includeToolResults: boolean;
+  domainDeltaModules: string[];
+  toolNames: string[];
+  maxToolRounds: number;
+  timeoutSeconds: number;
+  temperature: number;
+  modelOverride?: string | null;
+  contextCharBudget: number;
+  corpusIds: string[];
+  graphEnabled: boolean;
+  graphId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssistantSpecialistDocument {
+  id: string;
+  specialistId: string;
+  corpusId: string;
+  fileId?: string | null;
+  filename: string;
+  mimeType: string;
+  status: string;
+  chunkCount?: number | null;
+  uploadUrl?: string | null;
+  s3Key?: string | null;
+  error?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssistantSpecialistGraphNode {
+  id: string;
+  label: string;
+  description: string;
+  positionX: number;
+  positionY: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssistantSpecialistGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  relation: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssistantSpecialistGraph {
+  nodes: AssistantSpecialistGraphNode[];
+  edges: AssistantSpecialistGraphEdge[];
+}
+
 export type ProactiveSuggestionStatus = 'pending' | 'approved' | 'rejected';
 
 export type AssistantInterventionKind =
@@ -404,6 +478,10 @@ export interface AssistantIntervention {
   dismissedAt?: string | null;
   readAt?: string | null;
   repliedAt?: string | null;
+  stackKey?: string | null;
+  occurrenceCount?: number;
+  firstSeenAt?: string | null;
+  lastSeenAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

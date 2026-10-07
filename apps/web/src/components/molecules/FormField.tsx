@@ -34,7 +34,14 @@ export function FormField({
       </label>
       {children}
       {hint && !error ? <p className="text-xs text-gray-500 dark:text-gray-400">{hint}</p> : null}
-      {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
+      {error ? (
+        <p
+          id={htmlFor ? `${htmlFor}-error` : undefined}
+          className="text-sm text-red-600 dark:text-red-400"
+        >
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

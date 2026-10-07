@@ -85,7 +85,6 @@ export default function ChatbotPage() {
     setSidebarCollapsed,
     threadListProps,
     deleteDialogProps,
-    ToastContainer,
     activeThread,
     showChatShell,
     isTreeLoading,
@@ -563,7 +562,6 @@ export default function ChatbotPage() {
           </div>
         )}
         <DeleteThreadDialog {...deleteDialogProps} />
-        <ToastContainer />
       </AssistantMessagesShell>
 
       <RelevantNowRail

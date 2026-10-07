@@ -30,6 +30,17 @@ export const DEFAULT_PLATFORM_FORMAT: Record<BrandPlatform, PlatformFormat> = {
   newsletter: 'briefing',
 };
 
+/** Reply/quote generation defaults (X and LinkedIn → single post, not Live Output). */
+export const REPLY_DEFAULT_PLATFORM_FORMAT: Record<BrandPlatform, PlatformFormat> = {
+  ...DEFAULT_PLATFORM_FORMAT,
+  x: 'single_post',
+  linkedin: 'single_post',
+};
+
+export function defaultReplyPlatformFormat(platform: BrandPlatform): PlatformFormat {
+  return REPLY_DEFAULT_PLATFORM_FORMAT[platform];
+}
+
 export const PLATFORM_FORMAT_LABELS: Record<PlatformFormat, string> = {
   simple_post: 'Simple post',
   carousel: 'Carousel',

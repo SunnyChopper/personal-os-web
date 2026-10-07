@@ -8,6 +8,7 @@ describe('task-edit-form-snapshot', () => {
   const base = buildTaskEditFormSnapshot({
     title: 'Ship feature',
     description: 'Details here',
+    notes: '',
     area: 'Operations',
     subCategory: undefined,
     priority: 'P2',
@@ -21,6 +22,26 @@ describe('task-edit-form-snapshot', () => {
     projectIds: ['p2', 'p1'],
     goalIds: ['g1'],
     dependencyIds: ['d2', 'd1'],
+  });
+
+  it('detects dirty when notes change', () => {
+    const current = buildTaskEditFormSnapshot({
+      ...base,
+      notes: 'Follow up with team',
+    });
+    expect(taskEditFormSnapshotsEqual(base, current)).toBe(false);
+  });
+
+  it('treats trimmed notes as equal', () => {
+    const a = buildTaskEditFormSnapshot({
+      ...base,
+      notes: ' Note ',
+    });
+    const b = buildTaskEditFormSnapshot({
+      ...base,
+      notes: 'Note',
+    });
+    expect(taskEditFormSnapshotsEqual(a, b)).toBe(true);
   });
 
   it('detects dirty when title changes', () => {

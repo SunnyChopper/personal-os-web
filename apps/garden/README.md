@@ -2,7 +2,7 @@
 
 Portfolio homepage (aligned with `personal-os-web` marketing sections) plus the read-only **Garden** hub (`/garden`) backed by Postgres `public_garden`.
 
-**Env:** `PUBLIC_GARDEN_DATABASE_URL`, `PUBLIC_GARDEN_USER_ID`, `NEXT_PUBLIC_SITE_URL`, `OPENAI_API_KEY`.
+**Env:** `PUBLIC_GARDEN_DATABASE_URL`, `PUBLIC_GARDEN_USER_ID`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_GA_MEASUREMENT_ID` (optional GA4), `OPENAI_API_KEY`.
 
 - From `personal-os-web/` workspace root: `bun run --filter garden dev` — port 3040
 - `bun run --filter garden build` / `bun run --filter garden build:opennext`

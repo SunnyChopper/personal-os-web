@@ -2,17 +2,10 @@ import { CheckCircle, ExternalLink, MessageSquarePlus, Sparkles } from 'lucide-r
 import Button from '@/components/atoms/Button';
 import EngagementRationale from '@/components/molecules/personal-branding/EngagementRationale';
 import RecommendedActionBadge from '@/components/molecules/personal-branding/RecommendedActionBadge';
+import { formatSocialCapitalAngleLabel } from '@/lib/personal-branding/social-capital-angle';
 import { ctaLabelForReconPost } from '@/lib/personal-branding/recon-prompter-seed';
 import { nextActionCueForRecommendedAction } from '@/lib/personal-branding/recommended-action-display';
 import type { ContentOpportunity } from '@/types/api/personal-branding.dto';
-
-function formatAngle(angle?: string | null): string {
-  if (!angle?.trim()) return 'Engagement';
-  return angle
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
 
 export interface SuggestedContentCardProps {
   opportunity: ContentOpportunity;
@@ -51,12 +44,12 @@ export default function SuggestedContentCard({
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
-          {formatAngle(opportunity.socialCapitalAngle)}
+          {formatSocialCapitalAngleLabel(opportunity.socialCapitalAngle)}
         </span>
         <RecommendedActionBadge action={opportunity.recommendedAction} />
       </div>
       {nextActionCue ? (
-        <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{nextActionCue}</p>
+        <p className="text-xs font-normal text-gray-500 dark:text-gray-400">{nextActionCue}</p>
       ) : null}
       <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-100">
         {opportunity.postText}

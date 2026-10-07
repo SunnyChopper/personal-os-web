@@ -28,6 +28,7 @@ import { markStartup } from './lib/startup/startup-telemetry';
 import {
   AssistantSandboxPage,
   AssistantSettingsPage,
+  AssistantSpecialistsPage,
   Base64Page,
   BrandIdentityPage,
   CareerDevelopmentOverviewPage,
@@ -75,13 +76,15 @@ import {
   ObservabilityPage,
   PersonalBrandingLayout,
   PersonalBrandingOverviewPage,
+  PersonalBrandingProjectsPage,
+  BuildIdeaDetailPage,
   PetsPage,
   PlannerPage,
   PostmanPage,
   ProactiveAutomationsPage,
+  InPersonEventsPage,
   InterventionsPage,
   ProjectsPage,
-  ProjectLabsPage,
   RegexPage,
   ResumeBuilderPage,
   RewardStudioPage,
@@ -354,6 +357,30 @@ function AppContent() {
                 </AdminRouteSuspense>
               }
             />
+            <Route
+              path="events"
+              element={
+                <AdminRouteSuspense>
+                  <InPersonEventsPage />
+                </AdminRouteSuspense>
+              }
+            />
+            <Route
+              path="projects"
+              element={
+                <AdminRouteSuspense>
+                  <PersonalBrandingProjectsPage />
+                </AdminRouteSuspense>
+              }
+            />
+            <Route
+              path="projects/:ideaId"
+              element={
+                <AdminRouteSuspense>
+                  <BuildIdeaDetailPage />
+                </AdminRouteSuspense>
+              }
+            />
           </Route>
           <Route
             path={ADMIN_CHILD_ROUTES.growthSystem}
@@ -492,6 +519,14 @@ function AppContent() {
             element={
               <AdminRouteSuspense>
                 <AssistantSettingsPage />
+              </AdminRouteSuspense>
+            }
+          />
+          <Route
+            path={ADMIN_CHILD_ROUTES.assistantSpecialists}
+            element={
+              <AdminRouteSuspense>
+                <AssistantSpecialistsPage />
               </AdminRouteSuspense>
             }
           />
@@ -692,14 +727,6 @@ function AppContent() {
             element={
               <AdminRouteSuspense>
                 <SyntopicPage />
-              </AdminRouteSuspense>
-            }
-          />
-          <Route
-            path={ADMIN_CHILD_ROUTES.knowledgeVaultProjectLabs}
-            element={
-              <AdminRouteSuspense>
-                <ProjectLabsPage />
               </AdminRouteSuspense>
             }
           />

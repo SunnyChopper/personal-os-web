@@ -13,6 +13,10 @@ export const COST_THROTTLE_ALLOWLIST_DISPLAY_NAMES: Record<string, string> = {
   reconFeedConnectionDraft: 'Recon feed connection draft',
   contentStreamXShortPosts: 'Content stream short posts',
   radarGithubRelevance: 'Radar GitHub relevance',
+  contentIdeation: 'Content ideation',
+  contentIdeaApprove: 'Content idea approve',
+  contentImageInject: 'Content image inject',
+  contentKeywordOptimize: 'Content keyword optimize',
 };
 
 export function toRuleInput(

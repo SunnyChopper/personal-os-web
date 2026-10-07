@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTerminalJobFailureAlert } from '@/hooks/useTerminalJobFailureAlert';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
 import { FormCheckbox } from '@/components/atoms/FormCheckbox';
@@ -16,13 +16,23 @@ import type {
 } from '@/types/api/personal-branding.dto';
 import { BRAND_PLATFORM_LABELS } from '@/types/api/personal-branding.dto';
 import ContentIdeationProgressPanel from '@/components/molecules/personal-branding/ContentIdeationProgressPanel';
-import { isBrandProfileReadyForIdeation } from '@/pages/admin/personal-branding/content-workbench/content-workbench-helpers';
+import {
+  contentIdeationCtaProgressOnly,
+  contentIdeationProgressPanelJob,
+} from '@/lib/personal-branding/content-ideation-progress';
+import {
+  clampIdeaCountForPlatform,
+  isBrandProfileReadyForIdeation,
+  trendStreamIdeaCountOptionsForPlatform,
+} from '@/pages/admin/personal-branding/content-workbench/content-workbench-helpers';
+import { profileSupportsPlatform } from '@/lib/personal-branding/pipeline-profile-selection';
 
 export interface TrendStreamBrainstormRequest {
-  brandProfileId: string;
+  brandProfileIds: string[];
   targetPlatform: BrandPlatform;
   templateIds?: string[];
   count?: number;
+  imageIdeaCount?: number;
 }
 
 interface TrendStreamBrainstormModalProps {
@@ -31,10 +41,14 @@ interface TrendStreamBrainstormModalProps {
   profiles: BrandProfile[];
   profilesLoading: boolean;
   defaultBrandProfileId: string | null;
+  targetPlatform: BrandPlatform;
+  onTargetPlatformChange: (platform: BrandPlatform) => void;
   isSubmitting: boolean;
-  ideationJob?: ContentIdeationJob | null;
+  ideationJobs?: ContentIdeationJob[];
+  clientCancelState?: 'idle' | 'cancelled';
   errorMessage: string | null;
   onClose: () => void;
+  onCancelJob?: () => void;
   onSubmit: (request: TrendStreamBrainstormRequest) => void;
 }
 
@@ -46,20 +60,45 @@ export default function TrendStreamBrainstormModal({
   profiles,
   profilesLoading,
   defaultBrandProfileId,
+  targetPlatform,
+  onTargetPlatformChange,
   isSubmitting,
-  ideationJob,
+  ideationJobs = [],
+  clientCancelState = 'idle',
   errorMessage,
   onClose,
+  onCancelJob,
   onSubmit,
 }: TrendStreamBrainstormModalProps) {
-  const [brandProfileId, setBrandProfileId] = useState('');
-  const [targetPlatform, setTargetPlatform] = useState<BrandPlatform>('linkedin');
+  const [brandProfileIds, setBrandProfileIds] = useState<string[]>([]);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const [ideaCount, setIdeaCount] = useState(6);
+  const [imageIdeaCount, setImageIdeaCount] = useState(0);
+  const previousTargetPlatformRef = useRef(targetPlatform);
 
   const isOpen = open && selectedItems.length > 0;
+  const representativeJob =
+    ideationJobs.find(
+      (job) => job.status === 'queued' || job.status === 'running' || job.status === 'cancelling'
+    ) ?? ideationJobs[ideationJobs.length - 1];
+  const completedJobCount = ideationJobs.filter(
+    (job) => job.status === 'succeeded' || job.status === 'failed' || job.status === 'cancelled'
+  ).length;
+
+  useTerminalJobFailureAlert({
+    feature: 'radarIdeation',
+    jobId: representativeJob?.jobId,
+    status: representativeJob?.status,
+    error: representativeJob?.error,
+    message: representativeJob?.message,
+    stage: representativeJob?.stage,
+  });
 
   const readyProfiles = useMemo(() => profiles.filter(isBrandProfileReadyForIdeation), [profiles]);
+  const platformProfiles = useMemo(
+    () => readyProfiles.filter((profile) => profileSupportsPlatform(profile, targetPlatform)),
+    [readyProfiles, targetPlatform]
+  );
 
   const templatesQ = useQuery({
     queryKey: queryKeys.personalBranding.contentTemplates.list(1, 100),
@@ -73,15 +112,32 @@ export default function TrendStreamBrainstormModal({
     if (!isOpen) return;
     setSelectedTemplateIds([]);
     setIdeaCount(6);
-    setTargetPlatform('linkedin');
-    const fallback =
-      (defaultBrandProfileId &&
-        readyProfiles.some((profile) => profile.id === defaultBrandProfileId) &&
-        defaultBrandProfileId) ||
-      readyProfiles[0]?.id ||
-      '';
-    setBrandProfileId(fallback);
-  }, [isOpen, defaultBrandProfileId, readyProfiles]);
+    setImageIdeaCount(0);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const platformChanged = previousTargetPlatformRef.current !== targetPlatform;
+    if (platformChanged || brandProfileIds.length === 0) {
+      const defaults =
+        platformProfiles.length > 0
+          ? platformProfiles.map((profile) => profile.id)
+          : (defaultBrandProfileId &&
+              readyProfiles.some((profile) => profile.id === defaultBrandProfileId) && [
+                defaultBrandProfileId,
+              ]) ||
+            (readyProfiles[0]?.id ? [readyProfiles[0].id] : []);
+      setBrandProfileIds(defaults);
+    }
+    previousTargetPlatformRef.current = targetPlatform;
+  }, [
+    brandProfileIds.length,
+    defaultBrandProfileId,
+    isOpen,
+    platformProfiles,
+    readyProfiles,
+    targetPlatform,
+  ]);
 
   const toggleTemplate = (templateId: string) => {
     setSelectedTemplateIds((current) => {
@@ -93,7 +149,23 @@ export default function TrendStreamBrainstormModal({
     });
   };
 
-  const canSubmit = isOpen && Boolean(brandProfileId) && readyProfiles.length > 0 && !isSubmitting;
+  const ideaCountOptions = useMemo(
+    () => trendStreamIdeaCountOptionsForPlatform(targetPlatform),
+    [targetPlatform]
+  );
+
+  const handleTargetPlatformChange = (next: BrandPlatform) => {
+    onTargetPlatformChange(next);
+    setIdeaCount((current) => clampIdeaCountForPlatform(next, current));
+    setImageIdeaCount((current) => Math.min(current, clampIdeaCountForPlatform(next, ideaCount)));
+  };
+
+  const imageIdeaCountOptions = useMemo(
+    () => Array.from({ length: ideaCount + 1 }, (_, index) => index),
+    [ideaCount]
+  );
+  const canSubmit =
+    isOpen && brandProfileIds.length > 0 && readyProfiles.length > 0 && !isSubmitting;
 
   return (
     <Dialog
@@ -126,26 +198,37 @@ export default function TrendStreamBrainstormModal({
             </p>
           ) : (
             <>
-              <label className="block text-sm text-gray-700 dark:text-gray-300">
-                Brand profile
-                <Select
-                  value={brandProfileId}
-                  onChange={(e) => setBrandProfileId(e.target.value)}
-                  className={`${formFieldClassName} mt-1`}
-                >
-                  {readyProfiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Brand profiles
+                <span className="ml-1 font-normal text-gray-500 dark:text-gray-400">
+                  (matching profiles are selected)
+                </span>
+              </p>
+              <ul className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                {readyProfiles.map((profile) => (
+                  <li key={profile.id}>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <FormCheckbox
+                        checked={brandProfileIds.includes(profile.id)}
+                        onChange={() =>
+                          setBrandProfileIds((current) =>
+                            current.includes(profile.id)
+                              ? current.filter((id) => id !== profile.id)
+                              : [...current, profile.id]
+                          )
+                        }
+                      />
+                      <span>{profile.name}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
 
               <label className="block text-sm text-gray-700 dark:text-gray-300">
                 Target platform
                 <Select
                   value={targetPlatform}
-                  onChange={(e) => setTargetPlatform(e.target.value as BrandPlatform)}
+                  onChange={(e) => handleTargetPlatformChange(e.target.value as BrandPlatform)}
                   className={`${formFieldClassName} mt-1`}
                 >
                   {ALL_PLATFORMS.map((platform) => (
@@ -160,15 +243,41 @@ export default function TrendStreamBrainstormModal({
                 Idea count
                 <Select
                   value={String(ideaCount)}
-                  onChange={(e) => setIdeaCount(Number(e.target.value))}
+                  onChange={(e) => {
+                    const nextCount = Number(e.target.value);
+                    setIdeaCount(nextCount);
+                    setImageIdeaCount((current) => Math.min(current, nextCount));
+                  }}
                   className={`${formFieldClassName} mt-1`}
                 >
-                  {[3, 4, 5, 6, 8, 10, 12].map((count) => (
+                  {ideaCountOptions.map((count) => (
                     <option key={count} value={count}>
                       {count}
                     </option>
                   ))}
                 </Select>
+              </label>
+
+              <label className="block text-sm text-gray-700 dark:text-gray-300">
+                Image-compatible ideas
+                <Select
+                  value={String(imageIdeaCount)}
+                  onChange={(e) => setImageIdeaCount(Number(e.target.value))}
+                  className={`${formFieldClassName} mt-1`}
+                >
+                  {imageIdeaCountOptions.map((count) => (
+                    <option key={count} value={count}>
+                      {count === 0
+                        ? 'None (text-only)'
+                        : count === ideaCount
+                          ? `All ${count} ideas`
+                          : `${count} idea${count === 1 ? '' : 's'}`}
+                    </option>
+                  ))}
+                </Select>
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                  A subset of ideas can trigger image injection after approval.
+                </span>
               </label>
 
               <div className="space-y-2">
@@ -209,8 +318,6 @@ export default function TrendStreamBrainstormModal({
             </p>
           ) : null}
 
-          <ContentIdeationProgressPanel job={ideationJob} />
-
           <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
@@ -221,24 +328,50 @@ export default function TrendStreamBrainstormModal({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={!canSubmit}
-              onClick={() => {
-                if (!brandProfileId) return;
-                onSubmit({
-                  brandProfileId,
-                  targetPlatform,
-                  templateIds: selectedTemplateIds.length > 0 ? selectedTemplateIds : undefined,
-                  count: ideaCount,
-                });
-              }}
-              className="inline-flex items-center gap-2"
-            >
-              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : null}
-              {isSubmitting ? 'Brainstorming…' : 'Generate ideas'}
-            </Button>
+            {contentIdeationCtaProgressOnly(representativeJob, isSubmitting) ? (
+              <div className="min-w-[min(100%,14rem)] flex-1 sm:flex-initial">
+                <ContentIdeationProgressPanel
+                  job={contentIdeationProgressPanelJob(representativeJob, isSubmitting)}
+                  onCancel={onCancelJob}
+                />
+                {ideationJobs.length > 1 ? (
+                  <p className="mt-1 text-right text-xs text-gray-500 dark:text-gray-400">
+                    {completedJobCount} of {ideationJobs.length} profile brainstorms complete
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                {representativeJob?.status === 'failed' ? (
+                  <div className="min-w-[min(100%,14rem)] flex-1 sm:flex-initial">
+                    <ContentIdeationProgressPanel job={representativeJob} />
+                  </div>
+                ) : null}
+                {clientCancelState === 'cancelled' ? (
+                  <div className="min-w-[min(100%,14rem)] flex-1 sm:flex-initial">
+                    <ContentIdeationProgressPanel clientCancelled />
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!canSubmit}
+                  onClick={() => {
+                    if (brandProfileIds.length === 0) return;
+                    onSubmit({
+                      brandProfileIds,
+                      targetPlatform,
+                      templateIds: selectedTemplateIds.length > 0 ? selectedTemplateIds : undefined,
+                      count: ideaCount,
+                      imageIdeaCount,
+                    });
+                  }}
+                  className="inline-flex items-center gap-2"
+                >
+                  Generate ideas
+                </Button>
+              </>
+            )}
           </div>
         </fieldset>
       ) : null}

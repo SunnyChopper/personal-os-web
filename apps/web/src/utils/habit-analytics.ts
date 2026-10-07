@@ -69,14 +69,13 @@ export interface ConsistencyScoreBreakdown {
 
 export type EstablishedHabitReadiness = 'starter' | 'established' | 'strongSignal';
 
-/** True when every calendar day after streakNewest through today is OOO standby (protected). */
+/** True when the streak is still live: today pending is grace; other gaps must be protected. */
 function isStreakActiveThroughToday(
   streakNewest: string,
   todayKey: string,
   protectedDates?: Set<string>
 ): boolean {
   if (streakNewest === todayKey) return true;
-  if (!protectedDates?.size) return false;
 
   const newest = new Date(`${streakNewest}T12:00:00`);
   const today = new Date(`${todayKey}T12:00:00`);
@@ -87,7 +86,8 @@ function isStreakActiveThroughToday(
   newest.setHours(0, 0, 0, 0);
   while (cursor > newest) {
     const key = cursor.toISOString().split('T')[0];
-    if (!protectedDates.has(key)) return false;
+    const isTodayPending = key === todayKey;
+    if (!isTodayPending && !protectedDates?.has(key)) return false;
     cursor.setDate(cursor.getDate() - 1);
     cursor.setHours(0, 0, 0, 0);
   }

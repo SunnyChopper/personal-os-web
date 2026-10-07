@@ -9,7 +9,6 @@ import { PageCard, SectionIntro } from '../PersonalBrandingPageTemplate';
 import {
   linkAccentClassName,
   pbBodySecondaryClassName,
-  pbDenseListStackClassName,
   pbFormLabelClassName,
   pbListStackClassName,
   pbMetaClassName,
@@ -21,6 +20,7 @@ import { EmptyState } from '@/components/molecules/EmptyState';
 import IconSelect from '@/components/molecules/IconSelect';
 import { Select } from '@/components/atoms/Select';
 import { ROUTES } from '@/routes';
+import { reportClientError } from '@/lib/client-telemetry';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import {
   BRAND_PLATFORM_LABELS,
@@ -45,7 +45,6 @@ import {
   partitionBulkVariantResults,
 } from './variant-bulk-actions';
 import VariantRegenerateTweaksDrawer from '@/components/organisms/personal-branding/VariantRegenerateTweaksDrawer';
-import RepurposeGenerationProgressBanner from '@/components/molecules/personal-branding/RepurposeGenerationProgressBanner';
 import { ExpandablePlainTextPreview } from '@/components/molecules/personal-branding/ExpandablePlainTextPreview';
 import VariantGeneratingSkeleton from '@/components/molecules/personal-branding/VariantGeneratingSkeleton';
 import ProfileStrengthIndicator from '@/components/molecules/personal-branding/ProfileStrengthIndicator';
@@ -54,7 +53,10 @@ import {
   TargetPlatformRequirementsExpandPanel,
 } from '@/components/molecules/personal-branding/TargetPlatformRequirementBadges';
 import { useTargetPlatformRulesExpansion } from '@/hooks/useTargetPlatformRulesExpansion';
-import { repurposeJobInFlight } from '@/lib/personal-branding/repurpose-generation-progress';
+import {
+  repurposeJobGeneratingDetailMessage,
+  repurposeJobGeneratingStatusLabel,
+} from '@/lib/personal-branding/repurpose-generation-progress';
 import { eligibleProfilesForPlatform } from '@/lib/personal-branding/pipeline-profile-selection';
 import GeneratedVariantsFilterBar from './GeneratedVariantsFilterBar';
 import { BulkRejectVariantsModal } from '@/components/molecules/personal-branding/BulkRejectVariantsModal';
@@ -82,7 +84,7 @@ const PLATFORM_APPLY_FLASH_MS = 600;
 
 export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTabProps) {
   const navigate = useNavigate();
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const [variantFilters, setVariantFilters] = useState<GeneratedVariantsFilters>(
     EMPTY_GENERATED_VARIANTS_FILTERS
   );
@@ -226,6 +228,24 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
     }
   };
 
+  const reportBulkVariantFailures = (
+    action: string,
+    failed: { variantId: string; error: string }[]
+  ) => {
+    if (failed.length === 0) return;
+    void reportClientError({
+      message: `Personal Branding bulk ${action}: ${failed.length} variant failure(s)`,
+      source: 'web',
+      metadata: {
+        kind: 'personal-branding-bulk',
+        feature: 'contentRepurpose',
+        action,
+        failureCount: failed.length,
+        failures: failed.slice(0, 5),
+      },
+    });
+  };
+
   const handleBulkSendToSandbox = async () => {
     if (selectedVariantIds.length === 0 || bulkPending) return;
     const { eligible, skippedInWorkbench } = filterEligibleForSandbox(
@@ -245,6 +265,7 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
         variantIdsToSend.map((variantId) => personalBrandingService.sendVariantToSandbox(variantId))
       );
       const { succeeded, failed } = partitionBulkVariantResults(variantIdsToSend, results);
+      reportBulkVariantFailures('sendToSandbox', failed);
       const succeededIds = new Set(succeeded.map((entry) => entry.variantId));
       const failedIds = new Set(failed.map((entry) => entry.variantId));
 
@@ -292,6 +313,7 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
         )
       );
       const { succeeded, failed } = partitionBulkVariantResults(variantIdsToMark, results);
+      reportBulkVariantFailures('markReady', failed);
       const succeededIds = new Set(succeeded.map((entry) => entry.variantId));
       const failedIds = new Set(failed.map((entry) => entry.variantId));
 
@@ -344,6 +366,7 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
         )
       );
       const { succeeded, failed } = partitionBulkVariantResults(variantIdsToQueue, results);
+      reportBulkVariantFailures('addToQueue', failed);
       const succeededIds = new Set(succeeded.map((entry) => entry.variantId));
       const failedIds = new Set(failed.map((entry) => entry.variantId));
 
@@ -404,6 +427,7 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
         )
       );
       const { succeeded, failed } = partitionBulkVariantResults(variantIdsToReject, results);
+      reportBulkVariantFailures('reject', failed);
       const succeededIds = new Set(succeeded.map((entry) => entry.variantId));
       const failedIds = new Set(failed.map((entry) => entry.variantId));
 
@@ -553,7 +577,6 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
 
   return (
     <div className="space-y-6">
-      <ToastContainer />
       <PageCard>
         <SectionIntro
           title="Platform Repurposer"
@@ -849,78 +872,43 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
                   />
                 ) : null}
 
-                {pipeline.generationBatchJobs.length > 0 ? (
-                  <RepurposeGenerationProgressBanner
-                    batchJobs={pipeline.generationBatchJobs}
-                    isCancelling={pipeline.cancelRepurposeMutation.isPending}
-                    onCancel={() => pipeline.cancelRepurposeMutation.mutate()}
-                  />
-                ) : null}
-
-                <Button
-                  id={GENERATE_VARIANTS_BUTTON_ID}
-                  type="button"
-                  size="sm"
-                  disabled={!pipeline.canStart}
-                  onClick={() => pipeline.startRepurposeMutation.mutate()}
-                  className={cn(
-                    'inline-flex items-center gap-2',
-                    generateHighlight &&
-                      'ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900'
-                  )}
-                >
-                  {pipeline.startRepurposeMutation.isPending || pipeline.inFlightJobs.length > 0 ? (
-                    <Loader2 size={16} className="animate-spin" />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    id={GENERATE_VARIANTS_BUTTON_ID}
+                    type="button"
+                    size="sm"
+                    disabled={!pipeline.canStart}
+                    onClick={() => pipeline.startRepurposeMutation.mutate()}
+                    className={cn(
+                      'inline-flex items-center gap-2',
+                      generateHighlight &&
+                        'ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900'
+                    )}
+                  >
+                    {pipeline.startRepurposeMutation.isPending ||
+                    pipeline.inFlightJobs.length > 0 ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : null}
+                    {pipeline.startRepurposeMutation.isPending || pipeline.inFlightJobs.length > 0
+                      ? 'Generating…'
+                      : 'Generate variants'}
+                  </Button>
+                  {pipeline.inFlightJobs.length > 0 ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={pipeline.cancelRepurposeMutation.isPending}
+                      onClick={() => pipeline.cancelRepurposeMutation.mutate()}
+                      className="inline-flex items-center gap-2"
+                    >
+                      {pipeline.cancelRepurposeMutation.isPending ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : null}
+                      Cancel generation
+                    </Button>
                   ) : null}
-                  {pipeline.startRepurposeMutation.isPending || pipeline.inFlightJobs.length > 0
-                    ? 'Generating…'
-                    : 'Generate variants'}
-                </Button>
-
-                {pipeline.visibleJobs.length > 0 ? (
-                  <div className={pbDenseListStackClassName}>
-                    {pipeline.visibleJobs.map((job) => {
-                      const isInFlight = repurposeJobInFlight(job.status);
-                      return (
-                        <div
-                          key={job.jobId}
-                          className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-900/50"
-                        >
-                          <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white">
-                            {isInFlight ? (
-                              <Loader2
-                                size={14}
-                                className="animate-spin text-blue-600 dark:text-blue-400"
-                              />
-                            ) : null}
-                            <span>{BRAND_PLATFORM_LABELS[job.platform]}</span>
-                            <span className="text-gray-500 dark:text-gray-400">·</span>
-                            <span className="capitalize">{job.status}</span>
-                            {job.stage ? (
-                              <>
-                                <span className="text-gray-500 dark:text-gray-400">·</span>
-                                <span className="font-normal text-gray-600 dark:text-gray-300">
-                                  {REPURPOSE_JOB_STAGE_LABELS[job.stage] ?? job.stage}
-                                </span>
-                              </>
-                            ) : null}
-                          </div>
-                          {job.keywordResearchWarning ? (
-                            <p className="mt-1 text-amber-700 dark:text-amber-300">
-                              {job.keywordResearchWarning}
-                            </p>
-                          ) : null}
-                          {job.message ? (
-                            <p className="mt-1 text-gray-600 dark:text-gray-400">{job.message}</p>
-                          ) : null}
-                          {job.error ? (
-                            <p className="mt-1 text-red-600 dark:text-red-400">{job.error}</p>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
+                </div>
               </div>
             )}
           </div>
@@ -999,13 +987,20 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
             </div>
           </div>
         ) : null}
-        {visibleSkeletonPlatforms.map((platform, index) => (
-          <VariantGeneratingSkeleton
-            key={`generating-${platform}`}
-            platform={platform}
-            index={index}
-          />
-        ))}
+        {visibleSkeletonPlatforms.map((platform, index) => {
+          const job = pipeline.inFlightJobs.find((entry) => entry.platform === platform);
+          return (
+            <VariantGeneratingSkeleton
+              key={`generating-${platform}`}
+              platform={platform}
+              index={index}
+              statusLabel={
+                job ? repurposeJobGeneratingStatusLabel(job, REPURPOSE_JOB_STAGE_LABELS) : undefined
+              }
+              detailMessage={job ? repurposeJobGeneratingDetailMessage(job) : undefined}
+            />
+          );
+        })}
         {pipeline.variants.length === 0 && visibleSkeletonPlatforms.length === 0 ? (
           <EmptyState
             scene="noVariants"

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Loader2, PanelsTopLeft } from 'lucide-react';
 import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
 import { Select } from '@/components/atoms/Select';
@@ -13,8 +13,11 @@ import type { BrandPlatform, BrandProfile, ContentIdea } from '@/types/api/perso
 import { BRAND_PLATFORM_LABELS, CONTENT_TYPE_LABELS } from '@/types/api/personal-branding.dto';
 import {
   collectActiveBrandPillars,
+  GENERATE_DRAFT_CTA_HINT,
+  GENERATE_DRAFT_CTA_LABEL,
   isBrandProfileReadyForIdeation,
 } from './content-workbench-helpers';
+import { SERVER_JOB_CANCELLED_LABEL } from '@/lib/personal-branding/client-job-cancel';
 
 export interface ApproveIdeaGenerateRequest {
   ideaId: string;
@@ -30,8 +33,10 @@ interface ApproveIdeaGenerateModalProps {
   profiles: BrandProfile[];
   profilesLoading: boolean;
   isSubmitting: boolean;
+  clientCancelState?: 'idle' | 'cancelled';
   errorMessage: string | null;
   onClose: () => void;
+  onCancelJob?: () => void;
   onSubmit: (request: ApproveIdeaGenerateRequest) => void;
 }
 
@@ -49,8 +54,10 @@ export default function ApproveIdeaGenerateModal({
   profiles,
   profilesLoading,
   isSubmitting,
+  clientCancelState = 'idle',
   errorMessage,
   onClose,
+  onCancelJob,
   onSubmit,
 }: ApproveIdeaGenerateModalProps) {
   const [brandProfileId, setBrandProfileId] = useState('');
@@ -78,7 +85,7 @@ export default function ApproveIdeaGenerateModal({
   useEffect(() => {
     if (!idea) return;
     setTemplateId('');
-    setPillars([]);
+    setPillars(idea.matchedPillars ?? []);
     setPlatform(idea.targetPlatform ?? 'linkedin');
     const fallback =
       (defaultBrandProfileId &&
@@ -93,6 +100,8 @@ export default function ApproveIdeaGenerateModal({
 
   const canSubmit =
     Boolean(idea) && Boolean(brandProfileId) && readyProfiles.length > 0 && !isSubmitting;
+
+  const showCancelled = clientCancelState === 'cancelled' && !isSubmitting;
 
   return (
     <Dialog
@@ -172,6 +181,10 @@ export default function ApproveIdeaGenerateModal({
                   <div className="text-sm text-gray-700 dark:text-gray-300">
                     Brand pillars <span className="font-normal text-gray-500">(optional)</span>
                   </div>
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    Seeds draft tags on the new Sandbox node. Card &quot;Grounded in&quot; shows
+                    generation-time pillars from the idea and is not edited here.
+                  </p>
                   <BrandPillarMultiSelect
                     options={brandPillarOptions}
                     value={pillars}
@@ -203,37 +216,54 @@ export default function ApproveIdeaGenerateModal({
             <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
           ) : null}
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={!canSubmit}
-              onClick={() => {
-                if (!idea || !brandProfileId) return;
-                onSubmit({
-                  ideaId: idea.id,
-                  brandProfileId,
-                  templateId: templateId || undefined,
-                  platform,
-                  pillars: pillars.length > 0 ? pillars : undefined,
-                });
-              }}
-              className="inline-flex items-center gap-2"
-            >
-              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : null}
-              {isSubmitting ? 'Generating…' : 'Generate draft & open in Sandbox'}
-            </Button>
-          </div>
+          {showCancelled ? (
+            <p className="text-sm text-gray-700 dark:text-gray-300" role="status">
+              <span className="font-medium">Cancelled.</span> {SERVER_JOB_CANCELLED_LABEL}
+            </p>
+          ) : null}
         </fieldset>
+      ) : null}
+
+      {idea ? (
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={isSubmitting ? onCancelJob : onClose}
+            disabled={isSubmitting && !onCancelJob}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!canSubmit}
+            title={!isSubmitting ? GENERATE_DRAFT_CTA_HINT : undefined}
+            aria-label={!isSubmitting ? GENERATE_DRAFT_CTA_HINT : undefined}
+            onClick={() => {
+              if (!idea || !brandProfileId) return;
+              onSubmit({
+                ideaId: idea.id,
+                brandProfileId,
+                templateId: templateId || undefined,
+                platform,
+                pillars,
+              });
+            }}
+            className="inline-flex items-center gap-2"
+          >
+            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : null}
+            {isSubmitting ? (
+              'Generating…'
+            ) : (
+              <>
+                {GENERATE_DRAFT_CTA_LABEL}
+                <PanelsTopLeft size={14} aria-hidden />
+              </>
+            )}
+          </Button>
+        </div>
       ) : null}
     </Dialog>
   );

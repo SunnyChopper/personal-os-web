@@ -3,6 +3,7 @@ import Button from '@/components/atoms/Button';
 import Dialog from '@/components/molecules/Dialog';
 import { Textarea } from '@/components/atoms/Textarea';
 import { DialogFooter } from '../PersonalBrandingPageTemplate';
+import { pbFeedbackTextClassName } from '../personal-branding-ui';
 
 interface RetryTemplateModalProps {
   isOpen: boolean;
@@ -55,11 +56,9 @@ export default function RetryTemplateModal({
           placeholder='e.g. "Make the hook shorter" or "Add a stronger CTA section"'
           className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
         />
-        {errorMessage ? (
-          <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
-        ) : null}
+        {errorMessage ? <p className={pbFeedbackTextClassName('danger')}>{errorMessage}</p> : null}
         {isSubmitting && progressMessage ? (
-          <p className="text-sm text-indigo-700 dark:text-indigo-300">{progressMessage}</p>
+          <p className={pbFeedbackTextClassName('info')}>{progressMessage}</p>
         ) : null}
         <DialogFooter>
           <Button type="button" size="sm" variant="secondary" onClick={handleClose}>

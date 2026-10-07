@@ -5,6 +5,10 @@ import { EmptyState } from './EmptyState';
 import { GoalLinkSuggestionsPanel } from './GoalLinkSuggestionsPanel';
 import { AreaBadge } from '@/components/atoms/AreaBadge';
 import Button from '@/components/atoms/Button';
+import {
+  goalDetailLinkedListScrollClassName,
+  goalDetailLinkedSectionCardClassName,
+} from '@/lib/growth-system/goal-detail-surfaces';
 
 interface HabitWithStreak {
   habit: Habit;
@@ -38,7 +42,7 @@ export function GoalHabitsSection({
 }: GoalHabitsSectionProps) {
   if (habits.length === 0 && showEmpty) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 h-full flex flex-col">
+      <div className={`${goalDetailLinkedSectionCardClassName} flex flex-col`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Repeat className="w-5 h-5" />
@@ -66,7 +70,7 @@ export function GoalHabitsSection({
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 h-full flex flex-col">
+    <div className={`${goalDetailLinkedSectionCardClassName} flex flex-col`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -82,7 +86,7 @@ export function GoalHabitsSection({
       </div>
 
       {/* Habits List */}
-      <div className="space-y-3 flex-1">
+      <div className={`space-y-3 ${goalDetailLinkedListScrollClassName}`}>
         {habits.map((item, index) => {
           const { habit, currentStreak, completedToday, weeklyProgress } = item;
 

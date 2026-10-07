@@ -115,7 +115,8 @@ describe('ProjectListItem progress ring', () => {
       targetEndDate: endDateDaysBeforeNow(30),
     };
 
-    vi.spyOn(Date, 'now').mockReturnValue(FIXED_NOW_MS);
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW_MS);
 
     render(
       <ProjectListItem
@@ -136,7 +137,7 @@ describe('ProjectListItem progress ring', () => {
     expect(screen.getByText(/Overdue by \d+ days/)).toBeInTheDocument();
     expect(screen.queryByText(/Long overdue/)).not.toBeInTheDocument();
 
-    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('renders abandoned-risk badge for extreme overdue target end date', () => {
@@ -148,7 +149,8 @@ describe('ProjectListItem progress ring', () => {
       targetEndDate: endDateDaysBeforeNow(daysOverdue),
     };
 
-    vi.spyOn(Date, 'now').mockReturnValue(FIXED_NOW_MS);
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW_MS);
 
     render(
       <ProjectListItem
@@ -167,7 +169,7 @@ describe('ProjectListItem progress ring', () => {
 
     expect(screen.getByText(/Long overdue · \d+ days/)).toBeInTheDocument();
 
-    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('uses amber ring color for Planning projects', () => {

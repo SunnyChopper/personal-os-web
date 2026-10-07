@@ -25,6 +25,11 @@ import type {
   ProactiveBrainstormResult,
   ProactiveAutomationRunsList,
   ProactiveSuggestion,
+  AssistantSpecialist,
+  AssistantSpecialistDocument,
+  AssistantSpecialistGraph,
+  AssistantSpecialistGraphEdge,
+  AssistantSpecialistGraphNode,
 } from '@/types/api-contracts';
 import { authService } from '@/lib/auth/auth.service';
 import { isAdminLoginPath, ROUTES } from '@/routes';
@@ -229,6 +234,11 @@ class ApiClient {
         details?: Record<string, unknown>;
       }>;
 
+      // AbortSignal / cancelQueries — not a product failure (QueryCache skips ERR_CANCELED).
+      if (axiosError.code === 'ERR_CANCELED' || axiosError.name === 'CanceledError') {
+        return { message: 'Request cancelled', code: 'ERR_CANCELED' };
+      }
+
       if (axiosError.response) {
         const responseData = axiosError.response.data;
         const detailMessage =
@@ -324,9 +334,15 @@ class ApiClient {
     return { valid: true, data: data as T };
   }
 
-  async get<T>(endpoint: string, schema?: z.ZodSchema<T>): Promise<ApiResponse<T>> {
+  async get<T>(
+    endpoint: string,
+    schema?: z.ZodSchema<T>,
+    config?: { signal?: AbortSignal }
+  ): Promise<ApiResponse<T>> {
     try {
-      const response = await this.client.get<ApiResponse<T>>(endpoint);
+      const response = await this.client.get<ApiResponse<T>>(endpoint, {
+        signal: config?.signal,
+      });
       const backendResponse = response.data;
 
       // Check if backend wrapped the response
@@ -840,9 +856,14 @@ class ApiClient {
     return this.get<RelevantNowData>('/assistant/relevant-now');
   }
 
-  async getAssistantAmbient(surface: AmbientSurface): Promise<ApiResponse<AmbientPresenceData>> {
+  async getAssistantAmbient(
+    surface: AmbientSurface,
+    config?: { signal?: AbortSignal }
+  ): Promise<ApiResponse<AmbientPresenceData>> {
     return this.get<AmbientPresenceData>(
-      `/assistant/ambient?surface=${encodeURIComponent(surface)}`
+      `/assistant/ambient?surface=${encodeURIComponent(surface)}`,
+      undefined,
+      { signal: config?.signal }
     );
   }
 
@@ -863,11 +884,15 @@ class ApiClient {
     return this.post<{ dismissed: boolean }>('/assistant/ambient/dismiss', body);
   }
 
-  async getPendingCoachEscalations(): Promise<
+  async getPendingCoachEscalations(config?: {
+    signal?: AbortSignal;
+  }): Promise<
     ApiResponse<{ escalations: import('@/types/chatbot').CoachEscalationPendingItem[] }>
   > {
     return this.get<{ escalations: import('@/types/chatbot').CoachEscalationPendingItem[] }>(
-      '/assistant/coach-escalations/pending'
+      '/assistant/coach-escalations/pending',
+      undefined,
+      config
     );
   }
 
@@ -941,6 +966,106 @@ class ApiClient {
 
   async getProactiveAutomations(): Promise<ApiResponse<ProactiveAutomation[]>> {
     return this.get<ProactiveAutomation[]>('/proactive/automations');
+  }
+
+  async getAssistantSpecialists(): Promise<ApiResponse<AssistantSpecialist[]>> {
+    return this.get<AssistantSpecialist[]>('/assistant/specialists');
+  }
+
+  async createAssistantSpecialist(
+    body: Record<string, unknown>
+  ): Promise<ApiResponse<AssistantSpecialist>> {
+    return this.post<AssistantSpecialist>('/assistant/specialists', body);
+  }
+
+  async updateAssistantSpecialist(
+    id: string,
+    body: Record<string, unknown>
+  ): Promise<ApiResponse<AssistantSpecialist>> {
+    return this.patch<AssistantSpecialist>(`/assistant/specialists/${id}`, body);
+  }
+
+  async deleteAssistantSpecialist(id: string): Promise<ApiResponse<void>> {
+    return this.delete<void>(`/assistant/specialists/${id}`);
+  }
+
+  async restoreAssistantSpecialistDefaults(): Promise<ApiResponse<AssistantSpecialist[]>> {
+    return this.post<AssistantSpecialist[]>('/assistant/specialists/restore-defaults', {});
+  }
+
+  async getAssistantSpecialistDocuments(
+    specialistId: string
+  ): Promise<ApiResponse<AssistantSpecialistDocument[]>> {
+    return this.get<AssistantSpecialistDocument[]>(
+      `/assistant/specialists/${specialistId}/documents`
+    );
+  }
+
+  async createAssistantSpecialistDocumentUpload(
+    specialistId: string,
+    body: Record<string, unknown>
+  ): Promise<ApiResponse<AssistantSpecialistDocument>> {
+    return this.post<AssistantSpecialistDocument>(
+      `/assistant/specialists/${specialistId}/documents/upload`,
+      body
+    );
+  }
+
+  async completeAssistantSpecialistDocumentUpload(
+    specialistId: string,
+    documentId: string
+  ): Promise<ApiResponse<AssistantSpecialistDocument>> {
+    return this.post<AssistantSpecialistDocument>(
+      `/assistant/specialists/${specialistId}/documents/${documentId}/complete`,
+      {}
+    );
+  }
+
+  async deleteAssistantSpecialistDocument(
+    specialistId: string,
+    documentId: string
+  ): Promise<ApiResponse<void>> {
+    return this.delete<void>(`/assistant/specialists/${specialistId}/documents/${documentId}`);
+  }
+
+  async getAssistantSpecialistGraph(
+    specialistId: string
+  ): Promise<ApiResponse<AssistantSpecialistGraph>> {
+    return this.get<AssistantSpecialistGraph>(`/assistant/specialists/${specialistId}/graph`);
+  }
+
+  async createAssistantSpecialistGraphNode(
+    specialistId: string,
+    body: Record<string, unknown>
+  ): Promise<ApiResponse<AssistantSpecialistGraphNode>> {
+    return this.post<AssistantSpecialistGraphNode>(
+      `/assistant/specialists/${specialistId}/graph/nodes`,
+      body
+    );
+  }
+
+  async deleteAssistantSpecialistGraphNode(
+    specialistId: string,
+    nodeId: string
+  ): Promise<ApiResponse<void>> {
+    return this.delete<void>(`/assistant/specialists/${specialistId}/graph/nodes/${nodeId}`);
+  }
+
+  async createAssistantSpecialistGraphEdge(
+    specialistId: string,
+    body: Record<string, unknown>
+  ): Promise<ApiResponse<AssistantSpecialistGraphEdge>> {
+    return this.post<AssistantSpecialistGraphEdge>(
+      `/assistant/specialists/${specialistId}/graph/edges`,
+      body
+    );
+  }
+
+  async deleteAssistantSpecialistGraphEdge(
+    specialistId: string,
+    edgeId: string
+  ): Promise<ApiResponse<void>> {
+    return this.delete<void>(`/assistant/specialists/${specialistId}/graph/edges/${edgeId}`);
   }
 
   async getProactiveAutomationRuns(

@@ -36,7 +36,7 @@ function ruleScopeLabel(rule: PlatformRuleRecord, profileNameById: Map<string, s
 }
 
 export default function PlatformRulesTabPanel({ brandIdentity }: PlatformRulesTabPanelProps) {
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<PlatformRuleRecord | null>(null);
 
@@ -192,7 +192,6 @@ export default function PlatformRulesTabPanel({ brandIdentity }: PlatformRulesTa
           }
         }}
       />
-      <ToastContainer />
     </div>
   );
 }

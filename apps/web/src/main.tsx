@@ -9,6 +9,7 @@ import { BackendStatusProvider } from './contexts/BackendStatusContext';
 import { logger, queryLogger } from './lib/logger';
 import { reportClientError } from './lib/client-telemetry';
 import { reportMutationCacheError, reportQueryCacheError } from './lib/report-query-error';
+import { tryReloadOnceForStaleChunk, isStaleChunkLoadError } from './lib/stale-chunk-reload';
 import { markStartup } from './lib/startup/startup-telemetry';
 import {
   CHATBOT_CACHE_BUSTER,
@@ -42,6 +43,9 @@ initDeferredAnalytics();
 markStartup('main_render');
 
 window.addEventListener('error', (event) => {
+  if (tryReloadOnceForStaleChunk(event.error ?? event.message)) {
+    return;
+  }
   logger.error('Unhandled window error', {
     message: event.message,
     fileName: event.filename,
@@ -59,6 +63,7 @@ window.addEventListener('error', (event) => {
       columnNumber: event.colno || undefined,
       metadata: {
         kind: 'window.onerror',
+        ...(isStaleChunkLoadError(event.error ?? event.message) ? { staleChunk: true } : {}),
       },
     },
     { flush: 'immediate' }
@@ -66,6 +71,9 @@ window.addEventListener('error', (event) => {
 });
 
 window.addEventListener('unhandledrejection', (event) => {
+  if (tryReloadOnceForStaleChunk(event.reason)) {
+    return;
+  }
   logger.error('Unhandled promise rejection', {
     reason: event.reason,
   });
@@ -81,7 +89,10 @@ window.addEventListener('unhandledrejection', (event) => {
       message,
       source: 'web',
       stack: reason instanceof Error ? reason.stack : undefined,
-      metadata: { kind: 'unhandledrejection' },
+      metadata: {
+        kind: 'unhandledrejection',
+        ...(isStaleChunkLoadError(reason) ? { staleChunk: true } : {}),
+      },
     },
     { flush: 'immediate' }
   );
@@ -94,7 +105,9 @@ const queryClient = new QueryClient({
         queryKey: query.queryKey,
         error,
       });
-      reportQueryCacheError(error, query.queryKey);
+      reportQueryCacheError(error, query.queryKey, {
+        observerCount: query.getObserversCount(),
+      });
     },
   }),
   mutationCache: new MutationCache({

@@ -16,14 +16,12 @@ import { formatDateString } from '@/utils/date-formatters';
 import { getProjectTimelineBarColorClasses } from '@/utils/timeline-bar-colors';
 import { SUBCATEGORY_LABELS } from '@/constants/growth-system';
 import { cn } from '@/lib/utils';
-import { FormCheckbox } from '@/components/atoms/FormCheckbox';
 import { EntityExplainButton } from '@/components/molecules/EntityExplainButton';
 import { useEntityExplainChatOptional } from '@/contexts/EntityExplainChatContext';
 import {
   getGridProjectAccentBarClass,
   projectGridAccentBarClassName,
   projectGridCardShellClassName,
-  projectGridSelectCheckboxClassName,
 } from '@/lib/growth-system/project-card-surfaces';
 
 type ViewMode = 'grid' | 'list' | 'timeline';
@@ -39,12 +37,6 @@ interface ProjectCardProps {
   /** When set, drives status badge, progress ring value, overdue hiding, and completion accent. */
   display?: ProjectDisplayModel;
   linkedGoalCount?: number;
-  /** Grid multi-select: card is in the current selection set. */
-  isSelected?: boolean;
-  /** Grid multi-select: at least one card selected — show all checkboxes. */
-  selectionActive?: boolean;
-  /** Grid multi-select: toggle selection without opening detail. */
-  onToggleSelect?: (project: Project) => void;
 }
 
 // Mobile: Tactile feedback variants
@@ -69,9 +61,6 @@ export function ProjectCard({
   viewMode = 'grid',
   display,
   linkedGoalCount = 0,
-  isSelected = false,
-  selectionActive = false,
-  onToggleSelect,
 }: ProjectCardProps) {
   const progress =
     display?.progressPercent ??
@@ -88,7 +77,6 @@ export function ProjectCard({
     status: project.status,
   });
   const gridAccentBarClassName = projectGridAccentBarClassName({
-    isSelected,
     accentBgClass: gridAccentBgClass,
   });
   const dateUrgency = getDateUrgency(project.targetEndDate, {
@@ -156,26 +144,17 @@ export function ProjectCard({
         animate="show"
         variants={gridItemVariants}
         layoutId={`project-card-${project.id}`}
-        onClick={(event) => {
-          if (
-            (event.target as HTMLElement).closest('input[type="checkbox"]') ||
-            (event.target as HTMLElement).closest('[data-project-select]')
-          ) {
-            return;
-          }
-          handleClick();
-        }}
+        onClick={handleClick}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             handleClick();
           }
         }}
-        className={projectGridCardShellClassName({ isSelected })}
+        className={projectGridCardShellClassName()}
         role="button"
         tabIndex={0}
         aria-label={`View project details: ${project.name}`}
-        aria-pressed={onToggleSelect ? isSelected : undefined}
         {...(typeof window !== 'undefined' && window.innerWidth >= 1024
           ? { whileHover: desktopHoverVariants.hover, whileTap: desktopHoverVariants.tap }
           : { whileHover: mobileTapVariants.hover, whileTap: mobileTapVariants.tap })}
@@ -183,25 +162,17 @@ export function ProjectCard({
         {gridAccentBarClassName ? <div className={gridAccentBarClassName} aria-hidden /> : null}
 
         <div className="mb-2 flex items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-start gap-2">
-            {onToggleSelect ? (
-              <div
-                data-project-select
-                className={projectGridSelectCheckboxClassName({ isSelected, selectionActive })}
-              >
-                <FormCheckbox
-                  checked={isSelected}
-                  onChange={() => onToggleSelect(project)}
-                  onClick={(event) => event.stopPropagation()}
-                  aria-label={`Select ${project.name}`}
-                />
-              </div>
-            ) : null}
-            <PriorityIndicator priority={project.priority} size="sm" variant="badge" />
-            <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex min-w-0 items-start gap-1.5">
+              <PriorityIndicator
+                priority={project.priority}
+                size="sm"
+                variant="badge"
+                className="mt-0.5 shrink-0"
+              />
               <motion.h3
                 className={cn(
-                  'mb-1 line-clamp-2 font-semibold text-gray-900 dark:text-white',
+                  'min-w-0 flex-1 line-clamp-2 font-semibold text-gray-900 dark:text-white',
                   'text-base',
                   'group-hover:text-blue-600 dark:group-hover:text-blue-400',
                   'transition-colors duration-200'
@@ -209,8 +180,8 @@ export function ProjectCard({
               >
                 {project.name}
               </motion.h3>
-              {quietMetaRow}
             </div>
+            {quietMetaRow}
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
             {explainButton}

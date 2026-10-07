@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Workflow, Globe, LayoutGrid, Presentation, Shield, Container } from 'lucide-react';
+import { Clock, Globe, LayoutGrid, Presentation, Shield, Container } from 'lucide-react';
 import { ROUTES } from '@/routes';
 
 /** Which implementation phase ships this tool (for overview badges). */
@@ -26,16 +26,10 @@ export interface ToolNavGroup {
  */
 export const TOOL_NAV_GROUPS: ToolNavGroup[] = [
   {
-    id: 'orchestration',
-    label: 'Orchestration & Workflows',
-    icon: Workflow,
+    id: 'scheduling',
+    label: 'Scheduling',
+    icon: Clock,
     items: [
-      {
-        name: 'Workflow Engine',
-        href: ROUTES.admin.tools.workflows,
-        description: 'Visual node-based automations (triggers, actions, vault saves).',
-        phase: 'phase-3',
-      },
       {
         name: 'Cron Builder',
         href: ROUTES.admin.tools.cronBuilder,
@@ -46,15 +40,9 @@ export const TOOL_NAV_GROUPS: ToolNavGroup[] = [
   },
   {
     id: 'network',
-    label: 'Network & APIs',
+    label: 'Network',
     icon: Globe,
     items: [
-      {
-        name: 'Local Postman',
-        href: ROUTES.admin.tools.postman,
-        description: 'HTTP client with history; save requests or responses to the Vault.',
-        phase: 'phase-2',
-      },
       {
         name: 'Webhook Catcher',
         href: ROUTES.admin.tools.webhooks,
@@ -145,7 +133,7 @@ export const TOOL_PHASE_LABELS: Record<ToolPhase, string> = {
   'phase-0': 'Foundation',
   'phase-1': 'Architecture',
   'phase-2': 'Network',
-  'phase-3': 'Orchestration',
+  'phase-3': 'Scheduling',
   'phase-4': 'Utilities',
   available: 'Available',
 };

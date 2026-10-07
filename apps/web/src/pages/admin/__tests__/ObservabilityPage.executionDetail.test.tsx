@@ -615,7 +615,7 @@ describe('ObservabilityPage investigate thread', () => {
           module: 'personal_branding',
           feature: 'contentIdeation',
           provider: 'anthropic',
-          model: 'claude-sonnet-4-6',
+          model: 'claude-sonnet-5',
           status: 'succeeded',
         },
       ],

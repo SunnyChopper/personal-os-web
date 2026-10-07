@@ -1,3 +1,5 @@
+import { getGaMeasurementId } from '@/lib/vite-public-env';
+
 declare global {
   interface Window {
     gtag?: (
@@ -9,13 +11,28 @@ declare global {
   }
 }
 
-export const GA_TRACKING_ID = 'G-XN1LQN7MER';
+export const GA_SURFACE = 'admin' as const;
+
+export type GaDomain = 'tasks' | 'habits' | 'assistant' | 'weekly_review' | 'auth' | 'planner';
 
 let analyticsInitScheduled = false;
 
+function measurementId(): string | undefined {
+  return getGaMeasurementId();
+}
+
+function baseConfig(): Record<string, unknown> {
+  return {
+    send_page_view: false,
+    anonymize_ip: true,
+    surface: GA_SURFACE,
+  };
+}
+
 /** Load Google Analytics after first paint / idle to keep cold start lean. */
 export function initDeferredAnalytics(): void {
-  if (analyticsInitScheduled || typeof window === 'undefined') return;
+  const id = measurementId();
+  if (!id || analyticsInitScheduled || typeof window === 'undefined') return;
   analyticsInitScheduled = true;
 
   const load = () => {
@@ -23,7 +40,7 @@ export function initDeferredAnalytics(): void {
     const script = document.createElement('script');
     script.id = 'ga-loader';
     script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}`;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;
     document.head.appendChild(script);
 
     window.dataLayer = window.dataLayer || [];
@@ -35,7 +52,7 @@ export function initDeferredAnalytics(): void {
       window.dataLayer?.push([command, targetId, config]);
     };
     window.gtag('js', new Date());
-    window.gtag('config', GA_TRACKING_ID);
+    window.gtag('config', id, baseConfig());
   };
 
   if (typeof window.requestIdleCallback === 'function') {
@@ -45,59 +62,56 @@ export function initDeferredAnalytics(): void {
   }
 }
 
-export const pageview = (url: string) => {
-  if (typeof window.gtag !== 'undefined') {
-    window.gtag('config', GA_TRACKING_ID, {
-      page_path: url,
-    });
-  }
-};
-
-export const event = (action: string, params?: Record<string, unknown>) => {
-  if (typeof window.gtag !== 'undefined') {
-    window.gtag('event', action, params);
-  }
-};
-
-export const trackAdminAction = (action: string, category: string, label?: string) => {
-  event(action, {
-    event_category: category,
-    event_label: label,
+export const pageview = (pathname: string) => {
+  const id = measurementId();
+  if (!id || typeof window.gtag === 'undefined') return;
+  const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  window.gtag('config', id, {
+    ...baseConfig(),
+    page_path: path,
   });
 };
 
-export const trackTaskAction = (
-  action: 'created' | 'updated' | 'deleted' | 'completed',
-  taskId: string
-) => {
-  trackAdminAction(`task_${action}`, 'Tasks', taskId);
+export const event = (action: string, params?: Record<string, unknown>) => {
+  const id = measurementId();
+  if (!id || typeof window.gtag === 'undefined') return;
+  window.gtag('event', action, {
+    ...params,
+    surface: GA_SURFACE,
+  });
 };
 
-export const trackHabitAction = (
-  action: 'created' | 'updated' | 'deleted' | 'completed',
-  habitId: string
-) => {
-  trackAdminAction(`habit_${action}`, 'Habits', habitId);
+const CANONICAL_EVENT_NAMES: Partial<Record<GaDomain, Record<string, string>>> = {
+  tasks: { completed: 'task_completed' },
+  habits: { completed: 'habit_completed' },
+  weekly_review: { finalized: 'weekly_review_finalize', finalize: 'weekly_review_finalize' },
+  auth: { login_success: 'auth_login_success' },
+  planner: { focus_session_start: 'focus_session_start' },
 };
 
-export const trackMetricAction = (action: 'created' | 'updated' | 'deleted', metricId: string) => {
-  trackAdminAction(`metric_${action}`, 'Metrics', metricId);
-};
+export function trackDomainEvent(domain: GaDomain, action: string) {
+  const eventName = CANONICAL_EVENT_NAMES[domain]?.[action] ?? `${domain}_${action}`;
+  event(eventName, {
+    event_category: domain,
+    event_action: action,
+    domain,
+    action,
+  });
+}
 
-export const trackGoalAction = (
-  action: 'created' | 'updated' | 'deleted' | 'achieved',
-  goalId: string
-) => {
-  trackAdminAction(`goal_${action}`, 'Goals', goalId);
-};
+export function trackAuthLoginSuccess() {
+  trackDomainEvent('auth', 'login_success');
+}
 
-export const trackProjectAction = (
-  action: 'created' | 'updated' | 'deleted' | 'completed',
-  projectId: string
-) => {
-  trackAdminAction(`project_${action}`, 'Projects', projectId);
-};
+export function trackFocusSessionStart() {
+  trackDomainEvent('planner', 'focus_session_start');
+}
 
-export const trackLogbookAction = (action: 'created' | 'updated' | 'deleted', entryId: string) => {
-  trackAdminAction(`logbook_${action}`, 'Logbook', entryId);
-};
+export function trackAssistantMessageSend() {
+  event('assistant_message_send', {
+    event_category: 'assistant',
+    event_action: 'message_send',
+    domain: 'assistant',
+    action: 'message_send',
+  });
+}

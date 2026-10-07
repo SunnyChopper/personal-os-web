@@ -1,5 +1,10 @@
 import { useState } from 'react';
+import { Library } from 'lucide-react';
+import PanelToggleHandle from '@/components/atoms/PanelToggleHandle';
+import SlideDrawer from '@/components/molecules/SlideDrawer';
+import { cn } from '@/lib/utils';
 import SubModuleTabShell from '../SubModuleTabShell';
+import ContentLibraryPanel from './ContentLibraryPanel';
 import ApproveIdeaGenerateModal from './ApproveIdeaGenerateModal';
 import ContentTemplateFormModal from './ContentTemplateFormModal';
 import ContentTemplatesTab from './ContentTemplatesTab';
@@ -13,6 +18,8 @@ import VaultExtractorTab from './VaultExtractorTab';
 import TrendIdeasTab from './TrendIdeasTab';
 import { useContentTemplates } from './useContentTemplates';
 import { useContentWorkbench } from './useContentWorkbench';
+import { CONTENT_IDEA_REJECT_CATEGORIES } from '@/types/api/personal-branding.dto';
+import { pbSidebarDrawerMaxWidthClassName } from './content-workbench-constants';
 import { AmbientPresenceStrip } from '@/components/organisms/assistant/AmbientPresenceStrip';
 
 const TABS = [
@@ -25,246 +32,335 @@ const TABS = [
 
 export default function ContentWorkbenchPage() {
   const [drawerOpen, setDrawerOpen] = useState(true);
+  const [libraryOverlayOpen, setLibraryOverlayOpen] = useState(false);
   const wb = useContentWorkbench();
   const ct = useContentTemplates();
+  const showLibraryPeek = wb.activeTab !== 'sandbox';
 
   const isLoading =
-    wb.contentQ.isPending ||
-    wb.ideasQ.isPending ||
+    (wb.activeTab === 'sandbox' && wb.contentQ.isPending) ||
     (wb.activeTab === 'content-templates' && (ct.templatesQ.isPending || ct.candidatesQ.isPending));
+
+  const handleLibrarySelect = (node: Parameters<typeof wb.openDraftFromLibrary>[0]) => {
+    wb.openDraftFromLibrary(node);
+    setLibraryOverlayOpen(false);
+    setDrawerOpen(true);
+  };
+
+  const handleLibraryNewDraft = () => {
+    setLibraryOverlayOpen(false);
+    wb.openNewDraftWizard();
+  };
 
   return (
     <>
       <AmbientPresenceStrip surface="personalBranding" className="mb-4" />
-      <SubModuleTabShell
-        tabs={TABS}
-        defaultTabId="sandbox"
-        activeTabId={wb.activeTab}
-        onTabChange={wb.setActiveTab}
-        ariaLabel="Content Workbench sections"
-        isLoading={isLoading}
-        skeletonLayout="two-column"
-        layout="fill"
-        panelOverflow={wb.activeTab === 'sandbox' ? 'hidden' : 'auto'}
-        renderPanel={(activeTab) => {
-          if (activeTab === 'ideation') {
-            return (
-              <IdeationEngineTab
-                ideas={wb.ideationIdeas}
-                isLoading={wb.ideasQ.isPending}
-                approvingId={
-                  wb.approveIdeaMutation.isPending
-                    ? (wb.approveIdeaMutation.variables?.ideaId ?? null)
-                    : null
-                }
-                profiles={wb.brandProfiles}
-                profilesLoading={wb.profilesQ.isPending}
-                selectedProfileId={wb.selectedProfileId}
-                onProfileChange={wb.setSelectedProfileId}
-                targetPlatform={wb.targetPlatform}
-                onTargetPlatformChange={wb.setTargetPlatform}
-                seedIdeas={wb.seedIdeas}
-                onSeedIdeasChange={wb.setSeedIdeas}
-                enableImageSearch={wb.enableImageSearch}
-                onEnableImageSearchChange={wb.setEnableImageSearch}
-                ideaCount={wb.ideaCount}
-                onIdeaCountChange={wb.setIdeaCount}
-                ideationModelCatalog={wb.ideationModelCatalog}
-                isIdeationModelCatalogLoading={wb.isIdeationModelCatalogLoading}
-                ideationModelPicker={wb.ideationModelPicker}
-                onIdeationModelPickerChange={wb.setIdeationModelPicker}
-                isGenerating={wb.isGeneratingIdeas}
-                ideationJob={wb.ideationJob}
-                generateError={wb.generateError}
-                lastGenerationStats={wb.lastGenerationStats}
-                onGenerate={() => wb.generateIdeasMutation.mutate()}
-                onApprove={(idea) => wb.setApprovingIdea(idea)}
-                onReject={(idea) => wb.setRejectingIdea(idea)}
-              />
-            );
-          }
+      <div className="relative flex h-full min-h-0 flex-col">
+        {showLibraryPeek ? (
+          <button
+            type="button"
+            onClick={() => setLibraryOverlayOpen(true)}
+            className={cn(
+              'absolute left-0 top-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700',
+              'lg:hidden'
+            )}
+            aria-label="Open content library"
+          >
+            <Library size={14} aria-hidden />
+            Library
+          </button>
+        ) : null}
+        <SubModuleTabShell
+          tabs={TABS}
+          defaultTabId="sandbox"
+          activeTabId={wb.activeTab}
+          onTabChange={wb.setActiveTab}
+          ariaLabel="Content Workbench sections"
+          isLoading={isLoading}
+          skeletonLayout="two-column"
+          layout="fill"
+          keepMounted
+          getPanelOverflow={(id) => (id === 'sandbox' ? 'hidden' : 'auto')}
+          renderPanel={(activeTab) => {
+            if (activeTab === 'ideation') {
+              return (
+                <IdeationEngineTab
+                  ideas={wb.ideationIdeas}
+                  isLoading={wb.ideasQ.isPending}
+                  approvingId={wb.approvingIdeaId}
+                  profiles={wb.brandProfiles}
+                  profilesLoading={wb.profilesQ.isPending}
+                  selectedProfileId={wb.selectedProfileId}
+                  onProfileChange={wb.setSelectedProfileId}
+                  targetPlatform={wb.targetPlatform}
+                  onTargetPlatformChange={wb.setTargetPlatform}
+                  seedIdeas={wb.seedIdeas}
+                  onSeedIdeasChange={wb.setSeedIdeas}
+                  boostFromRecentPublishes={wb.boostFromRecentPublishes}
+                  onBoostFromRecentPublishesChange={wb.setBoostFromRecentPublishes}
+                  enableImageSearch={wb.enableImageSearch}
+                  onEnableImageSearchChange={wb.setEnableImageSearch}
+                  enableKeywordResearch={wb.enableKeywordResearch}
+                  onEnableKeywordResearchChange={wb.setEnableKeywordResearch}
+                  ideaCount={wb.ideaCount}
+                  onIdeaCountChange={wb.setIdeaCount}
+                  ideationModelCatalog={wb.ideationModelCatalog}
+                  isIdeationModelCatalogLoading={wb.isIdeationModelCatalogLoading}
+                  ideationModelPicker={wb.ideationModelPicker}
+                  onIdeationModelPickerChange={wb.setIdeationModelPicker}
+                  isGenerating={wb.isGeneratingIdeas}
+                  ideationJob={wb.ideationJob}
+                  ideationClientCancelState={wb.ideationClientCancelState}
+                  onCancelIdeationJob={wb.cancelIdeationJob}
+                  generateError={wb.generateError}
+                  lastGenerationStats={wb.lastGenerationStats}
+                  ideationLiveMessage={wb.ideationLiveMessage}
+                  onGenerate={() => wb.generateIdeasMutation.mutate()}
+                  onApprove={(idea) => wb.setApprovingIdea(idea)}
+                  onReject={(idea) => wb.setRejectingIdea(idea)}
+                />
+              );
+            }
 
-          if (activeTab === 'vault-extractor') {
-            return (
-              <VaultExtractorTab
-                ideas={wb.vaultIdeas}
-                isLoading={wb.ideasQ.isPending}
-                approvingId={
-                  wb.approveIdeaMutation.isPending
-                    ? (wb.approveIdeaMutation.variables?.ideaId ?? null)
-                    : null
-                }
-                profiles={wb.brandProfiles}
-                profilesLoading={wb.profilesQ.isPending}
-                selectedProfileId={wb.selectedProfileId}
-                onProfileChange={wb.setSelectedProfileId}
-                targetPlatform={wb.targetPlatform}
-                onTargetPlatformChange={wb.setTargetPlatform}
-                selectedVaultItemIds={wb.selectedVaultItemIds}
-                onVaultSelectionChange={wb.setSelectedVaultItemIds}
-                vaultItemLabels={wb.vaultItemLabels}
-                onVaultItemLabelsChange={wb.setVaultItemLabels}
-                isGenerating={wb.isGeneratingVaultIdeas}
-                vaultJob={wb.vaultJob}
-                generateError={wb.vaultGenerateError}
-                lastGenerationStats={wb.lastVaultGenerationStats}
-                onGenerate={() => wb.generateVaultIdeasMutation.mutate()}
-                onApprove={(idea) => wb.setApprovingIdea(idea)}
-                onReject={(idea) => wb.setRejectingIdea(idea)}
-              />
-            );
-          }
+            if (activeTab === 'vault-extractor') {
+              return (
+                <VaultExtractorTab
+                  ideas={wb.vaultIdeas}
+                  isLoading={wb.ideasQ.isPending}
+                  approvingId={wb.approvingIdeaId}
+                  profiles={wb.brandProfiles}
+                  profilesLoading={wb.profilesQ.isPending}
+                  selectedProfileId={wb.selectedProfileId}
+                  onProfileChange={wb.setSelectedProfileId}
+                  targetPlatform={wb.targetPlatform}
+                  onTargetPlatformChange={wb.setTargetPlatform}
+                  selectedVaultItemIds={wb.selectedVaultItemIds}
+                  onVaultSelectionChange={wb.setSelectedVaultItemIds}
+                  vaultEnableImageSearch={wb.vaultEnableImageSearch}
+                  onVaultEnableImageSearchChange={wb.setVaultEnableImageSearch}
+                  vaultItemLabels={wb.vaultItemLabels}
+                  onVaultItemLabelsChange={wb.setVaultItemLabels}
+                  isGenerating={wb.isGeneratingVaultIdeas}
+                  vaultJob={wb.vaultJob}
+                  vaultClientCancelState={wb.vaultClientCancelState}
+                  onCancelVaultJob={wb.cancelVaultJob}
+                  generateError={wb.vaultGenerateError}
+                  lastGenerationStats={wb.lastVaultGenerationStats}
+                  vaultLiveMessage={wb.vaultLiveMessage}
+                  onGenerate={() => wb.generateVaultIdeasMutation.mutate()}
+                  onApprove={(idea) => wb.setApprovingIdea(idea)}
+                  onReject={(idea) => wb.setRejectingIdea(idea)}
+                />
+              );
+            }
 
-          if (activeTab === 'trend-ideas') {
-            return (
-              <TrendIdeasTab
-                ideas={wb.trendIdeas}
-                isLoading={wb.ideasQ.isPending}
-                approvingId={
-                  wb.approveIdeaMutation.isPending
-                    ? (wb.approveIdeaMutation.variables?.ideaId ?? null)
-                    : null
-                }
-                onApprove={(idea) => wb.setApprovingIdea(idea)}
-                onReject={(idea) => wb.setRejectingIdea(idea)}
-              />
-            );
-          }
+            if (activeTab === 'trend-ideas') {
+              return (
+                <TrendIdeasTab
+                  ideas={wb.trendIdeas}
+                  isLoading={wb.trendIdeasQ.isPending}
+                  approvingId={wb.approvingIdeaId}
+                  onApprove={(idea) => wb.setApprovingIdea(idea)}
+                  onReject={(idea) => wb.setRejectingIdea(idea)}
+                  onOpenDraft={(idea) => void wb.openDraftFromIdea(idea)}
+                />
+              );
+            }
 
-          if (activeTab === 'content-templates') {
-            return (
-              <ContentTemplatesTab
-                templates={ct.templates}
-                candidates={ct.candidates}
-                templatesLoading={ct.templatesQ.isPending}
-                candidatesLoading={ct.candidatesQ.isPending}
-                profiles={wb.brandProfiles}
-                profilesLoading={wb.profilesQ.isPending}
-                selectedProfileId={wb.selectedProfileId}
-                onProfileChange={wb.setSelectedProfileId}
-                brainstormBrief={ct.brainstormBrief}
-                onBrainstormBriefChange={ct.setBrainstormBrief}
-                brainstormContentType={ct.brainstormContentType}
-                onBrainstormContentTypeChange={ct.setBrainstormContentType}
-                brainstormPlatform={ct.brainstormPlatform}
-                onBrainstormPlatformChange={ct.setBrainstormPlatform}
-                isBrainstorming={ct.isBrainstorming}
-                brainstormProgressMessage={ct.brainstormProgressMessage}
-                brainstormError={ct.brainstormError}
-                lastBrainstormStats={ct.lastBrainstormStats}
-                onBrainstorm={() => {
-                  if (!wb.selectedProfileId) return;
-                  ct.brainstormMutation.mutate(wb.selectedProfileId);
-                }}
-                sourceKind={ct.sourceKind}
-                onSourceKindChange={ct.setSourceKind}
-                sourceUrl={ct.sourceUrl}
-                onSourceUrlChange={ct.setSourceUrl}
-                hasMediumApiKey={ct.settingsQ.data?.hasMediumApiKey ?? false}
-                isExtracting={ct.isExtracting}
-                extractProgressMessage={ct.extractProgressMessage}
-                extractError={ct.extractError}
-                lastExtractionStats={ct.lastExtractionStats}
-                onExtract={() => ct.extractMutation.mutate()}
-                approvingId={
-                  ct.approveCandidateMutation.isPending
-                    ? (ct.approveCandidateMutation.variables?.candidateId ?? null)
-                    : null
-                }
-                retryingId={ct.isRetrying ? (ct.retryingCandidate?.id ?? null) : null}
-                onCreateTemplate={() => {
-                  ct.setEditingTemplate(null);
-                  ct.setTemplateFormOpen(true);
-                }}
-                onEditTemplate={(template) => {
-                  ct.setEditingTemplate(template);
-                  ct.setTemplateFormOpen(true);
-                }}
-                onDeleteTemplate={(templateId) => {
-                  if (window.confirm('Delete this content template?')) {
-                    ct.deleteTemplateMutation.mutate(templateId);
+            if (activeTab === 'content-templates') {
+              return (
+                <ContentTemplatesTab
+                  templates={ct.templates}
+                  candidates={ct.candidates}
+                  templatesLoading={ct.templatesQ.isPending}
+                  candidatesLoading={ct.candidatesQ.isPending}
+                  profiles={wb.brandProfiles}
+                  profilesLoading={wb.profilesQ.isPending}
+                  selectedProfileId={wb.selectedProfileId}
+                  onProfileChange={wb.setSelectedProfileId}
+                  brainstormBrief={ct.brainstormBrief}
+                  onBrainstormBriefChange={ct.setBrainstormBrief}
+                  brainstormContentType={ct.brainstormContentType}
+                  onBrainstormContentTypeChange={ct.setBrainstormContentType}
+                  brainstormPlatform={ct.brainstormPlatform}
+                  onBrainstormPlatformChange={ct.setBrainstormPlatform}
+                  isBrainstorming={ct.isBrainstorming}
+                  brainstormProgressMessage={ct.brainstormProgressMessage}
+                  brainstormError={ct.brainstormError}
+                  lastBrainstormStats={ct.lastBrainstormStats}
+                  onBrainstorm={() => {
+                    if (!wb.selectedProfileId) return;
+                    ct.brainstormMutation.mutate(wb.selectedProfileId);
+                  }}
+                  sourceKind={ct.sourceKind}
+                  onSourceKindChange={ct.setSourceKind}
+                  sourceUrl={ct.sourceUrl}
+                  onSourceUrlChange={ct.setSourceUrl}
+                  hasMediumApiKey={ct.settingsQ.data?.hasMediumApiKey ?? false}
+                  isExtracting={ct.isExtracting}
+                  extractProgressMessage={ct.extractProgressMessage}
+                  extractError={ct.extractError}
+                  lastExtractionStats={ct.lastExtractionStats}
+                  onExtract={() => ct.extractMutation.mutate()}
+                  approvingId={
+                    ct.approveCandidateMutation.isPending
+                      ? (ct.approveCandidateMutation.variables?.candidateId ?? null)
+                      : null
                   }
+                  retryingId={ct.isRetrying ? (ct.retryingCandidate?.id ?? null) : null}
+                  onCreateTemplate={() => {
+                    ct.setEditingTemplate(null);
+                    ct.setTemplateFormOpen(true);
+                  }}
+                  onEditTemplate={(template) => {
+                    ct.setEditingTemplate(template);
+                    ct.setTemplateFormOpen(true);
+                  }}
+                  onDeleteTemplate={(templateId) => {
+                    if (window.confirm('Delete this content template?')) {
+                      ct.deleteTemplateMutation.mutate(templateId);
+                    }
+                  }}
+                  onApprove={(candidateId) => ct.approveCandidateMutation.mutate({ candidateId })}
+                  onReject={(candidate) => ct.setRejectingCandidate(candidate)}
+                  onRetry={(candidate) => ct.setRetryingCandidate(candidate)}
+                />
+              );
+            }
+
+            return (
+              <SandboxWorkspaceTab
+                contentNodes={wb.contentNodes}
+                activeDraftId={wb.activeDraftId}
+                activeContentStatus={wb.activeContentStatus}
+                editorTitle={wb.editorTitle}
+                onTitleChange={(v) => {
+                  wb.setEditorTitle(v);
                 }}
-                onApprove={(candidateId) => ct.approveCandidateMutation.mutate({ candidateId })}
-                onReject={(candidate) => ct.setRejectingCandidate(candidate)}
-                onRetry={(candidate) => ct.setRetryingCandidate(candidate)}
+                editorBody={wb.editorBody}
+                onBodyChange={wb.handleEditorBodyChange}
+                contentType={wb.contentType}
+                onContentTypeChange={wb.setContentType}
+                draftPlatform={wb.draftPlatform}
+                onDraftPlatformChange={wb.setDraftPlatform}
+                draftCanonicalUrl={wb.draftCanonicalUrl}
+                onDraftCanonicalUrlChange={wb.setDraftCanonicalUrl}
+                draftPillars={wb.draftPillars}
+                onDraftPillarsChange={wb.setDraftPillars}
+                brandPillarOptions={wb.brandPillarOptions}
+                assetPrompts={wb.assetPrompts}
+                isDirty={wb.isDirty}
+                isSaving={wb.saveDraftMutation.isPending}
+                saveDraftError={wb.saveDraftError}
+                lastSavedAt={wb.lastSavedAt}
+                isPublishing={wb.publishMutation.isPending}
+                isUnpublishing={wb.unpublishMutation.isPending}
+                isDeleting={wb.deleteDraftMutation.isPending}
+                isArchiving={wb.archiveDraftMutation.isPending}
+                isUnarchiving={wb.unarchiveDraftMutation.isPending}
+                isGeneratingAssets={wb.assetPromptsMutation.isPending}
+                isFinishingContent={wb.finishContentMutation.isPending}
+                isLengtheningContent={wb.lengthenContentMutation.isPending}
+                isFormattingContent={wb.formatContentMutation.isPending}
+                isInjectingImages={wb.isInjectingImages}
+                imageInjectError={wb.imageInjectError}
+                imageInjectMessage={wb.imageInjectJob?.message ?? null}
+                imageInjectClientCancelState={wb.imageInjectClientCancelState}
+                onCancelImageInject={wb.cancelImageInjectJob}
+                isOptimizingKeywords={wb.isOptimizingKeywords}
+                keywordOptimizeError={wb.keywordOptimizeError}
+                keywordOptimizeClientCancelState={wb.keywordOptimizeClientCancelState}
+                onOptimizeKeywords={wb.onOptimizeKeywords}
+                onCancelKeywordOptimize={wb.cancelKeywordOptimizeJob}
+                aiToolLiveMessage={wb.aiToolLiveMessage}
+                drawerOpen={drawerOpen}
+                onToggleDrawer={() => setDrawerOpen((v) => !v)}
+                showArchivedContent={wb.showArchivedContent}
+                onShowArchivedChange={wb.setShowArchivedContent}
+                contentLoadError={wb.contentLoadError}
+                onRetryContentLoad={wb.retryContentLoad}
+                onLoadDraft={wb.loadDraft}
+                onNewDraft={wb.openNewDraftWizard}
+                onSaveDraft={wb.requestSaveDraft}
+                onDeleteDraft={async () => {
+                  if (!wb.activeDraftId) return;
+                  await wb.deleteDraftMutation.mutateAsync(wb.activeDraftId);
+                }}
+                onArchiveDraft={async () => {
+                  if (!wb.activeDraftId) return;
+                  await wb.archiveDraftMutation.mutateAsync(wb.activeDraftId);
+                }}
+                onUnarchiveDraft={async () => {
+                  if (!wb.activeDraftId) return;
+                  await wb.unarchiveDraftMutation.mutateAsync(wb.activeDraftId);
+                }}
+                onPublish={async (metadata) => {
+                  await wb.publishMutation.mutateAsync(metadata);
+                }}
+                onUnpublish={async () => {
+                  await wb.unpublishMutation.mutateAsync();
+                }}
+                onGenerateAssetPrompts={() => wb.assetPromptsMutation.mutate()}
+                onFinishContent={() => wb.finishContentMutation.mutate()}
+                onLengthenContent={() => wb.lengthenContentMutation.mutate()}
+                onFormatPost={() => wb.formatContentMutation.mutate()}
+                onInjectImages={() =>
+                  wb.injectImagesMutation.mutate({
+                    title: wb.editorTitle.trim() || 'Untitled draft',
+                    body: wb.editorBody,
+                    contentId: wb.activeDraftId ?? undefined,
+                    contentType: wb.contentType,
+                  })
+                }
               />
             );
-          }
+          }}
+        />
+        {showLibraryPeek ? (
+          <PanelToggleHandle
+            collapsed
+            onToggle={() => setLibraryOverlayOpen(true)}
+            className="absolute -left-3 top-6 z-10 hidden lg:inline-flex"
+            label="Open content library"
+          />
+        ) : null}
+      </div>
 
-          return (
-            <SandboxWorkspaceTab
-              contentNodes={wb.contentNodes}
-              activeDraftId={wb.activeDraftId}
-              activeContentStatus={wb.activeContentStatus}
-              editorTitle={wb.editorTitle}
-              onTitleChange={(v) => {
-                wb.setEditorTitle(v);
-              }}
-              editorBody={wb.editorBody}
-              onBodyChange={wb.handleEditorBodyChange}
-              contentType={wb.contentType}
-              draftPlatform={wb.draftPlatform}
-              onDraftPlatformChange={wb.setDraftPlatform}
-              draftCanonicalUrl={wb.draftCanonicalUrl}
-              onDraftCanonicalUrlChange={wb.setDraftCanonicalUrl}
-              draftPillars={wb.draftPillars}
-              onDraftPillarsChange={wb.setDraftPillars}
-              brandPillarOptions={wb.brandPillarOptions}
-              assetPrompts={wb.assetPrompts}
-              isDirty={wb.isDirty}
-              isSaving={wb.saveDraftMutation.isPending}
-              isPublishing={wb.publishMutation.isPending}
-              isUnpublishing={wb.unpublishMutation.isPending}
-              isDeleting={wb.deleteDraftMutation.isPending}
-              isGeneratingAssets={wb.assetPromptsMutation.isPending}
-              isInjectingImages={wb.isInjectingImages}
-              imageInjectError={wb.imageInjectError}
-              imageInjectMessage={wb.imageInjectJob?.message ?? null}
-              drawerOpen={drawerOpen}
-              onToggleDrawer={() => setDrawerOpen((v) => !v)}
-              onLoadDraft={wb.loadDraft}
-              onNewDraft={wb.openNewDraftWizard}
-              onSaveDraft={wb.requestSaveDraft}
-              onDeleteDraft={async () => {
-                if (!wb.activeDraftId) return;
-                await wb.deleteDraftMutation.mutateAsync(wb.activeDraftId);
-              }}
-              onPublish={async (metadata) => {
-                await wb.publishMutation.mutateAsync(metadata);
-              }}
-              onUnpublish={async () => {
-                await wb.unpublishMutation.mutateAsync();
-              }}
-              onGenerateAssetPrompts={() => wb.assetPromptsMutation.mutate()}
-              onInjectImages={() =>
-                wb.injectImagesMutation.mutate({
-                  title: wb.editorTitle.trim() || 'Untitled draft',
-                  body: wb.editorBody,
-                  contentId: wb.activeDraftId ?? undefined,
-                  contentType: wb.contentType,
-                })
-              }
-              isOptimizingKeywords={wb.isOptimizingKeywords}
-              keywordOptimizeError={wb.keywordOptimizeError}
-              onOptimizeKeywords={wb.onOptimizeKeywords}
-            />
-          );
-        }}
-      />
+      <SlideDrawer
+        open={libraryOverlayOpen && showLibraryPeek}
+        onClose={() => setLibraryOverlayOpen(false)}
+        ariaLabel="Content library"
+        title="Your content"
+        maxWidth="md"
+        panelClassName={pbSidebarDrawerMaxWidthClassName}
+      >
+        <ContentLibraryPanel
+          contentNodes={wb.contentNodes}
+          activeDraftId={wb.activeDraftId}
+          onSelect={handleLibrarySelect}
+          onNewDraft={handleLibraryNewDraft}
+          className="h-full"
+          showArchived={wb.showArchivedContent}
+          onShowArchivedChange={wb.setShowArchivedContent}
+          loadError={wb.contentLoadError}
+          onRetry={wb.retryContentLoad}
+        />
+      </SlideDrawer>
 
       <ApproveIdeaGenerateModal
         idea={wb.approvingIdea}
         defaultBrandProfileId={wb.selectedProfileId}
         profiles={wb.brandProfiles}
         profilesLoading={wb.profilesQ.isPending}
-        isSubmitting={wb.approveIdeaMutation.isPending}
+        isSubmitting={wb.isApprovingIdea}
+        clientCancelState={wb.approveClientCancelState}
         errorMessage={wb.approveError}
         onClose={() => {
-          if (wb.approveIdeaMutation.isPending) return;
+          if (wb.isApprovingIdea) return;
           wb.setApprovingIdea(null);
           wb.setApproveError(null);
         }}
+        onCancelJob={wb.cancelApproveJob}
         onSubmit={(request) => wb.approveIdeaMutation.mutate(request)}
       />
 
@@ -290,10 +386,16 @@ export default function ContentWorkbenchPage() {
         isOpen={Boolean(wb.rejectingIdea)}
         ideaTitle={wb.rejectingIdea?.title}
         isSubmitting={wb.rejectIdeaMutation.isPending}
+        categories={CONTENT_IDEA_REJECT_CATEGORIES}
+        categoryRequired={false}
         onClose={() => wb.setRejectingIdea(null)}
-        onSubmit={(feedbackText) => {
+        onSubmit={(feedbackText, feedbackCategory) => {
           if (!wb.rejectingIdea) return;
-          wb.rejectIdeaMutation.mutate({ ideaId: wb.rejectingIdea.id, feedbackText });
+          wb.rejectIdeaMutation.mutate({
+            ideaId: wb.rejectingIdea.id,
+            feedbackText,
+            feedbackCategory: feedbackCategory ?? null,
+          });
         }}
       />
 

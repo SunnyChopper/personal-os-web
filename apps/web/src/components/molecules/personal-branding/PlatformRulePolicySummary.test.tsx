@@ -109,7 +109,7 @@ describe('PlatformRulePolicySummary', () => {
       />
     );
 
-    expect(screen.getByText('280')).toBeInTheDocument();
-    expect(screen.getByText('3 min')).toBeInTheDocument();
+    expect(screen.getByText(/up to\s*280/)).toBeInTheDocument();
+    expect(screen.getByText(/up to\s*3\s*min/)).toBeInTheDocument();
   });
 });

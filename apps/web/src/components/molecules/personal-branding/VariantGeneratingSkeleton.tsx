@@ -5,12 +5,16 @@ interface VariantGeneratingSkeletonProps {
   platform: BrandPlatform;
   className?: string;
   index?: number;
+  statusLabel?: string;
+  detailMessage?: string;
 }
 
 export default function VariantGeneratingSkeleton({
   platform,
   className,
   index = 0,
+  statusLabel,
+  detailMessage,
 }: VariantGeneratingSkeletonProps) {
   return (
     <VariantCardSkeletonLayout
@@ -18,6 +22,8 @@ export default function VariantGeneratingSkeleton({
       generating
       index={index}
       className={className}
+      statusLabel={statusLabel}
+      detailMessage={detailMessage}
       aria-label={`Generating ${BRAND_PLATFORM_LABELS[platform]} variant`}
     />
   );

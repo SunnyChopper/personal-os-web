@@ -75,8 +75,18 @@ export function useContentStream(platform: BrandPlatform = 'x') {
   });
 
   const generate = useMutation({
+    mutationKey: [...queryKeys.personalBranding.contentStream.all(), 'generate', platform],
     mutationFn: (body?: { count?: number; force?: boolean }) =>
       personalBrandingService.startContentStreamGenerate({ platform, ...body }),
+  });
+
+  const clearPosts = useMutation({
+    mutationFn: () => personalBrandingService.clearContentStreamPosts(platform),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.personalBranding.contentStream.posts(platform, 1, 50),
+      });
+    },
   });
 
   return {
@@ -86,6 +96,7 @@ export function useContentStream(platform: BrandPlatform = 'x') {
     updateSettings,
     feedback,
     generate,
+    clearPosts,
   };
 }
 

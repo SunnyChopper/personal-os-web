@@ -35,10 +35,11 @@ export function AssistantModelModeToggle(props: {
   mode: Mode;
   onChange: (mode: Mode) => void;
   disabled?: boolean;
-  variant?: 'default' | 'settings';
+  variant?: 'default' | 'settings' | 'quiet';
 }) {
   const { mode, onChange, disabled, variant = 'default' } = props;
   const isSettings = variant === 'settings';
+  const isQuiet = variant === 'quiet';
   return (
     <>
       <p
@@ -49,7 +50,13 @@ export function AssistantModelModeToggle(props: {
         Mode
       </p>
       <div
-        className={`flex gap-2 ${isSettings ? 'mb-4 p-1 rounded-lg bg-gray-100 dark:bg-gray-900/60' : 'mb-3'}`}
+        className={`flex gap-2 ${
+          isSettings
+            ? 'mb-4 p-1 rounded-lg bg-gray-100 dark:bg-gray-900/60'
+            : isQuiet
+              ? 'mb-2'
+              : 'mb-3'
+        }`}
       >
         {(['manual', 'auto'] as const).map((m) => (
           <button
@@ -64,11 +71,17 @@ export function AssistantModelModeToggle(props: {
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
                   }`
-                : `px-2 py-2 sm:py-1.5 rounded-md text-xs ${
-                    mode === m
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                  }`
+                : isQuiet
+                  ? `px-2 py-2 sm:py-1.5 rounded-md text-xs border ${
+                      mode === m
+                        ? 'border-primary/30 bg-primary/10 text-primary dark:bg-primary/15'
+                        : 'border-transparent bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                    }`
+                  : `px-2 py-2 sm:py-1.5 rounded-md text-xs ${
+                      mode === m
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                    }`
             }`}
           >
             {m}

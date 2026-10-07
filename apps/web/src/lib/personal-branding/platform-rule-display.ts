@@ -12,7 +12,10 @@ export const RHETORICAL_STRENGTH_LABELS: Record<RhetoricalStrength, string> = {
 };
 
 /** Split free-text requirements into scannable lines; strips common bullet prefixes. */
-export function parseRequirementLines(text: string | null | undefined): string[] {
+export function parseRequirementLines(text: string | string[] | null | undefined): string[] {
+  if (Array.isArray(text)) {
+    return text.map((line) => line.trim()).filter(Boolean);
+  }
   if (!text?.trim()) return [];
 
   return text

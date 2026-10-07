@@ -41,6 +41,9 @@ import {
   clampSmartPasteChipPosition,
   getTextareaCaretCoordinates,
 } from '@/lib/markdown/textarea-caret-position';
+import PlatformPreviewChrome from '@/components/molecules/personal-branding/PlatformPreviewChrome';
+import { getPlatformPreviewSkin } from '@/lib/personal-branding/platform-preview-skins';
+import type { BrandPlatform } from '@/types/api/personal-branding.dto';
 
 const FOLLOW_STORAGE_KEY = 'markdown-editor-follow-mode';
 const RICH_EMBEDS_STORAGE_KEY = 'markdown-editor-rich-embeds';
@@ -71,6 +74,8 @@ interface MarkdownEditorProps {
   autosaveErrorMessage?: string | null;
   /** Show rich-embeds toggle (YouTube iframe preview). Sandbox Workspace only. */
   enableRichEmbedsToggle?: boolean;
+  /** Optional platform chrome for split/preview panes (Content Workbench Sandbox). */
+  previewPlatform?: BrandPlatform | null;
 }
 
 function formatAutosaveTimeAgo(timestampMs: number, nowMs: number): string {
@@ -93,6 +98,26 @@ function MarkdownAutosaveFooter({
   errorMessage: string | null;
 }) {
   const [, setTick] = useState(0);
+  const [liveAnnouncement, setLiveAnnouncement] = useState('');
+  const prevStatusRef = useRef<AutosaveStatus | null>(null);
+
+  useEffect(() => {
+    if (prevStatusRef.current === status) return;
+    prevStatusRef.current = status;
+
+    const message =
+      status === 'saving'
+        ? 'Saving…'
+        : status === 'saved'
+          ? 'Saved'
+          : status === 'error'
+            ? "Couldn't save — try Save."
+            : '';
+
+    if (!message) return;
+    setLiveAnnouncement('');
+    queueMicrotask(() => setLiveAnnouncement(message));
+  }, [status]);
 
   useEffect(() => {
     if (status !== 'saved' || lastSavedAt === null) return;
@@ -100,68 +125,89 @@ function MarkdownAutosaveFooter({
     return () => window.clearInterval(id);
   }, [status, lastSavedAt]);
 
+  const liveRegion = (
+    <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      {liveAnnouncement}
+    </span>
+  );
+
   if (status === 'idle') {
     return (
-      <div
-        className="flex items-center justify-end px-3 sm:px-4 py-1.5 text-[11px] text-gray-400 dark:text-gray-500 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
-        data-testid="markdown-autosave-status"
-        data-status="idle"
-      >
-        All changes saved
-      </div>
+      <>
+        {liveRegion}
+        <div
+          className="flex items-center justify-end px-3 sm:px-4 py-1.5 text-[11px] text-gray-400 dark:text-gray-500 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
+          data-testid="markdown-autosave-status"
+          data-status="idle"
+        >
+          All changes saved
+        </div>
+      </>
     );
   }
 
   if (status === 'pending') {
     return (
-      <div
-        className="flex items-center justify-end px-3 sm:px-4 py-1.5 text-[11px] text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
-        data-testid="markdown-autosave-status"
-        data-status="pending"
-      >
-        Unsaved changes
-      </div>
+      <>
+        {liveRegion}
+        <div
+          className="flex items-center justify-end px-3 sm:px-4 py-1.5 text-[11px] text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
+          data-testid="markdown-autosave-status"
+          data-status="pending"
+        >
+          Unsaved changes
+        </div>
+      </>
     );
   }
 
   if (status === 'saving') {
     return (
-      <div
-        className="flex items-center justify-end gap-1.5 px-3 sm:px-4 py-1.5 text-[11px] text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
-        data-testid="markdown-autosave-status"
-        data-status="saving"
-      >
-        <Loader size={12} className="animate-spin shrink-0" aria-hidden />
-        Saving…
-      </div>
+      <>
+        {liveRegion}
+        <div
+          className="flex items-center justify-end gap-1.5 px-3 sm:px-4 py-1.5 text-[11px] text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
+          data-testid="markdown-autosave-status"
+          data-status="saving"
+        >
+          <Loader size={12} className="animate-spin shrink-0" aria-hidden />
+          Saving…
+        </div>
+      </>
     );
   }
 
   if (status === 'saved' && lastSavedAt !== null) {
     const label = formatAutosaveTimeAgo(lastSavedAt, Date.now());
     return (
-      <div
-        className="flex items-center justify-end gap-1.5 px-3 sm:px-4 py-1.5 text-[11px] text-green-600 dark:text-green-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
-        data-testid="markdown-autosave-status"
-        data-status="saved"
-      >
-        <Check size={12} className="shrink-0" aria-hidden />
-        Saved {label}
-      </div>
+      <>
+        {liveRegion}
+        <div
+          className="flex items-center justify-end gap-1.5 px-3 sm:px-4 py-1.5 text-[11px] text-green-600 dark:text-green-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
+          data-testid="markdown-autosave-status"
+          data-status="saved"
+        >
+          <Check size={12} className="shrink-0" aria-hidden />
+          Saved {label}
+        </div>
+      </>
     );
   }
 
   if (status === 'error') {
     return (
-      <div
-        className="flex items-center justify-end gap-1.5 px-3 sm:px-4 py-1.5 text-[11px] text-red-600 dark:text-red-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
-        data-testid="markdown-autosave-status"
-        data-status="error"
-        title={errorMessage ?? undefined}
-      >
-        <AlertCircle size={12} className="shrink-0" aria-hidden />
-        Couldn&apos;t autosave — try Save.
-      </div>
+      <>
+        {liveRegion}
+        <div
+          className="flex items-center justify-end gap-1.5 px-3 sm:px-4 py-1.5 text-[11px] text-red-600 dark:text-red-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80"
+          data-testid="markdown-autosave-status"
+          data-status="error"
+          title={errorMessage ?? undefined}
+        >
+          <AlertCircle size={12} className="shrink-0" aria-hidden />
+          Couldn&apos;t save — try Save.
+        </div>
+      </>
     );
   }
 
@@ -181,8 +227,9 @@ export default function MarkdownEditor({
   autosaveLastSavedAt = null,
   autosaveErrorMessage = null,
   enableRichEmbedsToggle = false,
+  previewPlatform = null,
 }: MarkdownEditorProps) {
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const isFillHeight = minHeight === '100%';
   const paneMinHeightStyle = isFillHeight ? undefined : { minHeight };
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -769,11 +816,22 @@ export default function MarkdownEditor({
                 <Loader className="w-8 h-8 animate-spin text-gray-400" />
               </div>
             ) : value.trim() ? (
-              <MarkdownRenderer
-                content={value}
-                annotateSourceLines={showSplitChrome}
-                richEmbeds={richEmbedsActive}
-              />
+              previewPlatform ? (
+                <PlatformPreviewChrome platform={previewPlatform} content={value}>
+                  <MarkdownRenderer
+                    content={value}
+                    annotateSourceLines={showSplitChrome}
+                    richEmbeds={richEmbedsActive}
+                    className={getPlatformPreviewSkin(previewPlatform).proseClassName}
+                  />
+                </PlatformPreviewChrome>
+              ) : (
+                <MarkdownRenderer
+                  content={value}
+                  annotateSourceLines={showSplitChrome}
+                  richEmbeds={richEmbedsActive}
+                />
+              )
             ) : (
               <p className="text-gray-400 dark:text-gray-500 italic">{placeholder}</p>
             )}
@@ -788,7 +846,6 @@ export default function MarkdownEditor({
           errorMessage={autosaveErrorMessage}
         />
       )}
-      <ToastContainer />
     </div>
   );
 }

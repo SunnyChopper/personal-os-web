@@ -194,42 +194,13 @@ describe('ProjectCard grid metadata hierarchy', () => {
     expect(accentBar?.className).toContain('group-hover:opacity-100');
   });
 
-  it('shows selected shell and checkbox when selected', () => {
-    render(
-      <ProjectCard
-        project={baseProject}
-        onClick={vi.fn()}
-        viewMode="grid"
-        isSelected
-        selectionActive
-        onToggleSelect={vi.fn()}
-      />
+  it('does not reserve a selection checkbox column on grid cards', () => {
+    const { container } = render(
+      <ProjectCard project={baseProject} onClick={vi.fn()} viewMode="grid" />
     );
 
-    expect(screen.getByRole('checkbox', { name: /select und - intro/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /view project details/i }).className).toContain(
-      'border-blue-500'
-    );
-  });
-
-  it('toggles selection without opening project detail', async () => {
-    const user = userEvent.setup();
-    const onClick = vi.fn();
-    const onToggleSelect = vi.fn();
-
-    render(
-      <ProjectCard
-        project={baseProject}
-        onClick={onClick}
-        viewMode="grid"
-        onToggleSelect={onToggleSelect}
-      />
-    );
-
-    await user.click(screen.getByRole('checkbox', { name: /select und - intro/i }));
-
-    expect(onToggleSelect).toHaveBeenCalledWith(baseProject);
-    expect(onClick).not.toHaveBeenCalled();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(container.querySelector('[data-project-select]')).toBeNull();
   });
 
   it('shows Stale status badge and muted ring for stale Planning projects', () => {

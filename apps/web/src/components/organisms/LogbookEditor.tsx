@@ -175,6 +175,12 @@ export function LogbookEditor({
   const handleSuggestLinks = async () => {
     if (!notesText) return;
     setHasRequestedSuggestions(true);
+    const excludeEntities = (formData.linkedEntities ?? [])
+      .filter((row) => row.entityType === 'project' || row.entityType === 'goal')
+      .map((row) => ({
+        entityType: row.entityType as 'project' | 'goal',
+        entityId: row.entityId,
+      }));
     await suggestLinks({
       notes: notesText,
       title: formData.title || undefined,
@@ -182,6 +188,7 @@ export function LogbookEditor({
       energy: formData.energy,
       limit: 3,
       useCache: true,
+      excludeEntities,
     });
   };
 
@@ -220,10 +227,8 @@ export function LogbookEditor({
     const normalizedDate = extractDateOnly(formData.date);
 
     if (entry) {
-      // For updates, include the normalized date to fix any timezone-shifted dates
-      // This ensures the backend uses the correct date from the form
+      // PATCH body must not include date — Dynamo SK is LOGBOOK#{date}; GET normalizes display.
       const updateData: UpdateLogbookEntryInput = {
-        date: normalizedDate, // Include date to fix timezone issues
         title: formData.title || undefined,
         notes: formData.notes || undefined,
         mood: formData.mood,
@@ -287,7 +292,8 @@ export function LogbookEditor({
                 const normalizedDate = extractDateOnly(dateValue);
                 setFormData({ ...formData, date: normalizedDate });
               }}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={Boolean(entry)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
               required
             />
           </div>

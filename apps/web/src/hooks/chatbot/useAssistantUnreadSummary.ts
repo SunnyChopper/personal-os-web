@@ -10,8 +10,9 @@ export function useAssistantUnreadSummary() {
     queryKey: queryKeys.chatbot.unreadSummary(),
     queryFn: () => assistantUnreadService.getUnreadSummary(),
     refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
-    staleTime: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
   });
 }
 

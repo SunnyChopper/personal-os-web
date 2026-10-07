@@ -6,6 +6,7 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
+import { useTerminalJobFailureAlert } from '@/hooks/useTerminalJobFailureAlert';
 import { queryKeys } from '@/lib/react-query/query-keys';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import type {
@@ -20,6 +21,8 @@ import type {
 } from '@/types/api/personal-branding.dto';
 
 const ACTIVE_RUN_STATUSES = new Set(['queued', 'running', 'pausing', 'cancelling']);
+/** In-flight + paused — monitor strip stays mounted so Resume is reachable after Pause. */
+export const MONITOR_RUN_STATUSES = new Set([...ACTIVE_RUN_STATUSES, 'paused']);
 const RECON_FEED_PAGE_SIZE = 50;
 export const RECON_RUNS_PAGE_SIZE = 20;
 
@@ -172,6 +175,50 @@ function updatePostInPages(
     return { ...page, data: nextData };
   });
   return changed ? { ...data, pages } : data;
+}
+
+type ReconPostFeedbackPatch = Pick<
+  UpdateReconPostInput,
+  'feedbackVerdict' | 'feedbackCategory' | 'feedbackText'
+>;
+
+function patchPostFeedbackInPages(
+  data: InfiniteData<ReconPostPage> | undefined,
+  postId: string,
+  patch: ReconPostFeedbackPatch
+): InfiniteData<ReconPostPage> | undefined {
+  if (!data) return data;
+  let changed = false;
+  const pages = data.pages.map((page) => {
+    const index = page.data.findIndex((post) => post.id === postId);
+    if (index === -1) return page;
+    changed = true;
+    const nextData = [...page.data];
+    const current = nextData[index];
+    nextData[index] = {
+      ...current,
+      ...(patch.feedbackVerdict !== undefined && { feedbackVerdict: patch.feedbackVerdict }),
+      ...(patch.feedbackCategory !== undefined && { feedbackCategory: patch.feedbackCategory }),
+      ...(patch.feedbackText !== undefined && { feedbackText: patch.feedbackText }),
+    };
+    return { ...page, data: nextData };
+  });
+  return changed ? { ...data, pages } : data;
+}
+
+export function applyOptimisticReconPostFeedbackUpdate(
+  activeData: InfiniteData<ReconPostPage> | undefined,
+  processedData: InfiniteData<ReconPostPage> | undefined,
+  postId: string,
+  patch: ReconPostFeedbackPatch
+): {
+  active: InfiniteData<ReconPostPage> | undefined;
+  processed: InfiniteData<ReconPostPage> | undefined;
+} {
+  return {
+    active: patchPostFeedbackInPages(activeData, postId, patch),
+    processed: patchPostFeedbackInPages(processedData, postId, patch),
+  };
 }
 
 export function applyOptimisticReconPostStatusUpdate(
@@ -345,7 +392,7 @@ export function useReconFeed(options?: {
   }, [runsPage, runs.data?.data, runsActiveProbe.data?.data]);
 
   const activeRunId = useMemo(() => {
-    return activeRunProbeRows.find((r) => ACTIVE_RUN_STATUSES.has(r.status))?.id ?? null;
+    return activeRunProbeRows.find((r) => MONITOR_RUN_STATUSES.has(r.status))?.id ?? null;
   }, [activeRunProbeRows]);
 
   const activeRun = useQuery({
@@ -353,6 +400,13 @@ export function useReconFeed(options?: {
     queryFn: () => personalBrandingService.getReconRun(activeRunId!),
     enabled: Boolean(activeRunId),
     refetchInterval: (query) => reconRunPollInterval(query.state.data),
+  });
+
+  useTerminalJobFailureAlert({
+    feature: 'reconFeed',
+    jobId: activeRunId,
+    status: activeRun.data?.status,
+    error: activeRun.data?.errorSummary,
   });
 
   const activePollMs = reconRunPollInterval(
@@ -452,14 +506,35 @@ export function useReconFeed(options?: {
       const previousActive = qc.getQueryData<InfiniteData<ReconPostPage>>(activePostsQueryKey);
       const previousProcessed =
         qc.getQueryData<InfiniteData<ReconPostPage>>(processedPostsQueryKey);
-      const optimistic = applyOptimisticReconPostStatusUpdate(
-        previousActive,
-        previousProcessed,
-        postId,
-        body.status
-      );
-      qc.setQueryData(activePostsQueryKey, optimistic.active);
-      qc.setQueryData(processedPostsQueryKey, optimistic.processed);
+      if (body.status) {
+        const optimistic = applyOptimisticReconPostStatusUpdate(
+          previousActive,
+          previousProcessed,
+          postId,
+          body.status
+        );
+        qc.setQueryData(activePostsQueryKey, optimistic.active);
+        qc.setQueryData(processedPostsQueryKey, optimistic.processed);
+      } else if (
+        body.feedbackVerdict !== undefined ||
+        body.feedbackCategory !== undefined ||
+        body.feedbackText !== undefined
+      ) {
+        const optimistic = applyOptimisticReconPostFeedbackUpdate(
+          previousActive,
+          previousProcessed,
+          postId,
+          {
+            ...(body.feedbackVerdict !== undefined && { feedbackVerdict: body.feedbackVerdict }),
+            ...(body.feedbackCategory !== undefined && {
+              feedbackCategory: body.feedbackCategory,
+            }),
+            ...(body.feedbackText !== undefined && { feedbackText: body.feedbackText }),
+          }
+        );
+        qc.setQueryData(activePostsQueryKey, optimistic.active);
+        qc.setQueryData(processedPostsQueryKey, optimistic.processed);
+      }
       return { previousActive, previousProcessed };
     },
     onError: (_error, _variables, context) => {
@@ -536,6 +611,10 @@ export function useReconFeed(options?: {
     },
   });
 
+  const distillSelectionGuidance = useMutation({
+    mutationFn: () => personalBrandingService.distillReconSelectionGuidance(),
+  });
+
   const hasActiveNonPausedRun = useMemo(() => {
     return activeRunProbeRows.some((r) => ACTIVE_RUN_STATUSES.has(r.status));
   }, [activeRunProbeRows]);
@@ -569,5 +648,6 @@ export function useReconFeed(options?: {
     submitFollowSuggestionConfidenceFeedback,
     startRun,
     controlRun,
+    distillSelectionGuidance,
   };
 }

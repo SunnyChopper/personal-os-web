@@ -4,6 +4,7 @@ import { AlertTriangle, RefreshCw, Home, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { logger } from '@/lib/logger';
 import { reportClientError } from '@/lib/client-telemetry';
+import { isStaleChunkLoadError, tryReloadOnceForStaleChunk } from '@/lib/stale-chunk-reload';
 
 interface Props {
   children: ReactNode;
@@ -12,6 +13,8 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  /** True while a post-deploy chunk reload is in flight (hide fatal UI). */
+  reloadingForStaleChunk: boolean;
   error: Error | null;
   errorInfo: React.ErrorInfo | null;
 }
@@ -21,12 +24,13 @@ export class ErrorBoundary extends Component<Props, State> {
     super(props);
     this.state = {
       hasError: false,
+      reloadingForStaleChunk: false,
       error: null,
       errorInfo: null,
     };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return {
       hasError: true,
       error,
@@ -39,13 +43,23 @@ export class ErrorBoundary extends Component<Props, State> {
       error,
       componentStack: errorInfo.componentStack,
     });
+
+    // Post-deploy: open tab still references hashed chunks that 403/404 after release.
+    if (tryReloadOnceForStaleChunk(error)) {
+      this.setState({ reloadingForStaleChunk: true, error, errorInfo });
+      return;
+    }
+
     void reportClientError(
       {
         message: error.message,
         source: 'web',
         stack: error.stack,
         componentStack: errorInfo.componentStack ?? undefined,
-        metadata: { boundary: 'ErrorBoundary' },
+        metadata: {
+          boundary: 'ErrorBoundary',
+          ...(isStaleChunkLoadError(error) ? { kind: 'stale-chunk' } : {}),
+        },
       },
       { flush: 'immediate' }
     );
@@ -53,12 +67,14 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({
       error,
       errorInfo,
+      reloadingForStaleChunk: false,
     });
   }
 
   handleReset = () => {
     this.setState({
       hasError: false,
+      reloadingForStaleChunk: false,
       error: null,
       errorInfo: null,
     });
@@ -85,6 +101,10 @@ ${this.state.errorInfo?.componentStack}
   };
 
   render() {
+    if (this.state.reloadingForStaleChunk) {
+      return null;
+    }
+
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;

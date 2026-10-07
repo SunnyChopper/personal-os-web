@@ -22,29 +22,25 @@ function AmbientCoachCards({
   onAsk: (prompt: string) => void;
   onOpen: (href: string) => void;
 }) {
+  if (data.slots.length === 0) {
+    return (
+      <p className="px-2 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
+        Nothing needs your attention right now.
+      </p>
+    );
+  }
+
   return (
     <>
-      <RelevantNowCard
-        key={`escalation-${data.escalation.entityId}`}
-        item={data.escalation}
-        slotLabel="Escalation"
-        onAsk={onAsk}
-        onOpen={onOpen}
-      />
-      <RelevantNowCard
-        key={`health-${data.healthConstraint.entityId}`}
-        item={data.healthConstraint}
-        slotLabel="Health"
-        onAsk={onAsk}
-        onOpen={onOpen}
-      />
-      <RelevantNowCard
-        key={`signal-${data.crossModuleSignal.kind}-${data.crossModuleSignal.entityId}`}
-        item={data.crossModuleSignal}
-        slotLabel="Signal"
-        onAsk={onAsk}
-        onOpen={onOpen}
-      />
+      {data.slots.map((slot) => (
+        <RelevantNowCard
+          key={`${slot.kind}-${slot.entityId}`}
+          item={slot}
+          slotLabel={slot.slotLabel}
+          onAsk={onAsk}
+          onOpen={onOpen}
+        />
+      ))}
     </>
   );
 }

@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { ToastContainer } from '@/components/molecules/Toast';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -29,25 +28,42 @@ function notifyListeners() {
   toastListeners.forEach((listener) => listener([...toasts]));
 }
 
-/** Imperative toast for use outside React components (e.g. React Query mutation callbacks). */
-export function pushToastNotification(toast: Omit<Toast, 'id'>): string {
-  const id =
-    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const newToast = { ...toast, id };
-  toasts = [...toasts, newToast];
-  notifyListeners();
+function createToastId(): string {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
-  const duration = resolveToastDuration(toast);
+function scheduleToastDismiss(id: string, duration: number) {
   setTimeout(() => {
     toasts = toasts.filter((t) => t.id !== id);
     notifyListeners();
   }, duration);
+}
+
+/** Imperative toast for use outside React components (e.g. React Query mutation callbacks). */
+export function pushToastNotification(toast: Omit<Toast, 'id'>): string {
+  const id = createToastId();
+  const newToast = { ...toast, id };
+  toasts = [...toasts, newToast];
+  notifyListeners();
+
+  scheduleToastDismiss(id, resolveToastDuration(toast));
   return id;
 }
 
-export function useToast() {
+export function dismissToastNotification(id: string) {
+  toasts = toasts.filter((t) => t.id !== id);
+  notifyListeners();
+}
+
+export function clearToastNotifications() {
+  toasts = [];
+  notifyListeners();
+}
+
+/** Subscribes to the shared toast store for the single admin-shell host. */
+export function useToastSnapshot() {
   const [toastState, setToastState] = useState<Toast[]>([]);
 
   useEffect(() => {
@@ -59,34 +75,21 @@ export function useToast() {
     };
   }, []);
 
-  const showToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = crypto.randomUUID();
-    const newToast = { ...toast, id };
-    toasts = [...toasts, newToast];
-    notifyListeners();
+  const dismissToast = useCallback((id: string) => dismissToastNotification(id), []);
 
-    const duration = resolveToastDuration(toast);
-    setTimeout(() => {
-      toasts = toasts.filter((t) => t.id !== id);
-      notifyListeners();
-    }, duration);
-    return id;
-  }, []);
+  return { toasts: toastState, dismissToast };
+}
 
-  const dismissToast = useCallback((id: string) => {
-    toasts = toasts.filter((t) => t.id !== id);
-    notifyListeners();
-  }, []);
+export function useToast() {
+  const showToast = useCallback((toast: Omit<Toast, 'id'>) => pushToastNotification(toast), []);
 
-  const clearToasts = useCallback(() => {
-    toasts = [];
-    notifyListeners();
-  }, []);
+  const dismissToast = useCallback((id: string) => dismissToastNotification(id), []);
+
+  const clearToasts = useCallback(() => clearToastNotifications(), []);
 
   return {
     showToast,
     dismissToast,
     clearToasts,
-    ToastContainer: () => <ToastContainer toasts={toastState} onDismiss={dismissToast} />,
   };
 }

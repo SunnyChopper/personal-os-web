@@ -55,7 +55,7 @@ function PublishQueueStatusPills({
 
 export default function PublishQueueTab() {
   const queue = usePublishQueue();
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const prefersReducedMotion = useReducedMotion();
   const [scheduleFlashId, setScheduleFlashId] = useState<string | null>(null);
 
@@ -114,7 +114,6 @@ export default function PublishQueueTab() {
 
   return (
     <div className="space-y-6">
-      <ToastContainer />
       <PageCard>
         <SectionIntro
           title="Publish Queue"

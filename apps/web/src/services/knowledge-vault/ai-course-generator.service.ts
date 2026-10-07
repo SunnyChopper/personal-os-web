@@ -7,6 +7,10 @@ import {
   runCourseSkeletonOverWebSocket,
   type CourseSkeletonResult as WsCourseSkeletonResult,
 } from '@/lib/websocket/course-skeleton-ws-client';
+import {
+  cancelInFlightCourseLesson,
+  runCourseLessonOverWebSocket,
+} from '@/lib/websocket/course-lesson-ws-client';
 import { coursesService } from './courses.service';
 import { generateId } from '@/mocks/storage';
 import type {
@@ -16,7 +20,11 @@ import type {
   ApiResponse,
   PreAssessmentStored,
 } from '@/types/knowledge-vault';
-import type { CourseGenerationProgress, LessonGenerationProgress } from './course-generation/types';
+import type {
+  CourseGenerationProgress,
+  LessonGenerationArtifact,
+  LessonGenerationProgress,
+} from './course-generation/types';
 import { withNoteAIModel } from './note-ai-options';
 
 interface AIResponse<T> {
@@ -216,49 +224,98 @@ export const aiCourseGeneratorService = {
    */
   cancelInFlightCourseSkeleton,
 
+  cancelInFlightCourseLesson,
+
   async generateLessonContent(input: GenerateLessonContentInput): Promise<ApiResponse<string>> {
+    const wsUrl = getResolvedWsUrl();
+    if (wsUrl) {
+      try {
+        const markdown = await runCourseLessonOverWebSocket({
+          wsBaseUrl: wsUrl,
+          getAccessToken: async () => authService.getAccessToken(),
+          courseId: input.courseId,
+          lessonId: input.lessonId,
+          model: input.model,
+          onProgress: input.onProgress,
+        });
+        return { data: markdown, error: null, success: true };
+      } catch (e) {
+        llmLogger.warn('Course lesson WebSocket failed, falling back to REST poll', e);
+      }
+    }
+
     try {
       if (input.onProgress) {
         input.onProgress({
-          phase: 'writing',
-          phaseName: 'Generating Lesson',
-          summary: 'Requesting lesson content from backend...',
-          progress: 10,
+          phase: 'analyzing',
+          phaseName: 'Queued',
+          summary: 'Starting lesson generation on the server...',
+          progress: 5,
         });
       }
 
-      const response = await apiClient.post<{ data: AIResponse<string> }>(
+      const start = await apiClient.post<{ data: { runId: string; status: string } }>(
         '/ai/courses/lesson',
         withNoteAIModel(
-          {
-            courseId: input.courseId,
-            lessonId: input.lessonId,
-          },
+          { courseId: input.courseId, lessonId: input.lessonId },
           { model: input.model }
         )
       );
 
-      if (response.success && response.data) {
-        if (input.onProgress) {
-          input.onProgress({
-            phase: 'polishing',
-            phaseName: 'Complete',
-            summary: 'Lesson generation complete.',
-            progress: 100,
-          });
-        }
+      if (!start.success || !start.data?.data?.runId) {
         return {
-          data: response.data.data.result,
-          error: null,
-          success: true,
+          data: null,
+          error: start.error?.message || 'Failed to start lesson generation',
+          success: false,
         };
       }
 
-      return {
-        data: null,
-        error: response.error?.message || 'Failed to generate lesson content',
-        success: false,
-      };
+      const runId = start.data.data.runId;
+      const deadline = Date.now() + 15 * 60_000;
+
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const poll = await apiClient.get<{
+          data: {
+            status: string;
+            phase?: string;
+            phaseName?: string;
+            progress?: number;
+            summary?: string;
+            markdown?: string;
+            error?: string;
+            artifacts?: LessonGenerationArtifact[];
+          };
+        }>(`/ai/courses/lesson-jobs/${runId}`);
+
+        if (!poll.success || !poll.data?.data) {
+          continue;
+        }
+        const job = poll.data.data;
+        if (job.phase && input.onProgress) {
+          const phase = job.phase as LessonGenerationProgress['phase'];
+          const lastArtifact = job.artifacts?.[job.artifacts.length - 1];
+          input.onProgress({
+            phase,
+            phaseName: job.phaseName || 'Generating',
+            progress: job.progress ?? 0,
+            summary: job.summary,
+            artifact: lastArtifact as LessonGenerationProgress['artifact'],
+          });
+        }
+        if (job.status === 'succeeded' && job.markdown) {
+          return { data: job.markdown, error: null, success: true };
+        }
+        if (job.status === 'failed' || job.status === 'cancelled') {
+          return {
+            data: null,
+            error: job.error || 'Lesson generation failed',
+            success: false,
+          };
+        }
+      }
+
+      return { data: null, error: 'Lesson generation timed out.', success: false };
     } catch (error) {
       llmLogger.error('Error generating lesson content', error);
       return {

@@ -143,7 +143,8 @@ export function TaskCreateForm({
     }
   };
 
-  const availableSubCategories = SUBCATEGORIES_BY_AREA[formData.area];
+  // Same guard as ProjectEditForm / GoalCoreFormFields — AI parse can set unknown area
+  const availableSubCategories = SUBCATEGORIES_BY_AREA[formData.area] || [];
 
   const handleApplyParsed = (task: Partial<CreateTaskInput>) => {
     setFormData({

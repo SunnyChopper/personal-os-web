@@ -29,6 +29,14 @@ const SUBMODULE_TITLES: Record<string, { title: string; subtitle: string }> = {
     title: 'Rolodex',
     subtitle: 'Creator networking ledger and interaction tracking.',
   },
+  [ROUTES.admin.personalBrandingEvents]: {
+    title: 'In-Person Events',
+    subtitle: 'Discover conferences, meetups, and networking events where you will be.',
+  },
+  [ROUTES.admin.personalBrandingProjects]: {
+    title: 'Build ideas',
+    subtitle: 'Daily trend-grounded build-in-public ideas with RAG dedupe and Cursor build kits.',
+  },
 };
 
 export default function PersonalBrandingLayout() {

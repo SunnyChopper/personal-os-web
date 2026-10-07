@@ -13,6 +13,9 @@ export function contentStatusBadgeLabel(
   status: ContentStatus,
   platform?: BrandPlatform | null
 ): string {
+  if (status === 'SKIPPED') {
+    return 'Archived';
+  }
   if (status === 'PUBLISHED') {
     const platformName = platformDisplayName(platform);
     return platformName ? `Published · ${platformName}` : 'Published';

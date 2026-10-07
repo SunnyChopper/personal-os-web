@@ -11,7 +11,6 @@ const { showToast } = vi.hoisted(() => ({
 vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
     showToast,
-    ToastContainer: () => null,
   }),
 }));
 
@@ -124,6 +123,66 @@ describe('TaskEditPanel polish', () => {
     cleanup();
   });
 
+  it('renders Notes and Scheduled Date fields', () => {
+    renderPanel();
+
+    expect(screen.getByLabelText('Notes')).toBeInTheDocument();
+    expect(screen.getByLabelText('Scheduled Date')).toBeInTheDocument();
+  });
+
+  it('hydrates notes and scheduled date from task', () => {
+    renderPanel({
+      task: {
+        ...makeTask(),
+        notes: 'hello',
+        scheduledDate: '2026-09-07T00:00:00Z',
+      },
+    });
+
+    expect(screen.getByLabelText('Notes')).toHaveValue('hello');
+    expect(screen.getByLabelText('Scheduled Date')).toHaveValue('2026-09-07');
+  });
+
+  it('enables Save when only notes change', async () => {
+    const user = userEvent.setup();
+    renderPanel({
+      task: { ...makeTask(), notes: 'original' },
+    });
+
+    const saveButton = await screen.findByRole('button', { name: 'Save changes' });
+    expect(saveButton).toBeDisabled();
+
+    await user.type(screen.getByLabelText('Notes'), ' updated');
+
+    await waitFor(() => {
+      expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    });
+    expect(saveButton).toBeEnabled();
+  });
+
+  it('sends notes null when notes cleared on save', async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderPanel({
+      task: { ...makeTask(), notes: 'remove me' },
+    });
+
+    const notesInput = screen.getByLabelText('Notes');
+    await user.clear(notesInput);
+
+    const saveButton = await screen.findByRole('button', { name: 'Save changes' });
+    await waitFor(() => {
+      expect(saveButton).toBeEnabled();
+    });
+    await user.click(saveButton);
+
+    expect(onSave).toHaveBeenCalledWith(
+      'task-1',
+      expect.objectContaining({
+        notes: null,
+      })
+    );
+  });
+
   it('renders section headings for scanability', () => {
     renderPanel();
 
@@ -189,5 +248,27 @@ describe('TaskEditPanel polish', () => {
     renderPanel();
     expect(screen.getByTestId('dialog-footer')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('renders with an unknown area without crashing subcategory map (da291a9e90d5)', () => {
+    expect(() =>
+      renderPanel({
+        // API TaskResponse.area is a free string; legacy/AI values may not be Area keys
+        task: { ...makeTask(), area: 'Career' as Task['area'], subCategory: null },
+      })
+    ).not.toThrow();
+
+    expect(screen.getByLabelText('Sub-Category')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'None' })).toBeInTheDocument();
+  });
+
+  it('renders when area is missing at runtime without crashing subcategory map', () => {
+    expect(() =>
+      renderPanel({
+        task: { ...makeTask(), area: undefined as unknown as Task['area'] },
+      })
+    ).not.toThrow();
+
+    expect(screen.getByLabelText('Sub-Category')).toBeInTheDocument();
   });
 });

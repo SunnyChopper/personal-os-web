@@ -1,8 +1,13 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import PlatformRuleEditorDialog from '../PlatformRuleEditorDialog';
-import type { PlatformRuleCatalog } from '@/types/api/personal-branding.dto';
+import type {
+  PlatformRuleCatalog,
+  PlatformRuleSetInfluenceItem,
+} from '@/types/api/personal-branding.dto';
 import { personalBrandingService } from '@/services/personal-branding.service';
 import {
   PLATFORM_RULE_SET_SAMPLE_TEXT,
@@ -13,6 +18,8 @@ import {
 vi.mock('@/services/personal-branding.service', () => ({
   personalBrandingService: {
     previewPlatformRuleSet: vi.fn(),
+    getPlatformRulePreviewJob: vi.fn(),
+    cancelPlatformRulePreviewJob: vi.fn(),
     annotatePlatformRuleSetInfluence: vi.fn(),
   },
 }));
@@ -47,9 +54,52 @@ const catalog: PlatformRuleCatalog = {
   },
 };
 
+function mockCompletedPreview(
+  body: string,
+  sampleText = 'Sample paragraph for preview.',
+  appliedInfluences: PlatformRuleSetInfluenceItem[] = []
+) {
+  vi.mocked(personalBrandingService.previewPlatformRuleSet).mockResolvedValue({
+    jobId: 'preview-job-1',
+    status: 'queued',
+    pollAfterMs: 0,
+  });
+  vi.mocked(personalBrandingService.getPlatformRulePreviewJob).mockResolvedValue({
+    jobId: 'preview-job-1',
+    status: 'succeeded',
+    stage: 'completed',
+    pollAfterMs: 0,
+    result: {
+      sampleText,
+      body,
+      appliedPolicy: {
+        rhetoricalModes: [],
+        rhetoricalDevices: [],
+        requirements: [],
+        appliedRuleIds: [],
+      },
+      appliedInfluences,
+    },
+    userId: 'u',
+    createdAt: '',
+    updatedAt: '',
+  });
+}
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+}
+
 describe('PlatformRuleEditorDialog', () => {
   beforeEach(() => {
     vi.mocked(personalBrandingService.previewPlatformRuleSet).mockReset();
+    vi.mocked(personalBrandingService.getPlatformRulePreviewJob).mockReset();
+    vi.mocked(personalBrandingService.cancelPlatformRulePreviewJob).mockReset();
     vi.mocked(personalBrandingService.annotatePlatformRuleSetInfluence).mockReset();
     vi.mocked(personalBrandingService.annotatePlatformRuleSetInfluence).mockResolvedValue({
       appliedInfluences: [],
@@ -88,7 +138,9 @@ describe('PlatformRuleEditorDialog', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /create rule/i }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Requirements are required');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Add at least one non-blank requirement.'
+    );
     expect(onCreate).not.toHaveBeenCalled();
   });
 
@@ -196,10 +248,47 @@ describe('PlatformRuleEditorDialog', () => {
     expect(onUpdate).toHaveBeenCalledWith(
       'rule-1',
       expect.objectContaining({
-        requirements: 'Existing requirements',
+        requirements: ['Existing requirements'],
         profileIds: ['p1'],
       })
     );
+  });
+
+  it('keeps dialog open and does not reject when onUpdate fails (9ada7a942ca1)', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onUpdate = vi.fn().mockRejectedValue(new Error('An unexpected error occurred'));
+    render(
+      <PlatformRuleEditorDialog
+        isOpen
+        onClose={onClose}
+        profiles={[]}
+        catalog={catalog}
+        initial={{
+          id: 'rule-1',
+          platform: 'linkedin',
+          name: 'LI default',
+          characterLimit: 3000,
+          readTimeLimitMinutes: 3,
+          rhetoricalModes: [],
+          rhetoricalDevices: [],
+          requirements: 'Existing requirements',
+          needsReview: false,
+          profileIds: [],
+          isUniversal: true,
+          userId: 'u',
+          createdAt: '',
+          updatedAt: '',
+        }}
+        onCreate={vi.fn()}
+        onUpdate={onUpdate}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument();
   });
 
   it('submits universal rule when no profiles selected', async () => {
@@ -216,12 +305,16 @@ describe('PlatformRuleEditorDialog', () => {
       />
     );
 
-    await user.type(screen.getByLabelText(/requirements/i), 'Universal baseline guidance.');
+    await user.type(
+      screen.getByLabelText(/requirements new item/i),
+      'Universal baseline guidance.'
+    );
+    await user.click(screen.getByRole('button', { name: /add requirement/i }));
     await user.click(screen.getByRole('button', { name: /create rule/i }));
 
     expect(onCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        requirements: 'Universal baseline guidance.',
+        requirements: ['Universal baseline guidance.'],
         profileIds: [],
       })
     );
@@ -229,26 +322,14 @@ describe('PlatformRuleEditorDialog', () => {
 
   it('shows Test this rule set button and renders preview on success', async () => {
     const user = userEvent.setup();
-    vi.mocked(personalBrandingService.previewPlatformRuleSet).mockResolvedValue({
-      sampleText: 'Sample paragraph for preview.',
-      body: 'Rewritten preview body.',
-      appliedPolicy: {
-        rhetoricalModes: [{ mode: 'narrative', strength: 'moderate' }],
-        rhetoricalDevices: [],
-        requirements: 'Use short paragraphs.',
-        appliedRuleIds: [],
+    mockCompletedPreview('Rewritten preview body.', PLATFORM_RULE_SET_SAMPLE_TEXT, [
+      {
+        kind: 'device',
+        id: 'ruleOfThree',
+        summary: 'Rule of three used in steps',
+        previewExcerpt: 'Rewritten preview body.',
       },
-    });
-    vi.mocked(personalBrandingService.annotatePlatformRuleSetInfluence).mockResolvedValue({
-      appliedInfluences: [
-        {
-          kind: 'device',
-          id: 'ruleOfThree',
-          summary: 'Rule of three used in steps',
-          previewExcerpt: 'Rewritten preview body.',
-        },
-      ],
-    });
+    ]);
 
     render(
       <PlatformRuleEditorDialog
@@ -274,34 +355,40 @@ describe('PlatformRuleEditorDialog', () => {
       );
     });
 
-    await waitFor(() => {
-      expect(personalBrandingService.annotatePlatformRuleSetInfluence).toHaveBeenCalledWith(
-        expect.objectContaining({
-          sampleText: 'Sample paragraph for preview.',
-          body: 'Rewritten preview body.',
-        })
-      );
-    });
-
     expect(await screen.findByText('Rewritten preview body.')).toBeInTheDocument();
     expect(await screen.findByText('Rule of three used in steps')).toBeInTheDocument();
   });
 
+  it('blocks preview when a minimum target exceeds its maximum', async () => {
+    const user = userEvent.setup();
+    render(
+      <PlatformRuleEditorDialog
+        isOpen
+        onClose={() => undefined}
+        profiles={[]}
+        catalog={catalog}
+        onCreate={vi.fn()}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    const minimum = screen.getByLabelText(/minimum characters \(optional\)/i);
+    const maximum = screen.getByLabelText(/maximum characters \(optional\)/i);
+    await user.clear(minimum);
+    await user.type(minimum, '2000');
+    await user.clear(maximum);
+    await user.type(maximum, '1000');
+    await user.click(screen.getByRole('button', { name: /test this rule set/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Minimum targets must be less than or equal to maximum targets.'
+    );
+    expect(personalBrandingService.previewPlatformRuleSet).not.toHaveBeenCalled();
+  });
+
   it('still shows preview when rule influence annotate fails', async () => {
     const user = userEvent.setup();
-    vi.mocked(personalBrandingService.previewPlatformRuleSet).mockResolvedValue({
-      sampleText: 'Sample paragraph for preview.',
-      body: 'Rewritten preview body.',
-      appliedPolicy: {
-        rhetoricalModes: [],
-        rhetoricalDevices: [],
-        requirements: 'Use short paragraphs.',
-        appliedRuleIds: [],
-      },
-    });
-    vi.mocked(personalBrandingService.annotatePlatformRuleSetInfluence).mockRejectedValue(
-      new Error('Influence service unavailable')
-    );
+    mockCompletedPreview('Rewritten preview body.');
 
     render(
       <PlatformRuleEditorDialog
@@ -317,22 +404,13 @@ describe('PlatformRuleEditorDialog', () => {
     await user.click(screen.getByRole('button', { name: /test this rule set/i }));
 
     expect(await screen.findByText('Rewritten preview body.')).toBeInTheDocument();
-    expect(await screen.findByText(/influence service unavailable/i)).toBeInTheDocument();
+    expect(personalBrandingService.annotatePlatformRuleSetInfluence).not.toHaveBeenCalled();
   });
 
   it('sends custom sample text when testing rule set', async () => {
     const user = userEvent.setup();
     const customSample = 'My draft thread about shipping faster with fewer meetings.';
-    vi.mocked(personalBrandingService.previewPlatformRuleSet).mockResolvedValue({
-      sampleText: customSample,
-      body: 'Rewritten custom draft.',
-      appliedPolicy: {
-        rhetoricalModes: [],
-        rhetoricalDevices: [],
-        requirements: '',
-        appliedRuleIds: [],
-      },
-    });
+    mockCompletedPreview('Rewritten custom draft.', customSample);
 
     render(
       <PlatformRuleEditorDialog
@@ -361,17 +439,7 @@ describe('PlatformRuleEditorDialog', () => {
 
   it('sends brandProfileIds for all mapped profiles when testing rule set', async () => {
     const user = userEvent.setup();
-    vi.mocked(personalBrandingService.previewPlatformRuleSet).mockResolvedValue({
-      sampleText: PLATFORM_RULE_SET_SAMPLE_TEXT,
-      body: 'Rewritten preview body.',
-      appliedPolicy: {
-        rhetoricalModes: [],
-        rhetoricalDevices: [],
-        requirements: 'Use short paragraphs.',
-        appliedRuleIds: [],
-      },
-      validationIssues: [],
-    });
+    mockCompletedPreview('Rewritten preview body.', PLATFORM_RULE_SET_SAMPLE_TEXT);
 
     render(
       <PlatformRuleEditorDialog
@@ -409,7 +477,8 @@ describe('PlatformRuleEditorDialog', () => {
       />
     );
 
-    await user.type(screen.getByLabelText(/requirements/i), 'Use short paragraphs.');
+    await user.type(screen.getByLabelText(/requirements new item/i), 'Use short paragraphs.');
+    await user.click(screen.getByRole('button', { name: /add requirement/i }));
     await user.click(screen.getByRole('checkbox', { name: /founder/i }));
     await user.click(screen.getByRole('checkbox', { name: /operator/i }));
     await user.click(screen.getByRole('button', { name: /test this rule set/i }));
@@ -426,16 +495,7 @@ describe('PlatformRuleEditorDialog', () => {
 
   it('shows stale notice when sample text changes after preview', async () => {
     const user = userEvent.setup();
-    vi.mocked(personalBrandingService.previewPlatformRuleSet).mockResolvedValue({
-      sampleText: PLATFORM_RULE_SET_SAMPLE_TEXT,
-      body: 'Rewritten preview body.',
-      appliedPolicy: {
-        rhetoricalModes: [],
-        rhetoricalDevices: [],
-        requirements: '',
-        appliedRuleIds: [],
-      },
-    });
+    mockCompletedPreview('Rewritten preview body.');
 
     render(
       <PlatformRuleEditorDialog
@@ -721,9 +781,10 @@ describe('PlatformRuleEditorDialog', () => {
     );
 
     await user.type(
-      screen.getByLabelText(/requirements/i),
+      screen.getByLabelText(/requirements new item/i),
       'Write in a conversational tone with casual slang.'
     );
+    await user.click(screen.getByRole('button', { name: /add requirement/i }));
     await user.click(screen.getByRole('checkbox', { name: /founder/i }));
     await user.click(screen.getByRole('button', { name: /check consistency/i }));
 
@@ -760,7 +821,8 @@ describe('PlatformRuleEditorDialog', () => {
       />
     );
 
-    await user.type(screen.getByLabelText(/requirements/i), 'Keep it conversational.');
+    await user.type(screen.getByLabelText(/requirements new item/i), 'Keep it conversational.');
+    await user.click(screen.getByRole('button', { name: /add requirement/i }));
     await user.click(screen.getByRole('checkbox', { name: /founder/i }));
     await user.click(screen.getByRole('button', { name: /check consistency/i }));
     expect(await screen.findByText(/consistency check/i)).toBeInTheDocument();
@@ -795,8 +857,9 @@ describe('PlatformRuleEditorDialog', () => {
       />
     );
 
-    const requirements = screen.getByLabelText(/requirements/i);
+    const requirements = screen.getByLabelText(/requirements new item/i);
     await user.type(requirements, 'Keep it conversational.');
+    await user.click(screen.getByRole('button', { name: /add requirement/i }));
     await user.click(screen.getByRole('checkbox', { name: /founder/i }));
     await user.click(screen.getByRole('button', { name: /check consistency/i }));
     await user.click(screen.getByRole('button', { name: /adjust requirements/i }));
@@ -831,7 +894,8 @@ describe('PlatformRuleEditorDialog', () => {
       />
     );
 
-    await user.type(screen.getByLabelText(/requirements/i), 'Keep it conversational.');
+    await user.type(screen.getByLabelText(/requirements new item/i), 'Keep it conversational.');
+    await user.click(screen.getByRole('button', { name: /add requirement/i }));
     await user.click(screen.getByRole('checkbox', { name: /founder/i }));
     await user.click(screen.getByRole('button', { name: /check consistency/i }));
     expect(await screen.findByText(/may conflict/i)).toBeInTheDocument();
@@ -839,7 +903,7 @@ describe('PlatformRuleEditorDialog', () => {
     await user.click(screen.getByRole('button', { name: /create rule/i }));
     expect(onCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        requirements: 'Keep it conversational.',
+        requirements: ['Keep it conversational.'],
       })
     );
   });
@@ -915,12 +979,12 @@ describe('PlatformRuleEditorDialog', () => {
     expect(screen.getByDisplayValue('280')).toBeInTheDocument();
     expect(screen.getByDisplayValue('1')).toBeInTheDocument();
     expect(screen.getByDisplayValue('X Thread – Educational')).toBeInTheDocument();
-    expect((screen.getByLabelText(/requirements/i) as HTMLTextAreaElement).value).toContain(
+    expect((screen.getByLabelText(/requirements item 1/i) as HTMLTextAreaElement).value).toContain(
       'numbered thread'
     );
     expect(screen.getByRole('status', { name: /template applied/i })).toBeInTheDocument();
 
-    const requirements = screen.getByLabelText(/requirements/i);
+    const requirements = screen.getByLabelText(/requirements item 1/i);
     await user.clear(requirements);
     await user.type(requirements, 'Custom thread guidance after template apply.');
     await user.click(screen.getByRole('button', { name: /create rule/i }));
@@ -929,7 +993,13 @@ describe('PlatformRuleEditorDialog', () => {
       expect.objectContaining({
         platform: 'x',
         name: 'X Thread – Educational',
-        requirements: 'Custom thread guidance after template apply.',
+        requirements: [
+          'Custom thread guidance after template apply.',
+          'Open with a hook that states the payoff; close with a concise takeaway or CTA.',
+          'Use plain language; define jargon when it appears.',
+          'Prefer concrete examples over abstract claims.',
+          'Keep each post self-contained while advancing the overall lesson.',
+        ],
         rhetoricalModes: [
           { mode: 'instructional', strength: 'strong' },
           { mode: 'expository', strength: 'moderate' },

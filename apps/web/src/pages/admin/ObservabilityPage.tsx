@@ -33,6 +33,7 @@ import {
   EMPTY_EXECUTION_LOG_FILTERS,
   type ExecutionLogFilterFields,
 } from '@/lib/observability/execution-log-filters';
+import { COACH_RELIABILITY_EXECUTION_FILTERS } from '@/lib/observability/coach-reliability';
 import {
   OBS_TAB_BUTTON_ID,
   OBS_TAB_ORDER,
@@ -161,8 +162,8 @@ export default function ObservabilityPage() {
   }, [summaryQ.data, burnSpikeAnalysis.latestSpikeMessage]);
 
   const [execPage, setExecPage] = useState(1);
-  const [execModule, setExecModule] = useState('');
-  const [execFeature, setExecFeature] = useState('');
+  const [execModule, setExecModule] = useState(() => searchParams.get('module') ?? '');
+  const [execFeature, setExecFeature] = useState(() => searchParams.get('feature') ?? '');
   const [execModel, setExecModel] = useState('');
   const [execProvider, setExecProvider] = useState('');
   const [execStatus, setExecStatus] = useState('');
@@ -183,6 +184,10 @@ export default function ObservabilityPage() {
     if (runId != null) setExecRunId(runId);
     const jobRunId = searchParams.get('jobRunId');
     if (jobRunId != null) setExecJobRunId(jobRunId);
+    const moduleParam = searchParams.get('module');
+    if (moduleParam != null) setExecModule(moduleParam);
+    const featureParam = searchParams.get('feature');
+    if (featureParam != null) setExecFeature(featureParam);
   }, [searchParams]);
 
   useEffect(() => {
@@ -193,15 +198,28 @@ export default function ObservabilityPage() {
       const threadId = execThreadId.trim();
       const runId = execRunId.trim();
       const jobRunId = execJobRunId.trim();
+      const module = execModule.trim();
+      const feature = execFeature.trim();
       if (threadId) next.set('threadId', threadId);
       if (runId) next.set('runId', runId);
       if (jobRunId) next.set('jobRunId', jobRunId);
+      if (module) next.set('module', module);
+      if (feature) next.set('feature', feature);
     }
     const nextStr = next.toString();
     if (nextStr !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
-  }, [tab, execThreadId, execRunId, execJobRunId, searchParams, setSearchParams]);
+  }, [
+    tab,
+    execThreadId,
+    execRunId,
+    execJobRunId,
+    execModule,
+    execFeature,
+    searchParams,
+    setSearchParams,
+  ]);
 
   const execFilters = useMemo(
     () => ({
@@ -371,6 +389,13 @@ export default function ObservabilityPage() {
     setExecThreadId(EMPTY_EXECUTION_LOG_FILTERS.threadId);
     setExecRunId(EMPTY_EXECUTION_LOG_FILTERS.runId);
     setExecJobRunId(EMPTY_EXECUTION_LOG_FILTERS.jobRunId);
+  }, []);
+
+  const applyCoachReliabilityPreset = useCallback(() => {
+    setTab('executions');
+    setExecPage(1);
+    setExecModule(COACH_RELIABILITY_EXECUTION_FILTERS.module);
+    setExecFeature(COACH_RELIABILITY_EXECUTION_FILTERS.feature);
   }, []);
 
   const invalidateBurn = () => {
@@ -599,6 +624,7 @@ export default function ObservabilityPage() {
                   filters={executionLogFilters}
                   onFilterChange={handleExecutionLogFilterChange}
                   onClearFilters={clearExecutionLogFilters}
+                  onApplyCoachReliabilityPreset={applyCoachReliabilityPreset}
                 />
 
                 <ExecutionLogTable
@@ -626,6 +652,9 @@ export default function ObservabilityPage() {
                   onClose={() => setDetailId(null)}
                   onOpenSandbox={() => {
                     if (detailId) openSandboxM.mutate(detailId);
+                  }}
+                  onOpenThread={(threadId) => {
+                    navigate(`${ROUTES.admin.assistant}/${threadId}`);
                   }}
                   sandboxPending={openSandboxM.isPending}
                   sandboxError={openSandboxM.isError ? (openSandboxM.error as Error).message : null}

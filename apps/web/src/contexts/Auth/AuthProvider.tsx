@@ -4,6 +4,7 @@ import { AuthContext, type User } from './types';
 import { authService, AUTH_STORAGE_CLEARED_EVENT } from '@/lib/auth/auth.service';
 import { apiClient } from '@/lib/api-client';
 import { authLogger } from '@/lib/logger';
+import { trackAuthLoginSuccess } from '@/lib/analytics';
 import { markStartup } from '@/lib/startup/startup-telemetry';
 
 interface AuthProviderProps {
@@ -227,6 +228,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (response.success && response.data) {
         authLogger.info('Sign-in successful', { email: response.data.user.email });
+        trackAuthLoginSuccess();
         setUser(response.data.user);
         // Ensure token is set in API client
         if (response.data.tokens?.accessToken) {

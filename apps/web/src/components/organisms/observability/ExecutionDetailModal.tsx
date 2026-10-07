@@ -31,6 +31,7 @@ export type ExecutionDetailModalProps = {
   isLoading: boolean;
   onClose: () => void;
   onOpenSandbox: () => void;
+  onOpenThread?: (threadId: string) => void;
   sandboxPending?: boolean;
   sandboxError?: string | null;
   editorLinkSettings: EditorLinkSettings;
@@ -71,6 +72,7 @@ export default function ExecutionDetailModal({
   isLoading,
   onClose,
   onOpenSandbox,
+  onOpenThread,
   sandboxPending = false,
   sandboxError = null,
   editorLinkSettings,
@@ -107,7 +109,7 @@ export default function ExecutionDetailModal({
             </div>
           )}
 
-          <ExecutionDetailMetadata detail={detail} animated />
+          <ExecutionDetailMetadata detail={detail} animated onOpenThread={onOpenThread} />
 
           {detail.promptText != null && (
             <CollapsibleSection title="Prompt" defaultOpen animated>

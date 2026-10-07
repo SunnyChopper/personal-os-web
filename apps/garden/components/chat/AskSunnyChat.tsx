@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 
+import { trackAskSunnyError, trackAskSunnySubmit } from '@/lib/analytics';
+
 export function AskSunnyChat() {
   const [q, setQ] = useState('');
   const [a, setA] = useState<string | null>(null);
@@ -19,8 +21,10 @@ export function AskSunnyChat() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Request failed');
+      trackAskSunnySubmit();
       setA(data.answer as string);
     } catch (e) {
+      trackAskSunnyError();
       setA(e instanceof Error ? e.message : 'Error');
     } finally {
       setLoading(false);

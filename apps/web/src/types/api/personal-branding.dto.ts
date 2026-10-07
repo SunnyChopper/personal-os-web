@@ -401,6 +401,7 @@ export interface ProfileExtractionJob {
   sourceTypes?: ProfileExtractionSourceType[] | null;
   sourceCount?: number | null;
   processedSourceCount?: number | null;
+  parsedSourceCount?: number | null;
   succeededSourceCount?: number | null;
   failedSourceCount?: number | null;
   totalChunkCount?: number | null;
@@ -591,25 +592,32 @@ export interface PlatformRuleCatalog {
   strengths: RhetoricalStrength[];
   wordsPerMinute: number;
   limitDefaults: Partial<Record<BrandPlatform, PlatformLimitDefault>>;
+  ideaCountDefaults?: Partial<Record<BrandPlatform, number>>;
+  ideaCountSoftMax?: Partial<Record<BrandPlatform, number>>;
 }
 
 export interface ResolvedPlatformPolicy {
+  characterMinimum?: number | null;
   characterLimit?: number | null;
+  readTimeMinimumMinutes?: number | null;
   readTimeLimitMinutes?: number | null;
+  wordMinimum?: number | null;
   wordLimit?: number | null;
   rhetoricalModes: RhetoricalModeSetting[];
   rhetoricalDevices: RhetoricalDeviceId[];
-  requirements: string;
+  requirements?: string[] | string | null;
   appliedRuleIds: string[];
 }
 
 export interface PlatformRules {
   platform: BrandPlatform;
+  characterMinimum?: number | null;
   characterLimit?: number | null;
+  readTimeMinimumMinutes?: number | null;
   readTimeLimitMinutes?: number | null;
   rhetoricalModes: RhetoricalModeSetting[];
   rhetoricalDevices: RhetoricalDeviceId[];
-  requirements?: string | null;
+  requirements?: string[] | string | null;
   needsReview: boolean;
   userId: string;
   createdAt: string;
@@ -620,11 +628,13 @@ export interface PlatformRuleRecord {
   id: string;
   platform: BrandPlatform;
   name?: string | null;
+  characterMinimum?: number | null;
   characterLimit?: number | null;
+  readTimeMinimumMinutes?: number | null;
   readTimeLimitMinutes?: number | null;
   rhetoricalModes: RhetoricalModeSetting[];
   rhetoricalDevices: RhetoricalDeviceId[];
-  requirements?: string | null;
+  requirements?: string[] | string | null;
   needsReview: boolean;
   profileIds: string[];
   isUniversal: boolean;
@@ -636,22 +646,26 @@ export interface PlatformRuleRecord {
 export interface CreatePlatformRuleInput {
   platform: BrandPlatform;
   name?: string | null;
+  characterMinimum?: number | null;
   characterLimit?: number | null;
+  readTimeMinimumMinutes?: number | null;
   readTimeLimitMinutes?: number | null;
   rhetoricalModes?: RhetoricalModeSetting[];
   rhetoricalDevices?: RhetoricalDeviceId[];
-  requirements: string;
+  requirements: string[] | string;
   profileIds?: string[];
 }
 
 export interface UpdatePlatformRuleInput {
   platform?: BrandPlatform;
   name?: string | null;
+  characterMinimum?: number | null;
   characterLimit?: number | null;
+  readTimeMinimumMinutes?: number | null;
   readTimeLimitMinutes?: number | null;
   rhetoricalModes?: RhetoricalModeSetting[] | null;
   rhetoricalDevices?: RhetoricalDeviceId[] | null;
-  requirements?: string | null;
+  requirements?: string[] | string | null;
   profileIds?: string[] | null;
 }
 
@@ -660,13 +674,17 @@ export interface EffectivePlatformRules {
   profileId?: string | null;
   rules: PlatformRuleRecord[];
   resolvedPolicy: ResolvedPlatformPolicy;
+  ideaCountDefault?: number;
+  ideaCountSoftMax?: number;
 }
 
 export interface PlatformRuleSetPreviewInput {
   platform: BrandPlatform;
+  characterMinimum?: number | null;
   characterLimit?: number | null;
+  readTimeMinimumMinutes?: number | null;
   readTimeLimitMinutes?: number | null;
-  requirements?: string | null;
+  requirements?: string[] | string;
   rhetoricalModes?: RhetoricalModeSetting[];
   rhetoricalDevices?: RhetoricalDeviceId[];
   brandProfileId?: string | null;
@@ -691,6 +709,42 @@ export interface PlatformRuleSetPreviewResult {
   body: string;
   appliedPolicy: ResolvedPlatformPolicy;
   validationIssues?: PlatformRuleSetPreviewValidationIssue[];
+  appliedInfluences?: PlatformRuleSetInfluenceItem[];
+}
+
+export type PlatformRulePreviewJobStatus =
+  | 'queued'
+  | 'drafting'
+  | 'critiquing'
+  | 'polishing'
+  | 'validating'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelling'
+  | 'cancelled';
+
+export interface PlatformRulePreviewJobStart {
+  jobId: string;
+  status: PlatformRulePreviewJobStatus;
+  pollAfterMs: number;
+}
+
+export interface PlatformRulePreviewJob {
+  jobId: string;
+  status: PlatformRulePreviewJobStatus;
+  stage?: string | null;
+  message?: string | null;
+  pollAfterMs?: number | null;
+  error?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  fingerprint?: string | null;
+  result?: PlatformRuleSetPreviewResult | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
 }
 
 export type PlatformRuleSetInfluenceKind = 'mode' | 'device' | 'requirement' | 'limit';
@@ -705,9 +759,11 @@ export interface PlatformRuleSetInfluenceItem {
 
 export interface PlatformRuleSetInfluenceInput {
   platform: BrandPlatform;
+  characterMinimum?: number | null;
   characterLimit?: number | null;
+  readTimeMinimumMinutes?: number | null;
   readTimeLimitMinutes?: number | null;
-  requirements?: string | null;
+  requirements?: string[] | string;
   rhetoricalModes: RhetoricalModeSetting[];
   rhetoricalDevices: RhetoricalDeviceId[];
   brandProfileId?: string | null;
@@ -813,11 +869,13 @@ export interface ContentIdea {
   status: ContentIdeaStatus;
   draftNodeId?: string | null;
   vaultItemIds?: string[] | null;
+  vaultItemSnapshots?: VaultItemSnapshot[] | null;
   radarItemIds?: string[] | null;
   radarItemSnapshots?: RadarItemSnapshot[] | null;
   keywordResearch?: KeywordResearchEvidence | null;
   linkedGoalIds?: string[];
   linkedTaskIds?: string[];
+  matchedPillars?: string[];
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -840,14 +898,45 @@ export interface RejectContentIdeaInput {
   feedbackCategory?: string | null;
 }
 
+export type ContentIdeaRejectFeedbackCategory =
+  | 'offBrand'
+  | 'tooGeneric'
+  | 'duplicate'
+  | 'wrongPlatform'
+  | 'lowLeverage';
+
+export const CONTENT_IDEA_REJECT_CATEGORY_LABELS: Record<
+  ContentIdeaRejectFeedbackCategory,
+  string
+> = {
+  offBrand: 'Off-brand',
+  tooGeneric: 'Too generic',
+  duplicate: 'Duplicate',
+  wrongPlatform: 'Wrong platform',
+  lowLeverage: 'Low leverage',
+};
+
+export const CONTENT_IDEA_REJECT_CATEGORIES: {
+  id: ContentIdeaRejectFeedbackCategory;
+  label: string;
+}[] = (
+  Object.entries(CONTENT_IDEA_REJECT_CATEGORY_LABELS) as [
+    ContentIdeaRejectFeedbackCategory,
+    string,
+  ][]
+).map(([id, label]) => ({ id, label }));
+
 export interface GenerateContentIdeasInput {
   brandProfileId: string;
   targetPlatform: BrandPlatform;
   seedIdeas?: string | null;
+  boostFromRecentPublishes?: boolean;
   count?: number;
   enableImageSearch?: boolean;
+  enableKeywordResearch?: boolean;
   provider?: string | null;
   model?: string | null;
+  idempotencyKey?: string;
 }
 
 export interface GenerateVaultIdeasInput {
@@ -855,8 +944,10 @@ export interface GenerateVaultIdeasInput {
   vaultItemIds: string[];
   targetPlatform: BrandPlatform;
   count?: number;
+  enableImageSearch?: boolean;
   provider?: string | null;
   model?: string | null;
+  idempotencyKey?: string;
 }
 
 export interface RadarItemSnapshot {
@@ -866,22 +957,48 @@ export interface RadarItemSnapshot {
   sourceName?: string | null;
 }
 
+export interface VaultItemSnapshot {
+  id: string;
+  title: string;
+  type: string;
+}
+
 export interface GenerateRadarIdeasInput {
   brandProfileId: string;
   radarItemIds: string[];
   targetPlatform: BrandPlatform;
   templateIds?: string[] | null;
   count?: number;
+  imageIdeaCount?: number;
   provider?: string | null;
   model?: string | null;
+  idempotencyKey?: string;
 }
+
+export interface ReferencedPublishedHint {
+  contentNodeId: string;
+  title: string;
+  adaptedPlatforms: BrandPlatform[];
+}
+
+export type ContentIdeaReferenceSearchMode = 'semantic' | 'recentBoost' | 'none';
 
 export interface ContentIdeaGenerationContextStats {
   rejectedFeedbackCount: number;
+  rejectedCategoryCounts?: Record<string, number>;
   existingGeneratedCount: number;
   existingDraftedCount?: number;
   targetPlatform: BrandPlatform;
   referencedPublishedCount: number;
+  referenceSearchMode?: ContentIdeaReferenceSearchMode;
+  referencedPublishedHints?: ReferencedPublishedHint[];
+  publishedOutcomesCount?: number;
+  similarityDroppedCount?: number;
+  similarityGateApplied?: boolean;
+  refineApplied?: boolean;
+  refineCritiqueRounds?: number;
+  refinePolishRounds?: number;
+  refineWarning?: string | null;
 }
 
 export interface GenerateContentIdeasResult {
@@ -889,7 +1006,13 @@ export interface GenerateContentIdeasResult {
   contextStats: ContentIdeaGenerationContextStats;
 }
 
-export type ContentIdeationJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+export type ContentIdeationJobStatus =
+  | 'queued'
+  | 'running'
+  | 'cancelling'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
 
 export type ContentIdeationJobStage =
   | 'queued'
@@ -908,6 +1031,9 @@ export interface ContentIdeationJobStart {
   jobId: string;
   status: ContentIdeationJobStatus;
   pollAfterMs: number;
+  countEffective: number;
+  countRequested?: number | null;
+  countAdjustmentWarning?: string | null;
 }
 
 export interface ContentIdeationJob {
@@ -918,18 +1044,38 @@ export interface ContentIdeationJob {
   message?: string | null;
   pollAfterMs?: number | null;
   error?: string | null;
+  errorCode?: string | null;
+  retryable?: boolean | null;
   provider?: string | null;
   model?: string | null;
   result?: GenerateContentIdeasResult | null;
   keywordResearchStage?: string | null;
   keywordResearchWarning?: string | null;
   keywordResearchEvidence?: KeywordResearchEvidence | null;
+  keywordResearchCandidates?: string[] | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
   startedAt?: string | null;
   completedAt?: string | null;
 }
+
+export type SocialCapitalAngle =
+  | 'knowledge'
+  | 'perspective'
+  | 'humor'
+  | 'joinConnections'
+  | 'warmth'
+  | 'other';
+
+export const SOCIAL_CAPITAL_ANGLE_LABELS: Record<SocialCapitalAngle, string> = {
+  knowledge: 'Knowledge',
+  perspective: 'Perspective',
+  humor: 'Humor',
+  joinConnections: 'Join connections',
+  warmth: 'Warmth',
+  other: 'Other',
+};
 
 export type SocialCurrencyAngle =
   | 'humor'
@@ -959,6 +1105,46 @@ export interface ContentStreamMemeSuggestion {
   visualBrief: string;
   suggestedCaption?: string | null;
   format: ContentStreamMemeFormat;
+  formatId?: string | null;
+  formatName?: string | null;
+}
+
+export interface MemeFormatCatalogEntry {
+  id: string;
+  name: string;
+  category: ContentStreamMemeFormat;
+  description: string;
+  visualTemplate: string;
+  exampleHooks: string[];
+  source: string;
+  active: boolean;
+  lastSeenAt?: string | null;
+  sampleUrls: string[];
+}
+
+export interface MemeFormatCatalogListResponse {
+  formats: MemeFormatCatalogEntry[];
+  lastRefreshedAt?: string | null;
+  sourceCounts: Record<string, number>;
+}
+
+export type ContentStreamMediaKind = 'image' | 'shortVideo' | 'carousel';
+
+export interface ContentStreamMediaBrief {
+  kind: ContentStreamMediaKind;
+  concept: string;
+  visualBrief: string;
+  altText?: string | null;
+  captionHook?: string | null;
+  carouselSlides?: string[] | null;
+}
+
+export interface ContentStreamEngagementScores {
+  replyBait: number;
+  questionHook: number;
+  bookmarkValue: number;
+  shareability: number;
+  overall: number;
 }
 
 export type ContentStreamPostStatus = 'pending' | 'kept' | 'discarded';
@@ -986,9 +1172,45 @@ export interface ContentStreamSettings {
   dailyGeneratedCount: number;
   remainingDailyBudget: number;
   hasRapidApiKey: boolean;
+  liveNowFetchedAt?: string | null;
+  liveNowSignalCount?: number;
+  liveNowDiagnostics?: Record<string, unknown> | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type ContentStreamSourceKind = 'recon' | 'radar' | 'vault' | 'now' | 'growth';
+
+export interface ContentStreamPrimarySource {
+  kind: ContentStreamSourceKind;
+  id: string;
+  label?: string | null;
+  url?: string | null;
+}
+
+export interface ContentStreamThemeSource {
+  themeKey: string;
+  conceptName: string;
+  postCount: number;
+  authorCount: number;
+  stanceSummary: string;
+  contributingPostIds: string[];
+}
+
+export interface ContentStreamThemeSourcePost {
+  id: string;
+  authorUsername?: string | null;
+  text: string;
+  url?: string | null;
+  postedAt?: string | null;
+  claimText?: string | null;
+  stance?: string | null;
+  evidenceKind?: string | null;
+}
+
+export interface ContentStreamThemeSourcesResponse {
+  posts: ContentStreamThemeSourcePost[];
 }
 
 export interface ContentStreamPost {
@@ -1000,6 +1222,11 @@ export interface ContentStreamPost {
   socialCurrencyAngle: SocialCurrencyAngle;
   angleRationale: string;
   memeSuggestion?: ContentStreamMemeSuggestion | null;
+  mediaBrief?: ContentStreamMediaBrief | null;
+  primarySource?: ContentStreamPrimarySource | null;
+  themeSource?: ContentStreamThemeSource | null;
+  engagementScores?: ContentStreamEngagementScores | null;
+  engagementRewritten?: boolean;
   status: ContentStreamPostStatus;
   feedbackAt?: string | null;
   pillars: string[];
@@ -1070,6 +1297,8 @@ export interface ContentImageInjectJob {
   message?: string | null;
   pollAfterMs?: number | null;
   error?: string | null;
+  errorCode?: string | null;
+  retryable?: boolean | null;
   provider?: string | null;
   model?: string | null;
   result?: ContentImageInjectResult | null;
@@ -1113,6 +1342,8 @@ export interface ContentKeywordOptimizationJob {
   message?: string | null;
   pollAfterMs?: number | null;
   error?: string | null;
+  errorCode?: string | null;
+  retryable?: boolean | null;
   result?: ContentKeywordOptimizationResult | null;
   warning?: string | null;
   userId: string;
@@ -1220,11 +1451,55 @@ export interface ApproveContentIdeaInput {
   templateId?: string;
   platform?: BrandPlatform;
   pillars?: string[];
+  idempotencyKey?: string;
+}
+
+export type ContentIdeaApproveJobStatus =
+  | 'queued'
+  | 'running'
+  | 'cancelling'
+  | 'succeeded'
+  | 'failed';
+
+export interface ContentIdeaApproveJobStart {
+  jobId: string;
+  status: ContentIdeaApproveJobStatus;
+  pollAfterMs: number;
+}
+
+export type TemplateAdherenceLevel = 'high' | 'medium' | 'low' | 'unknown';
+
+export interface TemplateApplied {
+  templateId: string;
+  templateTitle: string;
+  adherence: TemplateAdherenceLevel;
+  note: string;
 }
 
 export interface ApproveContentIdeaResult {
   idea: ContentIdea;
   draft: ContentNode;
+  templateApplied?: TemplateApplied | null;
+}
+
+export interface ContentIdeaApproveJob {
+  jobId: string;
+  ideaId: string;
+  status: ContentIdeaApproveJobStatus;
+  stage?: string | null;
+  message?: string | null;
+  pollAfterMs?: number | null;
+  error?: string | null;
+  errorCode?: string | null;
+  retryable?: boolean | null;
+  provider?: string | null;
+  model?: string | null;
+  result?: ApproveContentIdeaResult | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
 }
 
 export type ContentTemplateSourceType = 'MANUAL' | 'EXTRACTED' | 'BRAINSTORMED';
@@ -1379,6 +1654,8 @@ export interface ContentTemplateAiJob {
   message?: string | null;
   pollAfterMs?: number | null;
   error?: string | null;
+  errorCode?: string | null;
+  retryable?: boolean | null;
   provider?: string | null;
   model?: string | null;
   result?:
@@ -1430,6 +1707,23 @@ export interface ContentDraftGenerationResult {
   title: string;
   body: string;
   contentType: ContentType;
+  templateApplied?: TemplateApplied | null;
+}
+
+export interface ContentBodyEditInput {
+  title: string;
+  body: string;
+  contentType: ContentType;
+  platform?: BrandPlatform | null;
+  pillars?: string[] | null;
+  brandProfileId?: string | null;
+  provider?: string | null;
+  model?: string | null;
+}
+
+export interface ContentBodyEditResult {
+  body: string;
+  title?: string | null;
 }
 
 export interface CritiqueEntry {
@@ -1755,8 +2049,10 @@ export interface RadarSettings {
   autoIdeationTopN: number;
   autoIdeationStartTime: string;
   autoIdeationBrandProfileId?: string | null;
+  autoIdeationBrandProfileIds: string[];
   autoIdeationTargetPlatform?: BrandPlatform | null;
   autoIdeationCount: number;
+  autoIdeationImageIdeaCount: number;
   autoIdeationTemplateIds: string[];
   autoIdeationNotifyEmail: boolean;
   autoIdeationMinAiRelevanceScore?: number | null;
@@ -1781,8 +2077,10 @@ export interface UpdateRadarSettingsInput {
   autoIdeationTopN?: number;
   autoIdeationStartTime?: string | null;
   autoIdeationBrandProfileId?: string | null;
+  autoIdeationBrandProfileIds?: string[] | null;
   autoIdeationTargetPlatform?: BrandPlatform | null;
   autoIdeationCount?: number;
+  autoIdeationImageIdeaCount?: number;
   autoIdeationTemplateIds?: string[];
   autoIdeationNotifyEmail?: boolean;
   autoIdeationMinAiRelevanceScore?: number | null;
@@ -2192,11 +2490,14 @@ export interface CreatorConnection {
   nextFollowUpAt?: string | null;
   nextAction?: string | null;
   conversationAngles: string[];
+  preferredSocialCapitalAngles?: SocialCapitalAngle[];
   personalContext?: string | null;
   tags: string[];
   lastInteractedAt?: string | null;
   lastReconPostedAt?: string | null;
   notes?: string | null;
+  replyVoiceGuidance?: string | null;
+  replyVoiceGuidanceUpdatedAt?: string | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -2278,10 +2579,12 @@ export interface CreateCreatorConnectionInput {
   nextFollowUpAt?: string | null;
   nextAction?: string | null;
   conversationAngles?: string[];
+  preferredSocialCapitalAngles?: SocialCapitalAngle[];
   personalContext?: string | null;
   tags?: string[];
   lastInteractedAt?: string | null;
   notes?: string | null;
+  replyVoiceGuidance?: string | null;
 }
 
 export interface UpdateCreatorConnectionInput {
@@ -2298,10 +2601,12 @@ export interface UpdateCreatorConnectionInput {
   nextFollowUpAt?: string | null;
   nextAction?: string | null;
   conversationAngles?: string[];
+  preferredSocialCapitalAngles?: SocialCapitalAngle[];
   personalContext?: string | null;
   tags?: string[];
   lastInteractedAt?: string | null;
   notes?: string | null;
+  replyVoiceGuidance?: string | null;
 }
 
 export interface CreateConnectionInteractionInput {
@@ -2370,7 +2675,7 @@ export interface ContentOpportunity {
   postText: string;
   authorUsername?: string | null;
   postedAt?: string | null;
-  socialCapitalAngle?: string | null;
+  socialCapitalAngle?: SocialCapitalAngle | null;
   rationale?: string | null;
   rationaleBullets?: string[] | null;
   recommendedAction?: string | null;
@@ -2388,15 +2693,43 @@ export interface ContentOpportunity {
 
 export type ReplyGenerationMode = 'SIMPLE' | 'AGENT';
 
+export type QuestionFirstBias = 'off' | 'on' | 'auto';
+
 export type ReplyRunStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED';
 
 export type ReplySuggestionStatus = 'SUGGESTED' | 'ACCEPTED' | 'REJECTED';
+
+export type ReplyRejectionFeedbackCategory =
+  | 'tooGeneric'
+  | 'wrongTone'
+  | 'tooCorporate'
+  | 'wrongAngle'
+  | 'wrongLength'
+  | 'factualMiss'
+  | 'mismatchedContext'
+  | 'other';
+
+export const REPLY_REJECT_CATEGORY_LABELS: Record<ReplyRejectionFeedbackCategory, string> = {
+  tooGeneric: 'Too generic',
+  wrongTone: 'Wrong tone / off-brand',
+  tooCorporate: 'Too corporate / AI-polished',
+  wrongAngle: 'Wrong angle',
+  wrongLength: 'Wrong length',
+  factualMiss: 'Factual miss / unsupported claim',
+  mismatchedContext: 'Mismatched to post / relationship',
+  other: 'Other',
+};
+
+export const REPLY_REJECT_CATEGORIES: { id: ReplyRejectionFeedbackCategory; label: string }[] = (
+  Object.entries(REPLY_REJECT_CATEGORY_LABELS) as [ReplyRejectionFeedbackCategory, string][]
+).map(([id, label]) => ({ id, label }));
 
 export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface SuggestedReplyParams {
   mode: ReplyGenerationMode;
   researchEnabled: boolean;
+  vaultGroundingEnabled?: boolean;
   intelligenceTier?: string;
   reasoningEffort?: ReasoningEffort | string | null;
   suggestionCount: number;
@@ -2408,17 +2741,25 @@ export interface SuggestedReplyParams {
 export interface CreateReplyRunInput {
   connectionId: string;
   opportunityId?: string | null;
+  reconPostId?: string | null;
   platform: BrandPlatform;
   creatorText: string;
+  platformPostId?: string | null;
+  evidenceUrl?: string | null;
   profileId?: string | null;
   interactionIntent?: string | null;
   mode: ReplyGenerationMode;
   researchEnabled?: boolean;
+  vaultGroundingEnabled?: boolean;
+  includeOperatorBriefing?: boolean;
   provider?: string | null;
   model?: string | null;
   reasoningEffort?: string | null;
   suggestionCount?: number;
+  questionFirstBias?: QuestionFirstBias;
   suggestedParamsJson?: Record<string, unknown> | null;
+  platformFormat?: PlatformFormat | null;
+  allowFullGenerationOnSparseText?: boolean;
 }
 
 export interface ResolveXContentInput {
@@ -2449,11 +2790,31 @@ export interface ReplySuggestion {
   draftText: string;
   rationale: string;
   researchCitationsJson?: unknown;
+  mediaBrief?: ContentStreamMediaBrief | null;
+  memeSuggestion?: ContentStreamMemeSuggestion | null;
   status: ReplySuggestionStatus;
   rejectionFeedbackText?: string | null;
-  rejectionFeedbackCategory?: string | null;
+  rejectionFeedbackCategory?: ReplyRejectionFeedbackCategory | string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface OperatorBriefingSource {
+  kind: 'vault';
+  id: string;
+  label?: string | null;
+  url?: string | null;
+}
+
+export interface OperatorBriefing {
+  markdown: string;
+  mode: 'retrieved' | 'generated' | 'mixed';
+  sourceVaultItemIds?: string[];
+  sources?: OperatorBriefingSource[];
+  generatedAt: string;
+  forced?: boolean;
+  learningCost?: ReconLearningCostTier | null;
+  vaultItemId?: string | null;
 }
 
 export interface ReplyRun {
@@ -2462,14 +2823,21 @@ export interface ReplyRun {
   opportunityId?: string | null;
   platform: string;
   creatorText: string;
+  platformPostId?: string | null;
+  evidenceUrl?: string | null;
   interactionIntent?: string | null;
   mode: ReplyGenerationMode;
   researchEnabled: boolean;
+  vaultGroundingEnabled: boolean;
+  operatorBriefing?: OperatorBriefing | null;
   provider?: string | null;
   model?: string | null;
   reasoningEffort?: string | null;
   suggestionCount: number;
+  questionFirstBias?: QuestionFirstBias;
+  questionFirstApplied?: boolean;
   suggestedParamsJson?: Record<string, unknown> | null;
+  platformFormat?: PlatformFormat | null;
   status: ReplyRunStatus;
   error?: string | null;
   confidence?: number | null;
@@ -2488,16 +2856,21 @@ export type ReplyRunListResponse = ApiResponse<PaginatedPersonalBranding<ReplyRu
 export interface UpdateReplySuggestionInput {
   status: Extract<ReplySuggestionStatus, 'ACCEPTED' | 'REJECTED'>;
   feedbackText?: string | null;
-  feedbackCategory?: string | null;
+  feedbackCategory?: ReplyRejectionFeedbackCategory | null;
 }
 
 export interface ReplyGenerationDraft {
   profileId: string;
   mode: ReplyGenerationMode;
   researchEnabled: boolean;
+  vaultGroundingEnabled: boolean;
+  includeOperatorBriefing: boolean;
   catalogModelId: string;
   reasoningEffort?: string | null;
   suggestionCount: number;
+  questionFirstBias: QuestionFirstBias;
+  platformFormat: PlatformFormat;
+  allowFullGenerationOnSparseText?: boolean;
 }
 
 export interface UpdateContentOpportunityInput {
@@ -2530,6 +2903,16 @@ export type ContentOpportunityListResponse = ApiResponse<
 >;
 
 export type ReconPostStatus = 'NEW' | 'REVIEWED' | 'ACTIONED' | 'DISMISSED' | 'EXPIRED';
+export type ReconPostFeedbackVerdict = 'GOOD' | 'BAD';
+export type ReconPostFeedbackCategory =
+  | 'offTopic'
+  | 'wrongAudience'
+  | 'lowEngagementPotential'
+  | 'staleOrNewsCycle'
+  | 'authorNotWorthEngaging'
+  | 'lowQualityPost'
+  | 'alreadyCovered'
+  | 'other';
 export type ReconFollowSuggestionStatus = 'NEW' | 'ADDED' | 'DISMISSED';
 export type ReconEntityType = 'person' | 'company' | 'product' | 'community' | 'media' | 'other';
 
@@ -2573,6 +2956,15 @@ export const RECON_RECOMMENDED_ACTION_LABELS: Record<string, string> = {
   skip: 'Skip',
 };
 
+export type ReconLearningCostTier = 'low' | 'medium' | 'high' | 'max';
+
+export const RECON_LEARNING_COST_LABELS: Record<ReconLearningCostTier, string> = {
+  low: 'Easy',
+  medium: 'Stretch',
+  high: 'Hard',
+  max: 'Expert',
+};
+
 export const RECON_ENTITY_TYPE_LABELS: Record<ReconEntityType, string> = {
   person: 'Person',
   company: 'Company',
@@ -2581,6 +2973,21 @@ export const RECON_ENTITY_TYPE_LABELS: Record<ReconEntityType, string> = {
   media: 'Media',
   other: 'Other',
 };
+
+export const RECON_DISMISS_CATEGORY_LABELS: Record<ReconPostFeedbackCategory, string> = {
+  offTopic: 'Off-topic',
+  wrongAudience: 'Wrong audience',
+  lowEngagementPotential: 'Low engagement potential',
+  staleOrNewsCycle: 'Stale / news cycle',
+  authorNotWorthEngaging: 'Author not worth engaging',
+  lowQualityPost: 'Low-quality post',
+  alreadyCovered: 'Already covered',
+  other: 'Other',
+};
+
+export const RECON_DISMISS_CATEGORIES: { id: ReconPostFeedbackCategory; label: string }[] = (
+  Object.entries(RECON_DISMISS_CATEGORY_LABELS) as [ReconPostFeedbackCategory, string][]
+).map(([id, label]) => ({ id, label }));
 
 export interface ReconFeedSettings {
   enabled: boolean;
@@ -2593,6 +3000,9 @@ export interface ReconFeedSettings {
   minRelevanceScore: number;
   maxPostsPerConnection: number;
   maxPostAgeDays: number;
+  trendStreamResearchEnabled: boolean;
+  selectionGuidance?: string | null;
+  selectionGuidanceUpdatedAt?: string | null;
   hasRapidApiKey: boolean;
   lastRunAt?: string | null;
   lastSuccessfulRunAt?: string | null;
@@ -2616,6 +3026,8 @@ export interface UpdateReconFeedSettingsInput {
   minRelevanceScore?: number;
   maxPostsPerConnection?: number;
   maxPostAgeDays?: number;
+  trendStreamResearchEnabled?: boolean;
+  selectionGuidance?: string | null;
 }
 
 export interface ReconPost {
@@ -2635,8 +3047,15 @@ export interface ReconPost {
   relevanceRationaleBullets?: string[] | null;
   recommendedAction?: string | null;
   suggestedAngle?: string | null;
+  learningCost?: ReconLearningCostTier | null;
+  socialCapitalAngle?: SocialCapitalAngle | null;
   confidence?: number | null;
   status: ReconPostStatus;
+  feedbackVerdict?: ReconPostFeedbackVerdict | null;
+  feedbackCategory?: ReconPostFeedbackCategory | string | null;
+  feedbackText?: string | null;
+  feedbackAt?: string | null;
+  ingestSource?: 'recon' | 'live_now' | 'live_now_timeline' | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -2673,6 +3092,25 @@ export interface ReconRunActivityEntry {
   rationale?: string | null;
   rationaleBullets?: string[] | null;
   message?: string | null;
+  handles?: string[] | null;
+  ingestFilterSummary?: ReconIngestFilterSummary | null;
+  orphanAdoptionSummary?: ReconOrphanAdoptionSummary | null;
+}
+
+export interface ReconIngestFilterSummary {
+  fetched: number;
+  skippedCursor: number;
+  skippedAge: number;
+  skippedMissingPostedAt: number;
+  skippedKnown: number;
+  skippedFingerprint: number;
+}
+
+export interface ReconOrphanAdoptionSummary {
+  candidates: number;
+  adopted: number;
+  skippedNoConnection: number;
+  skippedAge: number;
 }
 
 export interface ReconRunSummary {
@@ -2696,6 +3134,8 @@ export interface ReconRunSummary {
   heartbeatAt?: string | null;
   pausedAt?: string | null;
   activityLog?: ReconRunActivityEntry[];
+  ingestFilterSummary?: ReconIngestFilterSummary | null;
+  orphanAdoptionSummary?: ReconOrphanAdoptionSummary | null;
   pollAfterMs?: number;
   cursorConnectionIndex?: number;
   createdAt: string;
@@ -2709,8 +3149,29 @@ export interface ReconRunStartAccepted {
 }
 
 export interface UpdateReconPostInput {
-  status: ReconPostStatus;
+  status?: ReconPostStatus;
+  feedbackVerdict?: ReconPostFeedbackVerdict | null;
+  feedbackCategory?: ReconPostFeedbackCategory | null;
+  feedbackText?: string | null;
 }
+
+export interface DistillSelectionGuidanceResult {
+  proposedGuidance: string;
+  sampleSize: number;
+  provider?: string | null;
+  model?: string | null;
+}
+
+export type DistillSelectionGuidanceResponse = ApiResponse<DistillSelectionGuidanceResult>;
+
+export interface DistillReplyVoiceGuidanceResult {
+  proposedGuidance: string;
+  sampleSize: number;
+  provider?: string | null;
+  model?: string | null;
+}
+
+export type DistillReplyVoiceGuidanceResponse = ApiResponse<DistillReplyVoiceGuidanceResult>;
 
 export interface UpdateFollowSuggestionInput {
   status: ReconFollowSuggestionStatus;
@@ -2743,6 +3204,8 @@ export type PlatformRulesListResponse = ApiResponse<PaginatedPersonalBranding<Pl
 export type PlatformRuleRecordResponse = ApiResponse<PlatformRuleRecord>;
 export type PlatformRuleCatalogResponse = ApiResponse<PlatformRuleCatalog>;
 export type EffectivePlatformRulesResponse = ApiResponse<EffectivePlatformRules>;
+export type PlatformRulePreviewJobStartResponse = ApiResponse<PlatformRulePreviewJobStart>;
+export type PlatformRulePreviewJobResponse = ApiResponse<PlatformRulePreviewJob>;
 export type ContentNodeListResponse = ApiResponse<PaginatedPersonalBranding<ContentNode>>;
 export type ContentNodeResponse = ApiResponse<ContentNode>;
 export type ContentIdeaListResponse = ApiResponse<PaginatedPersonalBranding<ContentIdea>>;
@@ -2804,3 +3267,400 @@ export type RolodexResponseVectorsPayload = {
   model?: string | null;
   cached: boolean;
 };
+
+// --- In-Person Events ---
+
+export type InPersonEventType =
+  | 'conference'
+  | 'meetup'
+  | 'workshop'
+  | 'networking'
+  | 'hackathon'
+  | 'talk'
+  | 'other';
+
+export type InPersonEventStatus =
+  | 'NEW'
+  | 'INTERESTED'
+  | 'REGISTERED'
+  | 'ATTENDED'
+  | 'SKIPPED'
+  | 'DISMISSED';
+
+export type InPersonEventDateConfidence = 'exact' | 'approx' | 'unknown';
+
+export type InPersonEventIrrelevanceReason =
+  | 'offBrand'
+  | 'wrongLocation'
+  | 'wrongDate'
+  | 'tooExpensive'
+  | 'virtualOnly'
+  | 'duplicate'
+  | 'other';
+
+export type EventDiscoveryRunStatus =
+  | 'queued'
+  | 'running'
+  | 'cancelling'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface EventLocationStint {
+  id: string;
+  label: string;
+  city: string;
+  region?: string | null;
+  country?: string | null;
+  timezone: string;
+  startDate: string;
+  endDate: string;
+  radiusMiles: number;
+  latitude?: number | null;
+  longitude?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EventDiscoverySettings {
+  syncCadence: SyncCadence;
+  syncStartTime: string;
+  syncTimezone: string;
+  syncIntervalHours?: number | null;
+  syncDayOfWeek?: number | null;
+  syncEndTime?: string | null;
+  hasTavilyKey: boolean;
+  lastRunAt?: string | null;
+  lastSuccessfulRunAt?: string | null;
+  lastRunId?: string | null;
+  lastRunStatus?: string | null;
+  lastErrorSummary?: string | null;
+  nextDueAt?: string | null;
+  interests: string[];
+  eventTypes: InPersonEventType[];
+  excludeKeywords: string[];
+  lookaheadDays: number;
+  maxPriceUsd?: number | null;
+  minFitScore: number;
+  createGrowthTaskEnabled: boolean;
+  createTaskMinFitScore: number;
+  brandProfileIds: string[];
+  digestEmailEnabled: boolean;
+}
+
+export interface InPersonEvent {
+  id: string;
+  title: string;
+  summary?: string | null;
+  url?: string | null;
+  sourceUrl?: string | null;
+  organizer?: string | null;
+  venueName?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  dateConfidence: InPersonEventDateConfidence;
+  priceText?: string | null;
+  eventType: InPersonEventType;
+  topicTags: string[];
+  aiFitScore?: number | null;
+  aiFitRationale?: string | null;
+  aiRelevant?: boolean | null;
+  stintId?: string | null;
+  status: InPersonEventStatus;
+  userRelevant?: boolean | null;
+  userRelevanceReason?: InPersonEventIrrelevanceReason | null;
+  userRelevanceMarkedAt?: string | null;
+  discoveryRunId?: string | null;
+  growthTaskId?: string | null;
+  manuallyAdded: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type EventDiscoveryCandidateOutcome = 'created' | 'duplicate' | 'filtered';
+export type EventDiscoveryCandidateReason =
+  | 'excludedKeyword'
+  | 'noStintMatch'
+  | 'belowFitScore'
+  | 'outsideLookahead'
+  | 'missingTitle';
+
+export interface EventDiscoveryRunCandidate {
+  title: string;
+  city?: string | null;
+  startsAt?: string | null;
+  eventType?: string | null;
+  fitScore?: number | null;
+  sourceUrl?: string | null;
+  outcome: EventDiscoveryCandidateOutcome;
+  reason?: EventDiscoveryCandidateReason | null;
+}
+
+export interface EventDiscoveryRun {
+  id: string;
+  status: EventDiscoveryRunStatus;
+  triggerKind: 'manual' | 'scheduled';
+  phase: string;
+  deadlineAt?: string | null;
+  heartbeatAt?: string | null;
+  queuedAt?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  queriesGenerated: number;
+  resultsFetched: number;
+  candidatesExtracted: number;
+  eventsCreated: number;
+  eventsDuplicate: number;
+  eventsFiltered: number;
+  scoringFailures?: number;
+  inferredInterests?: string[];
+  inferredEventTypes?: InPersonEventType[];
+  inferenceSource?: 'brandProfilePillars' | 'none' | null;
+  generatedQueries: string[];
+  activityLog: Array<{ at: string; phase?: string | null; message: string }>;
+  extractedEvents: EventDiscoveryRunCandidate[];
+  errorSummary?: string | null;
+  pollAfterMs?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateEventLocationStintInput = {
+  label: string;
+  city: string;
+  region?: string | null;
+  country?: string | null;
+  timezone?: string;
+  startDate: string;
+  endDate: string;
+  radiusMiles?: number;
+  notes?: string | null;
+};
+
+export type UpdateEventLocationStintInput = Partial<CreateEventLocationStintInput>;
+
+export type UpdateEventDiscoverySettingsInput = Partial<
+  Omit<EventDiscoverySettings, 'hasTavilyKey'>
+>;
+
+export type CreateInPersonEventInput = {
+  title: string;
+  summary?: string | null;
+  url?: string | null;
+  sourceUrl?: string | null;
+  organizer?: string | null;
+  venueName?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  dateConfidence?: InPersonEventDateConfidence;
+  priceText?: string | null;
+  eventType?: InPersonEventType;
+  topicTags?: string[];
+  stintId?: string | null;
+  status?: InPersonEventStatus;
+};
+
+export type UpdateInPersonEventInput = Partial<CreateInPersonEventInput> & {
+  status?: InPersonEventStatus;
+};
+
+export type EventDiscoveryRunStartAccepted = {
+  runId: string;
+  status: string;
+  trigger: string;
+};
+
+export type BrandProjectIdeaStatus = 'generated' | 'rejected' | 'completed';
+
+export type BrandProjectRejectionCategory =
+  | 'too_complex'
+  | 'not_trending'
+  | 'not_shareable'
+  | 'off_niche'
+  | 'already_exists'
+  | 'other';
+
+export type BrandProjectPostPlatform = 'x' | 'youtube' | 'linkedin' | 'other';
+
+export interface BrandProjectBackgroundKnowledge {
+  topic: string;
+  why: string;
+}
+
+export interface BrandProjectTechnology {
+  name: string;
+  role: string;
+  isTrending: boolean;
+}
+
+export interface BrandProjectTrendSource {
+  radarItemId?: string | null;
+  title: string;
+  url?: string | null;
+}
+
+export interface BrandProjectBuildKitHarness {
+  demo: {
+    demoSurface: string;
+    frontend: string;
+    backend: string;
+  };
+  stack: {
+    choices: Array<{ layer: string; choice: string; rationale: string }>;
+    pulledSkills: Array<{ name: string; why: string }>;
+  };
+  codebaseMap: Array<{ path: string; purpose: string }>;
+  waves: Array<{
+    order: number;
+    name: string;
+    moduleNames: string[];
+    dependsOn: string[];
+    integrationPoint: string;
+  }>;
+}
+
+export interface BrandProjectBuildKit {
+  setupPrompt: string;
+  cursorSkills: Array<{
+    name: string;
+    description: string;
+    skillMarkdown: string;
+  }>;
+  modules: Array<{
+    order: number;
+    name: string;
+    goal: string;
+    prompt: string;
+    dependsOn: string[];
+  }>;
+  generatedAt: string;
+  provider?: string | null;
+  model?: string | null;
+  harness?: BrandProjectBuildKitHarness | null;
+}
+
+/** Ordered batch for `PATCH …/ideas/{ideaId}/build-kit`. CamelCase, no nulls. */
+export type BuildKitPatchOperation =
+  | {
+      op: 'updateSkill';
+      name: string;
+      description?: string;
+      skillMarkdown?: string;
+    }
+  | { op: 'removeSkill'; name: string }
+  | { op: 'addSkill'; name: string; description: string; skillMarkdown: string }
+  | {
+      op: 'updateModule';
+      order: number;
+      name?: string;
+      goal?: string;
+      prompt?: string;
+      dependsOn?: string[];
+    }
+  | { op: 'removeModule'; order: number }
+  | {
+      op: 'addModule';
+      order: number;
+      name: string;
+      goal: string;
+      prompt: string;
+      dependsOn?: string[];
+    }
+  | { op: 'setSetupPrompt'; setupPrompt: string };
+
+export interface BrandProjectKitRevisionItem {
+  reason: string;
+  operation: BuildKitPatchOperation;
+}
+
+export interface BrandProjectKitRevisionProposal {
+  repo: string;
+  baseGeneratedAt: string;
+  summary: string;
+  treeTruncated: boolean;
+  items: BrandProjectKitRevisionItem[];
+}
+
+export interface BrandProjectIdea {
+  id: string;
+  title: string;
+  oneLiner?: string | null;
+  appealSummary?: string | null;
+  demoHook?: string | null;
+  tutorialAngle?: string | null;
+  demoCritique?: string | null;
+  backgroundKnowledge: BrandProjectBackgroundKnowledge[];
+  technologies: BrandProjectTechnology[];
+  difficulty?: string | null;
+  estimatedHours?: number | null;
+  trendSources: BrandProjectTrendSource[];
+  batchId?: string | null;
+  generatedForDate?: string | null;
+  status: BrandProjectIdeaStatus;
+  rejection?: {
+    feedbackText: string;
+    feedbackCategory?: BrandProjectRejectionCategory | null;
+    rejectedAt: string;
+  } | null;
+  completion?: {
+    completedAt: string;
+    postLinks: Array<{ platform: BrandProjectPostPlatform; url: string }>;
+  } | null;
+  buildKit?: BrandProjectBuildKit | null;
+  refineTranscript?: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    createdAt: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GenerateBrandProjectsInput {
+  count?: number;
+  direction?: string;
+  idempotencyKey?: string;
+  /** 1–10 Trend Stream card ids. Omitted lets the worker pick the day's top 10. */
+  radarItemIds?: string[];
+}
+
+export interface BrandProjectJob {
+  jobId: string;
+  jobType: 'ideation' | 'kit' | 'kitrevise';
+  status: 'queued' | 'running' | 'succeeded' | 'failed';
+  ideaIds: string[];
+  droppedDuplicateCount: number;
+  error?: string | null;
+  errorCode?: string | null;
+  retryable?: boolean | null;
+  pollAfterMs?: number | null;
+  createdAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  proposal?: BrandProjectKitRevisionProposal | null;
+}
+
+export interface BrandProjectSettings {
+  autoEnabled: boolean;
+  dailyCount: number;
+  startTime: string;
+  brandProfileId?: string | null;
+  direction?: string | null;
+  nextDueAt?: string | null;
+  lastRunAt?: string | null;
+  lastJobId?: string | null;
+}
+
+export type UpdateBrandProjectSettingsInput = Partial<
+  Pick<
+    BrandProjectSettings,
+    'autoEnabled' | 'dailyCount' | 'startTime' | 'brandProfileId' | 'direction'
+  >
+>;

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { X } from 'lucide-react';
 import { vaultItemsService } from '@/services/knowledge-vault/vault-items.service';
 import type { VaultItem, VaultItemType } from '@/types/knowledge-vault';
 import { formatApiError } from '@/utils/api-error-formatter';
+import { reportClientError } from '@/lib/client-telemetry';
 import { cn } from '@/lib/utils';
 
 export interface MultiSelectVaultComboboxProps {
@@ -18,6 +19,10 @@ export interface MultiSelectVaultComboboxProps {
   itemLabel?: string;
   /** Fires when resolved pill labels change (e.g. after search picks). */
   onLabelLookupChange?: (labels: Record<string, string>) => void;
+  /** Stable id for the search input (focus targets from empty states). */
+  searchInputId?: string;
+  /** Ref for the search input (focus targets from empty states). */
+  searchInputRef?: Ref<HTMLInputElement>;
 }
 
 const DEFAULT_ALLOWED_TYPES: VaultItemType[] = ['note', 'document'];
@@ -43,6 +48,8 @@ export function MultiSelectVaultCombobox({
   allowedTypes = DEFAULT_ALLOWED_TYPES,
   itemLabel = 'documents',
   onLabelLookupChange,
+  searchInputId,
+  searchInputRef,
 }: MultiSelectVaultComboboxProps) {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<VaultItem[]>([]);
@@ -101,11 +108,30 @@ export function MultiSelectVaultCombobox({
           setSearchError(null);
         } else {
           setHits([]);
-          setSearchError(formatVaultSearchError(res.apiError, res.error));
+          const message = formatVaultSearchError(res.apiError, res.error);
+          void reportClientError({
+            message: `Vault combobox search failed: ${message}`,
+            source: 'web',
+            metadata: {
+              kind: 'personal-branding-handler',
+              feature: 'brandProfileExtraction',
+              action: 'vaultSearch',
+            },
+          });
+          setSearchError(message);
         }
       } catch {
         if (generation !== requestGenerationRef.current) return;
         setHits([]);
+        void reportClientError({
+          message: 'Vault combobox search failed',
+          source: 'web',
+          metadata: {
+            kind: 'personal-branding-handler',
+            feature: 'brandProfileExtraction',
+            action: 'vaultSearch',
+          },
+        });
         setSearchError('Failed to search Knowledge Vault. Please try again.');
       } finally {
         if (generation === requestGenerationRef.current) {
@@ -185,6 +211,8 @@ export function MultiSelectVaultCombobox({
       </div>
       <div className="relative">
         <input
+          ref={searchInputRef}
+          id={searchInputId}
           value={q}
           onChange={(e) => {
             setQ(e.target.value);

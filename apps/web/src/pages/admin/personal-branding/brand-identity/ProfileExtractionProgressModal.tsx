@@ -43,7 +43,7 @@ function ExtractionMetricStrip({ job }: { job: ProfileExtractionJob | undefined 
           Sources
         </dt>
         <dd className="mt-0.5 text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100">
-          {metrics.sources.processed}/{metrics.sources.total}
+          {metrics.sources.displayCount}/{metrics.sources.total}
         </dd>
       </div>
       <div>

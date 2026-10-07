@@ -5,7 +5,7 @@ import { pbEyebrowClassName } from '@/pages/admin/personal-branding/personal-bra
 interface EyebrowLabelProps {
   children: ReactNode;
   className?: string;
-  as?: 'p' | 'span';
+  as?: 'p' | 'span' | 'h2';
 }
 
 export function EyebrowLabel({ children, className, as: Component = 'p' }: EyebrowLabelProps) {

@@ -70,7 +70,7 @@ export function useAssistantChatPage({
   const [executionTraceExpanded, setExecutionTraceExpanded] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
   const { threadId: routeThreadId } = useParams<{ threadId?: string }>();
-  const { showToast, dismissToast, ToastContainer } = useToast();
+  const { showToast, dismissToast } = useToast();
   const { assistantChatsOpen, closeAssistantChats } = useAdminShell();
   const { user } = useAuth();
 
@@ -864,7 +864,6 @@ export function useAssistantChatPage({
       threadTitle: deleteTarget?.title,
       isDeleting,
     },
-    ToastContainer,
     activeThread,
     showChatShell,
     isTreeLoading,

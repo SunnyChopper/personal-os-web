@@ -1,9 +1,4 @@
-import type {
-  CoachNudgeLevel,
-  EscalationSlot,
-  RelevantNowItem,
-  RelevantNowKind,
-} from '@/types/chatbot';
+import type { CoachNudgeLevel, RelevantNowKind, RelevantNowSlot } from '@/types/chatbot';
 import { cardSurfaceClassName } from '@/components/atoms/Card';
 import { cn } from '@/lib/utils';
 
@@ -34,18 +29,14 @@ const NUDGE_EMPHASIS_CLASS: Record<CoachNudgeLevel, string> = {
 };
 
 export interface RelevantNowCardProps {
-  item: RelevantNowItem | EscalationSlot;
+  item: RelevantNowSlot;
   onAsk: (prompt: string) => void;
   onOpen: (href: string) => void;
   slotLabel?: string;
 }
 
-function isEscalationSlot(item: RelevantNowItem | EscalationSlot): item is EscalationSlot {
-  return item.kind === 'avoidanceCoach' && 'nudgeLevel' in item;
-}
-
 export function RelevantNowCard({ item, onAsk, onOpen, slotLabel }: RelevantNowCardProps) {
-  const nudgeLevel = isEscalationSlot(item) ? item.nudgeLevel : undefined;
+  const nudgeLevel: CoachNudgeLevel | undefined = item.nudgeLevel;
   const badgeLabel = slotLabel ?? KIND_LABELS[item.kind];
   const nudgeSuffix =
     nudgeLevel === 'strict' ? ' · strict' : nudgeLevel === 'firm' ? ' · firm' : '';
@@ -76,6 +67,11 @@ export function RelevantNowCard({ item, onAsk, onOpen, slotLabel }: RelevantNowC
         {item.subtitle ? (
           <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug line-clamp-2">
             {item.subtitle}
+          </p>
+        ) : null}
+        {item.reason ? (
+          <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug line-clamp-2">
+            {item.reason}
           </p>
         ) : null}
       </div>

@@ -11,6 +11,7 @@ import {
 } from '@/lib/react-query/chatbot-cache';
 import type { AssistantWsConnectionState } from '@/lib/websocket/assistant-ws-client';
 import { wsLogger } from '@/lib/logger';
+import { trackAssistantMessageSend } from '@/lib/analytics';
 import type { AssistantRunConfig, ChatThread } from '@/types/chatbot';
 
 type ShowToast = (options: { type: 'error'; title: string; message: string }) => void;
@@ -299,6 +300,7 @@ export function useChatbotSendHandlers({
       }
 
       onMessageSentCb?.();
+      trackAssistantMessageSend();
       setIsLoading(false);
     } catch (error) {
       wsLogger.error('Error sending message', error);

@@ -20,6 +20,7 @@ import { AITaskAssistPanel } from '@/components/molecules/AITaskAssistPanel';
 import { TaskContextVibePills } from '@/components/molecules/TaskContextVibePills';
 import { llmConfig } from '@/lib/llm';
 import { cn } from '@/lib/utils';
+import { extractDateOnly } from '@/utils/date-formatters';
 import {
   buildTaskEditFormSnapshot,
   taskEditFormSnapshotsEqual,
@@ -115,8 +116,8 @@ export function TaskEditPanel({
     priority: task.priority,
     status: task.status,
     size: task.size || undefined,
-    dueDate: task.dueDate || '',
-    scheduledDate: task.scheduledDate || '',
+    dueDate: task.dueDate ? extractDateOnly(task.dueDate) : '',
+    scheduledDate: task.scheduledDate ? extractDateOnly(task.scheduledDate) : '',
     notes: task.notes || '',
     pointValue: task.pointValue || undefined,
     energyLevel: task.energyLevel ?? undefined,
@@ -143,7 +144,7 @@ export function TaskEditPanel({
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [titleTouched, setTitleTouched] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
 
   useEffect(() => {
     const nextFormData: UpdateTaskInput = {
@@ -155,8 +156,8 @@ export function TaskEditPanel({
       priority: task.priority,
       status: task.status,
       size: task.size || undefined,
-      dueDate: task.dueDate || '',
-      scheduledDate: task.scheduledDate || '',
+      dueDate: task.dueDate ? extractDateOnly(task.dueDate) : '',
+      scheduledDate: task.scheduledDate ? extractDateOnly(task.scheduledDate) : '',
       notes: task.notes || '',
       pointValue: task.pointValue || undefined,
       energyLevel: task.energyLevel ?? undefined,
@@ -177,6 +178,7 @@ export function TaskEditPanel({
       buildTaskEditFormSnapshot({
         title: nextFormData.title ?? '',
         description: nextFormData.description ?? '',
+        notes: nextFormData.notes ?? '',
         area: nextFormData.area ?? task.area,
         subCategory: nextFormData.subCategory,
         priority: nextFormData.priority ?? task.priority,
@@ -199,6 +201,7 @@ export function TaskEditPanel({
       buildTaskEditFormSnapshot({
         title: formData.title ?? '',
         description: formData.description ?? '',
+        notes: formData.notes ?? '',
         area: formData.area ?? task.area,
         subCategory: formData.subCategory,
         priority: formData.priority ?? task.priority,
@@ -249,7 +252,7 @@ export function TaskEditPanel({
         ...formData,
         description: formData.description || undefined,
         extendedDescription: formData.extendedDescription || undefined,
-        notes: formData.notes || undefined,
+        notes: formData.notes?.trim() ? formData.notes : null,
         dueDate: formData.dueDate || null,
         scheduledDate: formData.scheduledDate || null,
         size: formData.size || undefined,
@@ -339,7 +342,8 @@ export function TaskEditPanel({
     }
   };
 
-  const availableSubCategories = SUBCATEGORIES_BY_AREA[formData.area || task.area];
+  // TaskResponse.area is a free string; unknown/missing keys must not crash .map
+  const availableSubCategories = SUBCATEGORIES_BY_AREA[formData.area || task.area] || [];
 
   const taskEntities: EntitySummary[] = availableTasks
     .filter((t) => t.id !== task.id)
@@ -452,6 +456,23 @@ export function TaskEditPanel({
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
+              className={cn(fieldClassName, 'max-h-40 overflow-y-auto resize-y')}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="task-edit-notes"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            >
+              Notes
+            </label>
+            <Textarea
+              id="task-edit-notes"
+              value={formData.notes ?? ''}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows={3}
+              placeholder="Additional notes"
               className={cn(fieldClassName, 'max-h-40 overflow-y-auto resize-y')}
             />
           </div>
@@ -584,7 +605,7 @@ export function TaskEditPanel({
 
         <FormSection
           title="Scheduling & Points"
-          description="Due date, effort estimate, and reward points."
+          description="Due date, scheduled date, effort estimate, and reward points."
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
             <div>
@@ -605,30 +626,46 @@ export function TaskEditPanel({
 
             <div>
               <label
-                htmlFor="task-edit-story-points"
+                htmlFor="task-edit-scheduled-date"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
               >
-                Story points (Fibonacci)
+                Scheduled Date
               </label>
-              <Select
-                id="task-edit-story-points"
-                value={formData.size ?? ''}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    size: e.target.value === '' ? undefined : parseInt(e.target.value, 10),
-                  })
-                }
+              <input
+                id="task-edit-scheduled-date"
+                type="date"
+                value={formData.scheduledDate ?? ''}
+                onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
                 className={fieldClassName}
-              >
-                <option value="">Not set</option>
-                {TASK_STORY_POINTS_FIBONACCI.map((n) => (
-                  <option key={n} value={n}>
-                    {n} pts
-                  </option>
-                ))}
-              </Select>
+              />
             </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="task-edit-story-points"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            >
+              Story points (Fibonacci)
+            </label>
+            <Select
+              id="task-edit-story-points"
+              value={formData.size ?? ''}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  size: e.target.value === '' ? undefined : parseInt(e.target.value, 10),
+                })
+              }
+              className={fieldClassName}
+            >
+              <option value="">Not set</option>
+              {TASK_STORY_POINTS_FIBONACCI.map((n) => (
+                <option key={n} value={n}>
+                  {n} pts
+                </option>
+              ))}
+            </Select>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Story points are not a time estimate — use 1, 2, 3, 5, 8, 13, or 21 only.
@@ -892,8 +929,6 @@ export function TaskEditPanel({
         onSelectionChange={setSelectedGoals}
         entityType="goal"
       />
-
-      <ToastContainer />
     </>
   );
 }

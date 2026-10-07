@@ -120,6 +120,28 @@ describe('getAllStreaks', () => {
       vi.useRealTimers();
     }
   });
+
+  it('keeps yesterday as the live streak while today is still pending', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T18:00:00.000Z'));
+    try {
+      const logs = [logOn('2026-09-08'), logOn('2026-09-09')];
+      expect(getAllStreaks(logs).current).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears the current streak when yesterday was missed', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T18:00:00.000Z'));
+    try {
+      const logs = [logOn('2026-09-07'), logOn('2026-09-08')];
+      expect(getAllStreaks(logs).current).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('calculateCompletionRate with protected days', () => {

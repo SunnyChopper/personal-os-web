@@ -7,6 +7,7 @@ export function useAssistantInterventionUnreadCount() {
     queryKey: queryKeys.chatbot.interventionsUnreadCount(),
     queryFn: () => assistantInterventionsService.unreadCount(),
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     staleTime: 30_000,
   });

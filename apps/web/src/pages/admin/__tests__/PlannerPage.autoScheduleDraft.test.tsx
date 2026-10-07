@@ -64,7 +64,6 @@ const mockShowToast = vi.fn();
 vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
     showToast: mockShowToast,
-    ToastContainer: () => null,
   }),
 }));
 

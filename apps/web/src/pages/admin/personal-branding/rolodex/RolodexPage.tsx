@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { usePersonalBrandingBrandIdentity } from '@/hooks/usePersonalBrandingBrandIdentity';
+import { useBrandProfilesList } from '@/hooks/useBrandProfilesList';
 import { useRolodex } from '@/hooks/useRolodex';
 import { useReconFeed } from '@/hooks/useReconFeed';
 import { useRolodexFollowUpAlerts } from '@/hooks/useRolodexFollowUpAlerts';
@@ -41,9 +41,10 @@ export default function RolodexPage() {
   const reconFeed = useReconFeed();
   const { followUpAlertsQ } = useRolodexFollowUpAlerts();
   const { contentAlertsQ } = useReconFeedContentAlerts();
-  const brandIdentity = usePersonalBrandingBrandIdentity();
-  const selectedProfileId = brandIdentity.selectedProfileId;
-  const { showToast, ToastContainer } = useToast();
+  // Profiles list only — full Brand Identity fan-out amplified cold-start timeouts
+  // (alerts 567c68a56446, a98591bd8564, c6bd8a4286da).
+  const { selectedProfileId, profileOptions } = useBrandProfilesList();
+  const { showToast } = useToast();
 
   useEffect(() => {
     setActiveTab(tabFromUrl);
@@ -56,12 +57,6 @@ export default function RolodexPage() {
     reconFeed.settings.isPending ||
     followUpAlertsQ.isPending ||
     contentAlertsQ.isPending;
-
-  const profileId = useMemo(() => selectedProfileId, [selectedProfileId]);
-  const profileOptions = useMemo(
-    () => (brandIdentity.profiles.data?.data ?? []).map((p) => ({ id: p.id, name: p.name })),
-    [brandIdentity.profiles.data]
-  );
 
   const handleTabChange = (tabId: string) => {
     const nextTab = resolveTabId(tabId);
@@ -92,20 +87,19 @@ export default function RolodexPage() {
               showToast={showToast}
               rolodex={rolodex}
               profiles={profileOptions}
-              selectedProfileId={profileId}
+              selectedProfileId={selectedProfileId}
             />
           ) : currentTab === 'settings' ? (
             <RolodexSettingsTab showToast={showToast} />
           ) : (
             <InteractionsBoardTab
               rolodex={rolodex}
-              selectedProfileId={profileId}
+              selectedProfileId={selectedProfileId}
               profiles={profileOptions}
             />
           )
         }
       />
-      <ToastContainer />
     </div>
   );
 }

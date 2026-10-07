@@ -19,7 +19,7 @@ type AssistantNewMessageToastProps = {
 };
 
 export function AssistantNewMessageToast({ isAssistantRoute }: AssistantNewMessageToastProps) {
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const unreadQ = useAssistantUnreadSummary();
   const prevTotalRef = useRef<number | undefined>(undefined);
   const initializedRef = useRef(false);
@@ -47,5 +47,5 @@ export function AssistantNewMessageToast({ isAssistantRoute }: AssistantNewMessa
     prevTotalRef.current = total;
   }, [isAssistantRoute, showToast, unreadQ.data]);
 
-  return <ToastContainer />;
+  return null;
 }

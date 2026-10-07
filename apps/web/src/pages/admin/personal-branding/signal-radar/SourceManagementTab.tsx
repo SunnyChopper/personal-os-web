@@ -29,7 +29,7 @@ interface SourceManagementTabProps {
 }
 
 export default function SourceManagementTab({ signalRadar }: SourceManagementTabProps) {
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const sources = signalRadar.sources.data?.data ?? [];
 
   const [editorOpen, setEditorOpen] = useState(false);
@@ -201,8 +201,6 @@ export default function SourceManagementTab({ signalRadar }: SourceManagementTab
         source={healthSource}
         signalRadar={signalRadar}
       />
-
-      <ToastContainer />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Brain, ChevronDown } from 'lucide-react';
 import { ModelTraitMicroBars } from '@/components/molecules/assistant/AssistantModelPickerPrimitives';
 import type { AssistantModelCatalogEntry } from '@/types/chatbot';
 import { providerLogoSrc } from '@/lib/assistant/model-picker-utils';
+import { FLOATING_MENU_Z } from '@/lib/overlay-layer';
 
 const CAPABILITY_ABBR: Record<string, string> = {
   reasoning: 'Rsn',
@@ -157,7 +158,7 @@ export function ManualModelListbox({
           left: menuRect.left,
           width: menuRect.width,
           maxHeight: menuRect.maxHeight,
-          zIndex: 100,
+          zIndex: FLOATING_MENU_Z,
         }
       : null;
 

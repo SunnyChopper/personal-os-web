@@ -29,7 +29,7 @@ export default function ContentStreamPage() {
   const [activeTab, setActiveTab] = useState<ContentStreamTabId>(tabFromUrl);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const stream = useContentStream('x');
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
 
   useEffect(() => {
     setActiveTab(tabFromUrl);
@@ -68,7 +68,6 @@ export default function ContentStreamPage() {
           )
         }
       />
-      <ToastContainer />
     </div>
   );
 }

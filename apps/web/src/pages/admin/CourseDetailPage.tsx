@@ -28,7 +28,12 @@ import {
 } from '@/services/knowledge-vault';
 import type { CourseWithDetails } from '@/services/knowledge-vault/courses.service';
 import type { CourseLesson } from '@/types/knowledge-vault';
-import type { LessonGenerationProgress } from '@/services/knowledge-vault/course-generation/types';
+import type {
+  LessonGenerationArtifact,
+  LessonGenerationPhaseId,
+  LessonGenerationProgress,
+} from '@/services/knowledge-vault/course-generation/types';
+import { LessonGenerationProgressPanel } from '@/components/molecules/knowledge-vault/LessonGenerationProgressPanel';
 import { useCourseGeneratorAIModelPicker } from '@/hooks/knowledge-vault/useCourseGeneratorAIModelPicker';
 import { useToast } from '@/hooks/use-toast';
 import { llmLogger } from '@/lib/logger';
@@ -48,7 +53,7 @@ import {
 export default function CourseDetailPage() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId?: string }>();
   const navigate = useNavigate();
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const {
     catalog: modelCatalog,
     isCatalogLoading: isModelCatalogLoading,
@@ -63,6 +68,9 @@ export default function CourseDetailPage() {
   const [generationProgress, setGenerationProgress] = useState<LessonGenerationProgress | null>(
     null
   );
+  const [generationArtifacts, setGenerationArtifacts] = useState<
+    Partial<Record<LessonGenerationPhaseId, LessonGenerationArtifact>>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -131,10 +139,14 @@ export default function CourseDetailPage() {
 
     setGeneratingContent(true);
     setGenerationProgress(null);
+    setGenerationArtifacts({});
     setGenerationError(null);
 
     const handleProgress = (progress: LessonGenerationProgress) => {
       setGenerationProgress(progress);
+      if (progress.artifact) {
+        setGenerationArtifacts((prev) => ({ ...prev, [progress.phase]: progress.artifact! }));
+      }
     };
 
     try {
@@ -151,19 +163,15 @@ export default function CourseDetailPage() {
       });
 
       if (response.success && response.data) {
-        const bcRes = await coursesService.getById(courseId!);
-        if (bcRes.success && bcRes.data) {
-          const lessons = bcRes.data.lessons.map((l) =>
-            l.id === lesson.id ? { ...l, content: response.data as string } : l
-          );
-          await coursesService.update(courseId!, { lessons });
-        }
-
-        setSelectedLesson((prev) => (prev ? { ...prev, content: response.data } : null));
-
         const updatedCourseData = await coursesService.getCourseWithModulesAndLessons(courseId!);
         if (updatedCourseData.success && updatedCourseData.data) {
           setCourseData(updatedCourseData.data);
+          const refreshed = updatedCourseData.data.modules
+            .flatMap((m) => m.lessons)
+            .find((l) => l.id === lesson.id);
+          if (refreshed) setSelectedLesson(refreshed);
+        } else {
+          setSelectedLesson((prev) => (prev ? { ...prev, content: response.data } : null));
         }
       } else {
         reportLessonGenerationFailure(response.error || 'Failed to generate lesson content');
@@ -303,7 +311,6 @@ export default function CourseDetailPage() {
 
   return (
     <div className="relative pb-20">
-      <ToastContainer />
       {/* iTunes-style Media Player Bar (shown when sidebar is collapsed) */}
       <AnimatePresence mode="sync">
         {sidebarCollapsed && selectedLesson && (
@@ -685,92 +692,10 @@ export default function CourseDetailPage() {
                       </p>
                     </div>
 
-                    {generationProgress && (
-                      <div className="space-y-6">
-                        {/* Progress Bar */}
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                              {generationProgress.phaseName}
-                            </span>
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
-                              {generationProgress.progress}%
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                            <div
-                              className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
-                              style={{ width: `${generationProgress.progress}%` }}
-                            ></div>
-                          </div>
-                        </div>
-
-                        {/* Phase Summary */}
-                        {generationProgress.summary && (
-                          <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {generationProgress.summary}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Phase Indicators */}
-                        <div className="space-y-3">
-                          {[
-                            { phase: 'analyzing', label: 'Analyzing Lesson Context', icon: '🔍' },
-                            { phase: 'structuring', label: 'Structuring Content', icon: '📋' },
-                            { phase: 'writing', label: 'Writing Lesson Content', icon: '✍️' },
-                            { phase: 'polishing', label: 'Polishing Content', icon: '✨' },
-                          ].map((phaseInfo, index) => {
-                            const isActive = generationProgress.phase === phaseInfo.phase;
-                            const isCompleted =
-                              ['analyzing', 'structuring', 'writing', 'polishing'].indexOf(
-                                generationProgress.phase
-                              ) > index;
-
-                            return (
-                              <div
-                                key={phaseInfo.phase}
-                                className={`flex items-center gap-3 p-3 rounded-lg transition ${
-                                  isActive
-                                    ? 'bg-green-50 dark:bg-green-900/20 border-2 border-green-500'
-                                    : isCompleted
-                                      ? 'bg-gray-50 dark:bg-gray-900/50 opacity-60'
-                                      : 'bg-gray-50 dark:bg-gray-900/30'
-                                }`}
-                              >
-                                <div
-                                  className={`text-xl ${
-                                    isActive ? 'animate-pulse' : isCompleted ? 'opacity-50' : ''
-                                  }`}
-                                >
-                                  {phaseInfo.icon}
-                                </div>
-                                <div className="flex-1">
-                                  <p
-                                    className={`text-sm font-medium ${
-                                      isActive
-                                        ? 'text-green-700 dark:text-green-300'
-                                        : isCompleted
-                                          ? 'text-gray-500 dark:text-gray-400'
-                                          : 'text-gray-400 dark:text-gray-500'
-                                    }`}
-                                  >
-                                    {phaseInfo.label}
-                                  </p>
-                                </div>
-                                {isActive && (
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                                )}
-                                {isCompleted && (
-                                  <div className="text-green-600 dark:text-green-400">✓</div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                    <LessonGenerationProgressPanel
+                      progress={generationProgress}
+                      artifactsByPhase={generationArtifacts}
+                    />
 
                     {!generationProgress && (
                       <div className="text-center">
@@ -780,6 +705,12 @@ export default function CourseDetailPage() {
                   </div>
                 ) : selectedLesson.content ? (
                   <>
+                    <LessonGenerationProgressPanel
+                      progress={null}
+                      artifactsByPhase={{}}
+                      storedTrace={selectedLesson.generationTrace}
+                      showStoredTrace
+                    />
                     <div className="mb-8">
                       <MarkdownRenderer content={selectedLesson.content} />
                     </div>

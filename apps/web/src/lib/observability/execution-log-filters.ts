@@ -52,6 +52,10 @@ export function hasAnyExecutionLogFilter(filters: ExecutionLogFilterFields): boo
   );
 }
 
+export function isCoachReliabilityFilterActive(filters: ExecutionLogFilterFields): boolean {
+  return filters.module.trim() === 'assistant' && filters.feature.trim() === 'coachReliability';
+}
+
 export function formatExecutionPreview(preview: string | null | undefined): string {
   const trimmed = preview?.trim();
   return trimmed ? trimmed : '—';

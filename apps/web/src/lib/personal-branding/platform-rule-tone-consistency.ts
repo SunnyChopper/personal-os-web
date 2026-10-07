@@ -22,7 +22,7 @@ export interface ConsistencyCatalogEntry {
 }
 
 export interface CheckPlatformRuleToneConsistencyInput {
-  requirements: string;
+  requirements: string[] | string;
   rhetoricalModes: { mode: string; strength: string }[];
   rhetoricalDevices: string[];
   catalog?: {
@@ -249,7 +249,12 @@ export function checkPlatformRuleToneConsistency(
   input: CheckPlatformRuleToneConsistencyInput
 ): ConsistencyIssue[] {
   const issues: ConsistencyIssue[] = [];
-  const trimmedRequirements = input.requirements.trim();
+  const trimmedRequirements = Array.isArray(input.requirements)
+    ? input.requirements
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .join('\n')
+    : input.requirements.trim();
 
   if (input.profiles.length === 0) {
     return [

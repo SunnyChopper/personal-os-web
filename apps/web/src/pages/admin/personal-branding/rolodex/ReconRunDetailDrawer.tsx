@@ -5,7 +5,11 @@ import { StatusBadge } from '@/components/atoms/StatusBadge';
 import SlideDrawer from '@/components/molecules/SlideDrawer';
 import EngagementRationale from '@/components/molecules/personal-branding/EngagementRationale';
 import { cn } from '@/lib/utils';
-import type { ReconRunActivityEntry, ReconRunSummary } from '@/types/api/personal-branding.dto';
+import type {
+  ReconIngestFilterSummary,
+  ReconRunActivityEntry,
+  ReconRunSummary,
+} from '@/types/api/personal-branding.dto';
 
 function formatDate(value?: string | null): string {
   if (!value) return '—';
@@ -51,6 +55,39 @@ function ProgressLine({
         max={Math.max(total, 1)}
       />
     </div>
+  );
+}
+
+function IngestFilterSummaryStrip({ summary }: { summary: ReconIngestFilterSummary }) {
+  const candidates: [string, number][] = [
+    ['Fetched from X', summary.fetched],
+    ['Skipped (already synced)', summary.skippedCursor],
+    ['Skipped (too old)', summary.skippedAge],
+    ['Skipped (missing date)', summary.skippedMissingPostedAt],
+    ['Skipped (already known)', summary.skippedKnown],
+    ['Skipped (duplicate content)', summary.skippedFingerprint],
+  ];
+  const rows = candidates.filter(([, value]) => value > 0);
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return (
+    <section
+      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+      aria-label="Why no posts were discovered"
+    >
+      <h3 className="font-medium">Why 0 posts?</h3>
+      <ul className="mt-2 space-y-1">
+        {rows.map(([label, value]) => (
+          <li key={label} className="flex justify-between gap-3">
+            <span>{label}</span>
+            <span className="font-mono tabular-nums">{value}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -239,6 +276,10 @@ export default function ReconRunDetailDrawer({
             >
               {run.errorSummary}
             </div>
+          ) : null}
+
+          {run.postsDiscovered === 0 && run.ingestFilterSummary ? (
+            <IngestFilterSummaryStrip summary={run.ingestFilterSummary} />
           ) : null}
 
           {activityLog.length > 0 ? (
