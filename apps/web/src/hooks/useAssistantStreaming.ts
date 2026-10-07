@@ -545,6 +545,8 @@ export function useAssistantStreaming(
             resolvedReasoningModelId: payload.resolvedReasoningModelId,
             resolvedResponseModelId: payload.resolvedResponseModelId,
             modelMode: payload.modelMode,
+            requestedResponseModelId: payload.requestedResponseModelId,
+            responseOverrideReason: payload.responseOverrideReason,
           });
         }
         startTransition(() => {
@@ -560,6 +562,8 @@ export function useAssistantStreaming(
                 resolvedReasoningModelId: payload.resolvedReasoningModelId,
                 resolvedResponseModelId: payload.resolvedResponseModelId,
                 modelMode: payload.modelMode,
+                requestedResponseModelId: payload.requestedResponseModelId,
+                responseOverrideReason: payload.responseOverrideReason,
               },
             };
           });
@@ -633,6 +637,7 @@ export function useAssistantStreaming(
               stage: payload.stage,
               message: payload.message,
               startedAt: now,
+              noToolsInvoked: payload.noToolsInvoked,
             };
             const prevHistory = run.statusHistory;
             const soleBootstrapPlanning =

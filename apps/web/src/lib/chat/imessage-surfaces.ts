@@ -19,7 +19,7 @@ export const IMESSAGE_TOKENS = {
 export const chatPageRootClassName = 'bg-gray-50 dark:bg-black';
 
 export const chatThreadHeaderClassName =
-  'border-b border-gray-200/80 bg-white/95 backdrop-blur-sm dark:border-gray-800/80 dark:bg-black/95';
+  'relative z-30 border-b border-gray-200/80 bg-white/95 backdrop-blur-sm dark:border-gray-800/80 dark:bg-black/95';
 
 export const chatThreadHeaderTitleClassName =
   'truncate text-[15px] font-semibold text-gray-900 sm:text-base dark:text-white';

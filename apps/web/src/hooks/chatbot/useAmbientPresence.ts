@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/react-query/query-keys';
@@ -13,11 +14,21 @@ import { useToast } from '@/hooks/use-toast';
 const STALE_MS = 60_000;
 
 export function useAmbientPresence(surface: AmbientSurface) {
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.chatbot.ambient(surface);
+
+  // Abort in-flight ambient GETs on leave so Axios 30s timeouts do not alert (8b25dbe8c269).
+  useEffect(() => {
+    return () => {
+      void queryClient.cancelQueries({ queryKey });
+    };
+  }, [queryClient, queryKey]);
+
   return useQuery({
-    queryKey: queryKeys.chatbot.ambient(surface),
-    queryFn: () => ambientPresenceService.getAmbient(surface),
+    queryKey,
+    queryFn: ({ signal }) => ambientPresenceService.getAmbient(surface, signal),
     staleTime: STALE_MS,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 

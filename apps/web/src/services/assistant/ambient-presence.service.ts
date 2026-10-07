@@ -7,14 +7,20 @@ import type {
   AmbientSurface,
 } from '@/types/chatbot';
 
+function throwAmbientError(error: { message?: string; code?: string }): void {
+  const err = new Error(error.message ?? 'Request failed') as Error & { code?: string };
+  if (error.code) err.code = error.code;
+  throw err;
+}
+
 export const ambientPresenceService = {
-  async getAmbient(surface: AmbientSurface): Promise<AmbientPresenceData> {
-    const response = await apiClient.getAssistantAmbient(surface);
+  async getAmbient(surface: AmbientSurface, signal?: AbortSignal): Promise<AmbientPresenceData> {
+    const response = await apiClient.getAssistantAmbient(surface, { signal });
     if (response.success && response.data) {
       return response.data;
     }
     if (response.error) {
-      throw response.error;
+      throwAmbientError(response.error);
     }
     throw new Error('Failed to fetch ambient presence');
   },
