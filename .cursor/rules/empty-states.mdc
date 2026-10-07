@@ -71,6 +71,30 @@ Use `density="compact"` and **always** include a primary CTA. Contract: `docs/co
 
 **Knowledge Vault Inbox:** per-bucket empties use compact dashed `InboxBucketEmptyState` (not scene `EmptyState`); CTA focuses Quick Capture input.
 
+**Content Workbench idea grids (Ideation / Vault / Trend Ideas):** compact `EmptyState` with Lucide `icon` (no new scenes) + primary CTA — Trend navigates Signal Radar Trend Stream; Vault focuses vault picker or generates; Ideation generates or focuses Generate. Contract: `content-workbench-curation` v0.6.32+.
+
+### Personal Branding / Recon Feed scene keys
+
+Use `density="compact"` for Active feed empties. Contract: `docs/contracts/personal-branding-recon-feed-contract-spec.md`.
+
+| Scene | Use when |
+|-------|----------|
+| `reconScarcity` | Zero tracked X handles or 48h high-signal scarcity probe |
+| `reconAwaitingIngest` | First ingest not run yet, or caught-up Active empty |
+| `filteredEmpty` | Age chip filters out all Active posts |
+
+### Personal Branding / In-Person Events scene keys
+
+Use `density="compact"` for Upcoming diagnostic empties. Contract: `docs/contracts/personal-branding-in-person-events-contract-spec.md` (§6 Events tab empty states).
+
+| Scene | Use when |
+|-------|----------|
+| `reconAwaitingIngest` | Discovery has never run (`neverRun`) |
+| `reconScarcity` | Ran but zero events matched stints/interests (`zeroMatch`) |
+| `filteredEmpty` | Candidates filtered below `minFitScore` (`minFitFiltered`) |
+
+Past section uses compact dashed card text only (no scene).
+
 ## Context-specific patterns
 
 ### No filter results

@@ -8,6 +8,7 @@ export interface MultiComboboxProps {
   value: string[];
   onChange: (next: string[]) => void;
   options: ComboboxOption[] | string[];
+  id?: string;
   disabled?: boolean;
   placeholder?: string;
   isLoading?: boolean;
@@ -31,6 +32,7 @@ export default function MultiCombobox({
   value,
   onChange,
   options,
+  id,
   disabled = false,
   placeholder = 'Search and add…',
   isLoading = false,
@@ -155,6 +157,7 @@ export default function MultiCombobox({
         <div className="relative flex items-center">
           <FormInput
             ref={inputRef}
+            id={id}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -168,7 +171,7 @@ export default function MultiCombobox({
             aria-controls={`multicombo-list-${listId}`}
             aria-haspopup="listbox"
             role="combobox"
-            className="pr-10"
+            className="w-full pr-10"
           />
           <button
             type="button"

@@ -13,7 +13,9 @@ export type EmptyStateSceneId =
   | 'pantryEmpty'
   | 'rewardsQuickClaim'
   | 'rewardsRules'
-  | 'rewardsClaims';
+  | 'rewardsClaims'
+  | 'reconScarcity'
+  | 'reconAwaitingIngest';
 
 interface SceneProps {
   className?: string;
@@ -643,6 +645,127 @@ export function RewardsClaimsScene({ className }: SceneProps) {
   );
 }
 
+/** Sparse connection nodes — Rolodex Recon scarcity */
+export function ReconScarcityScene({ className }: SceneProps) {
+  return (
+    <SceneFrame className={className}>
+      <circle
+        cx="48"
+        cy="52"
+        r="16"
+        className="fill-blue-100 stroke-blue-300 dark:fill-blue-950/50 dark:stroke-blue-700"
+        strokeWidth="1.5"
+      />
+      <circle cx="48" cy="52" r="5" className="fill-blue-500 dark:fill-blue-400" />
+      <circle
+        cx="112"
+        cy="44"
+        r="12"
+        className="fill-gray-100 stroke-gray-300 dark:fill-gray-800 dark:stroke-gray-600"
+        strokeWidth="1.5"
+        strokeDasharray="3 3"
+      />
+      <circle
+        cx="96"
+        cy="78"
+        r="10"
+        className="fill-gray-100 stroke-gray-300 dark:fill-gray-800 dark:stroke-gray-600"
+        strokeWidth="1.5"
+        strokeDasharray="3 3"
+      />
+      <path
+        d="M62 50 L84 46"
+        className="stroke-blue-300 dark:stroke-blue-600"
+        strokeWidth="1.5"
+        strokeDasharray="4 4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M58 62 L88 72"
+        className="stroke-gray-300 dark:stroke-gray-600"
+        strokeWidth="1.5"
+        strokeDasharray="4 4"
+        strokeLinecap="round"
+      />
+      <circle cx="128" cy="60" r="4" className="fill-amber-400 dark:fill-amber-500" />
+    </SceneFrame>
+  );
+}
+
+/** Idle ingest pipeline — Rolodex Recon awaiting / caught-up */
+export function ReconAwaitingIngestScene({ className }: SceneProps) {
+  return (
+    <SceneFrame className={className}>
+      <rect
+        x="36"
+        y="40"
+        width="88"
+        height="48"
+        rx="10"
+        className="fill-white stroke-gray-200 dark:fill-gray-900 dark:stroke-gray-700"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx="56"
+        cy="64"
+        r="14"
+        className="fill-blue-100 stroke-blue-300 dark:fill-blue-950/50 dark:stroke-blue-700"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M52 64 L54 66 L60 60"
+        className="stroke-blue-500 dark:stroke-blue-400"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <line
+        x1="76"
+        y1="58"
+        x2="108"
+        y2="58"
+        className="stroke-gray-200 dark:stroke-gray-600"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <line
+        x1="76"
+        y1="70"
+        x2="96"
+        y2="70"
+        className="stroke-gray-200 dark:stroke-gray-600"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <circle
+        cx="128"
+        cy="36"
+        r="12"
+        className="fill-amber-100 stroke-amber-300 dark:fill-amber-950/40 dark:stroke-amber-700"
+        strokeWidth="1.5"
+      />
+      <line
+        x1="128"
+        y1="32"
+        x2="128"
+        y2="36"
+        className="stroke-amber-500 dark:stroke-amber-400"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <line
+        x1="128"
+        y1="36"
+        x2="131"
+        y2="40"
+        className="stroke-amber-500 dark:stroke-amber-400"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </SceneFrame>
+  );
+}
+
 const SCENE_COMPONENTS: Record<EmptyStateSceneId, React.ComponentType<SceneProps>> = {
   actionRequired: ActionRequiredScene,
   noSource: NoSourceScene,
@@ -656,6 +779,8 @@ const SCENE_COMPONENTS: Record<EmptyStateSceneId, React.ComponentType<SceneProps
   rewardsQuickClaim: RewardsQuickClaimScene,
   rewardsRules: RewardsRulesScene,
   rewardsClaims: RewardsClaimsScene,
+  reconScarcity: ReconScarcityScene,
+  reconAwaitingIngest: ReconAwaitingIngestScene,
 };
 
 export function EmptyStateScene({

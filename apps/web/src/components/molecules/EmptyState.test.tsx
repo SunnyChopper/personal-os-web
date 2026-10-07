@@ -77,6 +77,28 @@ describe('EmptyState', () => {
     expect(container.querySelector('svg')).toBeInTheDocument();
   });
 
+  it('renders recon scarcity scene', () => {
+    const { container } = render(
+      <EmptyState scene="reconScarcity" title="Few high-signal posts lately" />
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Few high-signal posts lately' })
+    ).toBeInTheDocument();
+    expect(container.querySelector('svg')).toBeInTheDocument();
+  });
+
+  it('renders recon awaiting ingest scene', () => {
+    const { container } = render(
+      <EmptyState scene="reconAwaitingIngest" title="Ready for your first ingest" />
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Ready for your first ingest' })
+    ).toBeInTheDocument();
+    expect(container.querySelector('svg')).toBeInTheDocument();
+  });
+
   it('uses compact density padding when density is compact', () => {
     const { container } = render(
       <EmptyState scene="rewardsQuickClaim" title="No manual claims ready" density="compact" />
