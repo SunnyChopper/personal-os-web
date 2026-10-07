@@ -4,10 +4,7 @@ import { AlertTriangle, RefreshCw, Home, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { logger } from '@/lib/logger';
 import { reportClientError } from '@/lib/client-telemetry';
-import {
-  isStaleChunkLoadError,
-  tryReloadOnceForStaleChunk,
-} from '@/lib/stale-chunk-reload';
+import { isStaleChunkLoadError, tryReloadOnceForStaleChunk } from '@/lib/stale-chunk-reload';
 
 interface Props {
   children: ReactNode;
