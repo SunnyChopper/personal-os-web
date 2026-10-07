@@ -6,6 +6,7 @@ import {
   ADVANCED_EXECUTION_LOG_FILTER_KEYS,
   hasAdvancedExecutionLogFilters,
   hasAnyExecutionLogFilter,
+  isCoachReliabilityFilterActive,
   PRIMARY_EXECUTION_LOG_FILTER_KEYS,
   type ExecutionLogFilterFields,
 } from '@/lib/observability/execution-log-filters';
@@ -21,6 +22,7 @@ export type ExecutionLogFiltersProps = {
   filters: ExecutionLogFilterFields;
   onFilterChange: (key: keyof ExecutionLogFilterFields, value: string) => void;
   onClearFilters: () => void;
+  onApplyCoachReliabilityPreset?: () => void;
 };
 
 function FilterField({
@@ -53,6 +55,7 @@ export default function ExecutionLogFilters({
   filters,
   onFilterChange,
   onClearFilters,
+  onApplyCoachReliabilityPreset,
 }: ExecutionLogFiltersProps) {
   const advancedPanelId = useId();
   const [advancedOpen, setAdvancedOpen] = useState(() => hasAdvancedExecutionLogFilters(filters));
@@ -71,11 +74,23 @@ export default function ExecutionLogFilters({
         <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
           Filters
         </p>
-        {showClear ? (
-          <Button type="button" size="sm" variant="secondary" onClick={onClearFilters}>
-            Clear filters
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {onApplyCoachReliabilityPreset ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={isCoachReliabilityFilterActive(filters) ? 'primary' : 'secondary'}
+              onClick={onApplyCoachReliabilityPreset}
+            >
+              Coach reliability
+            </Button>
+          ) : null}
+          {showClear ? (
+            <Button type="button" size="sm" variant="secondary" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className={executionLogFiltersPrimaryGridClassName}>

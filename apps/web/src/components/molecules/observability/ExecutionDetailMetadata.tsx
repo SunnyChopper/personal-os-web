@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Button from '@/components/atoms/Button';
 import type { ObservabilityExecutionDetail } from '@/types/observability';
 import CopyIconButton from '@/components/atoms/CopyIconButton';
 import CollapsibleSection from '@/components/molecules/CollapsibleSection';
@@ -50,11 +51,13 @@ function DetailGrid({ fields }: { fields: DetailField[] }) {
 export type ExecutionDetailMetadataProps = {
   detail: ObservabilityExecutionDetail;
   animated?: boolean;
+  onOpenThread?: (threadId: string) => void;
 };
 
 export default function ExecutionDetailMetadata({
   detail,
   animated = false,
+  onOpenThread,
 }: ExecutionDetailMetadataProps) {
   const traceSummary = getTraceSummary(detail);
 
@@ -79,7 +82,25 @@ export default function ExecutionDetailMetadata({
               value: detail.providerRequestId ?? '—',
               copyValue: detail.providerRequestId,
             },
-            { label: 'threadId', value: detail.threadId ?? '—', copyValue: detail.threadId },
+            {
+              label: 'threadId',
+              value: (
+                <span className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="min-w-0 break-all">{detail.threadId ?? '—'}</span>
+                  {detail.threadId && onOpenThread ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => onOpenThread(detail.threadId!)}
+                    >
+                      Open thread
+                    </Button>
+                  ) : null}
+                </span>
+              ),
+              copyValue: detail.threadId,
+            },
             { label: 'runId', value: detail.runId ?? '—', copyValue: detail.runId },
           ]}
         />
