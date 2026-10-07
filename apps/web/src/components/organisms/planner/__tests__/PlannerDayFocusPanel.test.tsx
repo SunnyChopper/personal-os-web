@@ -67,7 +67,6 @@ vi.mock('@/hooks/usePlanner', () => ({
 vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
     showToast: showToastMock,
-    ToastContainer: () => null,
   }),
 }));
 

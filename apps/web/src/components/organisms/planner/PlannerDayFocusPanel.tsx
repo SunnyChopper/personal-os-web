@@ -63,7 +63,7 @@ export function PlannerDayFocusPanel({
   const commit = useCommitPlanDay(focusDateISO);
   const killSwitch = usePlannerKillSwitch(weekStart, focusDateISO);
   const rollover = usePlannerRolloverDecision(weekStart, focusDateISO);
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
 
   const KILL_SWITCH_CONFIRM =
     "Drowning? Let's fix it. This will drop all non-essential items back to your backlog.";
@@ -226,8 +226,6 @@ export function PlannerDayFocusPanel({
 
   return (
     <section className={`space-y-4 ${plannerFocusPanelClassName}`}>
-      <ToastContainer />
-
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
           <CalendarDays className="h-5 w-5" />

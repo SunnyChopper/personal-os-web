@@ -51,6 +51,7 @@ import { useWeeklyDashboardConfig } from '@/hooks/useWeeklyDashboardConfig';
 import { maxComparisonWeeks, velocityRollingWindow } from '@/types/weekly-dashboard';
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/react-query/query-keys';
+import { trackDomainEvent } from '@/lib/analytics';
 import {
   buildWeeklyReviewRitualToast,
   markWeeklyReviewRitualToastShown,
@@ -105,7 +106,7 @@ export default function WeeklyReviewPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const weekFromUrl = searchParams.get('week');
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const [dashboardDrawerOpen, setDashboardDrawerOpen] = useState(false);
   const [earlyCloseoutModalOpen, setEarlyCloseoutModalOpen] = useState(false);
 
@@ -317,6 +318,7 @@ export default function WeeklyReviewPage() {
   const handleComplete = async () => {
     if (!effectiveWeekStart || isHistorical) return;
     const completed = await complete.mutateAsync();
+    trackDomainEvent('weekly_review', 'finalized');
     await refetchSnapshot();
     showRitualWalletToast(
       completed.ritualPointsAwarded,
@@ -457,7 +459,6 @@ export default function WeeklyReviewPage() {
 
   return (
     <div className="flex w-full justify-center px-3 sm:px-4">
-      <ToastContainer />
       <CelebrationEffect
         show={celebrateComplete}
         type="criteria_completed"
