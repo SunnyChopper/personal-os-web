@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- skeleton count helper co-located for stream UI */
 import { Skeleton } from '@/components/atoms/Skeleton';
 import { InsetPanel } from '@/components/molecules/personal-branding/InsetPanel';
 import type { ContentStreamSettings } from '@/types/api/personal-branding.dto';

@@ -20,7 +20,9 @@ export function calendarDateInTimeZone(timeZone: string, date = new Date()): str
     const month = parts.find((p) => p.type === 'month')?.value;
     const day = parts.find((p) => p.type === 'day')?.value;
     if (year && month && day) return `${year}-${month}-${day}`;
-  } catch {}
+  } catch {
+    /* fall through to UTC en-CA formatter */
+  }
   try {
     return new Intl.DateTimeFormat('en-CA', {
       timeZone: 'UTC',

@@ -48,7 +48,7 @@ export function buildMonthGrid(year: number, month: number): MonthGridDay[][] {
   const startOffset = first.getDay();
   const gridStart = new Date(year, month, 1 - startOffset);
   const weeks: MonthGridDay[][] = [];
-  let cursor = new Date(gridStart);
+  const cursor = new Date(gridStart);
   for (let w = 0; w < 6; w += 1) {
     const week: MonthGridDay[] = [];
     for (let d = 0; d < 7; d += 1) {

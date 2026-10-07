@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- helpers must live here (see comment below) */
 /** Keep helpers in this module — a sibling `content-idea-tag-chips.ts` collides with
  * `ContentIdeaTagChips.tsx` under Windows→WSL rsync (DrvFs), so the deploy mirror can
  * sync the component and drop the helper, breaking Vite resolve on Linux. */
