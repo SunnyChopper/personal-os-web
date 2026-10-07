@@ -12,6 +12,7 @@ const mockEventsHook = {
   events: { data: { data: [] }, isPending: false },
   upcomingEvents: [],
   pastEvents: [],
+  undatedEvents: [],
   operatorToday: '2026-08-13',
   minFitScore: 40,
   rawUpcomingEvents: [],
@@ -60,8 +61,8 @@ function renderPage(initialEntry = '/admin/personal-branding/events?tab=calendar
 }
 
 function monthLabelForOffset(offsetMonths: number): string {
-  const date = new Date();
-  date.setMonth(date.getMonth() + offsetMonths);
+  const [y, m] = mockEventsHook.operatorToday.split('-').map(Number);
+  const date = new Date(y, m - 1 + offsetMonths, 1);
   return date.toLocaleString(undefined, { month: 'long', year: 'numeric' });
 }
 
@@ -78,7 +79,7 @@ describe('InPersonEventsPage keepMounted', () => {
 
   it('preserves calendar month cursor across Events tab round-trip', async () => {
     const user = userEvent.setup();
-    renderPage();
+    renderPage('/admin/personal-branding/events?tab=calendar');
 
     const initialMonth = monthLabelForOffset(0);
     const nextMonth = monthLabelForOffset(1);

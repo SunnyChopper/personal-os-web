@@ -70,7 +70,7 @@ describe('MarkdownEditor preview copy as markdown', () => {
 
     expect(writeText).toHaveBeenCalledTimes(1);
     expect(writeText).toHaveBeenCalledWith(source);
-    expect(screen.getByRole('status')).toHaveTextContent('Copied');
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument();
   });
 
   it('hides copy button in edit-only mode', async () => {

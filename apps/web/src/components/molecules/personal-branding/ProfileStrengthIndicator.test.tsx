@@ -158,7 +158,7 @@ describe('ProfileStrengthIndicator', () => {
 
     expect(screen.getByText('synergy')).toBeInTheDocument();
     expect(screen.getByText('Lead with a hook.')).toBeInTheDocument();
-    expect(screen.getByText('3,000')).toBeInTheDocument();
+    expect(screen.getByText(/3,000/)).toBeInTheDocument();
     expect(screen.queryByText('Universal fallback')).not.toBeInTheDocument();
   });
 

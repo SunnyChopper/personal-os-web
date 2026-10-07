@@ -4,12 +4,14 @@ import { runCourseLessonOverWebSocket } from './course-lesson-ws-client';
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
   readyState = 0;
+  url: string;
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
   onerror: (() => void) | null = null;
   onclose: (() => void) | null = null;
 
-  constructor(public url: string) {
+  constructor(url: string) {
+    this.url = url;
     MockWebSocket.instances.push(this);
     queueMicrotask(() => {
       this.readyState = 1;

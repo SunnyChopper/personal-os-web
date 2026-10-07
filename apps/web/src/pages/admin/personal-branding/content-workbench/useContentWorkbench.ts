@@ -709,6 +709,9 @@ export function useContentWorkbench() {
     onError: (err: Error) => setVaultGenerateError(err.message),
   });
 
+  const generatedIdeasQueryKey = queryKeys.personalBranding.ideas.list(1, 50, 'GENERATED');
+  type GeneratedIdeasPage = Awaited<ReturnType<typeof personalBrandingService.listContentIdeas>>;
+
   const rejectIdeaMutation = useMutation({
     mutationFn: ({
       ideaId,
@@ -723,8 +726,23 @@ export function useContentWorkbench() {
         feedbackText: feedbackText ?? undefined,
         feedbackCategory: feedbackCategory ?? undefined,
       }),
-    onSuccess: () => {
+    onMutate: async ({ ideaId }) => {
+      await queryClient.cancelQueries({ queryKey: generatedIdeasQueryKey });
+      const previous = queryClient.getQueryData<GeneratedIdeasPage>(generatedIdeasQueryKey);
       setRejectingIdea(null);
+      queryClient.setQueryData<GeneratedIdeasPage | undefined>(generatedIdeasQueryKey, (old) => {
+        if (!old?.data) return old;
+        const data = old.data.filter((idea) => idea.id !== ideaId);
+        return { ...old, data, total: Math.max(0, old.total - 1) };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(generatedIdeasQueryKey, context.previous);
+      }
+    },
+    onSuccess: () => {
       void invalidateWorkbench();
     },
   });

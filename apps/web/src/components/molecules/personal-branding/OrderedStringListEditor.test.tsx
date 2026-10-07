@@ -44,11 +44,13 @@ describe('OrderedStringListEditor', () => {
     );
 
     const draft = screen.getByPlaceholderText('Add item');
-    await user.type(draft, 'Agents{Enter}');
+    await user.type(draft, 'Agents');
+    await user.keyboard('{Control>}{Enter}{/Control}');
     expect(onChange).not.toHaveBeenCalled();
 
     await user.clear(draft);
-    await user.type(draft, 'Infra{Enter}');
+    await user.type(draft, 'Infra');
+    await user.keyboard('{Control>}{Enter}{/Control}');
     expect(onChange).toHaveBeenCalledWith(['Agents', 'Infra']);
   });
 

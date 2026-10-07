@@ -158,7 +158,7 @@ describe('ProfileLiveOutputTestPanel', () => {
     renderPanel();
     expect(await screen.findByText('Applied platform policy')).toBeInTheDocument();
     expect(screen.getByText('LinkedIn voice')).toBeInTheDocument();
-    expect(screen.getByText('3,000')).toBeInTheDocument();
+    expect(screen.getByText(/3,000/)).toBeInTheDocument();
     expect(screen.getByText(/Lead with a hook/)).toBeInTheDocument();
     expect(screen.queryByText('Universal fallback')).not.toBeInTheDocument();
   });
@@ -177,11 +177,11 @@ describe('ProfileLiveOutputTestPanel', () => {
     );
 
     renderPanel();
-    await screen.findByText('3,000');
+    await screen.findByText(/3,000/);
 
     await user.selectOptions(screen.getByLabelText(/target platform/i), 'x');
     await waitFor(() => {
-      expect(screen.getByText('280')).toBeInTheDocument();
+      expect(screen.getByText(/280/)).toBeInTheDocument();
     });
   });
 
