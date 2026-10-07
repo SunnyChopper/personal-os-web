@@ -164,7 +164,7 @@ export default function NoteAIAssistPanel({
   const [contentPreview, setContentPreview] = useState<ContentPreviewState | null>(null);
   const [regenerating, setRegenerating] = useState(false);
 
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
 
   const { catalog, isCatalogLoading, picker, setPicker, resolveApiModel } =
     useVaultNoteAIModelPicker();
@@ -481,7 +481,6 @@ export default function NoteAIAssistPanel({
         />
       )}
       <div className="fixed inset-y-0 right-0 w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl z-[80] overflow-y-auto">
-        <ToastContainer />
         <div className="p-6 space-y-4">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">

@@ -73,6 +73,7 @@ export function LogbookLinkSuggestionsPanel({
                     </span>
                   </div>
                   <Button
+                    type="button"
                     variant={linked ? 'primary' : 'secondary'}
                     size="sm"
                     onClick={() => onToggle(suggestion)}

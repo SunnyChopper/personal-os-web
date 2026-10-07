@@ -55,7 +55,6 @@ vi.mock('@/components/molecules/assistant/BrainstormModelPicker', () => ({
 vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
     showToast: showToastMock,
-    ToastContainer: () => null,
   }),
 }));
 

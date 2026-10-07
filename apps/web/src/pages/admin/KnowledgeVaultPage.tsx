@@ -99,7 +99,7 @@ export default function KnowledgeVaultPage() {
     updateCourse,
     updateFlashcardDeck,
   } = useKnowledgeVault();
-  const { showToast, ToastContainer } = useToast();
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [selectedArea, setSelectedArea] = useState<Area | 'all'>('all');
@@ -1082,8 +1082,6 @@ export default function KnowledgeVaultPage() {
         onDelete={() => setBulkConfirmMode('delete')}
         onClearSelection={handleClearSelection}
       />
-
-      <ToastContainer />
 
       <KeyboardShortcutsOverlay
         isOpen={shortcutsOpen}

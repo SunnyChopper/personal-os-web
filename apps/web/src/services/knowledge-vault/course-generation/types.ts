@@ -13,6 +13,19 @@ export interface CourseGenerationProgress {
   totalLessons?: number;
 }
 
+export interface LessonGenerationArtifact {
+  kind: 'analysis' | 'outline' | 'draftPreview' | 'polishNotes';
+  title: string;
+  bullets?: string[];
+  markdown?: string;
+}
+
+export interface LessonGenerationTrace {
+  analysisBullets?: string[];
+  outlineMarkdown?: string | null;
+  polishNotes?: string | null;
+}
+
 /**
  * Progress for per-lesson content generation.
  */
@@ -21,4 +34,7 @@ export interface LessonGenerationProgress {
   phaseName: string;
   summary?: string;
   progress: number;
+  artifact?: LessonGenerationArtifact;
 }
+
+export type LessonGenerationPhaseId = LessonGenerationProgress['phase'];
