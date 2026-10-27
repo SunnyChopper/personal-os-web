@@ -41,12 +41,6 @@ export function MetricInsightsPanel({
 
   const isConfigured = llmConfig.isConfigured();
 
-  useEffect(() => {
-    loadCachedInsights();
-    checkRefreshNeeded();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metric.id]);
-
   const loadCachedInsights = async () => {
     try {
       const response = await metricInsightsService.getInsights(metric.id);
@@ -66,6 +60,12 @@ export function MetricInsightsPanel({
       console.error('Failed to check refresh status:', err);
     }
   };
+
+  useEffect(() => {
+    loadCachedInsights();
+    checkRefreshNeeded();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metric.id]);
 
   const refreshInsights = async () => {
     if (!isConfigured) {

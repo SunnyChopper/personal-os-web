@@ -50,6 +50,55 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   }
 }
 
+interface DropdownMenuItemButtonProps {
+  item: MenuItem;
+  index: number;
+  registerItem: (index: number, node: HTMLButtonElement | null) => void;
+  onSelect: (item: MenuItem) => void;
+  onFocusIndex: (index: number) => void;
+}
+
+function DropdownMenuItemButton({
+  item,
+  index,
+  registerItem,
+  onSelect,
+  onFocusIndex,
+}: DropdownMenuItemButtonProps) {
+  const Icon = item.icon;
+  const isDanger = item.tone === 'danger';
+
+  return (
+    <button
+      ref={(node) => registerItem(index, node)}
+      type="button"
+      role="menuitem"
+      disabled={item.disabled}
+      tabIndex={-1}
+      onClick={() => onSelect(item)}
+      onFocus={() => onFocusIndex(index)}
+      className={cn(
+        'flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50',
+        pbFocusVisibleRingClassName,
+        isDanger
+          ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20'
+          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+      )}
+    >
+      {Icon ? <Icon size={14} className="shrink-0" /> : null}
+      <span className="min-w-0 flex-1">{item.label}</span>
+      {item.badge != null ? (
+        <span
+          className="ml-auto shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium tabular-nums text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+          aria-hidden
+        >
+          {item.badge}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 export default function DropdownMenuButton({
   label,
   items,
@@ -133,6 +182,10 @@ export default function DropdownMenuButton({
   const closeAndFocusTrigger = () => {
     setOpen(false);
     focusTrigger();
+  };
+
+  const registerItem = (index: number, node: HTMLButtonElement | null) => {
+    itemRefs.current[index] = node;
   };
 
   const isItemEnabled = (index: number) => !items[index]?.disabled;
@@ -321,43 +374,16 @@ export default function DropdownMenuButton({
                     : cn('absolute top-full z-50 mt-1', align === 'end' ? 'right-0' : 'left-0')
                 )}
               >
-                {items.map((item, index) => {
-                  const Icon = item.icon;
-                  const isDanger = item.tone === 'danger';
-
-                  return (
-                    <button
-                      key={item.key}
-                      ref={(node) => {
-                        itemRefs.current[index] = node;
-                      }}
-                      type="button"
-                      role="menuitem"
-                      disabled={item.disabled}
-                      tabIndex={-1}
-                      onClick={() => handleItemClick(item)}
-                      onFocus={() => setFocusedItemIndex(index)}
-                      className={cn(
-                        'flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50',
-                        pbFocusVisibleRingClassName,
-                        isDanger
-                          ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20'
-                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                      )}
-                    >
-                      {Icon ? <Icon size={14} className="shrink-0" /> : null}
-                      <span className="min-w-0 flex-1">{item.label}</span>
-                      {item.badge != null ? (
-                        <span
-                          className="ml-auto shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium tabular-nums text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-                          aria-hidden
-                        >
-                          {item.badge}
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
+                {items.map((item, index) => (
+                  <DropdownMenuItemButton
+                    key={item.key}
+                    item={item}
+                    index={index}
+                    registerItem={registerItem}
+                    onSelect={handleItemClick}
+                    onFocusIndex={setFocusedItemIndex}
+                  />
+                ))}
               </div>
             );
 

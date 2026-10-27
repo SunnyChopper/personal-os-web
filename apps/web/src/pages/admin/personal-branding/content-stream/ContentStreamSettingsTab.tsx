@@ -35,12 +35,14 @@ export default function ContentStreamSettingsTab({
   const [syncEndTime, setSyncEndTime] = useState(DEFAULT_SYNC_END_TIME);
   const [syncIntervalHours, setSyncIntervalHours] = useState(DEFAULT_SYNC_INTERVAL_HOURS);
 
+  const [scheduleNowMs, setScheduleNowMs] = useState(() => Date.now());
   const scheduleStatus = useMemo(
-    () => describeSyncSchedule(settings, Date.now(), 'radar'),
-    [settings]
+    () => describeSyncSchedule(settings, scheduleNowMs, 'radar'),
+    [settings, scheduleNowMs]
   );
 
   useEffect(() => {
+    setScheduleNowMs(Date.now());
     if (!settings) return;
     setEnabled(settings.enabled);
     setXUsername(settings.xUsername ?? '');

@@ -1006,12 +1006,8 @@ export default function PlatformRepurposerTab({ pipeline }: PlatformRepurposerTa
             scene="noVariants"
             title="No variants yet"
             description={variantsEmptyDescription}
-            {...(variantsEmptyActionLabel && handleVariantsEmptyAction
-              ? {
-                  actionLabel: variantsEmptyActionLabel,
-                  onAction: handleVariantsEmptyAction,
-                }
-              : {})}
+            actionLabel={variantsEmptyActionLabel}
+            onAction={handleVariantsEmptyAction}
             className="py-8"
           />
         ) : visibleVariants.length === 0 && visibleSkeletonPlatforms.length === 0 ? (

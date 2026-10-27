@@ -10,6 +10,32 @@ interface MetricCoachingProps {
   logs: MetricLog[];
 }
 
+function getToneColor(tone: string) {
+  switch (tone) {
+    case 'celebration':
+      return 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-900 dark:text-green-100';
+    case 'encouragement':
+      return 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100';
+    case 'warning':
+      return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-900 dark:text-yellow-100';
+    default:
+      return 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100';
+  }
+}
+
+function ToneIcon({ tone, className }: { tone: string; className?: string }) {
+  switch (tone) {
+    case 'celebration':
+      return <Target className={className} />;
+    case 'encouragement':
+      return <TrendingUp className={className} />;
+    case 'warning':
+      return <AlertCircle className={className} />;
+    default:
+      return <MessageSquare className={className} />;
+  }
+}
+
 export function MetricCoaching({ metric, logs }: MetricCoachingProps) {
   const [coaching, setCoaching] = useState<{
     message: string;
@@ -114,32 +140,6 @@ export function MetricCoaching({ metric, logs }: MetricCoachingProps) {
 
   const activeCoaching = coaching || calculatedCoaching;
 
-  const getToneColor = (tone: string) => {
-    switch (tone) {
-      case 'celebration':
-        return 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-900 dark:text-green-100';
-      case 'encouragement':
-        return 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100';
-      case 'warning':
-        return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-900 dark:text-yellow-100';
-      default:
-        return 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100';
-    }
-  };
-
-  const getToneIcon = (tone: string) => {
-    switch (tone) {
-      case 'celebration':
-        return Target;
-      case 'encouragement':
-        return TrendingUp;
-      case 'warning':
-        return AlertCircle;
-      default:
-        return MessageSquare;
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -148,12 +148,10 @@ export function MetricCoaching({ metric, logs }: MetricCoachingProps) {
     );
   }
 
-  const ToneIcon = getToneIcon(activeCoaching.tone);
-
   return (
     <div className={`p-6 rounded-lg border ${getToneColor(activeCoaching.tone)}`}>
       <div className="flex items-start gap-3 mb-4">
-        <ToneIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <ToneIcon tone={activeCoaching.tone} className="w-5 h-5 flex-shrink-0 mt-0.5" />
         <div className="flex-1">
           <h3 className="font-semibold mb-2">Personalized Coaching</h3>
           <p className="text-sm leading-relaxed">{activeCoaching.message}</p>

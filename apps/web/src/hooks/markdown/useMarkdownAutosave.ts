@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useFileSave } from '@/hooks/markdown/useFileSave';
 import { extractErrorMessage } from '@/lib/react-query/error-utils';
 
@@ -63,12 +63,14 @@ export function useMarkdownAutosave({
   const statusRef = useRef<AutosaveStatus>('idle');
   const onSavedRef = useRef(onSaved);
 
-  contentRef.current = content;
-  lastSavedContentRef.current = lastSavedContent;
-  enabledRef.current = enabled;
-  filePathRef.current = filePath;
-  statusRef.current = status;
-  onSavedRef.current = onSaved;
+  useLayoutEffect(() => {
+    contentRef.current = content;
+    lastSavedContentRef.current = lastSavedContent;
+    enabledRef.current = enabled;
+    filePathRef.current = filePath;
+    statusRef.current = status;
+    onSavedRef.current = onSaved;
+  });
 
   const clearIdleTimer = useCallback(() => {
     if (idleTimerRef.current !== null) {
@@ -98,70 +100,73 @@ export function useMarkdownAutosave({
     }
   }, []);
 
-  const performSave = useCallback(async (): Promise<void> => {
-    const path = filePathRef.current;
-    if (!path || !enabledRef.current) return;
+  const performSave = useCallback(
+    async function runSave(): Promise<void> {
+      const path = filePathRef.current;
+      if (!path || !enabledRef.current) return;
 
-    const snapshot = contentRef.current;
-    if (snapshot === lastSavedContentRef.current) {
-      setStatus('idle');
-      return;
-    }
-
-    if (inFlightRef.current) {
-      trailingRef.current = true;
-      return;
-    }
-
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    inFlightRef.current = true;
-    setStatus('saving');
-    setErrorMessage(null);
-
-    try {
-      const result = await saveFile(path, snapshot, false, {
-        silent: true,
-        signal: controller.signal,
-      });
-
-      if (controller.signal.aborted) return;
-
-      if (!result.success) {
-        throw new Error('Autosave failed');
-      }
-
-      lastSavedContentRef.current = snapshot;
-      setLastSavedAt(Date.now());
-      setStatus('saved');
-      backoffStepRef.current = 0;
-      onSavedRef.current(snapshot);
-
-      if (trailingRef.current) {
-        trailingRef.current = false;
-        if (contentRef.current !== snapshot) {
-          void performSave();
-        }
-      }
-    } catch (err) {
-      if (isAbortError(err) || controller.signal.aborted) {
-        trailingRef.current = false;
+      const snapshot = contentRef.current;
+      if (snapshot === lastSavedContentRef.current) {
+        setStatus('idle');
         return;
       }
 
-      backoffStepRef.current = Math.min(backoffStepRef.current + 1, BACKOFF_STEPS_MS.length);
-      setErrorMessage(extractErrorMessage(err, 'Could not autosave'));
-      setStatus('error');
-      trailingRef.current = false;
-    } finally {
-      inFlightRef.current = false;
-      if (!controller.signal.aborted && abortRef.current === controller) {
-        abortRef.current = null;
+      if (inFlightRef.current) {
+        trailingRef.current = true;
+        return;
       }
-    }
-  }, [saveFile]);
+
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      inFlightRef.current = true;
+      setStatus('saving');
+      setErrorMessage(null);
+
+      try {
+        const result = await saveFile(path, snapshot, false, {
+          silent: true,
+          signal: controller.signal,
+        });
+
+        if (controller.signal.aborted) return;
+
+        if (!result.success) {
+          throw new Error('Autosave failed');
+        }
+
+        lastSavedContentRef.current = snapshot;
+        setLastSavedAt(Date.now());
+        setStatus('saved');
+        backoffStepRef.current = 0;
+        onSavedRef.current(snapshot);
+
+        if (trailingRef.current) {
+          trailingRef.current = false;
+          if (contentRef.current !== snapshot) {
+            void runSave();
+          }
+        }
+      } catch (err) {
+        if (isAbortError(err) || controller.signal.aborted) {
+          trailingRef.current = false;
+          return;
+        }
+
+        backoffStepRef.current = Math.min(backoffStepRef.current + 1, BACKOFF_STEPS_MS.length);
+        setErrorMessage(extractErrorMessage(err, 'Could not autosave'));
+        setStatus('error');
+        trailingRef.current = false;
+      } finally {
+        inFlightRef.current = false;
+        if (!controller.signal.aborted && abortRef.current === controller) {
+          abortRef.current = null;
+        }
+      }
+    },
+    [saveFile]
+  );
 
   const scheduleFlush = useCallback(
     (delayMs?: number) => {
@@ -175,18 +180,21 @@ export function useMarkdownAutosave({
     [clearIdleTimer, getScheduleDelayMs, performSave]
   );
 
-  const startMaxIntervalTimer = useCallback(() => {
-    if (maxIntervalTimerRef.current !== null) return;
+  const startMaxIntervalTimer = useCallback(
+    function startTimer() {
+      if (maxIntervalTimerRef.current !== null) return;
 
-    maxIntervalTimerRef.current = setTimeout(() => {
-      maxIntervalTimerRef.current = null;
-      void performSave().finally(() => {
-        if (enabledRef.current && contentRef.current !== lastSavedContentRef.current) {
-          startMaxIntervalTimer();
-        }
-      });
-    }, maxIntervalMs);
-  }, [maxIntervalMs, performSave]);
+      maxIntervalTimerRef.current = setTimeout(() => {
+        maxIntervalTimerRef.current = null;
+        void performSave().finally(() => {
+          if (enabledRef.current && contentRef.current !== lastSavedContentRef.current) {
+            startTimer();
+          }
+        });
+      }, maxIntervalMs);
+    },
+    [maxIntervalMs, performSave]
+  );
 
   const flushNow = useCallback(async () => {
     clearIdleTimer();

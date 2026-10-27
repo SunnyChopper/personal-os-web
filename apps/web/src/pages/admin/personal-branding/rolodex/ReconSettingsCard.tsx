@@ -42,9 +42,10 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
   const [trendStreamResearchEnabled, setTrendStreamResearchEnabled] = useState(false);
   const [selectionGuidance, setSelectionGuidance] = useState('');
 
+  const [scheduleNowMs, setScheduleNowMs] = useState(() => Date.now());
   const scheduleStatus = useMemo(
-    () => describeSyncSchedule(settings, Date.now(), 'recon'),
-    [settings]
+    () => describeSyncSchedule(settings, scheduleNowMs, 'recon'),
+    [settings, scheduleNowMs]
   );
 
   const hasLastRunError = Boolean(
@@ -56,6 +57,7 @@ export default function ReconSettingsCard({ showToast }: ReconSettingsCardProps)
       : null;
 
   useEffect(() => {
+    setScheduleNowMs(Date.now());
     if (!settings) return;
     setSyncCadence(
       settings.syncCadence === ('EVERY_6_HOURS' as SyncCadence)

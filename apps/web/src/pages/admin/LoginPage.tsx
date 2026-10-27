@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/Auth';
@@ -19,7 +19,7 @@ export default function LoginPage() {
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const initialCheckComplete = useRef(false);
+  const [initialCheckComplete, setInitialCheckComplete] = useState(false);
 
   const { signIn, user, loading } = useAuth();
   const navigate = useNavigate();
@@ -33,11 +33,11 @@ export default function LoginPage() {
 
   // Track when initial auth check completes
   useEffect(() => {
-    if (!loading && !initialCheckComplete.current) {
-      initialCheckComplete.current = true;
+    if (!loading && !initialCheckComplete) {
+      setInitialCheckComplete(true);
       console.log('[LoginPage] Initial auth check completed');
     }
-  }, [loading]);
+  }, [loading, initialCheckComplete]);
 
   // Redirect authenticated users to dashboard immediately
   // This prevents the form from being shown and prevents form submission
@@ -57,7 +57,7 @@ export default function LoginPage() {
 
   // Show nothing during initial auth check or if user is authenticated (redirecting)
   // Don't hide during sign-in attempts (when initialCheckComplete is true)
-  if ((loading && !initialCheckComplete.current) || (!loading && user)) {
+  if ((loading && !initialCheckComplete) || (!loading && user)) {
     return null;
   }
 

@@ -77,19 +77,6 @@ export default function CourseDetailPage() {
   const [preQuizOpen, setPreQuizOpen] = useState(true);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadCourseData();
-  }, [courseId]);
-
-  useEffect(() => {
-    if (lessonId && courseData) {
-      const lesson = courseData.modules.flatMap((m) => m.lessons).find((l) => l.id === lessonId);
-      if (lesson) {
-        loadLessonContent(lesson);
-      }
-    }
-  }, [lessonId, courseData]);
-
   const loadCourseData = async () => {
     if (!courseId) return;
 
@@ -116,6 +103,19 @@ export default function CourseDetailPage() {
     setGenerationError(null);
     await vaultItemsService.markAccessed(lesson.id);
   };
+
+  useEffect(() => {
+    loadCourseData();
+  }, [courseId]);
+
+  useEffect(() => {
+    if (lessonId && courseData) {
+      const lesson = courseData.modules.flatMap((m) => m.lessons).find((l) => l.id === lessonId);
+      if (lesson) {
+        loadLessonContent(lesson);
+      }
+    }
+  }, [lessonId, courseData]);
 
   const reportLessonGenerationFailure = (message: string) => {
     setGenerationError(message);
