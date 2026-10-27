@@ -98,11 +98,14 @@ export function SynthesisPanel({
     setWidth(next);
   }, []);
 
-  const onMouseUp = useCallback(() => {
-    dragRef.current = null;
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
-  }, [onMouseMove]);
+  const onMouseUp = useCallback(
+    function handleMouseUp() {
+      dragRef.current = null;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    },
+    [onMouseMove]
+  );
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
   TaskListToggleContext,
   type TaskListToggleHandler,
@@ -11,20 +11,15 @@ export function TaskListToggleProvider({
   children: ReactNode;
   onToggle?: TaskListToggleHandler;
 }) {
-  const counterRef = useRef(0);
-  counterRef.current = 0;
-
-  const value = useMemo(
-    () => ({
-      onToggle,
-      allocateIndex: () => {
-        const index = counterRef.current;
-        counterRef.current += 1;
-        return index;
-      },
-    }),
-    [onToggle]
-  );
+  const counter = { next: 0 };
+  const value = {
+    onToggle,
+    allocateIndex: () => {
+      const index = counter.next;
+      counter.next += 1;
+      return index;
+    },
+  };
 
   return <TaskListToggleContext.Provider value={value}>{children}</TaskListToggleContext.Provider>;
 }

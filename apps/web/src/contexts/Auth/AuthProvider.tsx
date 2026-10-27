@@ -27,73 +27,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return () => window.removeEventListener(AUTH_STORAGE_CLEARED_EVENT, onStorageCleared);
   }, []);
 
-  useEffect(() => {
-    authLogger.debug('AuthProvider mounted, checking user');
-    // Clear any invalid stored users (with UUID emails) before checking
-    authService.clearInvalidStoredUser();
-    checkUser();
-
-    // Set up periodic token validation and proactive refresh
-    // Check every minute to see if tokens need refreshing
-    refreshIntervalRef.current = setInterval(async () => {
-      const tokens = authService.getStoredTokens();
-      if (!tokens?.accessToken) {
-        return;
-      }
-
-      // Check if token is expired
-      if (authService.areStoredTokensExpired()) {
-        authLogger.info('Periodic auth check found expired token');
-        try {
-          const refreshResponse = await authService.refreshToken();
-          if (refreshResponse.success && refreshResponse.data) {
-            authLogger.info('Periodic token refresh successful');
-            apiClient.setAuthToken(refreshResponse.data.accessToken);
-          } else {
-            authLogger.warn('Periodic token refresh failed');
-            authService.clearTokensOnly();
-            apiClient.setAuthToken(null);
-            setUser(null);
-          }
-        } catch (err) {
-          authLogger.warn('Periodic token refresh threw', err);
-          authService.clearTokensOnly();
-          apiClient.setAuthToken(null);
-          setUser(null);
-        }
-        return;
-      }
-
-      // Check if token should be refreshed proactively (within 5 minutes of expiration)
-      if (authService.shouldRefreshTokenProactively(300)) {
-        const timeUntilExpiration = authService.getTimeUntilExpiration(tokens.accessToken);
-        authLogger.info('Token nearing expiry, refreshing proactively', {
-          timeUntilExpiration,
-        });
-        try {
-          const refreshResponse = await authService.refreshToken();
-          if (refreshResponse.success && refreshResponse.data) {
-            authLogger.info('Proactive token refresh successful');
-            apiClient.setAuthToken(refreshResponse.data.accessToken);
-          } else {
-            authLogger.warn('Proactive token refresh failed');
-          }
-        } catch (err) {
-          authLogger.warn('Proactive token refresh threw', err);
-        }
-      }
-    }, 60000); // Check every 60 seconds
-
-    return () => {
-      authLogger.debug('AuthProvider unmounting, clearing token check interval');
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handleTokenRefresh = async (): Promise<boolean> => {
     authLogger.info('checkUser found expired tokens, attempting refresh');
     try {
@@ -210,6 +143,73 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       markStartup('auth_check_end');
     }
   };
+
+  useEffect(() => {
+    authLogger.debug('AuthProvider mounted, checking user');
+    // Clear any invalid stored users (with UUID emails) before checking
+    authService.clearInvalidStoredUser();
+    checkUser();
+
+    // Set up periodic token validation and proactive refresh
+    // Check every minute to see if tokens need refreshing
+    refreshIntervalRef.current = setInterval(async () => {
+      const tokens = authService.getStoredTokens();
+      if (!tokens?.accessToken) {
+        return;
+      }
+
+      // Check if token is expired
+      if (authService.areStoredTokensExpired()) {
+        authLogger.info('Periodic auth check found expired token');
+        try {
+          const refreshResponse = await authService.refreshToken();
+          if (refreshResponse.success && refreshResponse.data) {
+            authLogger.info('Periodic token refresh successful');
+            apiClient.setAuthToken(refreshResponse.data.accessToken);
+          } else {
+            authLogger.warn('Periodic token refresh failed');
+            authService.clearTokensOnly();
+            apiClient.setAuthToken(null);
+            setUser(null);
+          }
+        } catch (err) {
+          authLogger.warn('Periodic token refresh threw', err);
+          authService.clearTokensOnly();
+          apiClient.setAuthToken(null);
+          setUser(null);
+        }
+        return;
+      }
+
+      // Check if token should be refreshed proactively (within 5 minutes of expiration)
+      if (authService.shouldRefreshTokenProactively(300)) {
+        const timeUntilExpiration = authService.getTimeUntilExpiration(tokens.accessToken);
+        authLogger.info('Token nearing expiry, refreshing proactively', {
+          timeUntilExpiration,
+        });
+        try {
+          const refreshResponse = await authService.refreshToken();
+          if (refreshResponse.success && refreshResponse.data) {
+            authLogger.info('Proactive token refresh successful');
+            apiClient.setAuthToken(refreshResponse.data.accessToken);
+          } else {
+            authLogger.warn('Proactive token refresh failed');
+          }
+        } catch (err) {
+          authLogger.warn('Proactive token refresh threw', err);
+        }
+      }
+    }, 60000); // Check every 60 seconds
+
+    return () => {
+      authLogger.debug('AuthProvider unmounting, clearing token check interval');
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSignIn = async (email: string, password: string): Promise<void> => {
     try {

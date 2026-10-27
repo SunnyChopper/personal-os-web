@@ -97,7 +97,7 @@ function MarkdownAutosaveFooter({
   lastSavedAt: number | null;
   errorMessage: string | null;
 }) {
-  const [, setTick] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
   const prevStatusRef = useRef<AutosaveStatus | null>(null);
 
@@ -121,7 +121,8 @@ function MarkdownAutosaveFooter({
 
   useEffect(() => {
     if (status !== 'saved' || lastSavedAt === null) return;
-    const id = window.setInterval(() => setTick((t) => t + 1), 15_000);
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 15_000);
     return () => window.clearInterval(id);
   }, [status, lastSavedAt]);
 
@@ -178,7 +179,7 @@ function MarkdownAutosaveFooter({
   }
 
   if (status === 'saved' && lastSavedAt !== null) {
-    const label = formatAutosaveTimeAgo(lastSavedAt, Date.now());
+    const label = formatAutosaveTimeAgo(lastSavedAt, now);
     return (
       <>
         {liveRegion}

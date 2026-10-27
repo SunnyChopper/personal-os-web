@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import LinearProgressBar from '@/components/atoms/LinearProgressBar';
 import {
   replyAgentProgress,
@@ -62,9 +63,11 @@ export default function ReplyGeneratingState({
   run = null,
   submittedDraft = null,
   isPending = false,
-  nowMs = Date.now(),
+  nowMs: nowMsProp,
   className,
 }: ReplyGeneratingStateProps) {
+  const [mountedAtMs] = useState(() => Date.now());
+  const nowMs = nowMsProp ?? mountedAtMs;
   const context = resolveGeneratingContext(run, submittedDraft);
   const skeletonCount = context.suggestionCount;
   const agentProgress =

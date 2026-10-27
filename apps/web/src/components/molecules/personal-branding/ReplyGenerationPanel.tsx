@@ -172,7 +172,10 @@ export default function ReplyGenerationPanel({
 
   const generateDisabled = disabled || isGenerating || !selectedModel || !hasProfile;
   const generateRef = useRef(handleGenerate);
-  generateRef.current = handleGenerate;
+
+  useEffect(() => {
+    generateRef.current = handleGenerate;
+  }, [handleGenerate]);
 
   useEffect(() => {
     if (generateButtonPlacement !== 'external' || !onGenerateControlsChange) return;

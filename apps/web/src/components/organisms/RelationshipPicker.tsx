@@ -496,7 +496,10 @@ export function RelationshipPicker({
   const [expandedGoalIds, setExpandedGoalIds] = useState<Set<string>>(() => new Set());
   const [baselineLinkedIds, setBaselineLinkedIds] = useState<string[]>([]);
   const selectedIdsRef = useRef(selectedIds);
-  selectedIdsRef.current = selectedIds;
+
+  useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  }, [selectedIds]);
 
   useEffect(() => {
     if (!isOpen) return;

@@ -294,7 +294,9 @@ export function GoalDetailView({
 
   // Use refs to store latest values for use in effect without causing re-renders
   const latestValuesRef = useRef({ goal, tasks, metrics, habits });
-  latestValuesRef.current = { goal, tasks, metrics, habits };
+  useEffect(() => {
+    latestValuesRef.current = { goal, tasks, metrics, habits };
+  }, [goal, tasks, metrics, habits]);
 
   // Create stable ID arrays for dependency tracking to avoid infinite loops
   const taskIds = useMemo(

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import LinearProgressBar from '@/components/atoms/LinearProgressBar';
 import {
   replyGenerationStartedAtMs,
@@ -17,9 +18,11 @@ export interface ReplyPolishingStripProps {
 export default function ReplyPolishingStrip({
   run = null,
   submittedDraft = null,
-  nowMs = Date.now(),
+  nowMs: nowMsProp,
   className,
 }: ReplyPolishingStripProps) {
+  const [mountedAtMs] = useState(() => Date.now());
+  const nowMs = nowMsProp ?? mountedAtMs;
   const mode: ReplyGenerationMode = run?.mode ?? submittedDraft?.mode ?? 'SIMPLE';
   const researchEnabled = run?.researchEnabled ?? submittedDraft?.researchEnabled ?? false;
   const vaultGroundingEnabled =

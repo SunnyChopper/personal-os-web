@@ -68,14 +68,12 @@ export default function LinkedStackTrace({
     setExpandedGroups((prev) => ({ ...prev, [groupIndex]: !prev[groupIndex] }));
   };
 
-  let segmentRenderIndex = 0;
   const lastSegmentIndex = segments.length - 1;
 
   return (
     <pre className={cn('text-xs whitespace-pre-wrap', className)}>
-      {segments.map((segment) => {
-        const isLastSegment = segmentRenderIndex === lastSegmentIndex;
-        segmentRenderIndex += 1;
+      {segments.map((segment, segmentIndex) => {
+        const isLastSegment = segmentIndex === lastSegmentIndex;
 
         if (segment.kind === 'line') {
           const { line } = segment;

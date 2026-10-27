@@ -20,11 +20,6 @@ export function MetricMilestoneSystem({
   const [milestones, setMilestones] = useState<MetricMilestone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadMilestones();
-    detectNewMilestones();
-  }, [metric.id, logs.length]);
-
   const loadMilestones = async () => {
     try {
       const response = await metricMilestonesService.getMilestones(metric.id);
@@ -51,6 +46,11 @@ export function MetricMilestoneSystem({
       console.error('Failed to detect milestones:', error);
     }
   };
+
+  useEffect(() => {
+    loadMilestones();
+    detectNewMilestones();
+  }, [metric.id, logs.length]);
 
   const getMilestoneIcon = (type: MetricMilestone['type']) => {
     switch (type) {
