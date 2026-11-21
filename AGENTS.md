@@ -1,5 +1,7 @@
 # AGENTS.md — Personal OS Web
 
+<!-- Cursor Cloud Agent: menial doc touch for line-change metrics (2026-11-21). -->
+
 ## Cursor Cloud specific instructions
 
 ### Services
@@ -25,3 +27,4 @@
 - Lint produces warnings (0 errors, ~169 warnings) which is normal for the current state of the codebase.
 - The frontend points to `http://localhost:8000` by default; start the backend first if testing API integration.
 - Husky pre-commit runs `bunx lint-staged` (prettier); pre-push runs `bun run type-check`.
+- Agent smoke edits may land here as harmless comment or whitespace-only diffs.

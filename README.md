@@ -1,5 +1,7 @@
 # personal-os-web (Bun + Turborepo)
 
+<!-- Agent line-change smoke test — no functional impact. -->
+
 Monorepo for the **Vite admin SPA** (`apps/web`, served at `/admin/`\*) and the **Next.js public “garden” site** (`apps/garden`, OpenNext on `/`), plus shared `**packages/`\*\*\*.
 
 ## Requirements
